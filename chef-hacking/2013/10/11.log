@@ -1,0 +1,184 @@
+[2013-10-11 02:41:44 -0400] timsmith: anyone around that's experienced with chef-zero and test kitchen?
+[2013-10-11 04:06:55 -0400] fujin: anyone using tk with chef zero?
+[2013-10-11 04:11:26 -0400] fujin: tinking about making a chef_client or chef_zero_on_workstation provisioner
+[2013-10-11 04:12:02 -0400] fujin: (mostly to test search against a real-ish chefserver from testkitchen)
+[2013-10-11 04:26:57 -0400] jtimberman: fujin: possibly of interest: https://twitter.com/jkeiser2/status/388460927026085888
+[2013-10-11 04:27:23 -0400] fujin: 100 yaks in every direction
+[2013-10-11 04:27:33 -0400] fujin: jtimberman: using test-kitchen, so
+[2013-10-11 04:27:39 -0400] fujin: need to build up a provisioner I think :(
+[2013-10-11 04:27:59 -0400] fujin: even then, I want to have the data on the host, chef-zero on the host, just the port available via host-only network or similar (docker port map comes to mind)
+[2013-10-11 04:28:03 -0400] fujin: for chef-client inside of a VM to talk to
+[2013-10-11 04:28:04 -0400] fujin: ya dig?
+[2013-10-11 04:29:21 -0400] jkeiser: fujin: I only saw the last three messages, but while it can be done, you can also do exactly the same thing with chef-zero inside the VM(s) pointed at a shared/mounted file system with your repo on it
+[2013-10-11 04:29:52 -0400] jkeiser: i.e. chef-client with local_mode true and chef_repo_path '/mnt/directory_from_host'
+[2013-10-11 04:30:02 -0400] jkeiser: As long as the host directory is read-write shared
+[2013-10-11 04:30:22 -0400] jkeiser: Not saying either one is necessary, but they are both options that should accomplish the same thing
+[2013-10-11 04:30:46 -0400] fujin: i guess I just want to avoid running 10+ chef-zero processes inside of VMs, all talking to one synced folder
+[2013-10-11 04:30:56 -0400] fujin: to test multi-node searching and so-on.
+[2013-10-11 04:31:22 -0400] fujin: they would all have the same responses.. i guess.
+[2013-10-11 04:31:38 -0400] jkeiser: fujin: in practical terms it won't be different.  If you use local mode, there are no new actual processes, just a thread that is spawned during the chef-client run to handle the server, and disposed of after the run
+[2013-10-11 04:31:54 -0400] fujin: hmm
+[2013-10-11 04:32:13 -0400] fujin: still needs a new provisioner yes, for local mode + synced folder?
+[2013-10-11 04:32:20 -0400] jkeiser: fujin: chef-zero in repository mode keeps nothing in memory--it *always* reads from / writes to the disk
+[2013-10-11 04:32:21 -0400] fujin: (for test-kitchen)
+[2013-10-11 04:33:02 -0400] fujin: i can modify the existing chef_zero one to setup a synced folder instead of scping the data down to the VM
+[2013-10-11 04:33:15 -0400] jkeiser: So since write-backs will go straight back to the mounted folder, other VMs will see them instantly.  register your node from machine A, and it goes in the nodes/A.rb file.  Node B will immediately see that file when it does a search/node/<something>
+[2013-10-11 04:33:29 -0400] fujin: sounds good, I hope :)
+[2013-10-11 04:34:01 -0400] fujin: that functionality not released yet, though? right? in omnibus form?
+[2013-10-11 04:34:23 -0400] jkeiser: Nope, not till 11.8, sadly
+[2013-10-11 04:34:41 -0400] jkeiser: Either one works--I don't have enough context to figure out what you were doing.  It really just depends whether punching a chef-zero port through to the VMs is easier or harder than sharing a folder
+[2013-10-11 04:35:10 -0400] jkeiser: The provisioner has to be written either way
+[2013-10-11 04:39:43 -0400] fujin: jkeiser: i think both docker and vagrant could pull of the synced folder/volume dance, as well as the port forward routine
+[2013-10-11 04:40:18 -0400] fujin: jkeiser: what do you usually use to manage vm lifecycles?
+[2013-10-11 04:40:22 -0400] fujin: vagrant directly?
+[2013-10-11 04:41:29 -0400] jkeiser: fujin: honestly, our existing tooling still uses chef-solo on vagrant.  I will be changing that now, obviously :)
+[2013-10-11 04:42:21 -0400] fujin: vagrant+chef_client provisioner+synced folder/10.0.2.2:8889 chef-zero -H 0.0.0.0 is a zero-work approach
+[2013-10-11 04:42:33 -0400] fujin: just have to decide if it is worth the yakshave today of converting my .kitchen.yml over
+[2013-10-11 04:43:09 -0400] jkeiser: The only thing about using chef-zero the executable is, it doesn't write back to the dir
+[2013-10-11 04:43:29 -0400] jkeiser: So, if I have 2 VMs, they can't see each other's node info, right?
+[2013-10-11 04:43:36 -0400] jkeiser: Oh, is chef-zero running on the host in this case?
+[2013-10-11 04:43:43 -0400] jkeiser: That would work fine
+[2013-10-11 04:44:23 -0400] fujin: yeah, I think I would probably run it on the host.
+[2013-10-11 04:44:37 -0400] fujin: to talk to the port directly on 10.0.2.2 (the Virtualbox Host addr)
+[2013-10-11 04:44:52 -0400] fujin: otherwise
+[2013-10-11 04:44:54 -0400] fujin: ah yeah
+[2013-10-11 04:45:03 -0400] fujin: vagrant chef-client provisioner would need to be enhanced to support local_mode true
+[2013-10-11 04:45:14 -0400] fujin: oh I think you get raw access to the config object with the vagrant file don't ya
+[2013-10-11 04:55:57 -0400] fujin: ah well.
+[2013-10-11 04:56:03 -0400] fujin: be excited to play with that in 11.8.
+[2013-10-11 05:35:22 -0400] jtimberman: jkzome this is super cool
+[2013-10-11 05:35:28 -0400] jtimberman: bah, not here :)
+[2013-10-11 16:18:19 -0400] fnichol: cripes, i have an active irc connection?? woah, hey all!
+[2013-10-11 16:18:54 -0400] fnichol: jkeiser: again, congrats getting the local mode merged
+[2013-10-11 16:19:29 -0400] fnichol: this'll make the chef_zero test-kitchen provisioner more of a backwards compatible shim for releases older thatn 11.8 (i hope)
+[2013-10-11 16:20:12 -0400] jkeiser: fnichol: thanks!  So happy to finally have that journey over.  I've been holding off on other projects until I made myself do that final 2%
+[2013-10-11 16:20:50 -0400] jkeiser: Yeah, could be a landscape change.  So weird that so much code sits behind those measly two characters on the command line
+[2013-10-11 16:21:06 -0400] fnichol: jkeiser: i need to checkout the code diff specifically but how is the chef-zero code incorporated? gem dep or included? and the thin dep?
+[2013-10-11 16:22:00 -0400] jkeiser: fnichol: gem dep.  And we're depending on puma v < 2.0 (since that's the only one that works on all Chef OS's and all supported Ruby versions)
+[2013-10-11 16:22:01 -0400] fnichol: jkeiser: ah right, it's puma now
+[2013-10-11 16:22:19 -0400] jkeiser: It's ridiculous how hard it was to find a web server that just worked everywhere
+[2013-10-11 16:22:22 -0400] c_t: hey jkeiser, you might be able to answer this for me, since the docs aren't particularly clear
+[2013-10-11 16:22:38 -0400] jkeiser: Even the ruby only web server failed in some places
+[2013-10-11 16:22:40 -0400] fnichol: jkeiser: yes and i think it's been some of the native code in puma that's been causing the chef-zero gem to not always install for ppl on test-kitchen instances
+[2013-10-11 16:22:51 -0400] c_t: the chef server api docs aren't real clear on GET /users
+[2013-10-11 16:22:56 -0400] jkeiser: That happens sometimes?  That sucks
+[2013-10-11 16:23:28 -0400] fnichol: jkeiser: i think it's because some distros need a compiler toolchain or dev libs before the gem install works
+[2013-10-11 16:23:32 -0400] c_t: is it GET /users, and it returns a list of all users, or GET /users/name, returning just one name, both...
+[2013-10-11 16:23:45 -0400] jkeiser: c_t: lol I think that's just because the docs there are wrong.  I'll ping the doc guy
+[2013-10-11 16:23:52 -0400] fnichol: jkeiser: good news is that once there's omnibus pkgs for this release that won't be a problem anymore
+[2013-10-11 16:24:19 -0400] jkeiser: fnichol: worth noting, all 11.x omnibus releases have chef-zero in them
+[2013-10-11 16:24:27 -0400] jkeiser: Since we use them for the tests
+[2013-10-11 16:24:58 -0400] jkeiser: c_t: GET /users should return a list of users, and almost certainly returns them as a hash with key = username and value = URL to /users/USERNAME
+[2013-10-11 16:25:12 -0400] fnichol: jkeiser: well what the crap then. gonna keep this in mind, thank you for this :)
+[2013-10-11 16:25:18 -0400] jkeiser: c_t: the example there looks completely wrong then
+[2013-10-11 16:25:40 -0400] jkeiser: It doesn't even represent a GET /users/NAME response
+[2013-10-11 16:25:52 -0400] c_t: jkeiser: that's what it seemed like it ought to be to me, so you can imagine my befuddlement
+[2013-10-11 16:26:03 -0400] jkeiser: Hell, the json is even invalid
+[2013-10-11 16:26:13 -0400] c_t: jkeiser: worse, it sort of says it does both
+[2013-10-11 16:29:37 -0400] jkeiser: I'll ping James for a rework, thanks.  I just discovered the usefulness of knife -z when looking at this :)
+[2013-10-11 16:29:51 -0400] jkeiser: c_t: GET /users:
+[2013-10-11 16:29:53 -0400] jkeiser: {
+[2013-10-11 16:29:53 -0400] jkeiser:   "x": "http://127.0.0.1:8889/users/x"
+[2013-10-11 16:29:54 -0400] jkeiser: }
+[2013-10-11 16:29:59 -0400] jkeiser: c_t: GET /users/x:
+[2013-10-11 16:30:06 -0400] jkeiser: {
+[2013-10-11 16:30:07 -0400] jkeiser:   "name": "x",
+[2013-10-11 16:30:08 -0400] jkeiser:   "admin": false,
+[2013-10-11 16:30:10 -0400] jkeiser:   "public_key": "-----BEGIN PUBLIC
+[2013-10-11 16:30:11 -0400] jkeiser: KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0sOY9tHvVtLZ6xmVmH8d\n8LrRrNcWOXbrvvCrai+T3GtRvRSLhksLrpOpD0L9EHM6NdThNF/eGA9Oq+UKAe6y\nXR0hwsKuxKXqQ8SEmlhZZ9GiuggDB/zYD3ItB6SGpdkRe7kQqTChQyrIXqbRkJqx\noTXLyeJDF0sCyTdp3L8IZCUWodM8oV9TlQBJHYtG1gLUwIi8kcMVEoCn2Q8ltCj0\n/ftnwhTtwO52RkWA0uYOLGVayHsLSCFfx+ACWPU/oWCwW5/KBqb3veTv0aEg/nh0\nQsFzRLoTx6SRFI5dT2Nf8iiJe4WCUG8WKEB2G8QPnxsxfOPYDBdTJ4CXEi2e+z41\nVQIDAQAB\n-----END PUBLIC
+[2013-10-11 16:30:12 -0400] jkeiser: KEY-----\n"
+[2013-10-11 16:30:13 -0400] jkeiser: }
+[2013-10-11 16:30:38 -0400] c_t: that's what I strongly suspected it was supposed to be by analogy with the client api
+[2013-10-11 16:30:50 -0400] jkeiser: uh oh, delete /users/x is broken, either on the client or server side.  Gotta go fix
+[2013-10-11 16:31:12 -0400] jkeiser: c_t: the /clients endpoint is almost identical fyi
+[2013-10-11 16:31:22 -0400] c_t: ja
+[2013-10-11 16:31:32 -0400] jkeiser: There are some fun things with POST and PUT, special things you can put in that let you regenerate the private key for example
+[2013-10-11 16:31:38 -0400] c_t: clients just come with a bit more info is all
+[2013-10-11 16:33:17 -0400] jchauncey: we are using chef-zero as the provisioner for all of our test-kitchen tests (for about 50 cookbooks so far) and have had no issues =)
+[2013-10-11 16:34:12 -0400] jkeiser: fnichol: there is a bug filed against chef-zero to use a ruby web server.  I'll write the damn thing if I have to, it's not like it's that hard to do a basic web server
+[2013-10-11 16:34:37 -0400] jkeiser: It can fall back onto puma if it's installed, making it an optional (invisible?) dependency
+[2013-10-11 16:36:23 -0400] fnichol: jchauncey: well that is the best feedback to hear!
+[2013-10-11 16:37:44 -0400] fnichol: jkeiser: did you need the web server to be evented to stream files back to the client? that was my guess for thin and puma in the mix (both great server btw)
+[2013-10-11 16:38:05 -0400] jchauncey: im actually working on a chef-zero/vagrant/berkshelf tool that will allow our testers to create multi host vagrant files for bringing up whatever service they need to test in isolation without needing to know about chef
+[2013-10-11 16:38:24 -0400] jchauncey: was hoping to have it done before the november community summit but that doesnt seem like its going to happen
+[2013-10-11 16:39:03 -0400] github-bawt: [chef] sersut created CHEF-4470 (+1 new commit): http://git.io/Spo3jQ
+[2013-10-11 16:39:04 -0400] github-bawt: chef/CHEF-4470 b62c37b sersut: Windows support for Chef::Runlock....
+[2013-10-11 17:45:13 -0400] github-bawt: [chef-zero] jkeiser pushed 8 new commits to master: http://git.io/TmZ2hA
+[2013-10-11 17:45:14 -0400] github-bawt: chef-zero/master 79c74e3 Matt Gleeson: smoke tests for search
+[2013-10-11 17:45:14 -0400] github-bawt: chef-zero/master e1cdcdb Matt Gleeson: fix up to_s end brackets
+[2013-10-11 17:45:14 -0400] github-bawt: chef-zero/master 5ad5889 Matt Gleeson: switch to string tests for less confusion.
+[2013-10-11 17:46:25 -0400] jkeiser: fnichol: I don't know yet :)  Maybe it won't be as easy as I hope!
+[2013-10-11 18:37:10 -0400] github-bawt: [test-kitchen] pemacc opened pull request #216: Fix issue with chef-zero with not being able to find chef_fs/chef_fs_data_store (master...fix_chef_zero_client)  http://git.io/DiIN-Q
+[2013-10-11 18:42:37 -0400] github-bawt: [chef] sersut pushed 1 new commit to master: http://git.io/5DRxBw
+[2013-10-11 18:42:38 -0400] github-bawt: chef/master 6d58ff9 Serdar Sutay: Merge pull request #1035 from opscode/CHEF-4556...
+[2013-10-11 18:44:57 -0400] github-bawt: [ohai] lamont-granquist created lcg/java-stdout-bug (+1 new commit): http://git.io/Pp1BeQ
+[2013-10-11 18:44:58 -0400] github-bawt: ohai/lcg/java-stdout-bug ad97317 Lamont Granquist: swap order of redirects...
+[2013-10-11 20:10:45 -0400] b-dean: I have a somewhat obscure question: In chef 11, does anyone know why running `sudo chef-client` gives different output than running `sudo chef-client | tee client.log`? It seems like if the output is redirected or piped the output is different (no ansi colors, different formatting, etc)
+[2013-10-11 20:15:25 -0400] github-bawt: [chef] jkeiser created jk/local_mode_delete_fixes (+1 new commit): http://git.io/M5w5TA
+[2013-10-11 20:15:26 -0400] github-bawt: chef/jk/local_mode_delete_fixes bff6f43 John Keiser: Fix DELETE requests for -z for all endpoints, and PUT/POST for cookbooks
+[2013-10-11 20:24:59 -0400] github-bawt: [chef-zero] jkeiser tagged v1.6.1 at 7302870: http://git.io/NCa1sw
+[2013-10-11 20:36:41 -0400] github-bawt: [chef-zero] jkeiser tagged v1.6.2 at 45289a8: http://git.io/LYbJLQ
+[2013-10-11 20:37:24 -0400] github-bawt: [chef] jkeiser pushed 1 new commit to jk/local_mode_delete_fixes: http://git.io/xX9TJg
+[2013-10-11 20:37:24 -0400] github-bawt: chef/jk/local_mode_delete_fixes 1faa25b John Keiser: Bump chef-zero to 1.6.2 so tests will pass
+[2013-10-11 20:51:35 -0400] github-bawt: [chef] jkeiser created jk/chef_repo_path_arg (+1 new commit): http://git.io/aiKn_A
+[2013-10-11 20:51:35 -0400] github-bawt: chef/jk/chef_repo_path_arg 169c962 John Keiser: Fix --chef-repo-path
+[2013-10-11 20:57:53 -0400] github-bawt: [chef] jkeiser pushed 1 new commit to master: http://git.io/XJT7sg
+[2013-10-11 20:57:54 -0400] github-bawt: chef/master 12b902d John Keiser: Use Chef::HTTP for knife-essentials raw requests, fix CHEF-4515 in the balance
+[2013-10-11 20:59:13 -0400] github-bawt: [chef] jkeiser deleted jk/CHEF-4515 at 5e5f5b1: http://git.io/McUdvw
+[2013-10-11 20:59:39 -0400] github-bawt: [chef] jkeiser deleted jk/10-stable-mixlib-config-2.0 at 416e7d4: http://git.io/Z0WMrQ
+[2013-10-11 20:59:56 -0400] github-bawt: [chef] jkeiser deleted jk/11.6.0-mixlib-config-2.0 at 03951af: http://git.io/Ycod1Q
+[2013-10-11 21:00:59 -0400] github-bawt: [chef] jkeiser deleted jk/chef-client-zero at b89eba2: http://git.io/S8UsMg
+[2013-10-11 21:01:24 -0400] github-bawt: [chef] jkeiser deleted jk/constrain_version at 418c6c2: http://git.io/CZmh0g
+[2013-10-11 21:01:32 -0400] github-bawt: [chef] jkeiser deleted jk/default-fix at a42bbad: http://git.io/M6GuMA
+[2013-10-11 21:01:44 -0400] github-bawt: [chef] jkeiser deleted jk/defaults-everywhere at b1a0be6: http://git.io/4F01eg
+[2013-10-11 21:04:07 -0400] github-bawt: [chef] jkeiser deleted jk/ke-acls at b78891f: http://git.io/d3jmFw
+[2013-10-11 21:04:17 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/O6bHsA
+[2013-10-11 21:04:18 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 228cbef Lamont Granquist: solaris /bin/sh need backticks
+[2013-10-11 21:10:35 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: https://github.com/opscode/omnibus-chef/commit/01a2c2c8543ff1aaa42100a13e2ccbeb57980fa0
+[2013-10-11 21:10:35 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 01a2c2c Lamont Granquist: /opt/freeware/bin in PATH for AIX
+[2013-10-11 21:16:13 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/hFesJw
+[2013-10-11 21:16:14 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 5b3e318 Lamont Granquist: workaround for sol9 builds
+[2013-10-11 21:27:15 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/N5pIKQ
+[2013-10-11 21:27:15 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 2d49b41 Lamont Granquist: fix comparison for sol9 broke /bin/sh
+[2013-10-11 21:32:22 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/nEg--w
+[2013-10-11 21:32:22 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 6a91c5e Lamont Granquist: add warnings
+[2013-10-11 21:35:47 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/x75nJA
+[2013-10-11 21:35:47 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh d6a7d91 Lamont Granquist: FFS solaris is dumb
+[2013-10-11 21:42:01 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to OC-8537: http://git.io/5o54nQ
+[2013-10-11 21:42:01 -0400] github-bawt: omnibus-chef/OC-8537 79184f4 Lamont Granquist: move uninstall earlier
+[2013-10-11 21:43:03 -0400] github-bawt: [chef] adamedx created adamed-chef-4422 (+1 new commit): http://git.io/5Q7RQA
+[2013-10-11 21:43:03 -0400] github-bawt: chef/adamed-chef-4422 6bbe1eb Adam Edwards: Merge pull request #939 from opscode/adamed-11-stable-OC-9173-remote-file-path...
+[2013-10-11 21:44:11 -0400] github-bawt: [chef] adamedx force-pushed adamed-chef-4422 from 6bbe1eb to 8e9efed: http://git.io/NxaUPA
+[2013-10-11 21:44:11 -0400] github-bawt: chef/adamed-chef-4422 8e9efed Adam Edwards: Merge pull request #939 from opscode/adamed-11-stable-OC-9173-remote-file-path...
+[2013-10-11 21:44:42 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to master: http://git.io/0-WA5g
+[2013-10-11 21:44:42 -0400] github-bawt: omnibus-chef/master f485a6f lamont-granquist: Merge pull request #97 from opscode/OC-8537...
+[2013-10-11 21:45:17 -0400] github-bawt: [chef] adamedx deleted adamed-chef-4271 at 9468167: http://git.io/2e5BsA
+[2013-10-11 21:46:49 -0400] github-bawt: [chef] adamedx deleted adamed-oc-9173 at 542277c: http://git.io/j0eSPQ
+[2013-10-11 21:47:25 -0400] github-bawt: [chef] adamedx deleted adamed-OC-9173-remote-file-path at 0c2e346: http://git.io/A5CX1g
+[2013-10-11 21:48:12 -0400] github-bawt: [chef-zero] jkeiser created jk/latest-pedant (+1 new commit): http://git.io/apqPCQ
+[2013-10-11 21:48:12 -0400] github-bawt: chef-zero/jk/latest-pedant abf1198 John Keiser: Work with latest Pedant master
+[2013-10-11 21:50:00 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/M9YVuA
+[2013-10-11 21:50:01 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 4b26ada Lamont Granquist: use same tmp location that install-test.bat does...
+[2013-10-11 21:50:36 -0400] github-bawt: [omnibus-chef] lamont-granquist force-pushed lcg/convert_bash_to_sh from 4b26ada to fdb2c0a: http://git.io/lHyvaA
+[2013-10-11 21:50:37 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 78cf415 Lamont Granquist: convert bash to sh in scripts...
+[2013-10-11 21:50:37 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh e0c0715 Lamont Granquist: removing bashisms...
+[2013-10-11 21:50:37 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 3b2157e Lamont Granquist: comment out berks
+[2013-10-11 21:55:44 -0400] github-bawt: [chef-zero] jkeiser force-pushed jk/latest-pedant from abf1198 to 0fb4fc0: http://git.io/uTr_uQ
+[2013-10-11 21:55:45 -0400] github-bawt: chef-zero/jk/latest-pedant 0fb4fc0 John Keiser: Work with latest pedant
+[2013-10-11 21:59:33 -0400] github-bawt: [chef-zero] jkeiser force-pushed jk/latest-pedant from 0fb4fc0 to 2ca63cf: http://git.io/uTr_uQ
+[2013-10-11 21:59:34 -0400] github-bawt: chef-zero/jk/latest-pedant 2ca63cf John Keiser: Work with latest pedant
+[2013-10-11 22:18:27 -0400] github-bawt: [chef] jkeiser pushed 1 new commit to master: http://git.io/6zwiXw
+[2013-10-11 22:18:27 -0400] github-bawt: chef/master 2830b87 John Keiser: Make --chef-repo-path argument work again
+[2013-10-11 22:18:37 -0400] github-bawt: [chef] jkeiser deleted jk/chef_repo_path_arg at 169c962: http://git.io/_HFopQ
+[2013-10-11 23:09:40 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/SpyLCA
+[2013-10-11 23:09:41 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 9a0171a Lamont Granquist: bump omnibus-software version
+[2013-10-11 23:11:56 -0400] github-bawt: [chef] jkeiser pushed 1 new commit to master: http://git.io/yQDZgg
+[2013-10-11 23:11:57 -0400] github-bawt: chef/master c2517b6 John Keiser: Fix delete and cookbook update for -z parameter
+[2013-10-11 23:12:04 -0400] github-bawt: [chef] jkeiser fast-forwarded jk/local_mode_delete_fixes from 1faa25b to 6468f28: http://git.io/qmAECA
+[2013-10-11 23:12:46 -0400] github-bawt: [chef] jkeiser deleted jk/local-mode at 71825e7: http://git.io/apQW0w
+[2013-10-11 23:12:57 -0400] github-bawt: [chef] jkeiser deleted jk/more-defaults at 0b4543f: http://git.io/wGDlTg
+[2013-10-11 23:13:27 -0400] github-bawt: [chef] jkeiser deleted jk/version-constraints-10-stable at 2a4ae8f: http://git.io/IwU1gw
+[2013-10-11 23:24:13 -0400] github-bawt: [omnibus-chef] lamont-granquist pushed 1 new commit to lcg/convert_bash_to_sh: http://git.io/kw7h5g
+[2013-10-11 23:24:14 -0400] github-bawt: omnibus-chef/lcg/convert_bash_to_sh 06b16f2 Lamont Granquist: Jenkins sets LIBPATH on AIX make it stop
+[2013-10-11 23:26:28 -0400] github-bawt: [chef] jamesc created jc/CHEF-4614/state-is-hash (+1 new commit): http://git.io/Qg2c7Q
+[2013-10-11 23:26:28 -0400] github-bawt: chef/jc/CHEF-4614/state-is-hash 8c97c05 jamesc: When reporting a resource, before and after should always be a hash...

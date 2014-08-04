@@ -1,0 +1,807 @@
+[2012-09-10 00:02:46 -0400] z: next question, is there a way within a recipe to access the metadata of the Cookbook you're working with?
+[2012-09-10 00:03:41 -0400] z: e.g; so you could do a case statement on the @platforms Mash object inside Chef::Cookbook::Metadata?
+[2012-09-10 00:05:32 -0400] flaccid: i'm just an aussie, everyone else would be enjoying their weekend
+[2012-09-10 00:06:15 -0400] yfeldblum: z, no
+[2012-09-10 00:06:24 -0400] z: yfeldblum: that sucks :-/
+[2012-09-10 00:06:25 -0400] flaccid: that sounds like a bad practice if you could
+[2012-09-10 00:06:42 -0400] yfeldblum: z, because the ruby metadata is just a thin convenience layer of purely static JSON data which *knife* compiles at the time of upload
+[2012-09-10 00:06:49 -0400] flaccid: though you could parse metadata.rb in the recipe
+[2012-09-10 00:06:54 -0400] yfeldblum: a thin convenience layer *over* purely static JSON data
+[2012-09-10 00:08:13 -0400] z: yfeldblum: I have a normal pattern where when distributions approach things *very* differently, I put Recipe[foo] on the node, and then 'case node["platform_version"]' with include_recipe foo::distro to support N >=1
+[2012-09-10 00:08:45 -0400] flaccid: not sure why you need metadata for any of that
+[2012-09-10 00:08:55 -0400] z: yfeldblum: It lets me include Recipe[foo] within Role[bla] and then assign that to CentOS and Ubuntu nodes, knowing they'll still get platform-specific shit called as appropriate to make sure Recipe[foo] works
+[2012-09-10 00:09:11 -0400] z: flaccid: I would prefer not to state in metadata.rb a 'supports' and then duplicate that in default.rb
+[2012-09-10 00:10:02 -0400] yfeldblum: z, why?
+[2012-09-10 00:10:08 -0400] z: flaccid: I would very much like it if I could 'case Chef::Cookbook::Metadata.PLATFORMS' (or whatever) and then include_recipe foo::${platform}
+[2012-09-10 00:10:45 -0400] yfeldblum: z, ah sorry i thought you were asking if the cookbook metadata could access the node's current platform
+[2012-09-10 00:10:51 -0400] flaccid: you simply do logic on node['platform'] in the recipe and can take advantage of value_for_platform(). there is no reason to involve metadata here.
+[2012-09-10 00:11:33 -0400] yfeldblum: z, so the answer to your question is yes
+[2012-09-10 00:11:40 -0400] z: flaccid: where you invoke the Recipe on a platform which isn't supported, I Chef::Log.error('You done bad, son, now go fix') so the Recipe itself effectively becomes a noop (with an insertion in the log)
+[2012-09-10 00:11:54 -0400] yfeldblum: z, you can, from within a recipe, access the metadata of the cookbook the recipe is a part of
+[2012-09-10 00:11:58 -0400] z: flaccid: rather than ending up with *fatal* error and the convergence failing entirely
+[2012-09-10 00:12:16 -0400] flaccid: once again i don't see any problem with doing this via logic in the recipe
+[2012-09-10 00:12:34 -0400] z: its unnecessary duplication, the information I want exists in metadata and is used there for other things
+[2012-09-10 00:12:44 -0400] z: why should I need to remember to update both when I add supprot for a new platform?
+[2012-09-10 00:12:57 -0400] z: yfeldblum: Oh cool, any pointers on how as I've been scratching my noggin on this for a while now ;)
+[2012-09-10 00:15:29 -0400] flaccid: it depends on your point of view i guess, but i don't see any documentation recommending to refer to metadata in recipes..
+[2012-09-10 00:15:31 -0400] z: yfeldblum: example metadata (http://zr.to/text/2B2q1V2t1H05) and cookbook (http://zr.to/text/1V1I3B1d0V1K)
+[2012-09-10 00:15:34 -0400] flaccid: i'd be interested to see that
+[2012-09-10 00:16:41 -0400] z: flaccid: I don't see any documentation covering a *bunch* of things, and Opscode state themselves they /prefer/ not to dictate approach. Whilst I've seen a bunch of community-inspired 'best practice' (codified in foodcritic, and elsewhere) the lack of documentation isn't going to stop me solving a problem in the most efficient way I can see ;)
+[2012-09-10 00:17:09 -0400] flaccid: yeah i'm just a user like you too z :)
+[2012-09-10 00:18:10 -0400] z: if we could somehow persuade distributions to not behave so completely differently around Ruby 1.8 vs Ruby 1.9 and installation as the system intepreter, I'd have less reason to be reaching for frankly quite hacky solutions in Chef :P
+[2012-09-10 00:18:51 -0400] z: supporting Debian 6, Ubuntu 10.04, Ubuntu 12.04, CentOS 5.x and CentOS 6.x in the *same* cookbook w/MRI1.8, MRI1.9 and REE1.8 is a pain in the balls
+[2012-09-10 00:19:44 -0400] yfeldblum: z, cb_meta = run_context.cookbook_collection[cookbook_name] ; Chef::Log.info("\n" + cb_meta.platforms.inspect)
+[2012-09-10 00:19:55 -0400] yfeldblum: z, cb_meta = run_context.cookbook_collection[cookbook_name].metadata ; Chef::Log.info("\n" + cb_meta.platforms.inspect)
+[2012-09-10 00:20:03 -0400] yfeldblum: z, should be something like that ...
+[2012-09-10 00:20:09 -0400] z: ah, thats awesome, thank you so much :)
+[2012-09-10 00:20:16 -0400] z: i'm trying to swap out 'plat' in the example I gave you
+[2012-09-10 00:20:28 -0400] z: for something like run_context.cookbook_collection[cookbook_name].metadata instead, apparently :D
+[2012-09-10 00:22:08 -0400] z: http://rubydoc.info/gems/chef/Chef/RunContext < not seen that before, looks handy
+[2012-09-10 00:22:17 -0400] yfeldblum: z, yes
+[2012-09-10 00:22:49 -0400] yfeldblum: z, with a little bit of tracing through the chef code, you can figure out how to get the info
+[2012-09-10 00:23:03 -0400] z: well thanks. this helps my minor crusade of having Recipe[foo] always do the right thing, and stopping node convergence failing as much as possible ;)
+[2012-09-10 00:24:25 -0400] z: It'd actually be interesting to save all the altered resources each run
+[2012-09-10 00:24:52 -0400] yfeldblum: z, that's already available to you in handlers
+[2012-09-10 00:24:53 -0400] z: then at the end of the *next* run (or however many later), identify any which changed again
+[2012-09-10 00:25:16 -0400] z: e.g; we have a few recipes which aren't written very well. they achieve their goal, but each run, they do it all over again
+[2012-09-10 00:25:24 -0400] yfeldblum: z, http://wiki.opscode.com/display/chef/Exception+and+Report+Handlers
+[2012-09-10 00:25:26 -0400] z: which is suboptimal.
+[2012-09-10 00:26:01 -0400] z: yfeldblum: I guess I can just push resources that get altered via a report handler, and then look for those suboptimal cases off the box
+[2012-09-10 00:26:02 -0400] yfeldblum: z, indeed, after a few initial rounds, chef-client runs should stop altering the system
+[2012-09-10 00:26:38 -0400] yfeldblum: z, yes, you can write a quick handler that emails you the list of resources, or posts it to campfire, or writes it to a log, etc
+[2012-09-10 00:28:07 -0400] yfeldblum: z, in fact, there are a number of such quick handlers floating out there that you can use
+[2012-09-10 00:28:38 -0400] z: i saw at least one cron job which alters IPtables in a way that chef then reverts the other day
+[2012-09-10 00:28:50 -0400] z: so tracking "Is IPtables getting screwed with each chef-client run?" would help detect that
+[2012-09-10 00:30:53 -0400] z: Righto, back to bodging. Thanks yfeldblum and flaccid :-)
+[2012-09-10 00:30:56 -0400] Umair: hi
+[2012-09-10 00:31:20 -0400] yfeldblum: z, but you have to remember that every script, execute, and ruby_block counts as "updated" unless you use a guard (only_if/not_if) and the guard prevents that script, execute, or ruby_block from running at all
+[2012-09-10 00:31:42 -0400] Umair: how do I make deploy resource use system installed Ruby, instead of ruby embedded in Omnibus installation?
+[2012-09-10 00:34:47 -0400] Umair: anyone there?
+[2012-09-10 00:38:13 -0400] flaccid: nope, nobody here
+[2012-09-10 01:01:01 -0400] z: Pretty sure you *cant* make the Deploy resource avoid using the embedded interpreter if thats how you installed
+[2012-09-10 01:01:15 -0400] z: If you desperately need to do that, I guess the solution is install via another means than Omnibus.
+[2012-09-10 01:11:44 -0400] hoover_damm: they have moved on however
+[2012-09-10 01:51:58 -0400] hashpuppy: trying out hosted chef and i keep getting:  FATAL: Net::HTTPServerException: 403 "Forbidden" w/ the following:  sudo chef-client -c /etc/chef/client.rb -j /etc/chef/dna.json
+[2012-09-10 01:52:55 -0400] hashpuppy: i've pretty much gave full permissions to every client/user on that node
+[2012-09-10 01:54:31 -0400] hashpuppy: it failed on a PUT
+[2012-09-10 01:54:39 -0400] hashpuppy: a GET went through ok.  so did a POST
+[2012-09-10 01:55:04 -0400] hashpuppy: Sending HTTP Request via PUT to api.opscode.com:443/organizations/myorg/nodes/test1-vagrant
+[2012-09-10 02:30:45 -0400] davidbanham: I'm struggling with the interaction between the attributes set in the default.rb of a recipe and those set with override_attributes in my role.
+[2012-09-10 02:31:11 -0400] davidbanham: Ohh, wait.
+[2012-09-10 02:31:20 -0400] hoover_damm: overrides are final
+[2012-09-10 02:31:28 -0400] hoover_damm: they will always be this value when node.save hits
+[2012-09-10 02:31:46 -0400] hoover_damm: if a attribute initializes one or sets it as a different value it will still retain the override value
+[2012-09-10 02:32:02 -0400] hoover_damm: there's some loose ways of initializing attributes that can lead to override attributes not appearing to work
+[2012-09-10 02:32:05 -0400] hoover_damm: but actually do
+[2012-09-10 02:32:07 -0400] davidbanham: hoover_damm: That's what I expected. I thought the override_attributes was blowing away my defaults instead of deep merging, but it turns out I just had a typo.
+[2012-09-10 02:32:36 -0400] davidbanham: Been banging my head against this for 30 minutes, finally came in to ask for help and that's when I see it!
+[2012-09-10 02:33:00 -0400] davidbanham: Thanks for listening!
+[2012-09-10 02:33:00 -0400] hoover_damm: doh
+[2012-09-10 02:33:08 -0400] hoover_damm: glad you found it
+[2012-09-10 02:51:53 -0400] Axsuul: whats the technology called, something like cobbler.. its used to setup a system before chef provisions it
+[2012-09-10 02:51:58 -0400] Axsuul: cant for the life of me remember it
+[2012-09-10 03:06:37 -0400] juliancdunn: http://linux.die.net/man/1/cobbler
+[2012-09-10 03:51:16 -0400] mnutt: Does anyone have any good strategies for writing resources that have include files?  For instance, I have a main "varnish" cookbook and I want to be able to have my app cookbooks require varnish and then do varnish_include "myapp" { source "myapp.vcl.erb" } and then modify my main varnish file to include the config file
+[2012-09-10 03:51:40 -0400] mnutt: it would work just fine if varnish allowed wildcard includes, but unfortunately it doesn't and never will
+[2012-09-10 05:24:47 -0400] flaccid_: kick/ban siezer?
+[2012-09-10 06:37:12 -0400] BryanWB_: ohai chefs!
+[2012-09-10 06:41:10 -0400] flaccid_: iaho
+[2012-09-10 08:10:07 -0400] zts: Is anyone using knife-ec2 and can confirm whether the knife[:region] setting in knife.rb works for them?
+[2012-09-10 08:10:58 -0400] zts: "knife ec2 server list" obeys the --region option on the command line, but the one in the config file isn't giving me any love
+[2012-09-10 08:27:37 -0400] fasten: zts: I'm using knife[:region] = "eu-west-1" in my knife.rb and it works well afaik
+[2012-09-10 08:29:14 -0400] zts: fasten: thanks, I'll dig into it more at my end
+[2012-09-10 08:31:22 -0400] fasten: zts: wait, you're right, knife ec2 server list isn't working without the --region option
+[2012-09-10 08:41:58 -0400] fasten: zts: http://tickets.opscode.com/browse/CHEF-1763 says it's been integrated into Chef 0.10
+[2012-09-10 08:42:11 -0400] fasten: but since then ec2 moved to a dedicated gem
+[2012-09-10 08:42:12 -0400] fasten: knife-ec2
+[2012-09-10 08:42:26 -0400] fasten: and it looks like the support dropped somewhere
+[2012-09-10 08:43:30 -0400] fasten: strangely enough knife-ec2-0.5.14/lib/chef/knife/ec2_base.rb does contain appropriate code
+[2012-09-10 08:43:41 -0400] fasten:          option :region,
+[2012-09-10 08:43:42 -0400] fasten:             :long => "--region REGION",
+[2012-09-10 08:43:43 -0400] fasten:             :description => "Your AWS region",
+[2012-09-10 08:43:44 -0400] fasten:             :default => "us-east-1",
+[2012-09-10 08:43:45 -0400] fasten:             :proc => Proc.new { |key| Chef::Config[:knife][:region] = key }
+[2012-09-10 09:04:53 -0400] fasten: zts: ok knife-ec2 bug is explained here http://tickets.opscode.com/browse/KNIFE_EC2-85
+[2012-09-10 09:05:52 -0400] fasten: and there http://tickets.opscode.com/browse/KNIFE_EC2-80
+[2012-09-10 09:06:05 -0400] fasten: fix has been merged 2 days ago on github https://github.com/opscode/knife-ec2/commit/d4648d49fb62b498f5b9273169b042bfc5fce247
+[2012-09-10 09:30:05 -0400] zts: fasten: thankyou so much!  I got pulled into a meeting before I could start digging, and I come back to the answer
+[2012-09-10 09:30:29 -0400] fasten: zts: i needed the answer too :)
+[2012-09-10 09:32:37 -0400] zts: fasten: nonetheless, give yourself a gold star :)
+[2012-09-10 10:17:54 -0400] Axsuul: What is that piece of software that is used to first setup software, starts with a c.. cobble? coddle?...
+[2012-09-10 10:18:08 -0400] Axsuul: first setup a server*
+[2012-09-10 10:19:08 -0400] zts: Cobbler
+[2012-09-10 10:24:16 -0400] Axsuul: zts: why thank you
+[2012-09-10 10:50:34 -0400] huuggee: has anyone seen that the users cookbook now appends a '-m' to the end of usermod lines, using chef 10.14.0 ?
+[2012-09-10 10:55:01 -0400] BryanWB_: huuggee: i have, causes me errrrrors
+[2012-09-10 10:55:06 -0400] BryanWB_: huuggee: what about u?
+[2012-09-10 10:56:50 -0400] grc: Chef novice here.  I have a config file generated by apt-get install and wish to append a single line of config to that.  Do I have to go the script route or is there a more elegant approach?
+[2012-09-10 10:57:15 -0400] BryanWB_: grc: there is a file_edit resource tho i have never used it
+[2012-09-10 10:57:35 -0400] grc: BryanWB_: sounds promising!  Thanks
+[2012-09-10 10:57:56 -0400] BryanWB_: grc: but it is for that purpose
+[2012-09-10 11:01:01 -0400] ranjibd: BryanWB_, did you get test-kitchen running ? im struggling with the rvm issue
+[2012-09-10 11:01:43 -0400] BryanWB_: ranjibd: y
+[2012-09-10 11:01:51 -0400] BryanWB_: ranjibd: i show u
+[2012-09-10 11:02:51 -0400] ranjibd: the standard base boxes do  not ship with rvm. and test-kitchen assumes rvm is installed (ticket : KITCHEN-4 ,)
+[2012-09-10 11:02:57 -0400] BryanWB_: ranjibd: https://github.com/bryanwb/java/blob/COOK-1218/test/kitchen/Kitchenfile#L2
+[2012-09-10 11:03:04 -0400] BryanWB_: u don't have to have rvm
+[2012-09-10 11:03:09 -0400] BryanWB_: it is bizarre syntax
+[2012-09-10 11:03:22 -0400] ranjibd: ohh.. nice
+[2012-09-10 11:03:23 -0400] BryanWB_: ranjibd: we need to have u on the show again btw
+[2012-09-10 11:03:30 -0400] BryanWB_: but w/ a better mic!  ;)
+[2012-09-10 11:05:44 -0400] ranjibd: BryanWB_, i use a dedicated windows laptop now for conf calls . Fedora 17 + alsa is screwing me
+[2012-09-10 11:06:01 -0400] ranjibd: still .. need to test the setup
+[2012-09-10 11:06:02 -0400] BryanWB_: goddamn linux audio
+[2012-09-10 11:07:46 -0400] Axsuul: ruby-build + rbenv is my worst offending cookbook for longest time taken to cook
+[2012-09-10 11:07:53 -0400] Axsuul: =/
+[2012-09-10 11:08:16 -0400] Axsuul: huuggee: yes, I just experienced that today
+[2012-09-10 11:08:23 -0400] Axsuul: huuggee: fixed it by removing manage home option
+[2012-09-10 11:19:36 -0400] Axsuul: BryanWB_, huuggee: https://groups.google.com/forum/?fromgroups#!topic/2600hz-dev/OYuu8e2hYsE
+[2012-09-10 11:38:57 -0400] BryanWB_: Axsuul: huuggee i c the fix is in  10.14.2
+[2012-09-10 11:39:03 -0400] BryanWB_: already, but no gem :(
+[2012-09-10 11:47:20 -0400] grc: Another naive question.  I'm about to use cookbooks/files to distribute a config file.  I then want to :reload the service that uses that config.
+[2012-09-10 11:47:40 -0400] grc: Two parts: what's the order of execution of file distribution and recipe execution?
+[2012-09-10 11:47:53 -0400] grc: And am I doing this "the Chef way"?
+[2012-09-10 11:48:16 -0400] ashb: grc: sounds like you're doing it right
+[2012-09-10 11:48:30 -0400] ashb: putitng a file in the cookbook doesn't do anything automatically on the node
+[2012-09-10 11:48:45 -0400] ashb: you have to put it in place using the right resource in the cookbook
+[2012-09-10 11:49:13 -0400] grc: ah, so there's my ordering
+[2012-09-10 11:49:25 -0400] ashb: http://wiki.opscode.com/display/chef/Resources#Resources-CookbookFile
+[2012-09-10 11:49:38 -0400] grc: ashb: cookbook_file: blurb, then service :restart
+[2012-09-10 11:49:53 -0400] ashb: I'd have the cookbook_file resource notify the service to restart
+[2012-09-10 11:50:05 -0400] ashb: that way it only happens when the file changes, vs every time chef runs
+[2012-09-10 11:50:10 -0400] ashb: s/chef/chef-client/
+[2012-09-10 11:50:57 -0400] grc: ashb: Thanks for the link.  As you've probably heard before, there's a lot to chef and dipping one's toe in is .... interesting
+[2012-09-10 11:53:20 -0400] grc: ashb: Do you have a link for an idiot's guide to notifying a service?
+[2012-09-10 12:05:05 -0400] grc: ashb: Found what I needed by googling notifies rather than notify
+[2012-09-10 12:08:26 -0400] omar_: hi
+[2012-09-10 12:10:02 -0400] omar_: I'm setting some chef recipes installing them from the community website. How do you work with them? Do you consider just a point of start which you change based on what you need? I see that the whole chef-repo is under git, so it shouldn't break anything when updating the recipes later from the community site
+[2012-09-10 12:11:17 -0400] omar_: Having installed few cookbooks I see that I'll need to change some thing about them. For example adding monit scripts or config changes. I don't know if it's better to create another cookbook just for this, or change the cookbook itself in order to have everything in one place
+[2012-09-10 12:18:01 -0400] ehaselwanter: ohai chefs
+[2012-09-10 12:18:18 -0400] BryanWB_: hey ehaselwanter !
+[2012-09-10 12:18:23 -0400] BryanWB_: coming to devopsdays Rome?
+[2012-09-10 12:18:46 -0400] ehaselwanter: anybody using 10.14 already. just seen a chef-client running since saturday
+[2012-09-10 12:19:01 -0400] ehaselwanter: and it is happily using 2,
+[2012-09-10 12:19:08 -0400] ehaselwanter: 2.5 gb ram
+[2012-09-10 12:19:53 -0400] ehaselwanter: BryanWB_: would love to
+[2012-09-10 12:20:09 -0400] BryanWB_: ouch
+[2012-09-10 12:20:12 -0400] BryanWB_: about the RAM
+[2012-09-10 12:20:21 -0400] BryanWB_: i m using, but  haven't measured ram usage
+[2012-09-10 12:20:32 -0400] BryanWB_: i use cron to launch it
+[2012-09-10 12:20:43 -0400] ehaselwanter: yeah
+[2012-09-10 12:20:49 -0400] ehaselwanter: cron would be an option
+[2012-09-10 12:21:09 -0400] ehaselwanter: its not my idea .. its using demonize and watched by bluepill
+[2012-09-10 12:22:10 -0400] ehaselwanter: but that's still a problem
+[2012-09-10 12:22:19 -0400] ehaselwanter: maybe its a ruby 1.8 issue?
+[2012-09-10 12:23:01 -0400] adamben: hi all
+[2012-09-10 12:24:18 -0400] omar_: ehaselwanter: I was reading about bluepill just few minutes ago... does it still make sense to use bluepill instead of monit?
+[2012-09-10 12:26:05 -0400] ehaselwanter: omar_: its a toll in your toolbelt
+[2012-09-10 12:26:21 -0400] ehaselwanter: if you are happy with monit us it ...
+[2012-09-10 12:26:37 -0400] ehaselwanter: i used god and bluepill and both do their job well
+[2012-09-10 12:26:43 -0400] adamben: I have a question that might sounds like it's asking for a subjective answer but what is the best recommendation for a devops who is more of a developer than a sysadmin? chef or puppet?
+[2012-09-10 12:27:07 -0400] ehaselwanter: adamben: chef
+[2012-09-10 12:27:29 -0400] ehaselwanter: had lots of discussions about that lately
+[2012-09-10 12:27:43 -0400] BryanWB_: and if u are more sysadmin than dev, i recommend   .  . .
+[2012-09-10 12:27:44 -0400] BryanWB_: chef
+[2012-09-10 12:27:49 -0400] adamben: Im looking to turn to a tool that automate server provisioning
+[2012-09-10 12:27:59 -0400] adamben: hehe
+[2012-09-10 12:28:02 -0400] omar_: ehaselwanter: sure, I was more worried because of this: https://github.com/arya/bluepill/pull/141#issuecomment-6043454 ...is a tool that's rusting :(
+[2012-09-10 12:28:03 -0400] BryanWB_: cuz u gotta code either way, and chef is simpler and more consistent
+[2012-09-10 12:28:06 -0400] Babar: if you're a human being, I recommend never using the term devops ever again.
+[2012-09-10 12:28:11 -0400] ehaselwanter: and IMHO puppet "feels" more like configfiles
+[2012-09-10 12:28:20 -0400] ehaselwanter: chef more like programming
+[2012-09-10 12:28:25 -0400] Babar: developer and sysadmins aren't compatible. Whoever thinks they're interchangeable and one can do the other is a moron.
+[2012-09-10 12:28:34 -0400] BryanWB_: but puppet felt much more complicated to me
+[2012-09-10 12:28:51 -0400] adamben: Babar - not every startups need a sysadmin - and so sometimes a dev is doing some sysadmin
+[2012-09-10 12:29:01 -0400] adamben: so starting with chef should be simpler than puppet?
+[2012-09-10 12:29:06 -0400] BryanWB_: imho, yes
+[2012-09-10 12:29:07 -0400] adamben: that's the general sentiment?
+[2012-09-10 12:29:11 -0400] ehaselwanter: I think puppet does really shine if you have all developed and just configure stuff
+[2012-09-10 12:29:11 -0400] Babar: doing a sysadmin's job doesn't make you a sysadmin.
+[2012-09-10 12:29:19 -0400] adamben: I never said it would Babar
+[2012-09-10 12:29:24 -0400] BryanWB_: hard to say, some ppl start w/ puppet and then go to chef
+[2012-09-10 12:29:25 -0400] Babar: chef is a lot easier than puppet, yes.
+[2012-09-10 12:29:33 -0400] Babar: at least that's how I felt.
+[2012-09-10 12:29:36 -0400] adamben: I see
+[2012-09-10 12:29:38 -0400] Babar: (and I'm a sysadmin)
+[2012-09-10 12:29:43 -0400] BryanWB_: i have never met anyone who has started w/ chef and chosen to use puppet instead
+[2012-09-10 12:29:44 -0400] ehaselwanter: but if you have to get shit done and have to develop youd "modules" than chef is the way to go
+[2012-09-10 12:29:49 -0400] adamben: I'm not a sysadmin but been dealing with servers for years now
+[2012-09-10 12:29:50 -0400] adamben: love them
+[2012-09-10 12:29:51 -0400] Babar: BryanWB_: meet me :)
+[2012-09-10 12:30:00 -0400] adamben: I want to get shit done
+[2012-09-10 12:30:02 -0400] Babar: but to be fair, I haven't "chosen" to use puppet :)
+[2012-09-10 12:30:03 -0400] adamben: I don't have time
+[2012-09-10 12:30:09 -0400] BryanWB_: exactly ;)
+[2012-09-10 12:30:20 -0400] omar_: I'm setting some chef recipes installing them from the community website. How do you work with them? Do you consider just a point of start which you change based on what you need? I see that the whole chef-repo is under git, so it shouldn't break anything when updating the recipes later from the community site
+[2012-09-10 12:30:24 -0400] omar_: Having installed few cookbooks I see that I'll need to change some thing about them. For example adding monit scripts or config changes. I don't know if it's better to create another cookbook just for this, or change the cookbook itself in order to have everything in one place
+[2012-09-10 12:30:29 -0400] Babar: but honestly, it makes much more sense to use puppet than chef for our use-case
+[2012-09-10 12:30:39 -0400] adamben: what's your use case?
+[2012-09-10 12:30:39 -0400] Babar: unless someone improves the reporting
+[2012-09-10 12:30:45 -0400] Babar: 2K+ servers
+[2012-09-10 12:30:47 -0400] adamben: oh
+[2012-09-10 12:31:28 -0400] adamben: so you'd advise starting with chef for smaller infrstructures (10-50 servers)
+[2012-09-10 12:31:32 -0400] BryanWB_: Babar: i will have disagree
+[2012-09-10 12:31:43 -0400] BryanWB_: i think chef makes more sense for bigger infras
+[2012-09-10 12:31:46 -0400] BryanWB_: and smaller
+[2012-09-10 12:31:51 -0400] BryanWB_: but well, i am pretty biased
+[2012-09-10 12:32:11 -0400] adamben: I wasn't expecting a non-biased answer tbh - asking this in #chef :)
+[2012-09-10 12:32:25 -0400] BryanWB_: adamben:  in case u r curious u can hear me and others discuss the topic and realted ones in great depth
+[2012-09-10 12:32:30 -0400] BryanWB_: http://foodfightshow.org
+[2012-09-10 12:32:33 -0400] adamben: I'm just trying to think what tools will get me up and running asap
+[2012-09-10 12:32:44 -0400] ehaselwanter: Babar: but chef has the load on the edges ...
+[2012-09-10 12:33:15 -0400] adamben: BryanWB_ - it's a podcast?
+[2012-09-10 12:33:31 -0400] ehaselwanter: BryanWB_: yeah foodfightshow rocks
+[2012-09-10 12:33:46 -0400] BryanWB_: adamben: yup
+[2012-09-10 12:33:54 -0400] BryanWB_: ehaselwanter: tks!
+[2012-09-10 12:34:30 -0400] ehaselwanter: BryanWB_: you in Berlin anytime soon?
+[2012-09-10 12:34:51 -0400] ehaselwanter: or just Rome
+[2012-09-10 12:38:07 -0400] BryanWB_: just Rome
+[2012-09-10 12:38:17 -0400] BryanWB_: was only in Berlin once for 4 days, loved it
+[2012-09-10 12:39:38 -0400] BryanWB_: so much better than San Francisco
+[2012-09-10 12:42:29 -0400] royh: BryanWB_: you can't be serious?! :P
+[2012-09-10 12:43:00 -0400] BryanWB_: royh: totally,
+[2012-09-10 12:43:30 -0400] royh: you american? :P
+[2012-09-10 12:43:59 -0400] royh: i think most europeans (in the IT-business) have wet dreams about SF every other night :P
+[2012-09-10 12:45:34 -0400] BryanWB_: royh: y
+[2012-09-10 12:45:47 -0400] BryanWB_: SF sucks
+[2012-09-10 12:49:49 -0400] omar_: now I'm curious... what's bad about SF? (never been there yet) a part from cold summers and fog
+[2012-09-10 12:50:29 -0400] BryanWB_: dirty, expensive, conservative city
+[2012-09-10 12:50:50 -0400] BryanWB_: i prefer dirty, liberal, cheap, cities ;
+[2012-09-10 12:51:35 -0400] omar_: uhm..yeah, I forgot expensive... I checked the rent prices and are quite crazy
+[2012-09-10 12:51:36 -0400] Mithrandir: you find SF dirty?  Wow, our scales are very much not the same.
+[2012-09-10 12:51:48 -0400] geekbri: I have yet to live in a place that is cheap.  I would like that.
+[2012-09-10 12:51:51 -0400] Mithrandir: and expensive, it's all in the eye of the beholder. :-P
+[2012-09-10 12:51:59 -0400] omar_: what do you mean by conservative?
+[2012-09-10 12:52:24 -0400] geekbri: his city doesn't like to reveal to much skin
+[2012-09-10 12:52:38 -0400] geekbri: too
+[2012-09-10 12:53:37 -0400] ranjibd_: im planning to move to mountain view/redwood city ..
+[2012-09-10 12:54:14 -0400] ranjibd_: but i have heard SF is pretty nice. cultural melting point
+[2012-09-10 12:55:07 -0400] specialsauce: Good afternoon chefs. Is there a known bug whereby using knife to upload new versions of roles, cookbooks, environments from files causes nodes to lose their environment-specific attributes until the next time they execute a client run?
+[2012-09-10 12:57:33 -0400] zts: specialsauce: when you say nodes are losing their attributes, how are you observing that?
+[2012-09-10 12:58:10 -0400] specialsauce: zts: hi. example scenario:
+[2012-09-10 12:59:40 -0400] specialsauce: node X has attribute set to "A" causing "A" to appear in a config file, i upload changed cookbooks, envs, roles from git repo via knide, and node X has "B" then in the config file locally. I run chef-client manually, and it gets "A" back again in the config file. For the duration, the host is broken for our environment purposes
+[2012-09-10 13:00:06 -0400] specialsauce: The value in the config file as "B" is what it gets as the "last resort" attribute precedence as a default
+[2012-09-10 13:00:38 -0400] specialsauce: Before the cookbook/env/role upload, and after the manual run it has the correct env-specific "A" attribute and value in local config file
+[2012-09-10 13:01:38 -0400] zts: In this example, what is causing chef-client to run during the time you're uploading changed cookbooks etc?  Is it running as a daemon on node X?
+[2012-09-10 13:02:35 -0400] specialsauce: The nodes run as daemons with a 30 minute interval, so it is possible that the daemonised run is occuring during the knife command being run, yes, althought I have not confirmed this currently
+[2012-09-10 13:03:02 -0400] specialsauce: is that a known badness?
+[2012-09-10 13:03:21 -0400] zts: It's worth confirming, as there is no way for a file on the node to be changed by uploading objects to the chef server (via knife)
+[2012-09-10 13:03:32 -0400] zts: so either chef-client is running, or something else is changing your config file
+[2012-09-10 13:04:24 -0400] specialsauce: zts: ok, thank you for your help. So we are best off if this is the issue disabling the daemon for the duration of the knife updates? Is that a known issue or something we should raise a bug for when we have more info?
+[2012-09-10 13:04:36 -0400] zts: but as to your question, it's not something I've seen, but I don't know for sure that it is impossible
+[2012-09-10 13:04:43 -0400] specialsauce: ok, thank you
+[2012-09-10 13:04:54 -0400] zts: specialsauce: well, first things first, have a look at your chef logs to confirm that chef-client changed the config file at the time you think it did
+[2012-09-10 13:05:22 -0400] zts: specialsauce: but it's worth reporting this as a bug if it appears to be chef misbehaving
+[2012-09-10 13:05:28 -0400] specialsauce: yep, will do, thanks again
+[2012-09-10 13:06:02 -0400] zts: no problem, I hope you get to the bottom of it - problems that undermine confidence in your system are the worst
+[2012-09-10 13:06:19 -0400] specialsauce: yeh, its a bit awkward at the moment
+[2012-09-10 13:06:35 -0400] specialsauce: since we need this sorting before we move chef into live
+[2012-09-10 13:07:19 -0400] ugk: hi
+[2012-09-10 13:09:09 -0400] zts: specialsauce: by the way, is this a problem that you've observed just once, or is it more common?
+[2012-09-10 13:10:03 -0400] specialsauce: zts: this has happened several times definitely, as in dozens
+[2012-09-10 13:10:35 -0400] specialsauce: i was hoping it was common enough someone would know straight away the issue, but i will investigate in our env
+[2012-09-10 13:14:29 -0400] zts: yeah, if it's happening that often I'd suspect something outside of Chef until I had chef-client logs that showed it making the change
+[2012-09-10 13:14:40 -0400] zts: in any event, good luck
+[2012-09-10 13:16:02 -0400] specialsauce: cheers
+[2012-09-10 13:17:08 -0400] DigitalFlux: Any hints on why a provider in the sensu cookbook generates "Cannot find a resource for assert_enclosing_directory_exists! on ubuntu version 12.04" errors ?
+[2012-09-10 13:19:42 -0400] geekbri: DigitalFlux: could you gist the offending code thats spitting out the error?  It looks like you are calling a resource that doesn't exist (that is a pretty long name for a resource, then again I haven't used the sensu cookbook)
+[2012-09-10 13:20:32 -0400] DigitalFlux: geekbri: Here you are -> https://github.com/sensu/sensu-chef/blob/master/providers/config.rb, Thanks man
+[2012-09-10 13:20:47 -0400] DigitalFlux: geekbri: that's the provider, it should generate a json config file for sensu
+[2012-09-10 13:22:14 -0400] geekbri: I don't see any method or resource call "assert_enclosing_directory_exists?"  Where is the bit that is causing that error
+[2012-09-10 13:23:06 -0400] DigitalFlux: aha, that's /var/chef/cache/cookbooks/sensu/libraries/json_file.rb:24:in `action_create'
+[2012-09-10 13:23:21 -0400] DigitalFlux: geekbri: which is https://github.com/sensu/sensu-chef/blob/master/libraries/json_file.rb
+[2012-09-10 13:23:46 -0400] pranny: I am using chef-solo and getting No ruby in PATH/CONFIG error
+[2012-09-10 13:24:04 -0400] geekbri: DigitalFlux: Well I am not sure where that method is located, but it seems chef is trying to use it as a resource, when it is just a method.
+[2012-09-10 13:24:34 -0400] DigitalFlux: geekbri: yeah, that's what is confusing me ..
+[2012-09-10 13:25:01 -0400] DigitalFlux: cc: joemiller
+[2012-09-10 13:25:05 -0400] geekbri: DigitalFlux: Find where that method is defined, make sure its actually included.
+[2012-09-10 13:25:59 -0400] geekbri: DigitalFlux: Its been a while since I dove into the chef source, but I am pretty sure they used method_missing to determine if something is a resource and find the enclosing provider.  If for some reason that method doesn't exist (wasn't included properly or whatever), it would try to find that resource (which of course doesn't exist)
+[2012-09-10 13:26:14 -0400] geekbri: thats just my guess, I am knee deep in my own issues ATM so I can't poke around too much further for ya :)
+[2012-09-10 13:26:29 -0400] DigitalFlux: geekbri: you've been much of a help :), Thanks
+[2012-09-10 13:27:34 -0400] _rc: worth bookmarking for the next time, in case it will server that pagegot factored away when the whyrun stuff was coded up
+[2012-09-10 13:27:53 -0400] _rc: *looks like the code got factored away when the whyrun stuff was coded up
+[2012-09-10 13:35:11 -0400] DigitalFlux: geekbri: turns out that this methoed was removed from chef 10.14 :/ .. not sure what is the equivalent now though ..
+[2012-09-10 13:36:23 -0400] geekbri: DigitalFlux: having a method removed will certainly cause that error!
+[2012-09-10 13:39:08 -0400] geekbri: DigitalFlux: you can probably just safely remove the call to that method.  It looks to me all that method did was throw an exception if the directory didn't exist (which will happen anyway, it will just be a different exception)
+[2012-09-10 13:40:25 -0400] geekbri: DigitalFlux: either that or in your sensu recipe you could monkey patch and inject your own method with that name that does something meaningful
+[2012-09-10 13:40:48 -0400] geekbri: no need to even monkey patch actually, you could just define that method in a module and include it
+[2012-09-10 13:41:01 -0400] geekbri: the world is your oyster DigitalFlux, shuck it!
+[2012-09-10 13:51:29 -0400] DigitalFlux: geekbri: That's a whole lot of ways to fix it :), Thanks man
+[2012-09-10 13:51:54 -0400] geekbri: sure no problem
+[2012-09-10 13:59:36 -0400] pranny: chef-solo is unable to create user directory
+[2012-09-10 14:00:04 -0400] pranny: it does create the user, sets password and even the shell correctly
+[2012-09-10 14:00:46 -0400] BryanWB_: pranny: its an issue in chef 10.14.0
+[2012-09-10 14:00:50 -0400] BryanWB_: i have same problem
+[2012-09-10 14:01:14 -0400] pranny: i am setting the home directory with  home "/home/pranny" and it does not work
+[2012-09-10 14:07:35 -0400] Loof: Ohai on windows is taking -forever- to fetch the metadata
+[2012-09-10 14:08:05 -0400] omar_: Loof: that's a sign...to not use windows.... :P
+[2012-09-10 14:08:11 -0400] Loof: I added some logging and the actual fetch of each attribute is taking 30s-60s
+[2012-09-10 14:08:19 -0400] Loof: omar_: I have to for a couple of small things
+[2012-09-10 14:09:18 -0400] Loof: And I'm talking EACH attribute... the http_client get for ami-id took 30s!
+[2012-09-10 14:09:27 -0400] Loof: ami-launch-index 40s
+[2012-09-10 14:09:39 -0400] Loof: The entire process takes a good 6m
+[2012-09-10 14:09:45 -0400] Loof: it's most of the chef startup time
+[2012-09-10 14:12:22 -0400] z: Babar: Late to the party, but I think you fundamentally misunderstand DevOps, the point isn't to have developers and operations be interchangeable, the point is entirely cultural and "Lets not throw things over the wall" as this meme illustrates http://chromehorse.typepad.com/.a/6a01127947363b28a4017d3be050f0970c-800wi
+[2012-09-10 14:13:07 -0400] pranny: the right syntax for manage home is supports {:manage_home => true} ?
+[2012-09-10 14:13:08 -0400] Babar: integration has been part of the dev since the 90's. No need of a fancy devops/noops/sysops term to make it obvious.
+[2012-09-10 14:14:18 -0400] z: Babar: I'd further disagree about your scale and reporting, I found Report/Exception Handlers to be /far/ more flexible than what Puppet offers and I've seen/applied that to ~50 servers, ~500 servers and >2000 servers :/  From a scalability POV its also a much easier pattern, with Puppet there are weird PKI things you have to worry about with >1 box
+[2012-09-10 14:15:33 -0400] z: Babar: integration in a lot of companies is a fundamentally broken 'artform'. Any attempts to fix that, whether its called DevOps or FixShitOps are 100% goodness.
+[2012-09-10 14:16:37 -0400] Loof: Oddly... Ohai is accessing the metadata API from 2008
+[2012-09-10 14:16:40 -0400] Loof: not really sure why
+[2012-09-10 14:21:12 -0400] Babar: z: except that most companies never understand the concept. All they se is that they no longer need a sysadmin, because, thanks to this miraculous devops, the developers will do their job.
+[2012-09-10 14:22:15 -0400] Babar: as for the exception handlers, I haven't seen anything yet in chef, but maybe I didn't look carefully enough. Foreman in Puppet looks pretty neat. I'm not saying it's not doable in chef, just that it "seems easier" in Puppet, from what I've seen so far
+[2012-09-10 14:22:54 -0400] jtimberman: no longer need a sysadmin: lolz :)
+[2012-09-10 14:23:05 -0400] jtimberman: tools do not replace the craftsman.
+[2012-09-10 14:23:18 -0400] jtimberman: (of course everyone here knows that)
+[2012-09-10 14:23:29 -0400] Babar: jtimberman: tell that to a CIO/CEO after he read (with his C-level mind) anything about devops.
+[2012-09-10 14:24:08 -0400] jtimberman: Babar: probably the problem is the source material for "devops"
+[2012-09-10 14:24:33 -0400] Babar: most certainly
+[2012-09-10 14:24:37 -0400] jtimberman: if its something like gartner or forrester or one of those other enterprisey analyst firms, i don't think they're going to get a really solid understanding.
+[2012-09-10 14:25:16 -0400] Babar: yeah... I saw how it went with eXtreme Programming, scrum and all this Agile non-sense
+[2012-09-10 14:25:57 -0400] Babar: (non-sense not for the methodologies, but for the articles/analysis which "explained" them)
+[2012-09-10 14:27:12 -0400] omar_: how do you usually call your servers? I don't know if going with "common" names, which doesn't scale, the classic DB001, WEB001 (or other schema), or with the aws style with the internal ip as the hostname
+[2012-09-10 14:31:44 -0400] pranny: so if i attempt to execute chef-solo a couple of times, it gives me some out of memory error and then no ruby in PATH/CONFIG error
+[2012-09-10 14:32:39 -0400] Babar: omar_: by rack + U number. Which is pretty useless to be honest, except when you need to intervene on the machine :)
+[2012-09-10 14:33:49 -0400] omar_: Babar: mm... as I won't have physical access to the rack/datacenter I think I'll have to find another naming style :)
+[2012-09-10 14:36:43 -0400] atomic-penguin: github down, yay
+[2012-09-10 14:37:36 -0400] Eulipion: if one of the bugs was closed (
+[2012-09-10 14:37:36 -0400] Eulipion: cd ~/chef/chef
+[2012-09-10 14:37:56 -0400] Eulipion: how do I pull in changes from a patch that went out this morning?
+[2012-09-10 14:38:04 -0400] Eulipion: http://tickets.opscode.com/browse/CHEF-3423
+[2012-09-10 14:38:16 -0400] jtimberman: omar_: we use the node's role + randomly generated id's
+[2012-09-10 14:46:35 -0400] geekbri: my previous company thought that after I left they didn't need to replace me... because who needs a sysadmin anymore?  They went to launch a product then realized nobody had setup the servers for it.
+[2012-09-10 14:46:38 -0400] geekbri: Amazing stuff right there folks.
+[2012-09-10 14:47:17 -0400] geekbri: DevOps is also the same thing we have all been doing for years, they just named it something.
+[2012-09-10 14:47:26 -0400] Babar: exactly my point.
+[2012-09-10 14:49:22 -0400] makerbreakr: ya, but if you put devops in your resume...youll get a ton of phone calls
+[2012-09-10 14:49:52 -0400] makerbreakr: some of them, won't even be 3rd parties!
+[2012-09-10 14:50:51 -0400] makerbreakr: and its also a good way to pull a prank on someone.
+[2012-09-10 14:51:08 -0400] makerbreakr: throw a resume up on dice, and mention linux/devops, and they will get spammed by 50 recruiters a day
+[2012-09-10 14:55:21 -0400] KarlHungus: most of them want a "devops" to help manage their corporate laptops and helpdesk
+[2012-09-10 14:55:34 -0400] nacer: dam i never rember witch attribute contain the current run_list on a node "node.run_lists?()"
+[2012-09-10 14:55:38 -0400] nacer: remember
+[2012-09-10 14:56:23 -0400] omar_: I'm setting some chef recipes installing them from the community website. How do you work with them? Do you consider just a point of start which you change based on what you need? I see that the whole chef-repo is under git, so it shouldn't break anything when updating the recipes later from the community site
+[2012-09-10 14:56:26 -0400] omar_: Having installed few cookbooks I see that I'll need to change some thing about them. For example adding monit scripts or config changes. I don't know if it's better to create another cookbook just for this, or change the cookbook itself in order to have everything in one place
+[2012-09-10 15:01:04 -0400] geekbri: Yes, If you put devops anywhere in your linked in, you will get spammed like there is no tommorow
+[2012-09-10 15:01:25 -0400] geekbri: Some people say it isn't a job title, but the people hiring and the people looking for candidates treat it as one, so that makes it one
+[2012-09-10 15:01:33 -0400] geekbri: :)
+[2012-09-10 15:01:50 -0400] KarlHungus: i'm hiring a devops ;)
+[2012-09-10 15:03:17 -0400] nacer: KarlHungus: nice !
+[2012-09-10 15:03:27 -0400] KarlHungus: i didnt put devops in the title or job desc, but i told the recruiter i work with to target devops people
+[2012-09-10 15:03:31 -0400] nacer: for my question this should do the trick : node.run_list.include?
+[2012-09-10 15:03:35 -0400] KarlHungus: since thats the culture we have
+[2012-09-10 15:03:53 -0400] nacer: KarlHungus: where are u working ?
+[2012-09-10 15:04:23 -0400] KarlHungus: job is local to DC, but i could maybe swing a remote in LA since we have a satellite office
+[2012-09-10 15:04:43 -0400] KarlHungus: but thats OT for here, PM me if you're interested.
+[2012-09-10 15:04:47 -0400] nacer: KarlHungus: ok nice
+[2012-09-10 15:07:25 -0400] ehaselwanter: anybody seeing chef-client 10.14 on ruby 1.8 using huge amounts of memory
+[2012-09-10 15:07:58 -0400] ehaselwanter: running it for 2 days in daemon mode and getting > 1.5 GB ram usage
+[2012-09-10 15:18:09 -0400] Eulipion: how do I switch to running 10-stable?
+[2012-09-10 15:39:31 -0400] Eulipion: does anyone know how I can pull a fix into my chef instance? http://tickets.opscode.com/browse/CHEF-3423
+[2012-09-10 15:43:01 -0400] Eulipion: jtimberman: ^ ?
+[2012-09-10 15:44:07 -0400] kallistec: Eulipion: you need to build a gem from source, or monkey patch the fix in via a cookbook library or something
+[2012-09-10 15:44:23 -0400] Eulipion: are there any docs on that?
+[2012-09-10 15:45:51 -0400] kallistec: Eulipion: there's this: http://wiki.opscode.com/display/chef/Installing+Chef+from+HEAD
+[2012-09-10 15:45:53 -0400] ehaselwanter: memory issues with chef-client 10.14.0 anyone? http://tickets.opscode.com/browse/CHEF-3432
+[2012-09-10 15:46:10 -0400] kallistec: Eulipion: but it's overkill, you only need the client
+[2012-09-10 15:46:33 -0400] kallistec: and you need to checkout 10-stable before building
+[2012-09-10 15:47:36 -0400] Eulipion: ive got it checked out, not sure what to do from there
+[2012-09-10 15:48:00 -0400] kallistec: Eulipion: cd to chef/; `bundle install`; `rake gem`
+[2012-09-10 15:49:43 -0400] Babar: hum... I've got a weird error... I just uploaded a new version of a cookbook, and when chef runs, it ends with the error: EOFError: end of file reached   on this cookbook. Any idea how I can fix it?
+[2012-09-10 15:49:48 -0400] Babar: clear them all and re-upload?
+[2012-09-10 15:50:41 -0400] Eulipion: kallistec: where do I find a Gemfile for the bundle install?
+[2012-09-10 15:51:48 -0400] kallistec: Eulipion: you need to go down one level into the chef/ part of the tree (see: https://github.com/opscode/chef/tree/master/chef )
+[2012-09-10 15:53:43 -0400] autif: Hi, I might have hosed my server - knife node list works just fine, knife client list fails - "Option name's value  does not match regular expression". I have been working with the chef server API where I tried to create a client - but JSON might not have been right. How can I revert to a good state for clients? - short of dropping chef's database
+[2012-09-10 15:55:07 -0400] jacqui: omar_: I have the same exact question about modifying cookbooks
+[2012-09-10 15:55:25 -0400] jacqui: omar_: doesn't look like you got a response yet, unless someone private messaged you
+[2012-09-10 15:55:43 -0400] omar_: jacqui: nope :(
+[2012-09-10 15:56:38 -0400] kallistec: autif: http://wiki.opscode.com/display/chef/Troubleshooting+and+Technical+FAQ#TroubleshootingandTechnicalFAQ-HowdoIdeleteamalformedChefServerclient%28Say%2Conewithspacesinthename%29
+[2012-09-10 15:58:00 -0400] omar_: jacqui: I'm thinking about fork the chef cookbook repo (for those that are on github too), add my fork as a submodule, do the changes and pull on my own repo... instead of using the cookbook site install
+[2012-09-10 15:58:40 -0400] _0x783czar: Is it possible to install Chef on OSX 10.8?  I tried using the Omnibus installer last week and it failed because it said that 10.8 is not supported.
+[2012-09-10 15:59:17 -0400] _0x783czar: (chef management workstation is what I'm referring to)
+[2012-09-10 15:59:35 -0400] kallistec: _0x783czar: yeah, easiest thing is to just install the gem w/ the built-in rubygems
+[2012-09-10 15:59:40 -0400] jacqui: omar_: what I have done so far is clone the chef-repo, rm -r its .git dir, and create my own git repo
+[2012-09-10 15:59:41 -0400] kallistec: you need the compiler though
+[2012-09-10 16:01:49 -0400] kallistec: _0x783czar: see http://kennethreitz.com/xcode-gcc-and-homebrew.html for a link to the compiler stuff if you don't have it already
+[2012-09-10 16:02:24 -0400] autif: kallistec: Do I need a proper browser of will an ASCII browser like "links" or "lynx" do - This is on a server w/o any X - I can ssh to the machine - I tried links, but I get an option for "Create Database" only.
+[2012-09-10 16:03:22 -0400] kallistec: autif: you need a proper browser, there's a command for creating an ssh tunnel for the couchdb port
+[2012-09-10 16:03:49 -0400] kallistec: autif: run that `ssh -L` command and then visit the admin interface on localhost
+[2012-09-10 16:03:58 -0400] autif: I see
+[2012-09-10 16:04:02 -0400] autif: thats what that was
+[2012-09-10 16:04:04 -0400] autif: thanks!
+[2012-09-10 16:05:20 -0400] _0x783czar: kallistec: yeah I already have Xcode installed since I do Objective-C programming
+[2012-09-10 16:12:46 -0400] autif: kallistec: it worked - thanks for the tip!
+[2012-09-10 16:15:52 -0400] kallistec: _0x783czar: then you should be able to `sudo gem install chef` to install it with the built-in ruby
+[2012-09-10 16:17:15 -0400] _0x783czar: kallistec: Done, thanks a bunch!
+[2012-09-10 16:17:21 -0400] kallistec: you bet
+[2012-09-10 16:36:10 -0400] jforest: wtf
+[2012-09-10 16:36:31 -0400] jforest: ok, so... autoscaling groups and chef... am I supposed to bootstrap the chef-client thru userdata?
+[2012-09-10 16:39:02 -0400] joemiller: DigitalFlux: ping
+[2012-09-10 16:39:12 -0400] DigitalFlux: joemiller: pong
+[2012-09-10 16:39:37 -0400] joemiller: the sensu-chef recipe broke in 10.14, i'm told. i think portertech or someone else from sonian already had a fix but have not pushed it yet
+[2012-09-10 16:39:42 -0400] DigitalFlux: joemiller: it's just that you were the only one from the sensu team here when that problem was raised :)
+[2012-09-10 16:39:54 -0400] DigitalFlux: joemiller: yeah, discussed it with portertech
+[2012-09-10 16:39:59 -0400] joemiller: ah ok
+[2012-09-10 16:40:00 -0400] DigitalFlux: joemiller: Thanks man
+[2012-09-10 16:40:13 -0400] joemiller: sure
+[2012-09-10 16:40:36 -0400] joemiller: speaking of sensu, anyone in SF, we're doing a sensu meetup/drinkup at the Pantheon offices in a few weeks </shameless plug>
+[2012-09-10 16:40:59 -0400] joemiller: ok maybe more meetup than a drinkup
+[2012-09-10 17:17:56 -0400] morete: hello all,
+[2012-09-10 17:18:07 -0400] _0x783czar: morete: hello
+[2012-09-10 17:18:29 -0400] morete: I have an attribute defining a string that contains the domain name...
+[2012-09-10 17:18:36 -0400] morete: "example.com"
+[2012-09-10 17:18:49 -0400] morete: in an environment
+[2012-09-10 17:19:26 -0400] morete: and I'd like to make different cookbooks coming from different souces... to read the domain form that attribute defined in the environment file
+[2012-09-10 17:20:31 -0400] morete: but seems like I cant do that since
+[2012-09-10 17:20:46 -0400] morete: default[:postfix][:relayhost]  = node[:environment][:domain]
+[2012-09-10 17:20:51 -0400] morete: fails
+[2012-09-10 17:21:13 -0400] morete: cause seems like node[:environment][:domain] is not defined when that line is executed
+[2012-09-10 17:21:27 -0400] morete: and i get an error...
+[2012-09-10 17:21:31 -0400] morete: if I do:
+[2012-09-10 17:21:37 -0400] morete: default[:postfix][:relayhost]  = #{node[:environment][:domain]}
+[2012-09-10 17:21:40 -0400] morete: I get is empty
+[2012-09-10 17:22:14 -0400] morete: my environment file says:
+[2012-09-10 17:22:32 -0400] morete: default_attributes(
+[2012-09-10 17:22:33 -0400] morete: :environment => {
+[2012-09-10 17:22:33 -0400] morete: :domain => "example.com",
+[2012-09-10 17:22:40 -0400] morete: ..
+[2012-09-10 17:22:40 -0400] morete: .
+[2012-09-10 17:23:32 -0400] morete: question is... can I set an attribute to take same value as another attribute defined at the environment file?
+[2012-09-10 17:24:18 -0400] jtimberman: morete: you should do that in a recipe rather than in an cookbook's attributes file, but yes.
+[2012-09-10 17:25:22 -0400] morete: well, what I want to do is to avoid having to tweak cookbooks I download from different sources... and still be able to reconfigure the domain on all cookbooks I use...
+[2012-09-10 17:25:27 -0400] morete: from a single place
+[2012-09-10 17:26:07 -0400] Babar: already asked, but as I got no answer, and I'm still stuck... I've got a weird error... I just uploaded a new version of a cookbook, and when chef runs, it ends with the error: "EOFError: end of file reached" on this very cookbook. Any idea how I can fix it?
+[2012-09-10 17:26:14 -0400] morete: the solution I see now, after trying different things, is to define all attributes used by all cookbook on the environment file and have N times a "domain name declaration"
+[2012-09-10 17:27:19 -0400] morete: which is not the best thing to do I'm afraid...
+[2012-09-10 17:27:51 -0400] morete: 1 sed command might help on renaming a domain globally... but still... is not the most elegant  way :)
+[2012-09-10 17:28:34 -0400] jtimberman: morete: that's one of the reasons for the multiple places where attributes can be set :)
+[2012-09-10 17:28:46 -0400] jtimberman: to make it easy to change the built-in assumptions/opinions.
+[2012-09-10 17:29:12 -0400] jtimberman: Babar: delete and reupload?
+[2012-09-10 17:29:24 -0400] morete: I know, but if I get different cookbooks and they "assume" domain name from different attributes?
+[2012-09-10 17:31:16 -0400] jtimberman: node['domain']? That is automatically detected by ohai
+[2012-09-10 17:34:07 -0400] morete: jtimberman, I know...
+[2012-09-10 17:34:18 -0400] morete: but that doesnt help in my case
+[2012-09-10 17:34:44 -0400] morete: let's say I have N subdomains and my infrastructure is divided into subdomains
+[2012-09-10 17:35:04 -0400] morete: but apps need to use 1 single domain...
+[2012-09-10 17:35:05 -0400] Babar: jtimberman: just tried. Same error
+[2012-09-10 17:35:43 -0400] Babar: in debug, I see the "Sending HTTP Request via GET to ..."  and then: Error Syncing Cookbooks:  EOFError: end of file reached
+[2012-09-10 17:36:43 -0400] morete: jtimberman, if I use the domain detected by ohai in an attributes file, works wonderfully
+[2012-09-10 18:10:45 -0400] danryan: Ohai chefs, I'm running into an issue provisioning a vagrant VM with Chef 0.10.2, Vagrant 1.0.3 and VBox 4.1.22: https://gist.github.com/6140c81aeee701d77576. The missing role in question is in a subdirectory of the roles dir, e.g. roles/sensu/client.rb, if that makes a difference. The entire roles dir is correctly linked inside of the VM itself. Does chef-solo not honor roles inside subdirectories of the roles/ directory?
+[2012-09-10 18:11:33 -0400] jtimberman: danryan: chef 0.10.2? Thats kind of old now..
+[2012-09-10 18:12:04 -0400] jtimberman: i don't know if that particular issue was reported or resolved, but 10.14 is the current release (and 10.14.2 is coming soon for a couple regressions reported on the mailing list)
+[2012-09-10 18:13:12 -0400] danryan: jtimberman: indeed it is. I'm just using the official basebox for lucid64 from vagrantbox.es
+[2012-09-10 18:13:24 -0400] danryan: S'pose I'll check if a newer version has been released with a newer chef
+[2012-09-10 18:13:55 -0400] jtimberman: danryan: we publish baseboxes with chef 10.12, using bento...
+[2012-09-10 18:14:04 -0400] danryan: ORLY
+[2012-09-10 18:14:26 -0400] jtimberman: i'd like to get 10.14 boxes out, but want to wait until the release fixes the regressions
+[2012-09-10 18:14:30 -0400] jtimberman: https://github.com/opscode/bento
+[2012-09-10 18:15:50 -0400] mhalligan: and all of a sudden we figure out who made the dumb decision to use Godaddy's dns servers
+[2012-09-10 18:16:18 -0400] waerloga: if only I could get veewee to work on windows :P
+[2012-09-10 18:32:51 -0400] jonesy: can I reference ruby symbols defined in attributes inside a recipe's 'script' block (e.g. in the 'code' section of that block)?
+[2012-09-10 18:51:47 -0400] mhalligan: hrm, are there any mysql cookbooks out there for mysql-cluster?
+[2012-09-10 19:11:07 -0400] akraut: Hey folks, got a question about the User provider.
+[2012-09-10 19:11:12 -0400] autif: For the life of me, I am not able to add a node using the server API - Here is the code http://paste.ubuntu.com/1197247/ Do I need something else in the payload (variable name pl on line 3) in my test script
+[2012-09-10 19:11:55 -0400] akraut: So, chef-client is trying to run "usermod -p '' root -m" on a box, but -m is "move homedir" so it's failing.
+[2012-09-10 19:12:38 -0400] akraut: Looking at the src for Chef::Provider::User::Useradd, it doesn't make sense to me what the -m is trying to do there.
+[2012-09-10 19:12:43 -0400] akraut: Can anyone enlighten me?
+[2012-09-10 19:13:13 -0400] jmartin: akraut: are you on 10.14?
+[2012-09-10 19:13:19 -0400] jmartin: i think there is a known issue with the user provider
+[2012-09-10 19:13:22 -0400] jtimberman: akraut: Chef 10.14? There's a bug, we're releasing 10.14.2 soon to resolve it.
+[2012-09-10 19:13:36 -0400] jmartin: huzzah
+[2012-09-10 19:13:41 -0400] jtimberman: Sorry about that.
+[2012-09-10 19:13:49 -0400] jtimberman: mhalligan: I don't know of any off hand.
+[2012-09-10 19:13:50 -0400] akraut: jtimberman: Ah, that's it. Ok. thanks.
+[2012-09-10 19:14:51 -0400] akraut: Is the fix in the src so I can patch it on a couple boxes where it's happening?
+[2012-09-10 19:15:40 -0400] countdigi: i noticed one way to install custom packages is to download compile in exec resources in chef - is anyone doing a in-band or out-of band step and compiling and packaging custom software up (e.g. graphite) and then having a package resource to finally install the built software?
+[2012-09-10 19:15:46 -0400] jtimberman: akraut: yeah its fixed in 10-stable branch of opscode/chef
+[2012-09-10 19:15:56 -0400] jtimberman: akraut: so you can build a gem and
+[2012-09-10 19:15:57 -0400] jmartin: akraut: ^ or http://tickets.opscode.com/browse/CHEF-3423 i believe
+[2012-09-10 19:15:58 -0400] jtimberman: use that
+[2012-09-10 19:17:02 -0400] countdigi: just curious how others are approaching this - one idea was to have jenkins auto-build packages (perhaps to fpm) when a new version was introduced - its the intergration between that step and the install chef that depends on it that has me interested
+[2012-09-10 19:17:17 -0400] Loof: jtimberman: I mentioned this before... I ran into 6m+ chef start times /w EC2. I added some instrumentation and realized it is taking 30s+ per EC2 metadata attribute (i.e. ami-id) on windows
+[2012-09-10 19:17:47 -0400] akraut: jtimberman: Thanks!
+[2012-09-10 19:17:52 -0400] Loof: jtimberman: Not a clue why it's taking so long, no real references elsewhere... I may create a new instance soon and see if it might just be some odd 'local' bug
+[2012-09-10 19:18:15 -0400] Loof: jtimberman: Also, I'm wondering why ohai is using the 2008 API for metadata instead of a more recent one :P
+[2012-09-10 19:35:48 -0400] ctracey_: mattray: got my vote for the openstack conference - some really awesome sessions
+[2012-09-10 19:35:50 -0400] geekbri: Update it and submit pull request!
+[2012-09-10 19:36:01 -0400] mattray: ctracey_: thanks!
+[2012-09-10 19:47:39 -0400] jtimberman: Loof: I'm not sure why we haven't updated the API for EC2 metadata. Can you file an OHAI ticket? (tickets.opscode.com)
+[2012-09-10 20:11:08 -0400] ian__: anyone running into issues creating roles? Just set up a server, which was working for me last week, but has started crapping out on me this week
+[2012-09-10 20:11:22 -0400] ian__: I get 500s when trying to view roles in the web UI
+[2012-09-10 20:12:36 -0400] jtimberman: ian__: are you using your own chef server that you upgraded, or opscode hosted chef?
+[2012-09-10 20:12:46 -0400] jtimberman: if the latter, please file a ticket with support@opscode.com
+[2012-09-10 20:13:07 -0400] ian__: using my own hosted chef
+[2012-09-10 20:13:20 -0400] ian__: was setting it up in VMs last week with no issue
+[2012-09-10 20:13:41 -0400] kallistec: ian__: http://tickets.opscode.com/browse/CHEF-3430 patch release coming soon
+[2012-09-10 20:14:38 -0400] ian__: is that an underscore, or a hyphen?
+[2012-09-10 20:16:06 -0400] ian__: I suppose I could not be lazy and c/p that to check
+[2012-09-10 20:16:17 -0400] ian__: derp or read
+[2012-09-10 20:17:06 -0400] ian__: what should I do in the meantime then?
+[2012-09-10 20:17:09 -0400] ian__: not create roles?
+[2012-09-10 20:17:54 -0400] kallistec: ian__: you can manage things through knife
+[2012-09-10 20:20:14 -0400] ian__: This is true
+[2012-09-10 20:20:27 -0400] ian__: just to confirm, it's the UI that's busted, everything else is good?
+[2012-09-10 20:20:46 -0400] kallistec: ian__: yeah, just the UI
+[2012-09-10 20:20:50 -0400] jforest: ok, well I was able to pass in user daata and such to connect to my chef server and spin up my machines.  Works well enough
+[2012-09-10 20:21:11 -0400] kallistec: ian__: API will work fine
+[2012-09-10 20:23:35 -0400] ian__: ok, thanks
+[2012-09-10 20:23:40 -0400] ian__: I'll test it now :)
+[2012-09-10 20:31:12 -0400] ian__: @kallistec, works like a champ, thanks for your help
+[2012-09-10 20:37:56 -0400] kallistec: ian__: no problem
+[2012-09-10 20:46:17 -0400] adamben: anyone can point me to a tutorial on how I can install chef on centos 6.x?
+[2012-09-10 20:46:50 -0400] jtimberman: adamben: are you looking for chef server installation, or just client?
+[2012-09-10 20:47:01 -0400] adamben: chef server installation
+[2012-09-10 20:48:16 -0400] jtimberman: http://wiki.opscode.com/display/chef/Installing+Chef+Server+using+Chef+Solo
+[2012-09-10 20:48:33 -0400] jtimberman: there's specific notes about centos/rhat at the bottom of that page.
+[2012-09-10 20:49:11 -0400] adamben: right after I do this: sudo chef-solo -c /etc/chef/solo.rb -j ~/chef.json -r http://s3.amazonaws.com/chef-solo/bootstrap-latest.tar.gz
+[2012-09-10 20:49:23 -0400] adamben: is it normal if it takes more than 20 minutes?
+[2012-09-10 20:49:26 -0400] adamben: to compile etc..?
+[2012-09-10 20:49:34 -0400] jtimberman: it might
+[2012-09-10 20:49:50 -0400] jtimberman: i believe some parts are installed from source due to lack of packages available (gecode, for example)
+[2012-09-10 20:50:12 -0400] adamben: I see
+[2012-09-10 20:50:59 -0400] jtimberman: yeah - ubuntu and debian are the only distros that have gecode package available in the distro
+[2012-09-10 20:53:16 -0400] adamben: I see - so it was normal it took me ages
+[2012-09-10 20:53:30 -0400] adamben: I used a non-official tutorial to do it - I was getting worried maybe something was wrong
+[2012-09-10 20:53:32 -0400] ian__: what's the appropriate format for the "env_run_lists" attribute in a role's json?
+[2012-09-10 20:53:36 -0400] adamben: thanks for sharing the official tut
+[2012-09-10 20:53:37 -0400] ian__: "env_name": [] ?
+[2012-09-10 20:54:28 -0400] ian__: (sorry for the noise, didn't see it in the docs, and am used to doing everything via web ui)
+[2012-09-10 20:56:19 -0400] uncommitted: wondering if there's a way I can search within a recipe and detect which role it's a part of?
+[2012-09-10 20:56:33 -0400] uncommitted: example: xenhosts = data_bag_item('xen','#{role_name}_guests')
+[2012-09-10 20:57:02 -0400] uncommitted: so i can reuse the same cookbook, and only have to edit the data bag?
+[2012-09-10 20:58:07 -0400] jordane: uncommitted: node['roles']
+[2012-09-10 20:59:10 -0400] jmartin: uncommitted: yeah it can be done, im doing it right now, based on environment though
+[2012-09-10 20:59:17 -0400] jmartin: although role is possible too
+[2012-09-10 20:59:36 -0400] uncommitted: how are you doing it?
+[2012-09-10 21:00:56 -0400] ranjibd: node['roles'] will only return the roles applied to a node
+[2012-09-10 21:01:25 -0400] Pushnell: I'm trying to write some recipes which will deploy both on ec2 with chef-server and vagrant for a dev environment.  Any suggestions for where to hinge my if's?
+[2012-09-10 21:02:05 -0400] Pushnell: (to determine whether the recipe is executing in vagrant or ec2)
+[2012-09-10 21:02:10 -0400] Babar: is there some documentation explaining how to migrate from one chef server to another?
+[2012-09-10 21:02:33 -0400] Babar: (which should be pretty similar to a restore after a backup)
+[2012-09-10 21:03:52 -0400] jmartin: uncommitted: for example like this -> ldap_info = data_bag_item('ldap', node.chef_environment)
+[2012-09-10 21:03:57 -0400] ranjibd: Pushnell, http://java.dzone.com/articles/chef-patterns-part-1-modeling ?
+[2012-09-10 21:04:10 -0400] jmartin: uncommitted: then in my ldap databag i have an item called the same as the environment name
+[2012-09-10 21:04:16 -0400] jmartin: with my config infos
+[2012-09-10 21:04:55 -0400] uncommitted: awesome, thank you
+[2012-09-10 21:05:01 -0400] Pushnell: ranjibd: great link, thank you.
+[2012-09-10 21:05:47 -0400] jmartin: uncommitted: look at ranjibd's link too
+[2012-09-10 21:05:58 -0400] uncommitted: yes, was looking at it
+[2012-09-10 21:06:21 -0400] rava: hello, anyone suddenly having a problem with the users lwrp?
+[2012-09-10 21:06:33 -0400] jmartin: bug in 10.14
+[2012-09-10 21:06:40 -0400] jmartin: fixed in 10.14.2
+[2012-09-10 21:06:48 -0400] jmartin: i believe also in 10-stable?
+[2012-09-10 21:07:20 -0400] rava: wierd, i hadn't allowed chef-server package updates and it was working yesterday
+[2012-09-10 21:07:43 -0400] bram_:  /7
+[2012-09-10 21:07:44 -0400] rava: has the package for ubuntu been updated?
+[2012-09-10 21:07:55 -0400] rava: i just ran an upgrade and still getting it
+[2012-09-10 21:08:18 -0400] jmartin: i think you need to grab the 10.14.2 code and rebuild the gem
+[2012-09-10 21:10:25 -0400] jmartin: or rather
+[2012-09-10 21:10:27 -0400] jmartin: 10-stable
+[2012-09-10 21:13:24 -0400] jmartin: rava: https://github.com/opscode/chef/tree/10-stable is what youd need
+[2012-09-10 21:13:25 -0400] rava: hrm, i've installed chef across the infrastructure using apt, would pushing a new gem mess with the paths? not great on ruby
+[2012-09-10 21:16:17 -0400] ian__: anyone know why I'm getting "ERROR: ArgumentError: wrong number of arguments (1 for 2)" with all my knife cookbook-related commands?
+[2012-09-10 21:17:05 -0400] autif: ian__: what command did you type?
+[2012-09-10 21:17:13 -0400] ian__: knife cookbook upload nginx
+[2012-09-10 21:17:24 -0400] ian__: command was working earlier
+[2012-09-10 21:17:27 -0400] ian__: strangest thing
+[2012-09-10 21:17:50 -0400] cheeseplus: ian__: any aliases?
+[2012-09-10 21:17:55 -0400] ian__: nope
+[2012-09-10 21:19:05 -0400] autif: try /opt/chef/bin/knife cookbook upload nginx
+[2012-09-10 21:19:14 -0400] uncommitted: i noticed I had a dash (-) in an attribute name, and it gave this exact error
+[2012-09-10 21:20:35 -0400] ian__: $ /Users/ian/.rvm/gems/ruby-1.9.3-p194/bin/knife cookbook upload nginx
+[2012-09-10 21:20:35 -0400] ian__: ERROR: ArgumentError: wrong number of arguments (1 for 2)
+[2012-09-10 21:21:00 -0400] ian__: most other knife commands still work as expected
+[2012-09-10 21:21:52 -0400] jmartin: ian__: dash in an attribute name as uncommitted said?
+[2012-09-10 21:22:39 -0400] ian__: nope
+[2012-09-10 21:22:54 -0400] ian__: no attributes in this cookbook
+[2012-09-10 21:23:06 -0400] ian__: none of the other cookbooks will upload either
+[2012-09-10 21:23:12 -0400] ian__: they did literally 2 hours ago
+[2012-09-10 21:24:28 -0400] jmartin: ian__: try resetting your RVM ? i.e. rvm system
+[2012-09-10 21:24:48 -0400] ian__: did that, no luck
+[2012-09-10 21:25:01 -0400] autif: ian__: while we are at it - hosted chef or a open source chef server?
+[2012-09-10 21:25:07 -0400] ian__: OS
+[2012-09-10 21:25:21 -0400] ian__: attempting re-install of the chef gem
+[2012-09-10 21:25:26 -0400] cheeseplus: anything weird in the knife.rb?
+[2012-09-10 21:25:33 -0400] ian__: nah, re-ran knife configure to be sure
+[2012-09-10 21:25:44 -0400] jordane: ian__: anything more interesting with --verbose?
+[2012-09-10 21:25:51 -0400] ian__: nope
+[2012-09-10 21:28:46 -0400] rava: would there be anything to worry about running a gem install of chef on a node if chef was install via apt originally?
+[2012-09-10 21:29:30 -0400] cheeseplus: ian__: so if you remove all the cookbooks from the cookbook path, or change it in knife.rb does it error?
+[2012-09-10 21:29:55 -0400] ian__: lemme see...
+[2012-09-10 21:29:56 -0400] jmartin: rava: afaik, no, as long as you use the proper gem binary
+[2012-09-10 21:30:16 -0400] jmartin: rava: but id also test it out of production
+[2012-09-10 21:30:50 -0400] rava: jmartin: http://blogs.msdn.com/cfs-filesystemfile.ashx/__key/communityserver-blogs-components-weblogfiles/00-00-01-32-02-metablogapi/8054.image_5F00_thumb_5F00_35C6E986.png
+[2012-09-10 21:30:58 -0400] rava: jmartin: ;)
+[2012-09-10 21:31:14 -0400] jmartin: rava: sadly, i know too many people with that mindset :(
+[2012-09-10 21:31:15 -0400] ian__: cheeseplus: yes, but not the same errors
+[2012-09-10 21:31:30 -0400] ian__: got the expected missing cookbook
+[2012-09-10 21:31:35 -0400] rava: jmartin: indeed. they make me twitchy
+[2012-09-10 21:31:54 -0400] cheeseplus: ian__: I guess thats some sort of progress
+[2012-09-10 21:32:08 -0400] ian__: indeed
+[2012-09-10 21:32:34 -0400] cheeseplus: I'm just thinking that one of the cookbooks is hosed in some fundamental way and getting parsed, which throws that error
+[2012-09-10 21:32:58 -0400] Axsuul: Chef librarian is a f*ckin godsend
+[2012-09-10 21:34:06 -0400] ian__: I'm hoping the same
+[2012-09-10 21:34:22 -0400] ian__: I'm grabbing the validation.pem, etc., and rebuilding locally, step-by-step
+[2012-09-10 21:35:08 -0400] cheeseplus: ian__: yea that sucks but I'm definitely of the mind that it's more likely to be the cookbooks than the gem itself (although stranger things have happened)
+[2012-09-10 21:35:47 -0400] rava: bah, a gem install of 10.4 on a test box and the users lwrp still pukes
+[2012-09-10 21:36:36 -0400] ian__: cheeseplus: I'll let you know how it goes :)
+[2012-09-10 21:37:42 -0400] cheeseplus: good luck!
+[2012-09-10 21:38:24 -0400] ian__: cheeseplus: holy shit
+[2012-09-10 21:38:31 -0400] ian__: recipe           "nginx::service"
+[2012-09-10 21:38:38 -0400] ian__: no description = puke
+[2012-09-10 21:38:53 -0400] cheeseplus: boom!
+[2012-09-10 21:39:00 -0400] jmartin: headshot?
+[2012-09-10 21:39:00 -0400] rava: head shot
+[2012-09-10 21:39:03 -0400] rava: lol
+[2012-09-10 21:39:08 -0400] cheeseplus: wow, well done team
+[2012-09-10 21:39:15 -0400] ian__: recipe           "nginx::service", ""
+[2012-09-10 21:39:18 -0400] ian__: all better
+[2012-09-10 21:39:36 -0400] ian__: headshot indeed, lol
+[2012-09-10 21:39:40 -0400] ian__: ok, well, good to know
+[2012-09-10 21:39:53 -0400] rava: so 10.4.2 didn't get pushed to gem?
+[2012-09-10 21:39:57 -0400] ian__: this was in the metadata.rb for anyone that still cares about my problems ;)
+[2012-09-10 21:39:57 -0400] cheeseplus: Metadata, sometimes it's really important
+[2012-09-10 21:40:12 -0400] rava: just ran: "gem install chef" and the bug's still there
+[2012-09-10 21:40:29 -0400] jmartin: rava: i dont think so, you need to build the gem from the 10-stable tree
+[2012-09-10 21:40:53 -0400] rava: thanks
+[2012-09-10 21:49:20 -0400] mhalligan: someone  linked to a really good description of how to work with node objects last week. anybody remember what it was?
+[2012-09-10 21:53:53 -0400] Eulipion: when i run a node search, it returned 12 nodes, but when i run knife ssh to that query, it only runs on 2 of them.  why could that be?
+[2012-09-10 21:54:34 -0400] adamben: hmm - I installed chef server - is there a way to make available the web UI outside and not just localhost?
+[2012-09-10 21:58:49 -0400] ev0ldave: anyone have any issues with rabbitmq after chef upgrade 10 10.12 or 10.14?  getting bad headers:  {bad_header,<<65,77,81,80,0,0,9,1>>}
+[2012-09-10 21:59:46 -0400] ev0ldave: btm:  maybe you have some insight, as i understand it you built this server
+[2012-09-10 22:08:05 -0400] smurfy: is it possible to set an if condition in an erb file based on something being on the nodes run list?
+[2012-09-10 22:08:20 -0400] smurfy: and do i have to pass the nodes run list to the template as a var?
+[2012-09-10 22:10:01 -0400] allan_wind: Is it possible to get access to ohai attributes in a role?
+[2012-09-10 22:11:34 -0400] rava: allan_wind: try it in shef
+[2012-09-10 22:13:38 -0400] allan_wind: shef doesn't run for me.  something about readline
+[2012-09-10 22:13:46 -0400] allan_wind: Trying to something like one of the comments in the roles doc
+[2012-09-10 22:13:48 -0400] allan_wind: :worker_threads => 20 * node[:apache2][:prefork][:min_spareservers]
+[2012-09-10 22:16:57 -0400] btm: ev0ldave: I wouldn't say I built this server, but that aside, 'gem install bunny -v 0.7.9 ; gem uninstall bunny -v 0.8.0'
+[2012-09-10 22:17:56 -0400] btm: ev0ldave: but, per CHEF-3418, bunny 0.8.0 shouldn't be installed.
+[2012-09-10 22:18:55 -0400] rava: how do i kill the dev server created with "rake dev" ?
+[2012-09-10 22:21:59 -0400] btm: allan_wind: a role is just a hash created from json data, not ruby, so no.
+[2012-09-10 22:23:18 -0400] ev0ldave: heh yeah, just read that about 10 min ago
+[2012-09-10 22:28:54 -0400] allan_wind: btm: k, thx
+[2012-09-10 22:29:04 -0400] ev0ldave: pete says you had a hand in building it
+[2012-09-10 22:30:04 -0400] btm: ev0ldave: pete who?
+[2012-09-10 22:30:10 -0400] ev0ldave: crossley
+[2012-09-10 22:30:14 -0400] rava: trying to build this gem is a pita
+[2012-09-10 22:31:23 -0400] btm: ev0ldave: ah. hugs to pcross. holoway built it, I think I was committer #3. many, many people have had their hands in it since.
+[2012-09-10 22:31:48 -0400] rava: if shef's not in the gems array in the RakeFile, why is rake gem still trying to build it and puking?
+[2012-09-10 22:32:15 -0400] ev0ldave: i think heydrick was the last one, position has been vacant for some time now
+[2012-09-10 22:32:23 -0400] ev0ldave: or was
+[2012-09-10 22:32:36 -0400] btm: ev0ldave: rgr. i interviewed heydrick before I left.
+[2012-09-10 22:35:04 -0400] heydrick: werd
+[2012-09-10 22:36:17 -0400] btm: and look, there he is.
+[2012-09-10 22:37:46 -0400] _0x783czar: I found (and subsequently fixed) a problem with Chef, how should I go about submitting a bug report?  It's a pretty simple fix.
+[2012-09-10 22:38:37 -0400] rava: _0x783czar: pull request on github?
+[2012-09-10 22:39:27 -0400] btm: _0x783czar: http://wiki.opscode.com/display/chef/How+to+Contribute
+[2012-09-10 22:41:17 -0400] ev0ldave: small world
+[2012-09-10 22:47:39 -0400] btm: ev0ldave: one of my best friends from childhood uses Chef. it really is.
+[2012-09-10 23:02:07 -0400] rava: argh, why the hell does the chef gem try to build shef?
+[2012-09-10 23:04:27 -0400] rava: causing the rake gem task in the chef repo to puke
+[2012-09-10 23:05:11 -0400] rava: can't find a reference in the Rakefile at the root of the project, nor the one in chef/ for it either
+[2012-09-10 23:05:42 -0400] _0x783czar: btm: done
+[2012-09-10 23:05:54 -0400] rava: ah, there it is in the chef.gemspec file
+[2012-09-10 23:06:33 -0400] rava: s.executables  = %w( chef-client chef-solo knife shef )
+[2012-09-10 23:13:02 -0400] rava: thoughts?
+[2012-09-10 23:13:28 -0400] hoover_damm: no one does rake gem
+[2012-09-10 23:13:32 -0400] hoover_damm: do they?
+[2012-09-10 23:13:45 -0400] hoover_damm: gem build chef.gemspec
+[2012-09-10 23:13:48 -0400] hoover_damm: should work
+[2012-09-10 23:14:16 -0400] rava: still pukes: gem build chef.gemspec
+[2012-09-10 23:14:16 -0400] rava: ERROR:  While executing gem ... (Gem::InvalidSpecificationException)
+[2012-09-10 23:14:16 -0400] rava:     ["bin/shef"] are not files
+[2012-09-10 23:14:50 -0400] hoover_damm: rava, what branch/comit are you on?
+[2012-09-10 23:15:37 -0400] rava: i didn't grab a particular one, whatever the latest git clone from the github repo pulls down
+[2012-09-10 23:15:48 -0400] hoover_damm: thats master... i doubt you want chef 11
+[2012-09-10 23:16:02 -0400] hoover_damm: grab a tag such as 10.14.2
+[2012-09-10 23:16:05 -0400] hoover_damm: git checkout 10.14.2
+[2012-09-10 23:16:25 -0400] hoover_damm: then cd chef/
+[2012-09-10 23:16:28 -0400] hoover_damm: gem build chef.gemspec
+[2012-09-10 23:16:31 -0400] hoover_damm: should work
+[2012-09-10 23:16:46 -0400] hoover_damm: worked here
+[2012-09-10 23:16:50 -0400] rava: yup
+[2012-09-10 23:17:56 -0400] _0x783czar: what's the latest version of chef?
+[2012-09-10 23:18:06 -0400] z: 10.14.2
+[2012-09-10 23:18:46 -0400] _0x783czar: z: thanks
+[2012-09-10 23:19:04 -0400] _0x783czar: that just 10.14.x just barely got released didn't it?
+[2012-09-10 23:19:09 -0400] z: yes.
+[2012-09-10 23:19:23 -0400] _0x783czar: z: OK, I think one of my recipes broke with the update.
+[2012-09-10 23:19:29 -0400] z: users?
+[2012-09-10 23:19:35 -0400] _0x783czar: z: yuuup
+[2012-09-10 23:19:45 -0400] z: manage_home = false, or update to 10.14.2
+[2012-09-10 23:19:56 -0400] rava: z: yeah ditto
+[2012-09-10 23:19:56 -0400] z: that'll fix you right up AFAICR
+[2012-09-10 23:21:06 -0400] rava: bit of a pita since what's available form gem -r install chef isn't up to date, nor are the opscode debian repos
+[2012-09-10 23:21:14 -0400] z: btm: ^^
+[2012-09-10 23:21:49 -0400] z: rava: if you persuade btm to put a rush on teh 10.14.2 release, he might oblige. Its broken a *lot* of people who upgraded, judging by #chef anyway
+[2012-09-10 23:21:58 -0400] _0x783czar: z: yeah, how should I go about updating that, in the bestway
+[2012-09-10 23:22:06 -0400] _0x783czar: z: ah
+[2012-09-10 23:22:32 -0400] rava: build the gem, stick it somewhere your nodes can wget/ftp/fetch/whatever and gem install it
+[2012-09-10 23:23:07 -0400] z: _0x783czar: the easiest way is to prod btm, the harder way is 'git clone', 'git checkout 10.14.2', 'gem build chef.gemspec'
+[2012-09-10 23:23:35 -0400] rava: z: yes on that being easier, but it's breaking all my chef-client runs now
+[2012-09-10 23:23:53 -0400] _0x783czar: rava: ditto
+[2012-09-10 23:24:58 -0400] rava: is there no release process for rolling fixes into the packages after they're confirmed fix? seems silly to me that a fix would be confirmed and tagged but none of the distribution channels updated
+[2012-09-10 23:25:36 -0400] z: its not "released" AFAICT, just been tagged ready to ship the release
+[2012-09-10 23:25:44 -0400] rava: i see
+[2012-09-10 23:26:48 -0400] rava: i need to get an openldap implentation running. using chef was my stop gap so i wouldn't have to spend a month digging into that hornet's nest, but it's not a great solution either
+[2012-09-10 23:27:20 -0400] _0x783czar: btm: I understand how dev lifecycles work, so I can understand why it might be taking a bit to get the update out immediately.  But still I have to echo rava , I got 10.14 when I set up my new workstation.  That's the version that came with the gem install, and it's crashing my chef runs, which is (as you can imagine) a problem for the work our company has to do.
+[2012-09-10 23:28:14 -0400] z: _0x783czar: to be fair to Opscode, the same is true of *all* gems
+[2012-09-10 23:28:32 -0400] z: _0x783czar: and most companies mitigate that risk by *not* installing the latest thing, all the time, and by using Gemfile.lock etc
+[2012-09-10 23:28:55 -0400] z: _0x783czar: If you installed Windows 8 today and found bugs you would get to see my "Not so shocked" face, for example ;)
+[2012-09-10 23:29:16 -0400] rava: z: i get that face with every time i update any gem
+[2012-09-10 23:29:16 -0400] _0x783czar: z: we haven't pushed live, so it's not breaking our infrastructure
+[2012-09-10 23:30:26 -0400] btm: z, rava: 10.14.2 is shipping as you speak. :)
+[2012-09-10 23:30:32 -0400] rava: btm: <3
+[2012-09-10 23:30:34 -0400] _0x783czar: z: it's just fustrating, although I'm not blaming opscode.
+[2012-09-10 23:30:39 -0400] z: btm++
+[2012-09-10 23:30:50 -0400] _0x783czar: btm: thanks!
+[2012-09-10 23:31:03 -0400] rava: _0x783czar: i blame ruby in general. cuz i hate it, and i'm spiteful that the awesomeness of chef is in ruby
+[2012-09-10 23:31:25 -0400] btm: the gems have been up for an hour or so. if you can't get them you're probably hitting a slow mirror or something.
+[2012-09-10 23:31:44 -0400] rava: how about the os packages?
+[2012-09-10 23:32:07 -0400] rava: debian/ubuntu specifically (the rest of the distros blow so who cares ;) )
+[2012-09-10 23:33:32 -0400] rava: i've been digging everywhere to find a good source of "Best practices" when it comes to writing recipes and cookbooks, i've seen a lot of "this is how you build X"
+[2012-09-10 23:34:16 -0400] mhalligan: rava: if you find any, send them to me?
+[2012-09-10 23:35:24 -0400] mhalligan: though I'd look at miah_'s graphite and redis cookbooks, or really any cookbook which is basically a library of providers, it seems like best practices would involve loading as much configuration data as possible into data bags, writing all your recipes as providers which access configuration data from a sepcified data bag
+[2012-09-10 23:35:27 -0400] btm: rava: the omnibus packages are building.
+[2012-09-10 23:35:28 -0400] rava: mhalligan: sure, i can't seem to find any opinionated blog entries or the like. lots of end to end process descriptions but nothing that gives reasoning. just "this is how you could get this value"
+[2012-09-10 23:35:45 -0400] btm: rava: the regular debs should be up, but I haven't tested them yet.
+[2012-09-10 23:36:06 -0400] rava: i've got a test box that i've been abusing up, let me give that a whirl
+[2012-09-10 23:37:37 -0400] mhalligan: and personally, I might add, never compile shit in an exec if you can avoid it; ie if the available system packages will do the job. There are some embarassingly bad cookbooks out there which are all  glorified shell scripts
+[2012-09-10 23:37:45 -0400] rava: did the log output change in this release? (i did notice something about log handlers or some such in the release notes..but i skimmed :) )
+[2012-09-10 23:37:57 -0400] z: yes
+[2012-09-10 23:38:16 -0400] rava: mhalligan: mutha fuggin werd
+[2012-09-10 23:38:48 -0400] z: mhalligan: the magic of GitHub - airing your dirty execute resources for the world to snigger
+[2012-09-10 23:38:57 -0400] rava: heheh
+[2012-09-10 23:39:25 -0400] mhalligan: z: not to snigger, hopefully just to improve upon?
+[2012-09-10 23:40:18 -0400] z: mhalligan: i find in almost all cases where someone is compiling inside an Execute, starting over is faster than fixing the *other* issues they inevitably have
+[2012-09-10 23:40:36 -0400] _0x783czar: What's the easiest way to update the chef version on my clients?
+[2012-09-10 23:41:02 -0400] z: mhalligan: and since I'm an equal opportunity snigger-fiend, I realise some of my cookbooks cause others to laugh, so I *absolutely* snigger/snicker (as appropriate)
+[2012-09-10 23:41:11 -0400] mhalligan: rava: https://github.com/miah/chef-graphite and https://github.com/miah/chef-redis are my two favorite cookbooks and I've started trying to use them as templates when I start writing a new cookbook. the users cookbook from opscode is pretty nice too.
+[2012-09-10 23:41:18 -0400] z: _0x783czar: chef-client cookbook works for me
+[2012-09-10 23:41:37 -0400] rava: mhalligan: awesome, i was actually looking to work on a graphite cookbook
+[2012-09-10 23:41:48 -0400] mhalligan: z: hah, most of my cookbooks are pretty embarassing, so I try not to judge, instead I just get angry and rant about how 1999 called and they want their shell scripts back, then I scrap it and start from scratch.
+[2012-09-10 23:42:34 -0400] z: "I'm not a cookbook approachist, I hate all cookbooks equally"
+[2012-09-10 23:42:47 -0400] joemiller: are there any tools/gems for profiling cookbook execution time?
+[2012-09-10 23:43:18 -0400] rava: joemiller: that would be hella nice
+[2012-09-10 23:43:23 -0400] z: joemiller: not aware of any but if you find a way to abuse a Report Handler, let me know
+[2012-09-10 23:43:26 -0400] mhalligan: clearly rava is from 510
+[2012-09-10 23:43:40 -0400] joemiller: will do
+[2012-09-10 23:43:53 -0400] z: joemiller: its one of those things on my bucket list to 'report home' on so I can do the equivalent of 'git blame' on who eats all my wallclock time
+[2012-09-10 23:44:46 -0400] mhalligan: rava: the graphite cookbook is nice .. it just worked. I feel like I don't say t hat frequently.
+[2012-09-10 23:45:02 -0400] rava: thinking i'd just grabthe start/end times and push the time in seconds to graphite @ end of execution
+[2012-09-10 23:45:14 -0400] rava: graph all my execution runs..
+[2012-09-10 23:45:19 -0400] z: thats easy
+[2012-09-10 23:45:25 -0400] z: individual cookbooks are much harder
+[2012-09-10 23:47:02 -0400] rava: btm: fugging lovely, the package updates are finally quieting my test cloud
+[2012-09-10 23:47:41 -0400] rava: also liking the new log format. much cleaner output during exceptions
+[2012-09-10 23:47:43 -0400] mhalligan: rava: tehre's graphite handler for chef
+[2012-09-10 23:48:05 -0400] mhalligan: https://github.com/lewg/chef-graphite_handler
+[2012-09-10 23:48:37 -0400] rava: beautiful, thanks
+[2012-09-10 23:49:28 -0400] z: http://dev.nuclearrooster.com/2011/05/10/chef-notifying-and-logging-updated-resources/ < neat too
+[2012-09-10 23:50:59 -0400] mhalligan: z: neat!
+[2012-09-10 23:52:36 -0400] rava: very
+[2012-09-10 23:52:36 -0400] z: http://rubydoc.info/gems/chef/Chef/RunStatus < this is what you get to work with for handlers
+[2012-09-10 23:52:55 -0400] z: elapsed_time is the important bit, but it doesn't cover individual cookbooks/resources
+[2012-09-10 23:53:13 -0400] joemiller: btw, i am pretty sure miah based her cookbooks on this writeup, for those interested in best practices: http://blog.nistu.de/2012/03/04/reusability-in-configuration-management-systems
+[2012-09-10 23:53:32 -0400] joemiller: and yeah, miah's cookbooks are pretty solid
+[2012-09-10 23:53:36 -0400] rava: joemiller: thanks for that link
+[2012-09-10 23:54:36 -0400] rava: has anyone worked extensively with ec2 auto scaling groups provisioned via chef? i was looking at a presentation that talked about using chef-solo on the instance with the pushed recipes to keep from having to keep clearing out their nodes/clients
+[2012-09-10 23:54:49 -0400] Liku: Hi everyone. I'm using community cookbook sudo and when I'm trying to use it with databag I'm getting an error:
+[2012-09-10 23:55:10 -0400] Liku: FATAL: NoMethodError: sudo[sysadmins] (base::sudoers line 2) had an error: NoMethodError: undefined method `each' for nil:NilClass
+[2012-09-10 23:55:31 -0400] rava: i'm using that cookbook and don't have an error
+[2012-09-10 23:55:33 -0400] Liku: recipe looks like this: search(:users, "enable_sudo:true") do |admin|
+[2012-09-10 23:55:45 -0400] rava: are you sure it's got an array to itterate over/
+[2012-09-10 23:55:56 -0400] Liku: could someone please help me with that?
+[2012-09-10 23:56:02 -0400] rava: if you run shef, and do a databag search for that what do you get?
+[2012-09-10 23:56:16 -0400] rava: shev -S yourserverurl
+[2012-09-10 23:56:18 -0400] Liku: All is working
+[2012-09-10 23:57:38 -0400] Liku: I meand search without recipe
+[2012-09-10 23:58:43 -0400] miah: joemiller: yes, indeed.
+[2012-09-10 23:58:52 -0400] miah: i did follow that.
+[2012-09-10 23:59:03 -0400] miah: but im also doing crazier things now too.
+[2012-09-10 23:59:10 -0400] joemiller: miah: blog 'em!
+[2012-09-10 23:59:15 -0400] rava: yes!
+[2012-09-10 23:59:15 -0400] miah: ya
+[2012-09-10 23:59:45 -0400] miah: i have lots of neat ideas in my nagios book

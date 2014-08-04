@@ -1,0 +1,565 @@
+[2014-06-16 00:05:37 -0400] daxroc: coderanger: thanks
+[2014-06-16 02:29:20 -0400] lyken: is it better to use unless or if
+[2014-06-16 02:29:25 -0400] lyken: when testing things?
+[2014-06-16 02:29:42 -0400] gchristensen: lyken: if you have an else, avoid 'unless'
+[2014-06-16 02:32:44 -0400] lyken: gchristensen: I'm testing if i'm running chef solo and sending something to log
+[2014-06-16 02:33:38 -0400] gchristensen: use the one that is more natural
+[2014-06-16 02:33:45 -0400] gchristensen: you said 'if' so that might be a clue that you want an if
+[2014-06-16 02:34:36 -0400] lyken: gchristensen: im 1.5 months into learning chef so..
+[2014-06-16 02:34:55 -0400] gchristensen: its not really a chef question, but what reads easier and what you understand faster
+[2014-06-16 02:35:13 -0400] gchristensen: just do what looks right
+[2014-06-16 02:35:35 -0400] lyken: ok, thanks
+[2014-06-16 02:35:43 -0400] lyken: i should probably learn some more ruby heh
+[2014-06-16 02:35:51 -0400] gchristensen: check out Ruby Koans
+[2014-06-16 04:15:37 -0400] hilmi: chef experts.  how can you customized your by adding your own *.conf file on sites-available directory
+[2014-06-16 04:15:58 -0400] hilmi: I mean customized NGINX...
+[2014-06-16 04:16:44 -0400] hilmi: just trying to figure out how to add the .conf file on my recipe
+[2014-06-16 04:18:05 -0400] lyken: template?
+[2014-06-16 05:06:51 -0400] pdffs: Hi all, I'm having some troubles trying to deal with a circular dependency in a provider I'm writing.  I need to increment a serial for use in a template, but only if the template is going to be updated in this run.  So, I have a ruby_block that subscribes to the template, uses a local var so that it's only triggered once, and then notifies the original template to be updated after the block updates a node attribute.  The chain of resources
+[2014-06-16 05:06:52 -0400] pdffs: appear to execute just fine, but the template always claims it is up to date after changing the node attribute.
+[2014-06-16 05:07:06 -0400] pdffs: Here's a gist of the core:  https://gist.github.com/pdf/724086ffd0c6aab883c8
+[2014-06-16 05:08:41 -0400] pdffs: Is there another, more sane way of dealing with this, or can anyone point out why the node attribute is not re-read when the template resource is executed the second time?
+[2014-06-16 05:09:20 -0400] runfromnowhere: pdffs: Let me see - not that I'm an expert but I'm awake :)
+[2014-06-16 05:12:10 -0400] pdffs: Thanks, I'm kind of beating my head against this atm... I just can't see why the node attribute doesn't get re-evaluated...
+[2014-06-16 05:12:20 -0400] runfromnowhere: OK so I'm a little confused by this gist
+[2014-06-16 05:12:24 -0400] runfromnowhere: You have a template
+[2014-06-16 05:12:42 -0400] runfromnowhere: I'm assuming the template contains many variables and not just serial?
+[2014-06-16 05:12:50 -0400] runfromnowhere: (I'm also kind of assuming this is for DNS stuff but that might be off)
+[2014-06-16 05:12:55 -0400] pdffs: Sorry, refresh the gist - I made it more clear
+[2014-06-16 05:13:03 -0400] pdffs: Yeap, zone files it is
+[2014-06-16 05:13:20 -0400] runfromnowhere: So here's an easy solution
+[2014-06-16 05:13:26 -0400] pdffs: None of the existing cookbooks were flexible/powerful enough for what we need
+[2014-06-16 05:13:42 -0400] lyken: dns, i hate it so much..
+[2014-06-16 05:13:57 -0400] runfromnowhere: Try ":serial => node[:serial] + 1"
+[2014-06-16 05:14:22 -0400] runfromnowhere: And then have a ruby block that increments node[:serial] if the template is updated
+[2014-06-16 05:14:36 -0400] runfromnowhere: Actually that won't quite work
+[2014-06-16 05:14:43 -0400] runfromnowhere: Ugh it's late and I'm stupid and backwards
+[2014-06-16 05:14:44 -0400] pdffs: Nope
+[2014-06-16 05:16:28 -0400] runfromnowhere: What other resources is the template based on?
+[2014-06-16 05:16:44 -0400] runfromnowhere: Like is there another point before you actually instantiate the template that you can check to see if things were updated/
+[2014-06-16 05:16:50 -0400] runfromnowhere: Otherwise you might be best off writing a custom LWRP for it
+[2014-06-16 05:17:03 -0400] pdffs: I am trying to do this in a provider
+[2014-06-16 05:19:57 -0400] pdffs: I've added some more of the actual code to the gist, I was just trying to avoid overloading it with extraneous information
+[2014-06-16 05:20:44 -0400] runfromnowhere: Hmm
+[2014-06-16 05:20:55 -0400] pdffs: the records variable contains merged records passed to the resource by the user, and found via search, and they're the main driver for triggering updates
+[2014-06-16 05:22:41 -0400] runfromnowhere: Hmm yeah
+[2014-06-16 05:23:02 -0400] runfromnowhere: My gut right now is to write another LWRP that will use load_current_resource to get the current version of the zonefile and see if it's different from the template
+[2014-06-16 05:23:17 -0400] runfromnowhere: from the template output, that is
+[2014-06-16 05:23:38 -0400] pdffs: Hmmm
+[2014-06-16 05:24:01 -0400] runfromnowhere: That can determine whether it needs updating
+[2014-06-16 05:24:47 -0400] runfromnowhere: There's also this - http://lists.opscode.com/sympa/arc/chef/2012-03/msg00138.html - which describes using $INCLUDE in the BIND zonefile and splitting it into two separate templates, one with the data, and one with the serial that gets notified when the data one updates
+[2014-06-16 05:27:39 -0400] pdffs: Well now, that might just make life a lot less nasty indeed
+[2014-06-16 05:27:58 -0400] runfromnowhere: Kind of a run around the problem, but it sounds like it splits it up into two more manageable chunks
+[2014-06-16 05:29:20 -0400] pdffs: Yeah, I'd like to understand why Chef is unhappy with this, but it's a moderately unusual requirement, so I'm not interested enough to spend half a day on it ;-)
+[2014-06-16 05:31:02 -0400] pdffs: The $INCLUDE directive looks like it will work just fine, thanks for the suggestion!
+[2014-06-16 05:31:08 -0400] runfromnowhere: No problem, glad to be of help
+[2014-06-16 05:32:12 -0400] runfromnowhere: I bet it tries to be smart
+[2014-06-16 05:32:34 -0400] runfromnowhere: And merges similar notifies
+[2014-06-16 05:32:37 -0400] runfromnowhere: Maybe if you did a deferred one
+[2014-06-16 05:34:48 -0400] pdffs: I don't think that's what's going on - it executes the template create, then the ruby block, then the template create again, but the resulting hash matches the earlier run, so I don't think the variables are being re-evaluated
+[2014-06-16 05:35:31 -0400] runfromnowhere: Ah it might not be
+[2014-06-16 05:35:40 -0400] runfromnowhere: When you define a template twice sometimes it just copies the earlier templates
+[2014-06-16 05:35:51 -0400] runfromnowhere: Or rather
+[2014-06-16 05:36:06 -0400] runfromnowhere: When you define a resource multiple times it'll often just copy the earlier resource definition, depending on situation
+[2014-06-16 05:36:11 -0400] runfromnowhere: I'd need to get deeper into it to debug anything tho
+[2014-06-16 05:49:57 -0400] pdffs: All working fine via the $INCLUDE method, it's not pretty but I'm putting that in the 'good enough' pile for now, thx again
+[2014-06-16 08:16:07 -0400] m4rcu5: i kinda have an issue, one of my recipes tries to install the apt key from hwraid.le-vert.net, however they are down atm. This now kills my complete chef run. Is there any way around this?
+[2014-06-16 08:22:41 -0400] coderanger: m4rcu5: Fix your recipes to not do that?
+[2014-06-16 08:27:08 -0400] m4rcu5: coderanger: how would one do that? i use the apt resource, and that one just craps out when the source is down
+[2014-06-16 08:27:27 -0400] coderanger: Comment out the apt resource
+[2014-06-16 08:27:44 -0400] coderanger: You can also set "ignore_failure" on it, but I really don't recommend that
+[2014-06-16 08:28:04 -0400] m4rcu5: coderanger: i was hoping for some fancy "skip resource/recipe" feature in chef-shell?
+[2014-06-16 08:28:07 -0400] coderanger: If you need to maintain an internal mirror of an unreliable upstream, the apt cookbook has a recipe for that
+[2014-06-16 08:28:24 -0400] coderanger: No, there is nothing magical, chef just executes whatever code you give it
+[2014-06-16 08:29:02 -0400] m4rcu5: ah, well, it was worth a shot :)
+[2014-06-16 08:41:24 -0400] coderanger: m4rcu5: You could make a node attribute that disables those resources though
+[2014-06-16 09:53:46 -0400] m4rcu5: is there any way to acces an other node's attribute form a recipe without search? (eg, i know the node's name already, no need to search for it)
+[2014-06-16 09:54:48 -0400] srenatus: m4rcu5: you could search(:node, "node:#{known_name}"), but you need to get the data from the server somehow
+[2014-06-16 09:55:33 -0400] m4rcu5: srenatus: i tought there might be an function to do it directly
+[2014-06-16 09:56:47 -0400] srenatus: m4rcu5: hmm not that I knew of... you could use a data bag, I suppose
+[2014-06-16 09:57:48 -0400] srenatus: I'm always unsure about that, but a node can save stuff to a data bag item, can't it?
+[2014-06-16 09:57:56 -0400] workmad3: srenatus: not easily
+[2014-06-16 09:58:06 -0400] m4rcu5: srenatus: nope, and im disappointed by that
+[2014-06-16 09:58:06 -0400] workmad3: srenatus: and not without opening up large potential issues
+[2014-06-16 09:58:18 -0400] workmad3: distributed race conditions anyone? :P
+[2014-06-16 09:58:27 -0400] m4rcu5: i had a whole PKI system sketched up and then i found out the node cant write to the bag
+[2014-06-16 09:58:54 -0400] srenatus: m4rcu5: there's a pki cookbook out there, using node attributes an search
+[2014-06-16 09:59:11 -0400] srenatus: someara's: https://github.com/someara/pki-cookbook/
+[2014-06-16 09:59:27 -0400] workmad3: m4rcu5: you could use searches and encrypt node values... or you could check out something like chef-vault
+[2014-06-16 09:59:28 -0400] m4rcu5: srenatus: we do it somewhat like that now for this application
+[2014-06-16 10:52:01 -0400] rsavage: good morning all
+[2014-06-16 10:59:04 -0400] Yvan_: Help: Chef::EncryptedDataBagItem.load returns error "Data Bag Items must contain a Hash or Mash!"
+[2014-06-16 11:07:48 -0400] rsavage: Yvan sounds like your data bag ahas an improperly configured encryption configuration.
+[2014-06-16 11:07:57 -0400] Yvan_: Help needed: Chef::EncryptedDataBagItem.load returns error "Data Bag Items must contain a Hash or Mash!"
+[2014-06-16 11:07:59 -0400] rsavage: Here. read this: http://lists.opscode.com/sympa/arc/chef/2013-06/msg00304.html
+[2014-06-16 11:16:15 -0400] Yvan_: Tried the link with no better result. Using chef-solo 11.12.8
+[2014-06-16 11:38:23 -0400] joshua___: Hey guys, am trying to bootstrap a windows box this morn ( I know :( ) but it keeps falling over with OpenSSL errors while pulling in cookbooks from s3. Happened a few times now, any ideas?
+[2014-06-16 11:51:37 -0400] whiteadam: so it begins
+[2014-06-16 12:06:46 -0400] boombaloo: guys, knife ssh is giving headaches...I don't quite understand how it redirects the output or how does it work in general
+[2014-06-16 12:07:04 -0400] boombaloo: im trying to curl healthcheck of one of the services running on one of my nodes
+[2014-06-16 12:07:24 -0400] boombaloo: when I curl it whilst logged on the server all works fine and I get  the return value
+[2014-06-16 12:07:36 -0400] boombaloo: when I do it from my laptop I get nothing
+[2014-06-16 12:07:37 -0400] boombaloo: http://pastebin.com/Vecynx74
+[2014-06-16 12:08:54 -0400] polkaparty: boombaloo: do you see the result when you execute knife-ssh with debug logging?
+[2014-06-16 12:09:09 -0400] boombaloo: polkaparty: thats what im doing now
+[2014-06-16 12:09:15 -0400] boombaloo: you mean verbose right
+[2014-06-16 12:10:04 -0400] boombaloo: and no
+[2014-06-16 12:10:17 -0400] boombaloo: i just run this with "hyperdebug" ie -VV
+[2014-06-16 12:10:22 -0400] boombaloo: nothing returned back...
+[2014-06-16 12:10:44 -0400] polkaparty: boombaloo: one sec, i'll take a look at the source.
+[2014-06-16 12:11:22 -0400] boombaloo: in fact I dont even see the command being executed on the hose
+[2014-06-16 12:11:36 -0400] boombaloo: im thinking some sanitazition is preventing it from running ? just guessing
+[2014-06-16 12:11:57 -0400] polkaparty: try running a aribitrary command like "uptime" to confirm you're at least connecting and able to see output.
+[2014-06-16 12:12:37 -0400] boombaloo: polkaparty: yeah I did indeed
+[2014-06-16 12:12:43 -0400] boombaloo: and that works perfectly fine
+[2014-06-16 12:12:46 -0400] boombaloo: like totally fine
+[2014-06-16 12:13:18 -0400] boombaloo: im looking at the debug output
+[2014-06-16 12:13:26 -0400] boombaloo: that command never even gets executed
+[2014-06-16 12:13:35 -0400] boombaloo: knife just authenticates and closes the connection
+[2014-06-16 12:13:38 -0400] boombaloo: w000t ?
+[2014-06-16 12:14:37 -0400] boombaloo: actually...
+[2014-06-16 12:14:56 -0400] boombaloo: it probably does get executed...hard to say from the byte dump in DEBUG output...
+[2014-06-16 12:15:04 -0400] boombaloo: but yeah, nothing's being returned...
+[2014-06-16 12:15:26 -0400] polkaparty: you would be seeing additional output as well if you were unable to connect and/or authenticate.
+[2014-06-16 12:15:32 -0400] whiteadam: How do you scroll up in the log in irssi? I'm too lazy to google it.
+[2014-06-16 12:15:46 -0400] boombaloo: polkaparty: authentication and connection works fine
+[2014-06-16 12:15:46 -0400] polkaparty: i am too lazy to answer whiteadam
+[2014-06-16 12:16:10 -0400] boombaloo: otherwise I would not be able to rune hostname or uptime commands....
+[2014-06-16 12:16:21 -0400] boombaloo: there is some subtlety hiding somewhere ;-)
+[2014-06-16 12:16:55 -0400] polkaparty: boombaloo: take a look at knife/ssh.rb within the gem, you'll see how the output is handled.
+[2014-06-16 12:17:08 -0400] whiteadam: polkaparty: I see what you did there
+[2014-06-16 12:17:15 -0400] polkaparty: whiteadam: like a fox
+[2014-06-16 12:17:18 -0400] eeero__: hi, my chef server does not start anymore: http://pastebin.com/VPSuwm8G ideas to fix it? :/
+[2014-06-16 12:17:22 -0400] whiteadam: polkaparty: /highfive
+[2014-06-16 12:17:41 -0400] whiteadam: eeero__: That doesn't sound good
+[2014-06-16 12:17:55 -0400] boombaloo: that's what I wanted to avoid....been looking too much into Chef code recently....darn...we have so many local fixes...looks like we might need another one...
+[2014-06-16 12:17:55 -0400] polkaparty: whiteadam: /fistpump and humpty dance
+[2014-06-16 12:18:07 -0400] whiteadam: polkaparty: I like your style. Internet friends.
+[2014-06-16 12:18:22 -0400] eeero__: whiteadam: yes, I know. any ideas how to debug it?
+[2014-06-16 12:18:33 -0400] polkaparty: whiteadam: only if we celebrate such a union with hours upon hours of adventure time
+[2014-06-16 12:18:38 -0400] whiteadam: eeero__: I'm no expert, but it sounds like RabbitMQ isn't starting properly.
+[2014-06-16 12:18:49 -0400] whiteadam: polkaparty: I just re-watched every episode.
+[2014-06-16 12:18:54 -0400] polkaparty: shit, lunch. back in a few
+[2014-06-16 12:19:06 -0400] polkaparty: whiteadam: you're an amazing human being, never change.
+[2014-06-16 12:19:21 -0400] eeero__: whiteadam: well, how to debug that ? :(
+[2014-06-16 12:19:37 -0400] boombaloo: eeero__: logs and config check ?
+[2014-06-16 12:19:46 -0400] whiteadam: eeero__: Try sudo chef-server-ctl test
+[2014-06-16 12:20:35 -0400] eeero__: whiteadam: ok.
+[2014-06-16 12:21:13 -0400] whiteadam: eeero__: No promises though
+[2014-06-16 12:24:01 -0400] eeero__: whiteadam: http://pastebin.com/Bf1t44eb
+[2014-06-16 12:25:50 -0400] whiteadam: eeero__: eh, no idea on that one... Sounds interesting though
+[2014-06-16 12:27:59 -0400] boombaloo: I think knife ssh can't return json...uhh
+[2014-06-16 12:28:26 -0400] boombaloo: it just discards it
+[2014-06-16 12:28:37 -0400] boombaloo: or something like that...pure guess
+[2014-06-16 13:06:05 -0400] rsavage: I have a question.  When creating & using a LWRP, especially when calling it from a recipe (ie. whatever_pro "something" do, action :register, end....  is it possible to have a default "name" so that you don't have to specify it your recipe?  for example, the call would be something like: whatever_pro do, action :register, end
+[2014-06-16 13:07:07 -0400] eeero__: whiteadam: changed admin ssh key and: http://pastebin.com/NSkra7qC
+[2014-06-16 13:07:14 -0400] eeero__: whiteadam: still some problems
+[2014-06-16 13:11:16 -0400] someara: rsavage, nope... you  always have to specify a resource name
+[2014-06-16 13:11:54 -0400] rsavage: someara, ok, that's what I thought but I wasn't sure.
+[2014-06-16 13:13:40 -0400] whiteadam: eeero__: I don't know what it is, but it appears that something is very wrong.
+[2014-06-16 13:14:10 -0400] whiteadam: eeero__: This may be bad advice, but I would probably try upgrading and re-configuring it.
+[2014-06-16 14:09:15 -0400] boombaloo: I uncovered
+[2014-06-16 14:09:23 -0400] boombaloo: the issue with the curl over knife ssh
+[2014-06-16 14:09:28 -0400] boombaloo: knife-ssh plugin
+[2014-06-16 14:09:46 -0400] boombaloo: if the output of your command doesn't contain new line char
+[2014-06-16 14:09:52 -0400] boombaloo: then you're screwed :-)
+[2014-06-16 14:10:03 -0400] boombaloo: if newline_index = data.index("\n")
+[2014-06-16 14:33:28 -0400] Scrivener: Heya, cheffers! I've got a node that's in a chef solo setup (AWS Opsworks to be specific). Is there a good way for me to run a recipe from a script on that node?
+[2014-06-16 14:33:42 -0400] Scrivener: I.e. the script calls the recipe to be run.
+[2014-06-16 14:34:27 -0400] Scrivener: If a bigger overview of the actual problem I'm trying to solve would help, I can provide that, but if there's a way to run a recipe from a script I think that'll do it.
+[2014-06-16 14:36:24 -0400] jw: ERROR: The certificate of `www.opscode.com' is not trusted.
+[2014-06-16 14:36:51 -0400] jw: debian7 wheezy. `knife bootstrap HOST`.
+[2014-06-16 14:37:57 -0400] gleam: what version of chef/knife?
+[2014-06-16 14:38:17 -0400] Scrivener: gleam, him or me?
+[2014-06-16 14:38:20 -0400] gleam: jw
+[2014-06-16 14:39:12 -0400] jw: Chef: 11.12.8
+[2014-06-16 14:39:56 -0400] gleam: 7.2 curling www.opscode.com i get *        SSL certificate verify ok.
+[2014-06-16 14:40:19 -0400] jw: did you try - include_recipe "cookbookName::recipeName"
+[2014-06-16 14:40:33 -0400] gleam: does a curl --verbose https://www.opscode.com throw an error for you?
+[2014-06-16 14:41:59 -0400] jw: no error. I got some HTML text - 301 moved permanently
+[2014-06-16 14:44:50 -0400] jw: oh. certificates error occurs only in debian7
+[2014-06-16 14:45:04 -0400] jw: I have no problem with ubuntu 14
+[2014-06-16 14:55:00 -0400] gleam: update ca-certificates?
+[2014-06-16 14:55:46 -0400] boombaloo: pourquoi chef ?
+[2014-06-16 15:21:57 -0400] mivok: jw: We can reproduce with wget on wheezy, but it works fine with curl on wheezy and wget on jessie/testing. We're looking into the issue now.
+[2014-06-16 15:23:49 -0400] gleam: i notice that the chain certificate is being sent twice
+[2014-06-16 15:24:39 -0400] mivok: I think that might be it, especially given it works with some tools and not others, and the CA cert is present.
+[2014-06-16 15:26:59 -0400] gleam: i'm going to baselessly speculate that curl is using openssl and wget is using gnutls, and wheezy is using an older version than jessie
+[2014-06-16 15:36:49 -0400] siXy: I need to require 'gem' in this library, but that causes a compilation failure as it's not installed.  attempts to install it beforehand haven't been sucessful - even if I put a chef_gem running at compile time before loading the module in the recipe it doesn't work
+[2014-06-16 15:45:08 -0400] gleam: i'm not sure either way, but require_chef_gem from chef-sugar might help: https://github.com/sethvargo/chef-sugar
+[2014-06-16 15:45:14 -0400] gleam: (and might not)
+[2014-06-16 15:47:14 -0400] mivok: I think require_chef_gem just makes the error message nicer when the gem isn't installed, and gives you instructions on installing it.
+[2014-06-16 15:48:05 -0400] gleam: ah, i thought it might help him get past the compilation error so the gem can install via chef_gem
+[2014-06-16 16:06:33 -0400] siXy: gleam: yeah, that just makes the error prettier :/  As a workaround I can do a 2-step provision process, but that does kinda stuck
+[2014-06-16 16:06:36 -0400] siXy: suck*
+[2014-06-16 16:09:15 -0400] jskains: chef-client cookbook seems to be ignoring my attributes. It's horribly fustrating cause I can not get forking to configure
+[2014-06-16 16:20:28 -0400] runfromnowhere: Does anyone have experience passing information between resources?  I'm looking to avoid ugly hacks but things seem...questionable so far
+[2014-06-16 16:30:24 -0400] helllen: hello
+[2014-06-16 16:31:19 -0400] helllen: I have delayed some commands, how could I check add new command only if there isn't a specific command on the delayed commands ?
+[2014-06-16 16:35:52 -0400] miah: you cant, unless you write code to work directly with the ResourceCollection stored in the current run_context
+[2014-06-16 16:39:08 -0400] siXy: runfromnowhere: maybe write an ohai plugin for the data you want?
+[2014-06-16 16:41:29 -0400] runfromnowhere: siXy: It's more like I'm looking to create resources, see if they need to be updated, and then perform actions and updates based on that
+[2014-06-16 16:41:43 -0400] runfromnowhere: But that seems to go....wildly against a lot of things
+[2014-06-16 16:42:08 -0400] siXy: runfromnowhere: er, could you be less abstract?  I'm not sure what you're after
+[2014-06-16 16:42:26 -0400] runfromnowhere: So I have multiple tomcat instances that could all contain multiple tomcat apps
+[2014-06-16 16:43:03 -0400] runfromnowhere: I want to be able to check if an app needs to be updated from deployment, and if any app in an instance needs to be deployed shut the whole instance down via a particular method, redeploy just the apps that need to be deployed and then start the instance back up
+[2014-06-16 16:43:12 -0400] runfromnowhere: Which, if I want to do this with a separate "instance" and "app" resource
+[2014-06-16 16:43:31 -0400] siXy: have you considered the 'deploy' resource?
+[2014-06-16 16:44:36 -0400] runfromnowhere: siXy: It doesn't seem to be designed to work with WAR-based deployment
+[2014-06-16 16:44:57 -0400] siXy: but if that won't fulfil your needs, you could write an LWRP that takes the app name and location, and iff it needs to be updated add that app name to a list of apps that need to be deployed, to be triggered at the end of the recipe
+[2014-06-16 16:45:59 -0400] runfromnowhere: Nothing against the deploy resource, but it seems to be much more designed for GIT/SVN deployment of non-compiled apps
+[2014-06-16 16:46:10 -0400] runfromnowhere: Which I wish I was doing, but not this time around :)
+[2014-06-16 16:46:15 -0400] siXy: so you end up with two LWRPs, probably - one for detection, that updates some sort of attribute that the deploy resource looks for so it knows what to deploy
+[2014-06-16 16:46:27 -0400] runfromnowhere: hmm
+[2014-06-16 16:46:36 -0400] runfromnowhere: That would work, but it feels clunky to me
+[2014-06-16 16:47:09 -0400] runfromnowhere: In a perfect world, I'd like to have just one resource that can both check for its own need to be updated and update itself
+[2014-06-16 16:47:38 -0400] siXy: you could do that too - do it all in one LWRP that did all that internally
+[2014-06-16 16:48:09 -0400] runfromnowhere: However due to my shutdown requirements for Tomcat
+[2014-06-16 16:48:27 -0400] runfromnowhere: I want the LWRP to check, then expose the results of the check for other resources to look at, then allow the deploy to be triggered
+[2014-06-16 16:49:35 -0400] runfromnowhere: However I think I might have found out one of my difficulties....
+[2014-06-16 16:49:44 -0400] runfromnowhere: It seems that "action :nothing" does NOT run load_current_resource
+[2014-06-16 16:52:04 -0400] siXy: runfromnowhere: that was why I originally suggested doing the deploy as a seperate LWRP - so you can run it as a :delayed resource so it'll run at the end of the chef run
+[2014-06-16 16:53:39 -0400] sanguisdex: hi, I am trying to install mysql::server on aws but is trying to install the the wrong package. based on the fact that my node['platform_version'] is wrong in the when block. what is the best way to provide the correct platform version?
+[2014-06-16 16:54:50 -0400] sanguisdex: (using amazon distro)
+[2014-06-16 17:00:05 -0400] sanguisdex: :j##ec2
+[2014-06-16 17:00:33 -0400] runfromnowhere: siXy: The problem is how I have to deploy...I need to run a custom shutdown script, deploy, and then restart
+[2014-06-16 17:00:42 -0400] runfromnowhere: So I need to nestle that deploy right after the custom shutdown
+[2014-06-16 17:00:53 -0400] runfromnowhere: And I don't want to do it multiple times if I have multiple apps in the same instance to deploy
+[2014-06-16 17:03:40 -0400] someara: sanguisdex what version of the mysql cookbook?
+[2014-06-16 17:16:09 -0400] joevandyk: is http://s3.amazonaws.com/opscode-full-stack/install.sh still supported?
+[2014-06-16 17:16:13 -0400] joevandyk: getting this: https://gist.githubusercontent.com/joevandyk/1bab674a96121397fd22/raw/a70f06599f80c947047005f0adffae61e14e3ef1/gistfile1.txt
+[2014-06-16 17:18:09 -0400] someara: try http://www.getchef.com/chef/install.sh
+[2014-06-16 17:18:24 -0400] joevandyk: someara: not https://www.opscode.com/chef/install.sh ?
+[2014-06-16 17:18:31 -0400] someara: or that
+[2014-06-16 17:18:36 -0400] joevandyk: ok, thanks
+[2014-06-16 17:19:03 -0400] samkottler: is it possible for me to force uploading of attributes to the chef server before a run happens so I can get that machine back in search right away?
+[2014-06-16 17:20:45 -0400] joevandyk: is there a way to use chef 10 on ubuntu 14.04 easily?
+[2014-06-16 17:21:44 -0400] joevandyk: ah, found it
+[2014-06-16 17:23:43 -0400] rocky_raccoon: Is anyone using Sphinx to document their cookbooks? Doesn't seem to be much info about it out there..
+[2014-06-16 17:24:31 -0400] whiteadam: rocky_raccoon: I use rdoc or yard
+[2014-06-16 17:28:23 -0400] rocky_raccoon: whiteadam: thanks, yard does look good and I'm thinking I'll have to go that way.
+[2014-06-16 17:29:01 -0400] whiteadam: rocky_raccoon: Yeah, I don't use it as much as I should, but it's great.
+[2014-06-16 17:33:38 -0400] sanguisdex: someara: 5.3
+[2014-06-16 17:50:14 -0400] Scrivener: Does anyone know if it's possible to call a chef recipe from a script (in a chef solo setup)?
+[2014-06-16 17:50:29 -0400] Scrivener: Script residing on the same node on which the recipe should be run.
+[2014-06-16 17:54:45 -0400] sanguisdex: how do I install mysql::server (cookbook version 5.3) on an ec2 server running the amazon distro
+[2014-06-16 18:00:23 -0400] kbarry: Looking for some tips on using the "group" resource with windows domain accounts.
+[2014-06-16 18:00:32 -0400] kbarry: Wondering how to properly reference them, and  can i give "members" an array?"
+[2014-06-16 18:05:58 -0400] nobody18188181: what signal can you send to the chef-client so that it removes its PID/lock file? kill -15 doesn't seem to cleanup itself
+[2014-06-16 18:08:11 -0400] someara: sanguisdex I just verified its broken... fixing it up for you now
+[2014-06-16 18:08:58 -0400] sanguisdex: someara: :)
+[2014-06-16 18:08:59 -0400] cschneid: we're running into an annoying problem with chef & bootstrapping a new node.  The first thing we do is install a new system ruby, but we also need to use the chef-vault gem.  So we have an awkward bootstrapping where chef-vault gem isn't installed because we haven't gotten ruby up yet. It blows up during the load of the recipe, not when it actually runs. it just says that it can't find that gem
+[2014-06-16 18:09:04 -0400] sanguisdex: someara:++
+[2014-06-16 18:09:11 -0400] cschneid: is there a good way to handle this kind of ordering problem?
+[2014-06-16 18:10:33 -0400] nobody18188181: or better yet, what is proper way to shutdown daemonized chef-client?
+[2014-06-16 18:10:41 -0400] miah: kill -TERM
+[2014-06-16 18:10:55 -0400] sanguisdex: someara: for the recored it wants to install mysql-community-server
+[2014-06-16 18:11:32 -0400] nobody18188181: miah: Do you know where that's documented at?
+[2014-06-16 18:12:07 -0400] miah: lol documented.
+[2014-06-16 18:12:19 -0400] nobody18188181: miah: lol that's why i asked
+[2014-06-16 18:12:21 -0400] miah: the best chef documentation i've found is the source.
+[2014-06-16 18:12:31 -0400] nobody18188181: miah: lol, i was afraid you'd say that
+[2014-06-16 18:12:34 -0400] whiteadam: nobody18188181: chkconfig chef-client off ?
+[2014-06-16 18:12:43 -0400] nobody18188181: miah: i only read it if i have to
+[2014-06-16 18:12:45 -0400] miah: the code doesnt lie =)
+[2014-06-16 18:13:18 -0400] miah: i think at this point i've reviewed ~80% of the chef-client code base.
+[2014-06-16 18:13:26 -0400] whiteadam: nobody18188181: service chef-client off first though
+[2014-06-16 18:13:38 -0400] miah: when i open a new browser tab, it automatically completes to https://github.com/opscode/chef/tree/master/lib/chef
+[2014-06-16 18:13:53 -0400] whiteadam: miah: sounds boring
+[2014-06-16 18:14:19 -0400] miah: nah, not boring. because know i write the most insane and awesome cookbooks
+[2014-06-16 18:14:26 -0400] miah: s/lnow/now
+[2014-06-16 18:15:05 -0400] whiteadam: lol
+[2014-06-16 18:15:10 -0400] someara: cschneid never use system ruby. always use the full stack installer provided by chef. http://www.getchef.com/chef/install/
+[2014-06-16 18:17:17 -0400] shlant1: anyone using chef and deploying a ruby app with docker?
+[2014-06-16 18:18:43 -0400] mivok: cschneid: if you aren't already, you can try adding chef_gem 'chef-vault' to your recipe before the require 'chef-vault'
+[2014-06-16 18:18:46 -0400] nobody18188181: miah: thanks, it works
+[2014-06-16 18:23:53 -0400] jmreicha: How imperative is it to move to the newest chef-client?
+[2014-06-16 18:26:08 -0400] tspencer: I don't think it's that important.  I've got 10.x clients out there still.  Never hurts, though.  :-)
+[2014-06-16 18:26:43 -0400] jmreicha: Yeah, I just remember I had an issue with one of them that broke some functionality :/
+[2014-06-16 18:31:34 -0400] cschneid: someara: we have that line - we get the issue of "can't find mkmf".  We're in vagrant's world at the moment, and not sure how its installing chef-client at all.
+[2014-06-16 18:32:56 -0400] someara: you'll either want to pre-bake chef into your vagrant box, or use a chef-less box (from bento for example), then use the vagrant-omnibus plugin
+[2014-06-16 18:33:04 -0400] someara: or, you can just have test-kitchen bootstrap it instead
+[2014-06-16 18:34:28 -0400] someara: jmreicha newest chef-client versions on both 11.x and 10.x will address heartbleed fwiw
+[2014-06-16 18:34:42 -0400] someara: not to mention bugs you may run into
+[2014-06-16 18:35:57 -0400] cschneid: someara: vagrant-omnibus is the installer for chef? I think we don't have it prebuilt on the box, since it claims to be a trusty64 base. So that must be how it's getting in.  (I'm inheriting and trying to setup dev env with our prod chef recipes)
+[2014-06-16 18:36:01 -0400] bnair: Hi There.. trying to use partial_Search and getting the error no resource or method partial_search for Chef::Recipe default.... any solutions?
+[2014-06-16 18:36:35 -0400] someara: the vagrant omnibus plugin will log into the box and run a curl -L www.opscode.com/chef/install.sh | sudo bash
+[2014-06-16 18:36:40 -0400] someara: when you vagrant up
+[2014-06-16 18:38:19 -0400] cschneid: someara: cool - let me give that a go - that might solve our issue
+[2014-06-16 18:38:29 -0400] cschneid: is there a list of what's installed w/ omnibus?
+[2014-06-16 18:41:56 -0400] someara: you can dpkg -L it after its installed... but its everything above libc
+[2014-06-16 18:42:05 -0400] someara: ruby, openssl, ncurses, etc
+[2014-06-16 18:42:09 -0400] someara: also chef
+[2014-06-16 18:44:15 -0400] jmreicha: @someara: good to know.  Thanks!
+[2014-06-16 18:47:05 -0400] jake___: anyone else been having trouble with the nokogiri gem?
+[2014-06-16 18:47:50 -0400] jake___: solution to fix is simple enough, but anything yall been writing in your recipes to help with bundler
+[2014-06-16 18:59:26 -0400] paulmcc: I can see git tags for updated versions of the chefdk.  Is there a way to download these?  The download page is still at 1.0
+[2014-06-16 19:04:01 -0400] btm: @chef code review: join: bit.ly/1sjbBLh watch: bit.ly/1sjbBuA
+[2014-06-16 19:14:41 -0400] jeffcara: jake__: more than I care to admit
+[2014-06-16 19:21:27 -0400] someara: sanguisdex there was a typo in yum-mysql-community for 5.5... just fixed that in 0.1.6. Mysql cookbook updated in 5.3.2
+[2014-06-16 19:22:54 -0400] docwhat: Yo, opscode employees.... is there an ETA on the new streamlined contributor processes? I've been waiting/hoping for it since DevOpsDays in Pittsburgh.
+[2014-06-16 19:23:24 -0400] coderanger: docwhat: You mean the new CLA system?
+[2014-06-16 19:23:49 -0400] docwhat: coderanger: Yeah, I was told it would be more github-based with less opening tickets in two places, etc.
+[2014-06-16 19:24:08 -0400] docwhat: e.g. github would say "yes, this person has signed the CLA", etc.
+[2014-06-16 19:24:21 -0400] coderanger: docwhat: Yeah, I think thats blocked on supermarket. Which they have gone silent on, big fracking surprise
+[2014-06-16 19:24:33 -0400] docwhat: coderanger: What's supermarket?
+[2014-06-16 19:25:01 -0400] coderanger: docwhat: Replacement community site and the system taking over CLA management, which are inexplicably in the same codebase.
+[2014-06-16 19:25:21 -0400] cudgel: hiya; looking for some info in what can/can't go in first-boot.json
+[2014-06-16 19:25:36 -0400] cudgel: google is being... less than helpful
+[2014-06-16 19:25:40 -0400] coderanger: cudgel: It is anything that goes in a node object
+[2014-06-16 19:25:40 -0400] docwhat: coderanger: Doesn't sound Agile to me...
+[2014-06-16 19:26:10 -0400] coderanger: docwhat: I'm going to say some v ery mean things if I continue, so I will just leave it as "there is no ETA and there is no expectation of there ever being an ETA"
+[2014-06-16 19:26:19 -0400] cudgel: @coderanger:  succinct and what I wanted to hear.  thank you sir or madam!  +1 internets for you.
+[2014-06-16 19:26:44 -0400] coderanger: If you dislike this fact, please email support@getchef.com and voice your disapproval there
+[2014-06-16 19:27:11 -0400] gchristensen: "what I wanted to hear" implies he never wants supermarket out, coderanger :)
+[2014-06-16 19:27:41 -0400] coderanger: gchristensen: I assumed that was in response to answering their (unrelated) question :P
+[2014-06-16 19:27:47 -0400] gchristensen: haha
+[2014-06-16 19:29:38 -0400] docwhat: coderanger: done.
+[2014-06-16 19:34:09 -0400] stormerider: @jtimberman: are you around by chance? running into a problem with the push-jobs cookbook
+[2014-06-16 19:34:47 -0400] docwhat: someara: Thanks.
+[2014-06-16 19:35:26 -0400] Codemonkey: I started using Chef Server (instead of Solo) with Vagrant. And "Storing updated cookbooks/xyz/xyz... in the cache" takes forever
+[2014-06-16 19:35:29 -0400] Codemonkey: Any reason why?
+[2014-06-16 19:42:43 -0400] whiteadam: Codemonkey: Is it uploading them to the server?
+[2014-06-16 19:43:04 -0400] Codemonkey: I think it's downloading them from the Chef Server
+[2014-06-16 19:43:04 -0400] Codemonkey: ==> database: [2014-06-16T19:42:51+00:00] INFO: Storing updated cookbooks/nginx/attributes/upload_progress.rb in the cache.
+[2014-06-16 19:46:05 -0400] whiteadam: Codemonkey: Have you tried turning it off and on again?
+[2014-06-16 19:46:16 -0400] Codemonkey: \o/
+[2014-06-16 19:46:19 -0400] whiteadam: hehe
+[2014-06-16 19:46:23 -0400] Codemonkey: :)
+[2014-06-16 19:46:47 -0400] Codemonkey: Actually, that's kinda what I'm doing now
+[2014-06-16 19:46:56 -0400] Codemonkey: Doing a clean provisioning run
+[2014-06-16 19:52:57 -0400] tier: anyone played with using chef-metal to provision instances to aws? i can successfully spin up machines but SSH never comes up. the machine gets rebooted in an attempt to unstick it, 2nd time around it just hangs waiting for the instance to be connectable until the wait_for timeout occurs and then the converge fails.
+[2014-06-16 19:58:53 -0400] mivok: tier: do your security groups allow access via ssh from the provisioning machine? That was the thing that constantly got me.
+[2014-06-16 19:59:05 -0400] whiteadam: tier: Have you checked the system log?
+[2014-06-16 20:05:07 -0400] tier: mivok: yeah, ssh is allowed... though i never even get that far since chef-metal is saying ssh never starts on the instance
+[2014-06-16 20:05:27 -0400] tier: the chef-stacktrace.out is pretty vague... just tells me i hit the wait_for timeout
+[2014-06-16 20:05:32 -0400] whiteadam: tier: right click on the instance in aws console and make sure it's booting by checking the system log.
+[2014-06-16 20:12:36 -0400] coderanger: tier: Does the same AMI work with knife-ec2?
+[2014-06-16 20:12:40 -0400] mivok: I'd also compare the chef-metal started instance with a manually created instance. Check that the manually created instance works (ssh starts), and hunt for differences.
+[2014-06-16 20:15:28 -0400] surge_: I added two lines to the ubuntu template right before the <%= start_chef %> line where it curls for a shell script and then immediately executes in the following line, but for whatever reason I am getting Configuration error SyntaxError: during a bootstrap and then it exits
+[2014-06-16 20:17:56 -0400] surge_: Anyone ever run into this when modifying the base bootstrap template?
+[2014-06-16 20:18:43 -0400] surge_: The shell script by itself exits with 0 so I know that part is solid but it seems like I can only call certain commands within >> sh -c   <<
+[2014-06-16 20:20:02 -0400] tier: i'm thinking this ami is a piece... let me try a different one
+[2014-06-16 20:20:31 -0400] surge_: bash -c   **
+[2014-06-16 20:23:44 -0400] coderanger: surge_: What did you add?
+[2014-06-16 20:31:54 -0400] surge_: coderanger: http://pastebin.com/raw.php?i=02yw5Be0  Its fairly straight forward so Im surprised Im running into issues.
+[2014-06-16 20:35:15 -0400] coderanger: surge_: Is this on ubuntu/debian?
+[2014-06-16 20:35:50 -0400] surge_: Yeah. We have some centos5 machines and the rest are ubuntu 12.04
+[2014-06-16 20:36:02 -0400] coderanger: surge_: sh on ubuntu isn't bash anymore, it is dash
+[2014-06-16 20:36:14 -0400] coderanger: which supports almost none of this scripting syntax
+[2014-06-16 20:36:22 -0400] surge_: sonuva....
+[2014-06-16 20:36:34 -0400] surge_: Learn something new everyday
+[2014-06-16 20:36:49 -0400] coderanger: They changed it a few years ago to slim down the boot images
+[2014-06-16 20:37:11 -0400] surge_: But it worked when I executed it on that server manually .. (?)
+[2014-06-16 20:41:03 -0400] coderanger: surge_: Odd, can you get specific info on where the error is coming from?
+[2014-06-16 20:41:34 -0400] surge_: I suppose I can make the bootstrap verbose and check
+[2014-06-16 20:43:06 -0400] sanguisdex: okay when mysql ins installed from the community server how do I resolved the dependency issues when installing php-mysql?
+[2014-06-16 20:50:06 -0400] surge_: coderanger: error between keyboard and chair. I didnt quote the ssl_ca_path value
+[2014-06-16 20:51:36 -0400] coderanger: docwhat: Classic
+[2014-06-16 20:52:03 -0400] docwhat: coderanger: huh? context?  Or was it the support email?
+[2014-06-16 20:52:17 -0400] coderanger: docwhat: http://www.getchef.com/blog/2014/06/16/chef-issue-tracking-and-contribution-workflow-updates/ went up a few minutes ago
+[2014-06-16 20:52:42 -0400] coderanger: docwhat: Why discuss things when you can just issue pronouncements
+[2014-06-16 20:53:14 -0400] docwhat: coderanger: I'm all for issuing pronouncements... IF they can be easily, transparently, and quickly changed...
+[2014-06-16 20:53:18 -0400] docwhat: e.g. The Agile way.
+[2014-06-16 20:53:38 -0400] coderanger: Okay, really getting lunch before I spew bile on y'all</angryrant>
+[2014-06-16 20:55:37 -0400] freerobby: Does anybody know the best way to set a node name in test-kitchen ?
+[2014-06-16 21:07:41 -0400] prometheanfire: having problems downloading cookbooks... connection randomly gets reset....
+[2014-06-16 21:07:41 -0400] prometheanfire: 23.253.106.5 Chef Client failed. 0 resources updated in 473.340750953 seconds
+[2014-06-16 21:08:15 -0400] prometheanfire: second time in a row this has happened, taken up the last 15 minutes at least
+[2014-06-16 21:11:26 -0400] prometheanfire: so, known issue?
+[2014-06-16 21:14:42 -0400] dansteen: hi all.  I'm totally new to minitest, and I'm trying to write a test to make sure that an attribute is set to one of three values "create", "fail", "iginore"
+[2014-06-16 21:14:58 -0400] dansteen: I found the must_include function, but It seems like that does the opposite
+[2014-06-16 21:15:03 -0400] anthonyacquanita: any base cookbooks anywhere that do stuff past bootstrap but before applications.  setup and attribution and things like that?
+[2014-06-16 21:15:21 -0400] dansteen: e.g. making sure that a set includes a specific value
+[2014-06-16 21:15:34 -0400] dansteen: does anyone know a function that will do this?
+[2014-06-16 21:19:23 -0400] dansteen: I figure I could do the opposite like:  ["create", "fail", "ignore"].must_include @node[attr_ns]['action']
+[2014-06-16 21:19:30 -0400] dansteen: is there any reason that would not work?
+[2014-06-16 21:21:17 -0400] shlant: chef_gem requires build-essential, but chef_gems are installed at compile time. how do I resolve this?
+[2014-06-16 21:22:01 -0400] dansteen: slant: you can create a bootstrap file
+[2014-06-16 21:22:04 -0400] dansteen: that runs in advance
+[2014-06-16 21:22:08 -0400] dansteen: and installs build-essentials.
+[2014-06-16 21:22:15 -0400] dansteen: shlant:
+[2014-06-16 21:23:48 -0400] shlant: dansteen: any examples?
+[2014-06-16 21:25:34 -0400] shlant: dansteen: ah, I think I found an answer: default['build-essential']['compile_time'] = true
+[2014-06-16 21:27:19 -0400] dansteen: shlant: that definitely sounds better.
+[2014-06-16 21:34:47 -0400] shlant: coderanger: sorry I should have been more specific last time. Can I use citadel with something like the aws_rds LWRP which requires aws access keys?
+[2014-06-16 21:35:11 -0400] shlant: would I have to explicitly set those attributes?
+[2014-06-16 21:44:18 -0400] coderanger: shlant: link to the cookbook?
+[2014-06-16 21:44:45 -0400] coderanger: freerobby: Most provisioners have a way to set the hostname, which then gets used as the node name
+[2014-06-16 21:45:23 -0400] coderanger: shlant: Also you can set an attribute to run build-essential at compile time, or use include_recipe_now if that gets messy
+[2014-06-16 21:46:11 -0400] shlant: coderanger: https://github.com/gosuri/aws-rds-cookbook
+[2014-06-16 21:46:37 -0400] coderanger: shlant: checking, sec
+[2014-06-16 21:47:41 -0400] coderanger: shlant: This recipe doesn't support the security token field, so it can't be used with IAM roles
+[2014-06-16 21:47:59 -0400] coderanger: shlant: You could use citadel to store a non-role key/secret though
+[2014-06-16 21:48:44 -0400] coderanger: shlant: Heh, and I see you found the attribute :) This is why I should read all of scrollback before answering questions
+[2014-06-16 21:50:00 -0400] shlant: coderanger: so have a key/secret in s3? :p cause I can't use env variables in json yea?
+[2014-06-16 21:50:08 -0400] coderanger: dansteen: Either do the reverse include or attr.must_match /create|fail|ignore/
+[2014-06-16 21:50:50 -0400] coderanger: shlant: Not sure what you mean, the resource attributes aren't directly related to node attributes
+[2014-06-16 21:51:00 -0400] coderanger: shlant: you have to specify them on the resource, not on the node
+[2014-06-16 21:53:14 -0400] shlant: coderanger: but could I specify the resource attrs as the citadel key attrs and then set the citadel attrs using a node.json?
+[2014-06-16 21:53:32 -0400] shlant: or am I going aobut it wrong
+[2014-06-16 21:55:00 -0400] coderanger: shlant: sec, let me write an example
+[2014-06-16 21:56:32 -0400] coderanger: http://hastebin.com/oseqavuduw.rb
+[2014-06-16 21:56:33 -0400] coderanger: Something like that
+[2014-06-16 21:56:53 -0400] coderanger: The three pieces of secret data get pulled in from citadel
+[2014-06-16 21:57:13 -0400] coderanger: though I guess technically access_key_id need not be secret, but easier to pull it in too, makes key rotation a one-stop-shop
+[2014-06-16 21:58:17 -0400] shlant: coderanger: ok so it's "safe" to have those credentials in s3?
+[2014-06-16 21:58:36 -0400] coderanger: shlant: Sure, assuming you setup your IAM policies correctly
+[2014-06-16 21:58:42 -0400] coderanger: I mean thats the whole idea of citadel
+[2014-06-16 21:59:14 -0400] coderanger: Amazon has certs like PCI and whatnot, so in most cases if you get sued for a data breach and it was their fault, you aren't (as) liable
+[2014-06-16 21:59:28 -0400] shlant: maybe just have a separate key/secret for a chef only?
+[2014-06-16 21:59:30 -0400] coderanger: but secrets management sucks all around, so its more a lesser of several evils kind of thing
+[2014-06-16 21:59:42 -0400] coderanger: shlant: I would limit the key to RDS operations only
+[2014-06-16 21:59:48 -0400] coderanger: thats why its in a folder just for RDS
+[2014-06-16 21:59:55 -0400] shlant: ah ok
+[2014-06-16 21:59:57 -0400] coderanger: citadel itself uses EC2 IAM server roles
+[2014-06-16 22:00:17 -0400] coderanger: and RDS probably can too, but this cookbook isn't very good, so you have to make due with this
+[2014-06-16 22:00:52 -0400] shlant: coderanger:  alright, thanks a lot. It's too bad most cookbooks aren't up to par with yours haha
+[2014-06-16 22:01:15 -0400] coderanger: shlant: as always, if you want me to write a better one, I'm available :)
+[2014-06-16 22:01:28 -0400] coderanger: CJNE: Yahr, though heroku postgres is often still better
+[2014-06-16 22:01:50 -0400] CJNE: are they using ec2?
+[2014-06-16 22:02:01 -0400] coderanger: CJNE: yes, heroku is 100% EC2 based
+[2014-06-16 22:02:32 -0400] CJNE: aha, so there should not be any more latency than rds, cool :)
+[2014-06-16 22:03:23 -0400] coderanger: CJNE: Yep, unless you are in a region other than east1 or west2, though RDS doesn't have great coverage beyond that either IIRC
+[2014-06-16 22:03:59 -0400] CJNE: haven't dared moving beyond us-east-1 :P
+[2014-06-16 22:07:36 -0400] dansteen: coderanger:  cool thanks!  as long as either would work.
+[2014-06-16 22:09:07 -0400] coderanger: dansteen: Yeah, the only difference will be the output if it fails
+[2014-06-16 22:09:35 -0400] dansteen: coderanger: thanks!
+[2014-06-16 22:23:52 -0400] kbarry: The documentationsays to use 'package' as often as possible over using the specific provider. Is this true whne your wanting to use the windows provider instead? I am unclear how to pass 'options'.
+[2014-06-16 22:24:07 -0400] kbarry: The documentation seem to show that the options parameter can't be used with windows.
+[2014-06-16 22:24:25 -0400] kbarry: and I don't know how I can express a type
+[2014-06-16 22:29:46 -0400] coderanger: kbarry: Are using using chocolatey or something?
+[2014-06-16 22:29:58 -0400] kbarry: no
+[2014-06-16 22:30:06 -0400] kbarry: just plain ole vanilla chef
+[2014-06-16 22:30:27 -0400] coderanger: Okay, just installing local MSIs?
+[2014-06-16 22:31:06 -0400] kbarry: Thats the idea.
+[2014-06-16 22:31:31 -0400] kbarry: Actually, I have sevral windows related like question, though they might be ruby questions and I don't know it.
+[2014-06-16 22:31:35 -0400] kbarry:  :)
+[2014-06-16 22:32:04 -0400] coderanger: kbarry: It will autodetect MSIs based on the file ext, if you want to use the other type, you'll need to use windows_package directly
+[2014-06-16 22:32:14 -0400] kbarry: gotcha,
+[2014-06-16 22:32:18 -0400] kbarry: and how about options?
+[2014-06-16 22:32:22 -0400] coderanger: Oh, except there are no other types, never mind
+[2014-06-16 22:32:34 -0400] kbarry: What do you mean?
+[2014-06-16 22:32:45 -0400] kbarry: windows_package supposer msi, inno, and atleast 2 others
+[2014-06-16 22:32:53 -0400] kbarry: the document is outdated in places
+[2014-06-16 22:33:09 -0400] coderanger: kbarry: Not in core that I can see https://github.com/opscode/chef/tree/master/lib/chef/provider/package/windows
+[2014-06-16 22:34:00 -0400] coderanger: kbarry: This is complicated by the fact that there is a windows_package resource in the windows cookbook
+[2014-06-16 22:34:06 -0400] kbarry: https://github.com/opscode-cookbooks/windows
+[2014-06-16 22:34:09 -0400] coderanger: kbarry: that is separate from the one in core
+[2014-06-16 22:34:11 -0400] kbarry: Ahhhhhh
+[2014-06-16 22:34:32 -0400] kbarry: Gotcha. Alright. Well, i have another question if you don't mind.
+[2014-06-16 22:34:34 -0400] coderanger: It looks like the cookbook one was _partially_ ported in to core
+[2014-06-16 22:34:39 -0400] kbarry: I am trying to use the directory resource
+[2014-06-16 22:34:41 -0400] coderanger: Surely
+[2014-06-16 22:34:46 -0400] kbarry: the 'rights' param,
+[2014-06-16 22:34:54 -0400] kbarry: I wanna hand in multiple users accounts
+[2014-06-16 22:35:01 -0400] kbarry: but am unclear the syntax
+[2014-06-16 22:35:12 -0400] kbarry: rights :full_control, ['TINONPROD\task']
+[2014-06-16 22:35:14 -0400] coderanger: You mean for setting ACLs?
+[2014-06-16 22:35:41 -0400] coderanger: kbarry: Just have multiple rights lines
+[2014-06-16 22:35:50 -0400] kbarry: Ohhhh, Nice
+[2014-06-16 22:35:57 -0400] kbarry: well, regarding the syntax
+[2014-06-16 22:36:09 -0400] kbarry: I keep seeing examples where they use a single " \"
+[2014-06-16 22:37:17 -0400] coderanger: kbarry: single quotes vs double quotes
+[2014-06-16 22:37:32 -0400] coderanger: kbarry: escape sequences are disabled in single quotes, a la perl
+[2014-06-16 22:37:37 -0400] kbarry: Gotcha
+[2014-06-16 22:38:06 -0400] coderanger: So ' \ ' == " \\ "
+[2014-06-16 22:38:15 -0400] kbarry: what if I wanna use an attribute?
+[2014-06-16 22:38:23 -0400] coderanger: Not sure what you mean
+[2014-06-16 22:38:28 -0400] kbarry: #{node suchandsuch
+[2014-06-16 22:38:52 -0400] coderanger: You need to use double quotes for interpolation, but if you just want the value you use no quotes
+[2014-06-16 22:38:59 -0400] kbarry: ok, gotcha
+[2014-06-16 22:39:00 -0400] coderanger: just whatever node['whatever']
+[2014-06-16 22:39:01 -0400] kbarry: Thanks,
+[2014-06-16 22:39:54 -0400] coderanger: No prob
+[2014-06-16 22:40:28 -0400] kbarry: Is there a resource for creating windows shares?
+[2014-06-16 22:40:32 -0400] kbarry: (I can't find one)
+[2014-06-16 22:41:37 -0400] kbarry: On a related note, the 'group' resurce, the 'members' parameter. Same problem. I wanna add multiple members. I thought i'd need to make an array
+[2014-06-16 22:42:36 -0400] kbarry: members ["#{node['name']}first","#{node['name']}second"]
+[2014-06-16 22:52:26 -0400] jmreicha_: Having trouble excluding a resource based on OS.  Is there a good resource for how to exclude resources based on OS?
+[2014-06-16 22:54:53 -0400] jmreicha_: I tried specifying via platform_family but it doesn't seem to be working?
+[2014-06-16 23:03:20 -0400] coderanger: jmreicha: What are you trying to do?
+[2014-06-16 23:03:52 -0400] coderanger: kbarry: Yes, members is an array
+[2014-06-16 23:05:41 -0400] shlant: can anyone tell me if it's expected that I have to delete the berkshelf vendor cookbook path every time I do a bootstrap? Should it not just look for changes?
+[2014-06-16 23:06:11 -0400] JoshZ_: on chef-metal does anyone know how to assign a chef environment to the machines?
+[2014-06-16 23:17:21 -0400] JoshZ_: anybody?
+[2014-06-16 23:17:41 -0400] JoshZ_: jkeiser: on chef-metal does anyone know how to assign a chef environment to the machines?
+[2014-06-16 23:18:19 -0400] coderanger: shlant: What kind of bootstrap?
+[2014-06-16 23:21:07 -0400] coderanger: JoshZ_: I really recommend not using chef-metal at this point, it isn't ready for public use
+[2014-06-16 23:21:17 -0400] coderanger: JoshZ_: As evidenced by your own experience :-/
+[2014-06-16 23:22:11 -0400] JoshZ_: ok. we are just looking at our options. we arent using it in production. simply dev and testing etc.
+[2014-06-16 23:22:20 -0400] JoshZ_: Thank you for the warning tho!
+[2014-06-16 23:22:33 -0400] coderanger: JoshZ_: I'm sure it will get there, but its definitely at the "you will need to read the code" stage
+[2014-06-16 23:24:07 -0400] shlant: coderanger: knife solo bootstrap
+[2014-06-16 23:24:19 -0400] coderanger: shlant: Hmm, it should be doing it in a temp folder
+[2014-06-16 23:26:47 -0400] shlant: coderanger: I haven't had much resent experience with solo and berkshelf so I assumed it worked like with vagrant where it has a cookbook directory (such as ~/.berkshelf/cookbooks) and it would just pull changes into there before bootstrapping
+[2014-06-16 23:27:06 -0400] shlant: but it seems to want an entirely new cookbooks dir every time
+[2014-06-16 23:28:11 -0400] coderanger: shlant: that folder is like GEM_HOME, it contains all the cookbooks in their raw form. Before boostrapping with solo though, they get copied out to a temp folder (I think) in a format chef-solo can understand, and then that gets transferred over
+[2014-06-16 23:28:16 -0400] coderanger: shlant: What error are you seeing?
+[2014-06-16 23:28:32 -0400] shlant: coderanger: Berkshelf::VendorError: destination already exists
+[2014-06-16 23:28:47 -0400] shlant: and then the cookbook path and suggesting I delete it
+[2014-06-16 23:29:06 -0400] shlant: is this a knife solo issue?
+[2014-06-16 23:29:08 -0400] coderanger: Do you have any funky settings on your berks or knife?
+[2014-06-16 23:30:28 -0400] shlant: coderanger: nope, just cookbook_path, node_path and knife[:berkshelf_path]
+[2014-06-16 23:30:43 -0400] coderanger: shlant: What is berkshelf_path set to?
+[2014-06-16 23:31:04 -0400] coderanger: or cookbook_path for that matter
+[2014-06-16 23:32:02 -0400] shlant: cookbook_path is ../chef-repo/cookbooks and ../chef-repo/site-cookbooks
+[2014-06-16 23:32:21 -0400] shlant: knife[:berkshelf_path] = "~/Work/chef-repo/cookbooks"
+[2014-06-16 23:35:16 -0400] shlant: should both be in relation to the knife.rb coderanger?
+[2014-06-16 23:35:58 -0400] coderanger: Sec, checking the code
+[2014-06-16 23:37:12 -0400] coderanger: Yeah, unset berkshelf_path
+[2014-06-16 23:37:17 -0400] coderanger: Thats supposed to be internal
+[2014-06-16 23:41:04 -0400] shlant: coderanger: works! thanks. knife solo init creates the knife.rb which has berkshelf_path set by default. wonder why they did that
+[2014-06-16 23:47:31 -0400] jkeiser: JoshZ_: put environment "blah" on the machine resource
+[2014-06-16 23:47:52 -0400] jkeiser: Or use with_environment 'blah'
+[2014-06-16 23:48:39 -0400] jkeiser: coderanger, JoshZ_: I don't see any history, are you having trouble beyond setting the environment?
+[2014-06-16 23:49:02 -0400] JoshZ_: running that now...
+[2014-06-16 23:49:30 -0400] coderanger: jkeiser: There have been questions over the span of several days
+[2014-06-16 23:49:48 -0400] jkeiser: coderanger: by this person, or others?
+[2014-06-16 23:49:54 -0400] JoshZ_: jkeiser: ERROR: undefined method `with_environment' for Chef::Resource::Machine
+[2014-06-16 23:50:09 -0400] coderanger: jkeiser: By JoshZ_ in particular, but there is a pretty steady stream of metal questions in here lately
+[2014-06-16 23:50:10 -0400] jkeiser: JoshZ_: with_environment outside the machine object, or environment inside
+[2014-06-16 23:50:12 -0400] coderanger: 1-2 a day
+[2014-06-16 23:50:16 -0400] JoshZ_: ERROR: undefined method `environment' for Chef::Resource::Machine
+[2014-06-16 23:50:24 -0400] JoshZ_: machine 'mario' do
+[2014-06-16 23:50:25 -0400] JoshZ_:   tag 'itsa_me'
+[2014-06-16 23:50:25 -0400] JoshZ_:   role 'testing'
+[2014-06-16 23:50:26 -0400] JoshZ_:   # with_environment 'testing'
+[2014-06-16 23:50:28 -0400] JoshZ_: end
+[2014-06-16 23:50:30 -0400] JoshZ_: machine 'luigi1' do
+[2014-06-16 23:50:32 -0400] JoshZ_:   tag 'its'
+[2014-06-16 23:50:34 -0400] JoshZ_:   recipe 'apt'
+[2014-06-16 23:50:36 -0400] JoshZ_:   environment 'testing'
+[2014-06-16 23:50:38 -0400] JoshZ_: end
+[2014-06-16 23:50:49 -0400] jkeiser: JoshZ_: do you want all your machines in the same environment?
+[2014-06-16 23:50:53 -0400] JoshZ_: I had the with_env uncommmented for the first run
+[2014-06-16 23:50:58 -0400] JoshZ_: yes.
+[2014-06-16 23:51:03 -0400] jkeiser: JoshZ: if so, put with_environment 'testing' before all the machines
+[2014-06-16 23:51:09 -0400] JoshZ_: for that recipe at least.
+[2014-06-16 23:51:12 -0400] JoshZ_: ok il try that.
+[2014-06-16 23:51:14 -0400] jkeiser: JoshZ: and you won't have to put environment 'testing' inside them
+[2014-06-16 23:51:51 -0400] jkeiser: coderanger: cool. There's been a lot of successful use around it, so I'm glad to see it heating up a little
+[2014-06-16 23:52:00 -0400] JoshZ_: ERROR: No resource or method named `with_environment' for `Chef::Recipe "
+[2014-06-16 23:52:24 -0400] coderanger: jkeiser: Yeah, I just wouldn't recommend it for someone that isn't looking forward to getting their hands a little dirty
+[2014-06-16 23:52:54 -0400] jkeiser: JoshZ_: well, that's new.  just put environment 'testing' in the machines.  I'll look and see if I can repro
+[2014-06-16 23:53:11 -0400] jkeiser: JoshZ_: in general, with_* is something you put outside your machines and affects all of them
+[2014-06-16 23:53:28 -0400] jkeiser: coderanger: definitely :)
+[2014-06-16 23:53:52 -0400] JoshZ_: jkeiser: tested that env in the resource as well. it fails.
+[2014-06-16 23:54:12 -0400] jkeiser: ok, looking.  That's super odd
+[2014-06-16 23:54:29 -0400] JoshZ_: with_chef_environment
+[2014-06-16 23:54:42 -0400] JoshZ_: it works!
+[2014-06-16 23:54:47 -0400] JoshZ_: beautiful!!!
+[2014-06-16 23:54:59 -0400] JoshZ_: jkeiser: thanks a ton!!! this is an awesome product!
+[2014-06-16 23:55:37 -0400] JoshZ_: jkeiser: my coworker sent you an email about some openstack/fog questions.
+[2014-06-16 23:55:51 -0400] JoshZ_: I am sure you will get to it when you have time! thanks for your help!!!
+[2014-06-16 23:56:00 -0400] jkeiser: JoshZ_: oh, it's with_chef_environment.  I see what I did there
+[2014-06-16 23:56:23 -0400] jkeiser: JoshZ_: also, if you say chef_environment 'testing' it will create the test environment (and you can put attributes inside the resource too)
+[2014-06-16 23:57:07 -0400] JoshZ_: OH!!! that would be awesome. can you do chef_role as well?
+[2014-06-16 23:57:58 -0400] jkeiser: JoshZ_: yep
+[2014-06-16 23:58:10 -0400] JoshZ_: jkeiser: awesome!!! thanks!
+[2014-06-16 23:58:15 -0400] jkeiser: role, user, client, node, data_bag, data_bag_item and environment
+[2014-06-16 23:58:22 -0400] jkeiser: This is what "cheffish" does
+[2014-06-16 23:59:02 -0400] jkeiser: JoshZ_: also the "private_key" resource may be of use--lets you create a private key that you can use for more than just the client
+[2014-06-16 23:59:28 -0400] jkeiser: https://github.com/opscode/cheffish
+[2014-06-16 23:59:33 -0400] jkeiser: Is where those resources come from
+[2014-06-16 23:59:44 -0400] jkeiser: There are no cookbook ones because I have some things to think about before exposing that

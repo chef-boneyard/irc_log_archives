@@ -1,0 +1,124 @@
+[2014-06-02 03:51:25 -0400] markvan: Looks like latest infra Strainer changed needs a tweak: Strainer::Error::CookbookNotFound
+[2014-06-02 08:23:25 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-compute: Make retrieval of vmware_host_pass optional  https://review.openstack.org/95521
+[2014-06-02 08:44:32 -0400] srenatus: oh dear. total failure.  any hints?
+[2014-06-02 10:00:47 -0400] srenatus: hmm. did anyone have a working change jenkins run recently?  I fear the switch to using strainer for these jobs breaks, like, everything. :/
+[2014-06-02 10:12:40 -0400] mattt: srenatus: when did that change happen?  guess i'm out of the loop
+[2014-06-02 10:12:42 -0400] mattt: ^^^ andymccr
+[2014-06-02 10:14:21 -0400] srenatus: mattt: recently, as in last few days
+[2014-06-02 10:14:38 -0400] srenatus: https://review.openstack.org/#/c/95471/  I screwed it
+[2014-06-02 10:15:33 -0400] srenatus: plus, I screwed the "rubocop" check if there's no Strainerfile (but this never happens AFAIK)
+[2014-06-02 10:16:10 -0400] srenatus: I suppose adding the proper "ruby1.9.1 /usr/bin/bundle exec berks install" will fix this
+[2014-06-02 10:16:35 -0400] srenatus: But I'm unsure whats the policy here, i.e. just mess up jenkins' $HOME/?  doesn't seem right
+[2014-06-02 10:17:45 -0400] mattt: i have no idea about jenkins :(
+[2014-06-02 10:18:35 -0400] srenatus: not really a jenkins issue, rather a openstack-infra issue, e.g. I'd guess a job should only mess with stuff in the build directory, not in ~/.berkshelf
+[2014-06-02 10:23:38 -0400] mattt: srenatus: ah so jenkins doesn't even use Strainer at the moment, didn't realise that
+[2014-06-02 10:23:46 -0400] mattt: or before this change at least :P
+[2014-06-02 10:24:20 -0400] srenatus: mattt: yes... so much for the idea ;)
+[2014-06-02 10:32:22 -0400] srenatus: so it'd be great to just add "berks install --path=cookbooks" before the strainer call, but I'm unsure if it's possible to tell strainer to use this berkshelf stuff _there_ and not in .berkshelf
+[2014-06-02 10:32:47 -0400] srenatus: I actually wonder now why that stuff worked before... i.e. which process go the the dependency cookbooks downloaded? the chef-repo berks installs?!
+[2014-06-02 10:33:06 -0400] mattt: srenatus: not a clue, still trying to understand how this works, but i did notice that strainer has a --sandbox flag
+[2014-06-02 10:33:24 -0400] srenatus: mattt: doesnt strainer sandbox all the time?
+[2014-06-02 10:33:49 -0400] mattt: srenatus: it does but --sandbox allows you to specify which dir to sandbox into
+[2014-06-02 10:33:58 -0400] srenatus: hmm
+[2014-06-02 10:34:45 -0400] srenatus: mattt: and the sandbox would be... a chef repo with a cookbooks folder?  I'm guessing way too much here ;)  need to look that u
+[2014-06-02 10:34:48 -0400] srenatus: p
+[2014-06-02 10:36:38 -0400] mattt: srenatus: not sure :P
+[2014-06-02 10:42:33 -0400] srenatus: ha, strainer knows -p too
+[2014-06-02 10:42:45 -0400] srenatus: so I'll propose another change, fixing my screwup
+[2014-06-02 10:44:13 -0400] mattt: srenatus: ah just pointing -p to .cookbooks ?
+[2014-06-02 10:44:45 -0400] srenatus: mattt: I'm testing it first, but I suppose yes
+[2014-06-02 10:53:14 -0400] srenatus: https://review.openstack.org/#/c/97196/  here we go, input welcome
+[2014-06-02 11:12:46 -0400] mattt: srenatus: k lemme have a peek
+[2014-06-02 11:14:36 -0400] mattt: srenatus: hmm, not sure
+[2014-06-02 11:14:48 -0400] mattt: srenatus: https://github.com/openstack-infra/config/blob/master/modules/openstack_project/files/jenkins_job_builder/config/macros.yaml#L132
+[2014-06-02 11:14:53 -0400] mattt: do we need all those additional berks installs ?
+[2014-06-02 12:05:53 -0400] srenatus: mattt: oh. right. hmm  this will be done already?
+[2014-06-02 12:06:27 -0400] srenatus: ah, got it: https://github.com/openstack-infra/config/blob/b9e5ce83054d0aef6546488bfd66d5ab38b581d3/modules/openstack_project/files/jenkins_job_builder/config/chef-jobs.yaml#L32-L36
+[2014-06-02 12:06:31 -0400] srenatus: ok changing that.
+[2014-06-02 12:18:17 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-compute: Improve ChefSpec coverage  https://review.openstack.org/97217
+[2014-06-02 12:25:20 -0400] mattt: srenatus: that looks better ... in theory :P
+[2014-06-02 12:26:11 -0400] mattt: markvan_: hey there, can you peek https://review.openstack.org/#/c/94653/ when you get a moment?
+[2014-06-02 12:26:23 -0400] mattt: markvan_: more specifically https://review.openstack.org/#/c/94653/5/libraries/cli.rb
+[2014-06-02 14:23:32 -0400] markvan_: mattt: yeah, reviewoing chat and taking a peek now...
+[2014-06-02 14:24:25 -0400] mattt: markvan_: thanks mark!
+[2014-06-02 14:43:45 -0400] srenatus: markvan_: about the strainer-related openstack-infra change:  I just realised that to use strainer, each part (food critic, chefspec, rubocop) needs a to have a chef-berkshelf-prep run...  I wonder if that was the reason it didn't use strainer before...
+[2014-06-02 14:44:40 -0400] markvan_: not sure on why Strainer was not used, but yeah , would need to have berks install done first.
+[2014-06-02 14:44:46 -0400] srenatus: now I wonder if these should be different jobs at all... beside having gotten used to it, what speaks against only one strainer test call?
+[2014-06-02 14:45:13 -0400] srenatus: ok, it wouldn't happen in parallel (not sure if it does now, but it potentially could)
+[2014-06-02 14:46:41 -0400] markvan_: it does seem to run in parallel now.   Having it split can allow individual failures to be seen, not sure if we can setup one call that way.
+[2014-06-02 14:49:43 -0400] srenatus: markvan_: strainer would not stop if the first test fails, however, I don't think there's more output then "marking this build a failure"
+[2014-06-02 14:51:19 -0400] srenatus: it's unfortunate two have two places were tests get configured, though... I'd prefer the strainerfile (per-cookbook) deciding what is done
+[2014-06-02 14:51:38 -0400] srenatus: would make it easier to integrate the-next-cool-chef-tool, too, I suppose
+[2014-06-02 14:52:21 -0400] markvan_: srenatus: yeah...would be nice to have a run_tests type of script in each cookbook to allow easy control outside of infra.
+[2014-06-02 14:53:01 -0400] markvan_: maybe that's a blueprint for later, for now we just fix what we have.
+[2014-06-02 14:53:07 -0400] srenatus: ok
+[2014-06-02 15:19:19 -0400] srenatus: https://blueprints.launchpad.net/openstack-chef/+spec/per-repo-tests
+[2014-06-02 15:24:33 -0400] markvan_: srenatus: ^ good start...
+[2014-06-02 15:30:56 -0400] mattray: https://plus.google.com/hangouts/_/hoaevent/AP36tYceqA94FXco2kjpbEvSRRIi157AtndY5QcJRvyjpswlAuVGKw?authuser=0&hl=en
+[2014-06-02 15:31:01 -0400] mattray: Status Meeting: https://plus.google.com/hangouts/_/hoaevent/AP36tYceqA94FXco2kjpbEvSRRIi157AtndY5QcJRvyjpswlAuVGKw?authuser=0&hl=en
+[2014-06-02 15:31:42 -0400] mattray: YouTube: http://youtu.be/jUV-nprl9Tk
+[2014-06-02 15:34:40 -0400] mattray: galstrom: ^^
+[2014-06-02 15:35:38 -0400] galstrom: mattray: i am swamped today with meetings.. not going to be able to attend
+[2014-06-02 15:35:40 -0400] galstrom: :(
+[2014-06-02 15:39:43 -0400] srenatus: the real openstack-infra screwup is my fault! https://review.openstack.org/#/c/97196/  fix in progress ;)
+[2014-06-02 15:41:57 -0400] srenatus: very sorry about that, indeed
+[2014-06-02 15:45:17 -0400] srenatus: nothing on the mailing list, though
+[2014-06-02 15:45:34 -0400] srenatus: IRC/gerrit only
+[2014-06-02 15:45:46 -0400] srenatus: mattray: ^^
+[2014-06-02 15:55:07 -0400] galstrom: srenatus: why did we decide to go with strainer in the jenkins scripts..
+[2014-06-02 15:55:20 -0400] srenatus: galstrom: I heard you :)
+[2014-06-02 15:55:34 -0400] galstrom: strainer is generally much slower.. than just running the actual commands
+[2014-06-02 15:58:02 -0400] mattray: well.. we can drop it
+[2014-06-02 15:58:12 -0400] mattray: and go straight bundler + calls
+[2014-06-02 15:58:55 -0400] srenatus: middle-ground in the whiteboard: https://blueprints.launchpad.net/openstack-chef/+spec/per-repo-tests
+[2014-06-02 15:59:11 -0400] srenatus: we could add a shell script
+[2014-06-02 15:59:30 -0400] srenatus: this way it's per-cookbook and not-strainer ;)
+[2014-06-02 16:00:17 -0400] srenatus: or make it "run_tests.rb" and drop a ruby script
+[2014-06-02 16:13:20 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-compute: Improve ChefSpec coverage  https://review.openstack.org/97217
+[2014-06-02 16:35:43 -0400] galstrom: srenatus: ok.. so the goal was to get rid of the 3 tests.. and just run one test
+[2014-06-02 16:35:56 -0400] galstrom: that makes sense.. i just did not know where that was coming from
+[2014-06-02 19:47:13 -0400] mrodden: we have to worry about timeouts
+[2014-06-02 19:47:16 -0400] mrodden: in the infra jobs
+[2014-06-02 19:47:23 -0400] mrodden: so i thik going to one job is probably not correct
+[2014-06-02 19:47:39 -0400] mrodden: 3 jobs means we have three jenkins workers chomping on it
+[2014-06-02 19:47:48 -0400] mrodden: so check/gate will be much faster
+[2014-06-02 19:49:49 -0400] mattray: mrodden: remove Strainer from the mix?
+[2014-06-02 19:50:08 -0400] mattray: mrodden: Ruby 2.0/2.1 would both be faster
+[2014-06-02 19:50:10 -0400] mrodden: could leave it for local runs
+[2014-06-02 19:50:20 -0400] mrodden: the way it works in python is that we use tox
+[2014-06-02 19:50:25 -0400] mrodden: which will run all environments
+[2014-06-02 19:50:30 -0400] mattray: mrodden: I don't know if it adds that much value
+[2014-06-02 19:50:35 -0400] mrodden: but the jenkins jobs will only call out to run one
+[2014-06-02 19:50:41 -0400] mrodden: i.e. tox -epy27
+[2014-06-02 19:50:44 -0400] mrodden: for python27 jobs
+[2014-06-02 19:50:54 -0400] mrodden: and another jenkins job is doing python33
+[2014-06-02 19:50:58 -0400] mrodden: and so on and so forth
+[2014-06-02 19:51:20 -0400] mrodden: so if there is a way to make strainer only run chefspecs
+[2014-06-02 19:51:31 -0400] mrodden: or one of the things
+[2014-06-02 19:51:58 -0400] mrodden: basically we use strainer still, but split out the jobs into things that can be parallel
+[2014-06-02 19:52:21 -0400] mrodden: no idea if it supports something like that though
+[2014-06-02 19:53:44 -0400] mrodden: i wouldn't count on ruby2.x being on the jenkins worker nodes for some time
+[2014-06-02 19:55:18 -0400] mattray: yeah
+[2014-06-02 19:55:23 -0400] mrodden: but i actually wonder if they have any trusty (14.04) nodes yet
+[2014-06-02 19:55:28 -0400] mrodden: we might be able to hop over to them
+[2014-06-02 19:56:46 -0400] mrodden: i think they have a ruby2.0 package
+[2014-06-02 19:56:48 -0400] mrodden: on 14.04
+[2014-06-02 19:58:01 -0400] mrodden: but regardless, the speedup of not having strainer run everything serially/blocking would probably be pretty big
+[2014-06-02 19:58:10 -0400] mrodden: chefspec still seems to take the longest though
+[2014-06-02 19:59:22 -0400] mrodden: i bet the infra guys have some nice graphs for this data...
+[2014-06-02 20:17:51 -0400] mattray: Hmmm using time to run straight bundler vs. strainer shows sys 0m1.079s vs. sys 0m1.543s
+[2014-06-02 20:18:05 -0400] mattray: not a whole lot, the wall time seems a wash
+[2014-06-02 20:22:41 -0400] mrodden: yes that is negligible
+[2014-06-02 20:23:20 -0400] mrodden: does strainer run things in parallel?
+[2014-06-02 20:23:24 -0400] mrodden: threaded?
+[2014-06-02 20:23:48 -0400] mattray: doubt it
+[2014-06-02 20:25:17 -0400] mattray: https://github.com/customink/strainer#needs-your-help
+[2014-06-02 20:26:21 -0400] mrodden: yeah
+[2014-06-02 20:26:50 -0400] mrodden: so it would be faster to run foodcritic, rubocop, and rspec across multiple processes on multiple jenkins nodes probably
+[2014-06-02 20:27:39 -0400] mrodden: which is what you get when you split the job into 3 vs 1 in the openstack-infra config stuff
+[2014-06-02 20:28:11 -0400] mrodden: that's how it is today
+[2014-06-02 20:28:20 -0400] mrodden: i thought there was a suggestion to change it to 1 job
+[2014-06-02 20:28:57 -0400] mrodden: also i found this but i can't seem to find any useful data http://graphite.openstack.org/
+[2014-06-02 20:52:18 -0400] mattray: mrodden: not sure about the 3 vs. 1. Is the 30 minute timeout for all the tests or individual tests?
+[2014-06-02 20:52:22 -0400] mattray: markvan_: ^^
+[2014-06-02 20:53:14 -0400] mattray: if we have 1 test over 30 minutes, that's really bad. If it's the 3 combined going over 30 minutes, we can speed it up by moving to 1 test (eliminating redundant setups)

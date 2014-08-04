@@ -1,0 +1,255 @@
+[2014-05-10 00:00:16 -0400] coderanger: Wait, you voluntarily started a new job using Chef? Are you just a masochist or something?
+[2014-05-10 00:00:24 -0400] dgarstang: coderanger: maybe so.
+[2014-05-10 00:00:29 -0400] coderanger: Cool story
+[2014-05-10 00:00:59 -0400] dgarstang: speaking of which, I don't suppose there's any way to make a vagrant box for Amazon Linux.
+[2014-05-10 00:02:32 -0400] coderanger: dgarstang: You mean convert and existing vbox to an AMI?
+[2014-05-10 00:02:56 -0400] coderanger: Or make a new vbox using Amazon's linux distro
+[2014-05-10 00:03:26 -0400] dgarstang: coderanger: the latter...  i can make a vbox of centos but it won't be _quite_ the same as Amazon Linux.
+[2014-05-10 00:03:46 -0400] coderanger: AFAIK there is no install process for Amazon Linux other than using their AMIs
+[2014-05-10 00:03:56 -0400] coderanger: So probably not a simple way other than converting the AMI
+[2014-05-10 00:04:05 -0400] dgarstang: coderanger: kinda figured that.
+[2014-05-10 00:04:18 -0400] dgarstang: coderanger: just means that what's tested won't be the same as what's deployed to prod.
+[2014-05-10 00:04:28 -0400] coderanger: dgarstang: More good reasons to not use Amazon Linux
+[2014-05-10 00:05:24 -0400] dgarstang: coderanger: We're on Rightscale right now. If we use centos, then packer will have to install things like cloud-init and so on. I don't have enough evidence to sway the boss away from Amazon Linux yet.
+[2014-05-10 00:06:05 -0400] coderanger: ::shrug:: If you check stackoverflow they have guides for exporting an AMI to VMWare format, and then you can convert that to vboxfs
+[2014-05-10 00:06:22 -0400] dgarstang: oh yuck
+[2014-05-10 00:19:43 -0400] bricker`LA: I see it's not recommended to alter data bags from a recipe. However, we're using the "dhcp" cookbook, and the "dhcp_hosts" databag specifically to setup private IPs for our internal network. Right now for every new VM we need to create a data bag item and add the mac address and IP for that VM, which is tedious, so I'd like to automate this in a recipe. Is there a better way?
+[2014-05-10 00:20:13 -0400] spheromak: bricker`LA: all of those settings can be in attributes
+[2014-05-10 00:20:42 -0400] spheromak: with the last release i think.
+[2014-05-10 00:21:30 -0400] spheromak: bricker`LA: if your bootstrapping process is generating that data someplace you could query it from a lib / helper/wrapper cook and populate attributes for the dhcp cook to digest.
+[2014-05-10 00:22:38 -0400] spheromak: alternatively that bootstrap process could be populating bags if you want. I wouldn't be generating bag items in recipes. Originally when I wrote that we had a process that created bag items in chef.
+[2014-05-10 00:22:56 -0400] spheromak: Ideally the process wouldn't use something as latent as chef to reflect the config.
+[2014-05-10 00:23:24 -0400] bricker`LA: Indeed. I also may just be misunderstanding this recipe https://github.com/spheromak/dhcp-cook/blob/master/recipes/_hosts.rb
+[2014-05-10 00:23:46 -0400] spheromak: bricker`LA: ya its ugly.. sorry ;)
+[2014-05-10 00:24:05 -0400] bricker`LA: spheromak: eheheh... whoops, didn't realise it was yours :O
+[2014-05-10 00:24:33 -0400] coderanger: bricker`LA: To be more specific, if you attempt to use data bags like that _it will fail_
+[2014-05-10 00:24:49 -0400] spheromak: coderanger: thats what i added pure attribs
+[2014-05-10 00:24:57 -0400] coderanger: bricker`LA: the Chef APIs have no protections against race conditions with multiple writers, so you will get write stomping
+[2014-05-10 00:25:07 -0400] spheromak: yar
+[2014-05-10 00:25:21 -0400] bricker`LA: coderanger: yeah, I would rather do it manually like I am now then deal with that
+[2014-05-10 00:25:26 -0400] spheromak: ideally we would have the zk/etcd service for reflecting this stuff.
+[2014-05-10 00:25:36 -0400] spheromak: bricker`LA: basically you can disable use_bags
+[2014-05-10 00:25:58 -0400] spheromak: build a wrapper cook book that sets all this up in recipe/attributes so you can drive everythign trhough a cook lifecycle
+[2014-05-10 00:26:10 -0400] spheromak: bricker`LA: i have an example gist one sec
+[2014-05-10 00:26:38 -0400] bricker`LA: spheromak: so each node would have attributes for dhcp host, and the dhcp cookbook would read from that, instead of the cookbook?
+[2014-05-10 00:27:06 -0400] bricker`LA: instead of the databag I mea
+[2014-05-10 00:27:07 -0400] bricker`LA: n
+[2014-05-10 00:29:40 -0400] spheromak: bricker`LA: https://gist.github.com/spheromak/0a25aba87e893b3f6c53
+[2014-05-10 00:30:02 -0400] spheromak: yea it's the wraper / lib cook model
+[2014-05-10 00:30:14 -0400] spheromak: I've been using it this way lately.
+[2014-05-10 00:30:57 -0400] bricker`LA: spheromak: awesome
+[2014-05-10 00:31:14 -0400] spheromak: jsut use the providers to build hosts
+[2014-05-10 00:31:16 -0400] spheromak: if you want
+[2014-05-10 00:31:28 -0400] spheromak: but you can just set them up in the recipe
+[2014-05-10 00:31:43 -0400] spheromak: wrapper. this is an example of a tie-in to dns. so no host records here
+[2014-05-10 00:32:56 -0400] spheromak: but in the dhcp::_hosts.rb  you see all it does is figure out a list of host bags to pull down, and then populate a dhcp_host resource with that data.
+[2014-05-10 00:33:04 -0400] spheromak: IMO the wrapper way is much simpler to understand
+[2014-05-10 00:33:37 -0400] bricker`LA: indeed
+[2014-05-10 00:33:39 -0400] bricker`LA: spheromak: thank you!
+[2014-05-10 00:33:54 -0400] spheromak: bricker`LA: let me know if you have any other q's, gotta be bbq'n so msg me if you need something ill get back to ya
+[2014-05-10 00:34:06 -0400] bricker`LA: Will do, thank you :)
+[2014-05-10 00:35:14 -0400] spheromak: bricker`LA: this plays with my bind cook too. and i can show you the wrapper way for that too if you need.
+[2014-05-10 00:35:17 -0400] spheromak: need/want
+[2014-05-10 00:50:53 -0400] bricker`LA: spheromak: this is basically what I'm doing after your suggestion (this recipe runs on our VPN gateway node): https://gist.github.com/bricker/96c9e2004aa1f83dba1e
+[2014-05-10 00:56:05 -0400] spheromak: bricker`LA: totally
+[2014-05-10 00:56:37 -0400] spheromak: only thing is that those nodes need to have gotten some data before its ready
+[2014-05-10 00:56:42 -0400] spheromak: so you have a huge delay.
+[2014-05-10 00:57:25 -0400] bricker`LA: spheromak: huge delay not a big problem for me at this stage, worst case scenario I login and run chef-client manually
+[2014-05-10 00:57:31 -0400] spheromak: bricker`LA: not being familliar with how everything is working in terms of booting machines I can't help too much.
+[2014-05-10 00:58:04 -0400] spheromak: so your just letting the dhcp::_hosts handle making entries
+[2014-05-10 00:58:13 -0400] bricker`LA: spheromak: yep
+[2014-05-10 00:58:19 -0400] spheromak: you could also just build up those entries and not populate your host_data if you wished.
+[2014-05-10 00:59:03 -0400] spheromak: by using dhcp_host resource directly  in that loop. also recognize that if you rebuild your search indexes there are bad consequences
+[2014-05-10 00:59:33 -0400] bricker`LA: spheromak: good idea
+[2014-05-10 01:00:38 -0400] spheromak: bricker`LA: also be aware that search isn't the current state, but cached sate. so other possible races there to be aware of.
+[2014-05-10 03:18:10 -0400] celhead: anyone have a pointer on how I'd write a script that can read an encrypted data bag? (i.e., not from within a chef recipe, etc..)
+[2014-05-10 03:30:14 -0400] coderanger: celhead: If you are using python, you can install pychef from the https://github.com/coderanger/pychef/pull/27 fork
+[2014-05-10 04:50:51 -0400] a13x2121: i assume amazon linux ami isn't supported for a chef server?
+[2014-05-10 04:57:14 -0400] coderanger: a13x2121: It should be
+[2014-05-10 04:57:25 -0400] coderanger: a13x2121: Amazon Linux matches the CentOS ABI
+[2014-05-10 05:01:34 -0400] a13x2121: coderanger, https://tickets.opscode.com/browse/CHEF-3838?page=com.atlassian.streams.streams-jira-plugin:activity-stream-issue-tab
+[2014-05-10 05:03:04 -0400] coderanger: Ahh, looks like it should be fixed in the rc though
+[2014-05-10 05:05:32 -0400] bricker`LA: if I do `n.default["private_ipaddress"] = host["ip"]` from inside of a recipe, so I need to save it afterwards? The attribute isn't being written back to the server and I don't know why
+[2014-05-10 05:05:36 -0400] bricker`LA: do*
+[2014-05-10 06:39:17 -0400] bricker`LA: So it seems it was a permissions problem, but I still have to call 'node.save`, which doesn't seem right
+[2014-05-10 07:13:13 -0400] bricker`LA: How do you setup default permissions in chef enterprise? For example, all new nodes only get "Read" permission for the "clients" group, but I need it to be "Read" and "Update"
+[2014-05-10 10:39:51 -0400] jidar: a13x2121: I only had a few problems with the linux ami from AWS, that had to do with the reconfigure bits of the install iirc.
+[2014-05-10 10:40:06 -0400] jidar: it was also documented in the bugs list, where I found a fix.
+[2014-05-10 11:24:52 -0400] GoT: Hi, I try to execute some requests with http_request resource, but I don't realy understand how I can retrieve to cookie value of the first request and execute others with the same cookie value, someone already try this ?
+[2014-05-10 17:10:46 -0400] Malkav: Is there anyone who can walk me through step-by-step in setting up a server using knife solo?
+[2014-05-10 17:11:13 -0400] Malkav: I need nginx, rvm, mysql and redis
+[2014-05-10 17:13:22 -0400] Malkav: Or can point me at a dummy guide.
+[2014-05-10 17:14:23 -0400] Kramar_Zaibatsu: hi
+[2014-05-10 17:15:08 -0400] Kramar_Zaibatsu: I get the following error when I try to run chef-client on a node:
+[2014-05-10 17:15:09 -0400] Kramar_Zaibatsu: [2014-05-10T19:08:44+02:00] FATAL: Stacktrace dumped to /var/chef/cache/chef-stacktrace.out Chef Client failed. 0 resources updated in 2.28310531 seconds
+[2014-05-10 17:15:20 -0400] Kramar_Zaibatsu: [2014-05-10T19:08:44+02:00] ERROR: SSL_connect returned=1 errno=0 state=SSLv2/v3 read server hello A: unknown protocol [2014-05-10T19:08:44+02:00] FATAL: Chef::Exceptions::ChildConvergeError: Chef run process exited unsuccessfully (exit code 1)
+[2014-05-10 17:16:33 -0400] Kramar_Zaibatsu: I am running centos 6.5
+[2014-05-10 17:20:07 -0400] Kramar_Zaibatsu: what can be done?
+[2014-05-10 18:02:57 -0400] brauliobo: hello, on my first use of chef, I can't run 'knife cookbook site download apt' and get the error: "subcommand_loader.rb:172:in `latest_specs': wrong number of arguments (1 for 0) (ArgumentError)"
+[2014-05-10 18:03:22 -0400] brauliobo: can't get the solution on google
+[2014-05-10 18:09:26 -0400] brauliobo: the problem is that chef doesn't support rubygems 1.4.1, which is the version I need for an old project.
+[2014-05-10 18:09:35 -0400] brauliobo: updating rubygems solved
+[2014-05-10 18:09:49 -0400] brauliobo: chef should check for rubygems version....
+[2014-05-10 18:53:42 -0400] jtimberman: brauliobo: the recommended installation of chef is the omnibus packages, which have a well tested ruby and rubygems environment bundled with it. if you're using chef on your workstation, ChefDK is recommended.
+[2014-05-10 19:09:14 -0400] brauliobo: jtimberman: thanks
+[2014-05-10 19:09:40 -0400] brauliobo: another question: how can web.json run a recipe more than with different attributes?
+[2014-05-10 19:09:56 -0400] brauliobo: for example, for two wordpress sites using only one wordpress recipe
+[2014-05-10 20:55:29 -0400] twilling: Is anyone else still having this issue? It looks like it's been marked as 'fixed' but I'm still seeing it
+[2014-05-10 20:55:30 -0400] twilling: https://tickets.opscode.com/browse/COOK-4441
+[2014-05-10 20:57:09 -0400] Brad_K: We don't use chef 10 anywhere, so I can't comment on this question.
+[2014-05-10 20:58:27 -0400] coderanger: twilling: It wasn't fixed per se, just the docs updated, the cookbook requires chef 11
+[2014-05-10 20:59:39 -0400] twilling: thanks coderanger
+[2014-05-10 20:59:44 -0400] twilling: i'll look into upgrading to 11
+[2014-05-10 21:05:48 -0400] brauliobo: how difficult to start with chef! how can I make my berkshelf' cookbooks be considered by chef-solo??
+[2014-05-10 21:08:59 -0400] coderanger: brauliobo: Generally knife-solo is the easiest way
+[2014-05-10 21:10:48 -0400] brauliobo: coderanger: how do I configure it to use solo.rb and web.json? I'm using 'sudo chef-solo -c solo.rb -j web.json'
+[2014-05-10 21:11:07 -0400] coderanger: brauliobo: knife-solo takes care of the config for you
+[2014-05-10 21:11:15 -0400] coderanger: You run it from your workstation
+[2014-05-10 21:12:36 -0400] brauliobo: hum, how? can't really get that
+[2014-05-10 21:12:51 -0400] coderanger: brauliobo: It handles SSHing to the target machine for you
+[2014-05-10 21:13:16 -0400] brauliobo: there is very few documentation on https://github.com/matschaffer/knife-solo
+[2014-05-10 21:13:55 -0400] brauliobo: could you please provide an usage example?
+[2014-05-10 21:14:08 -0400] teukka: brauliobo: on that readme there is a link to the user documentation: http://matschaffer.github.io/knife-solo/
+[2014-05-10 21:14:24 -0400] coderanger: Yeah, that :)
+[2014-05-10 21:16:25 -0400] brauliobo: got FATAL: Cannot find sub command for: 'solo init' when running knife solo init
+[2014-05-10 21:16:31 -0400] brauliobo: installed knife-solo gem
+[2014-05-10 21:16:50 -0400] coderanger: If you are using chefdk, make sure you install in to it's gem
+[2014-05-10 21:19:46 -0400] brauliobo: it worked now that I put it on the Gemfile
+[2014-05-10 21:21:13 -0400] brauliobo: WARNING: solo.rb found, but since knife-solo v0.3.0 it is not used any more
+[2014-05-10 21:22:34 -0400] teukka: brauliobo: that's only a warning. but knife-solo reads the config from .chef/knife.rb
+[2014-05-10 21:22:55 -0400] teukka: and it generates solo.rb for the guest
+[2014-05-10 21:24:50 -0400] brauliobo: I want to run it on the localhost, but it keep asking the password
+[2014-05-10 21:25:02 -0400] brauliobo: teukka: ok
+[2014-05-10 21:25:18 -0400] teukka: brauliobo: well, it uses ssh
+[2014-05-10 21:26:01 -0400] teukka: normally you want to use key based authentication (and maybe even passwordless sudo)
+[2014-05-10 21:26:38 -0400] Brad_K: Speaking only for myself, I prefer chef-zero instead of chef-solo.  Chef-zero also runs on the localhost, but it works like a real chef server, and therefore it's much more similar to what you would be likely to do in the real world.  Chef-solo still has its place for certain use cases, but for general local chef development, I much prefer chef-zero over chef-solo.
+[2014-05-10 21:27:08 -0400] brauliobo: Brad_K: thanks, gonna try it
+[2014-05-10 21:27:25 -0400] teukka: brauliobo: cookbooks etc. are synced with rsync. and there is no (easy) way knife-solo could feed the password to it. someone should write a ruby implementation for rsync ;)
+[2014-05-10 21:28:04 -0400] brauliobo: that would be nice
+[2014-05-10 21:28:09 -0400] brauliobo: it runs rsync several times
+[2014-05-10 21:29:09 -0400] teukka: yep. https://github.com/matschaffer/knife-solo/issues/365
+[2014-05-10 21:29:26 -0400] teukka: but that's a difficult issue
+[2014-05-10 21:33:01 -0400] brauliobo_: strange, I can't authorize myself with authorized_keys
+[2014-05-10 21:34:10 -0400] brauliobo_: oh no
+[2014-05-10 21:34:37 -0400] brauliobo_: it did work with a plain "ssh hostname", but not with "knife solo cook hostname"!!
+[2014-05-10 21:34:52 -0400] brauliobo_: why?
+[2014-05-10 21:35:14 -0400] teukka: brauliobo_: maybe it's sudo prompt? run with `-VV` to get the debug output
+[2014-05-10 21:35:45 -0400] teukka: the sudo password will be cached so it should be asked only once
+[2014-05-10 21:36:43 -0400] brauliobo_: nothing new with -W: knife solo -W cook vps.eita.org.br
+[2014-05-10 21:37:18 -0400] brauliobo_: hum, in fact it asked the password only once
+[2014-05-10 21:37:29 -0400] teukka: brauliobo_: not W,but two Vs =)
+[2014-05-10 21:37:41 -0400] teukka: that's a knife thing
+[2014-05-10 21:37:45 -0400] brauliobo_: ah, ok
+[2014-05-10 21:39:26 -0400] brauliobo_: hum, it didn't load the berkshelf' cookbook
+[2014-05-10 21:39:35 -0400] brauliobo_: ERROR: Cookbook apt not found. If you're loading apt from another cookbook,
+[2014-05-10 21:40:29 -0400] teukka: is berkshelf in Gemfile?
+[2014-05-10 21:41:01 -0400] brauliobo_: yes
+[2014-05-10 21:41:14 -0400] brauliobo_: ~/chef-repo git:master  ls                                                                                                                                                               
+[2014-05-10 21:41:15 -0400] brauliobo_: certificates  chef-solo  config  cookbooks  data_bags  environments  nodes  roles  chefignore  Gemfile  Gemfile.lock  LICENSE  Rakefile  README.md  solo.rb
+[2014-05-10 21:41:32 -0400] brauliobo_: that's the dir I'm in
+[2014-05-10 21:42:09 -0400] teukka: no Berksfile?
+[2014-05-10 21:43:04 -0400] teukka: berks magic is only triggered if the gem and Berksfile are found
+[2014-05-10 21:43:09 -0400] brauliobo_: the Berksfile is in the cookbooks dir
+[2014-05-10 21:43:14 -0400] brauliobo_: hum
+[2014-05-10 21:43:19 -0400] brauliobo_: gonna move it
+[2014-05-10 21:43:44 -0400] brauliobo_: hum, seems to be working now
+[2014-05-10 21:59:27 -0400] brauliobo: wow, apache2 cookbook do tons of things I didn't ask!
+[2014-05-10 21:59:53 -0400] brauliobo: it will change many mods configurations, why?
+[2014-05-10 22:00:47 -0400] brauliobo: how to execute the command? knife solo cook only told what it would do
+[2014-05-10 22:06:12 -0400] bashel: Hi, I have what is probably a stupid question. I have my Cheffile set to install a package from github, but I need to my own attribute file. What's the correct way to pull this off?
+[2014-05-10 22:06:34 -0400] coderanger: bashel: Make a wrapper cookbook
+[2014-05-10 22:06:51 -0400] coderanger: bashel: Your new cookbook will depend on the upstream one and will override whatever attributes you need
+[2014-05-10 22:08:09 -0400] bashel: coderanger: thank you! Never used wrappers before, but I'll do some reasearch
+[2014-05-10 22:09:23 -0400] teukka: brauliobo: I guess you forgot the -W option there. that's why-run mode
+[2014-05-10 22:09:44 -0400] teukka: kinda dry-run
+[2014-05-10 22:11:09 -0400] jidar: wrappers are the way to go, I think the blog post by this guy was pretty good: www.getchef.com/blog/2013/12/03/doing-wrapper-cookbooks-right/
+[2014-05-10 22:11:36 -0400] Brad_K: brauliobo: Did you look at the apache2 cookbook before deciding to use it?  Generally speaking, before you use a cookbook from anyone else, you want to take a close look at what all it does.
+[2014-05-10 22:13:38 -0400] brauliobo: teukka: exactly!
+[2014-05-10 22:14:03 -0400] brauliobo: Brad_K: yeah, looking at it now, it does a lot of things
+[2014-05-10 22:14:19 -0400] brauliobo: and differs in identation a lot from the ubuntu defaults
+[2014-05-10 22:15:24 -0400] Brad_K: brauliobo: trust me, it looks a hell of a lot weirder to redhat folks when they see this ubuntu-like config on their systems.
+[2014-05-10 22:16:12 -0400] brauliobo: Brad_K: I believe you, distributions varies a lot
+[2014-05-10 22:17:32 -0400] coderanger: The worst thing distros ever did was include default config files :(
+[2014-05-10 22:18:26 -0400] brauliobo: in apache2's cookbook it enables all modules by default?
+[2014-05-10 22:19:30 -0400] coderanger: No ...
+[2014-05-10 22:19:48 -0400] coderanger: Not unless you tell it to
+[2014-05-10 22:22:38 -0400] Brad_K: The joke "You got Ubuntu in my Red Hat" doesn't tend to go over so well with most of those folks.  ;-)
+[2014-05-10 22:23:41 -0400] someara: redhat bastardizes the pristine source tarball config just as badly as debian does
+[2014-05-10 22:24:54 -0400] brauliobo: the good news is that the default configuration on apache2's cookbook seems much better than the ubuntu's default
+[2014-05-10 22:26:06 -0400] someara: fun fact, I'm currently writing a competing httpd cookbook just to troll the ubuntu people
+[2014-05-10 22:30:45 -0400] brauliobo: how to make apache2 cookbook remove all other sites not listed in node, that is, ensure that only the sites I specified are there and not anything strange?
+[2014-05-10 22:31:18 -0400] someara: you cant
+[2014-05-10 22:31:34 -0400] coderanger: Chef in general doesn't work like that
+[2014-05-10 22:31:38 -0400] brauliobo: hum
+[2014-05-10 22:31:42 -0400] coderanger: there are ways around it, but they aren't simple
+[2014-05-10 22:31:49 -0400] brauliobo: puppet does, doesn't it?
+[2014-05-10 22:32:29 -0400] coderanger: It follows exactly the same model
+[2014-05-10 22:32:59 -0400] someara: I know puppet has set management for things like users... not sure about "apache sites"
+[2014-05-10 22:33:22 -0400] brauliobo: hum, that's a security issue...
+[2014-05-10 22:33:24 -0400] someara: they'd need a way to take inventory of all sites it found
+[2014-05-10 22:33:33 -0400] brauliobo: i thought chef and puppet would handle that
+[2014-05-10 22:33:43 -0400] someara: you could write something to do it
+[2014-05-10 22:34:14 -0400] someara: ideally you manage a machine from a base state and converge it completely with chef
+[2014-05-10 22:34:22 -0400] someara: and never log into it
+[2014-05-10 22:35:01 -0400] coderanger: Or you add explicit deletes when needed
+[2014-05-10 22:35:18 -0400] coderanger: The way around it is to make a resource that models the state of all vhosts
+[2014-05-10 22:35:33 -0400] brauliobo: maybe it should monitor file system changes?
+[2014-05-10 22:35:44 -0400] coderanger: brauliobo: Thats a job for things like tripwire, not chef
+[2014-05-10 22:37:11 -0400] brauliobo: hum
+[2014-05-10 22:37:54 -0400] brauliobo: but chef would watch for file modification changes on the files it is reponsible to write?
+[2014-05-10 22:38:15 -0400] someara: it will repair individual files it manages, yes
+[2014-05-10 22:38:18 -0400] coderanger: Not specifically, every time you run a converge it will re-calculate the current state of the system
+[2014-05-10 22:38:23 -0400] someara: but not the contents of a directory
+[2014-05-10 22:38:28 -0400] coderanger: but it doesn't watch on inotify or something
+[2014-05-10 22:39:01 -0400] alexbst: if a resource is defined in chef it will be reset to what chef thinks it should be each time chef runs
+[2014-05-10 22:39:12 -0400] brauliobo: hum, so it would do that if I schedule a cron to run chef periodically? would it be a good idea?
+[2014-05-10 22:39:19 -0400] alexbst: but it can't magically delete files unless there is a resource for the file , with an action :delete
+[2014-05-10 22:39:35 -0400] coderanger: brauliobo: Yes, check out the chef-client cookbook
+[2014-05-10 22:39:38 -0400] someara: you can run it on cron or as a daemon
+[2014-05-10 22:39:46 -0400] brauliobo: nice
+[2014-05-10 22:39:51 -0400] coderanger: someara: chef-solo and daemon mode still don't work together I think
+[2014-05-10 22:40:08 -0400] coderanger: I filed a ticket forever ago
+[2014-05-10 22:40:13 -0400] someara: sheesh
+[2014-05-10 22:40:22 -0400] someara: what about chef zero
+[2014-05-10 22:40:51 -0400] coderanger: Never tried it :)
+[2014-05-10 22:41:20 -0400] alexbst: it's not as though a chef server is such an expense to maintain along with your actual servers.
+[2014-05-10 22:45:50 -0400] brauliobo: error! apache2 uses LockFile and apache 2.4 of ubuntu 14.04 don't like that
+[2014-05-10 22:46:15 -0400] alexbst: 2.4 isn't so well supported yet in cookbook form, afaik
+[2014-05-10 22:46:31 -0400] alexbst: right, nn.
+[2014-05-10 22:46:43 -0400] brauliobo_: error! apache2 uses LockFile and apache 2.4 of ubuntu 14.04 don't like that
+[2014-05-10 22:48:38 -0400] brauliobo_: also, is trying to enable authz_default which was not installed
+[2014-05-10 22:49:32 -0400] someara: the new maintainer of the apache2 cookbook is working to port it to 2.4 / latest ubuntu
+[2014-05-10 22:49:41 -0400] someara: I'm working on httpd in parallel
+[2014-05-10 22:50:09 -0400] brauliobo_: hum
+[2014-05-10 22:50:16 -0400] brauliobo_: so it only works with 2.2??
+[2014-05-10 22:50:24 -0400] brauliobo_: is there another for 2.4?
+[2014-05-10 22:50:28 -0400] brauliobo_: pretty ba
+[2014-05-10 22:50:29 -0400] brauliobo_: bad
+[2014-05-10 22:52:11 -0400] someara: the first LTS distribution to include apache24 came out a few weeks ago
+[2014-05-10 22:52:46 -0400] someara: and its different enough from 2.2 that the changes are non-trivial
+[2014-05-10 22:53:41 -0400] someara: also, apache2 is one of the oldest cookbooks there is... and was designed waaaay before we had a sense of best practices, or tooling around testing
+[2014-05-10 22:54:21 -0400] brauliobo_: hum
+[2014-05-10 22:54:35 -0400] someara: and it supports a large number of platforms. often fixing one will break others
+[2014-05-10 22:56:27 -0400] brauliobo_: hum... but it is strange that they've decided to fork instead of supporting apache 2.4: https://github.com/onehealth-cookbooks/apache2/pull/100
+[2014-05-10 22:56:34 -0400] brauliobo_: it is confusing for the users
+[2014-05-10 22:56:55 -0400] brauliobo_: the original one doesn't check for version 2.2
+[2014-05-10 22:57:01 -0400] brauliobo_: it keeps going!!!
+[2014-05-10 22:57:33 -0400] someara: hence the effort to deprecate it by starting from scratch with the in-progress httpd cookbook
+[2014-05-10 22:59:19 -0400] brauliobo_: what is the state of httpd now?
+[2014-05-10 22:59:34 -0400] someara: if you need to run 2.4, you can easily whip up a 3 resource custom cookbook of your own in like 5 minutes
+[2014-05-10 22:59:50 -0400] someara: early stages... I just got debian 7 working
+[2014-05-10 23:00:23 -0400] someara: https://github.com/someara/httpd/blob/master/PLATFORMS.org
+[2014-05-10 23:00:30 -0400] someara: ^ thats why cross platform cookbooks are hard
+[2014-05-10 23:01:34 -0400] someara: also, doing things like debianizing rhel systems breaks selinux, etc
+[2014-05-10 23:02:12 -0400] someara: so, do you follow each platforms native idioms around apache configs? pick one and run with it everywhere? or invent the Chef Apache Config Style?
+[2014-05-10 23:02:56 -0400] someara: what if the platform doesnt have a native idiom like windows or solaris
+[2014-05-10 23:03:39 -0400] juliancdunn: someara: https://github.com/chef-windows/apache2_windows
+[2014-05-10 23:03:41 -0400] juliancdunn: steal away
+[2014-05-10 23:04:00 -0400] someara: oh I'm gonna =)
+[2014-05-10 23:04:46 -0400] juliancdunn: you're a co-owner of the org now, there's no going back :-P
+[2014-05-10 23:05:02 -0400] someara: fix test-kitchen windows guests and we'll talk
+[2014-05-10 23:05:59 -0400] juliancdunn: still trynna wrangle sneal into doing that work
+[2014-05-10 23:12:31 -0400] someara: what the... /etc/apache2/envvars is sources by the debian 7 init script, then used as an environment variable in the default apache config
+[2014-05-10 23:12:38 -0400] someara: wtf is the point of that
+[2014-05-10 23:12:51 -0400] someara: s/sources/sourced/
+[2014-05-10 23:14:53 -0400] someara: ports.conf.... mod_gnutls because FREEDOM

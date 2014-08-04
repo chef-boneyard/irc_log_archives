@@ -1,0 +1,729 @@
+[2013-08-30 00:09:57 -0400] invsblduck: so anyone use tags for anything?
+[2013-08-30 00:13:37 -0400] siezer: I generally just use an attribute instead of a tag
+[2013-08-30 00:16:51 -0400] invsblduck: that's what i've seen in other code; wondering why
+[2013-08-30 00:18:07 -0400] invsblduck: looks like you can  search(:node, "tags:<name>")  afaict, haven't tried yet tho
+[2013-08-30 00:23:39 -0400] iverson0881: invsblduck: we use tags like this in a number different places, works well
+[2013-08-30 00:24:04 -0400] iverson0881: for example to update our haproxy config for one server type to another within a role
+[2013-08-30 00:24:17 -0400] invsblduck: iverson0881: like the guess/code i wrote above?
+[2013-08-30 00:25:45 -0400] iverson0881: invsblduck: just checked, yup just like that
+[2013-08-30 00:26:20 -0400] invsblduck: iverson0881: cool, thanks.
+[2013-08-30 00:27:13 -0400] iverson0881: i don't think there's a concrete example of it in the search docs. but its there
+[2013-08-30 00:28:56 -0400] invsblduck: iverson0881: no, not in search doc nor recipe doc ("Use Tags" section), nor knife search manpage.  no example of searching tags i mean...
+[2013-08-30 00:30:26 -0400] siezer: search(:nodes, "tags:*")
+[2013-08-30 00:30:38 -0400] siezer: tags are just another attribute
+[2013-08-30 00:32:31 -0400] invsblduck: Here's the main question: Are tags searchable immediately, ie. before the chef converge is finished?  And if the chef run fails, does the node stay tagged?
+[2013-08-30 00:32:58 -0400] invsblduck: in comparison to how node attributes are not saved during failure unless you explicitly call node.save right?
+[2013-08-30 00:37:20 -0400] invsblduck: IOW, I wonder under which circumstances using a tag could be preferable to setting a node attribute...
+[2013-08-30 01:14:09 -0400] invsblduck: ssd7: coderanger schisamo You guys know how tagging behaves when chef converge fails? Are tags available for search immediately, unaffected by outcome of converge?  Thanks
+[2013-08-30 01:14:38 -0400] coderanger: invsblduck: Tags are just node attributes
+[2013-08-30 01:14:43 -0400] coderanger: invsblduck: So all the same rules
+[2013-08-30 01:14:53 -0400] invsblduck: coderanger: cool, thanks so much for the info.
+[2013-08-30 01:15:04 -0400] coderanger: if it is an attr the recipe code is setting, normally there is no node save in the event of a failed converge
+[2013-08-30 01:15:18 -0400] coderanger: You can change this by making a handler that just called node.save
+[2013-08-30 01:15:24 -0400] coderanger: but this is not generally advisable
+[2013-08-30 01:15:50 -0400] invsblduck: right. I'm finding some info in the ml archive, but wondering when tags are preferable to node attrs (if ever). IOW, why were they created.
+[2013-08-30 01:16:16 -0400] coderanger: They are just a specific use case of node attributes
+[2013-08-30 01:16:35 -0400] coderanger: They are displayed nicely in a few places in the UI, but nothing special under the hood
+[2013-08-30 01:18:35 -0400] invsblduck: coderanger: awesome bro, thanks.
+[2013-08-30 01:18:49 -0400] invsblduck: save me from having to read chef code/classes for a while
+[2013-08-30 01:23:03 -0400] invsblduck: coderanger: forgot to ask specifically: so the implementation is the same under the hood--tags will not persist when chef fails (unless node.save is called).
+[2013-08-30 01:23:42 -0400] coderanger: Thats true of all node data, by default chef doesn't save the data from a failed run since it could expose transient failures in bad ways
+[2013-08-30 01:25:08 -0400] invsblduck: coderanger: yep. cool. since this runlist includes mysql::server (which calls node.save due to OpenSSL#secure_password), my node gets saved anyway. Was looking for a way around that. Thanks again as usual my friend!
+[2013-08-30 01:27:01 -0400] coderanger: Usually the way around that is to provide the encrypted password yourself instead of letting the node generate its own
+[2013-08-30 01:35:06 -0400] invsblduck: coderanger: the reasoning being that you still know the password, even if converge fails? I'd imagine
+[2013-08-30 01:35:43 -0400] coderanger: Sure, and that in general calling node.save from recipe code is fraught with peril for the same reasons that chef doesn't do it on a failed converge
+[2013-08-30 01:37:24 -0400] invsblduck: coderanger: yea. the upstream mysql cookbook unconditionally does node.save, however.
+[2013-08-30 01:38:23 -0400] coderanger: Yep, thats an example of bad code
+[2013-08-30 01:38:34 -0400] invsblduck: Lols
+[2013-08-30 01:39:31 -0400] invsblduck: And also causes a bug in my other cookbook when chef run fails!
+[2013-08-30 01:46:51 -0400] jtimberman: coderanger: :)
+[2013-08-30 01:47:09 -0400] jtimberman: basically, coderanger is saying that i'm a bad person and i should feel bad ;)
+[2013-08-30 01:57:19 -0400] invsblduck: jtimberman: hahaha. no!
+[2013-08-30 01:57:22 -0400] invsblduck: :P
+[2013-08-30 01:59:45 -0400] jtimberman: ;)
+[2013-08-30 04:24:51 -0400] woltage: hmm
+[2013-08-30 04:25:26 -0400] woltage: After CHEF-4011 data_bags are encrypted automatic and encrypted data bags twice :D
+[2013-08-30 06:25:35 -0400] abrkn: i have a setup with quite a few roles on different instances that need to communicate with eachother. i use search(node, ...) to discover the ip addresses of services i need. the problem with this is when a node has two roles where the first role needs to connect to the second role, because at bootstrapping the search(node, ...) in the first role fails because the node is not yet registered.
+[2013-08-30 06:25:35 -0400] abrkn: what's a better solution?
+[2013-08-30 06:51:09 -0400] taion809: good afternoon, i'm trying to learn chef to automate my current development server but im having some trouble.  How do I actually manage the configuration fo the services like vhosts for apache or php5-fpm pool's?  I didn't see this in the getting started or use case secion of learnchef.
+[2013-08-30 06:58:20 -0400] taion809: nvm i found it, templates
+[2013-08-30 07:15:17 -0400] taion809: is it better to write a configuration specific cookbook instead of modifying a community cookbook?  for example, writing a cook book to replace the default nginx configuration from the community nginx cookbook
+[2013-08-30 07:40:48 -0400] arpa: ichilton: nope...
+[2013-08-30 09:02:03 -0400] fclausen: hello all - is using "return" a valid way of stopping execution of a particular recipe? It seems to work for me.
+[2013-08-30 09:02:33 -0400] pipework: Probably raising an exception and exiting perhaps. I'm not sure.
+[2013-08-30 09:04:18 -0400] fclausen: pipework: we have situations where a recipe or cookbook may not be applicable *yet* but will be in the near future (migration scenario). I wanted to stop processing but allow the rest of the chef run to continue; "return" seemed to do the trick
+[2013-08-30 09:04:26 -0400] xhae: fclausen: if you call Chef::Application.fatal! it will log an error at fatal and exit the client
+[2013-08-30 09:05:00 -0400] xhae: fclausen: Ah, only the one recipe - return sounds like a reasonable way to do that.
+[2013-08-30 09:05:01 -0400] pipework: fclausen: Hm. I'd probably expect to see some kind of except raised, even if you catch it and return later.
+[2013-08-30 09:05:18 -0400] pipework: It would at least let you explain or log it, while allowing execution of the rest of the recipes to continue.
+[2013-08-30 09:05:22 -0400] xhae: you'd need to raise an exception if you wanted to terminate the recipe from within a block
+[2013-08-30 09:06:46 -0400] fclausen: xhae, pipework: thanks, I'll bear that in mind regarding blocks
+[2013-08-30 09:07:09 -0400] pipework: fclausen: At least leave a note behind for future self to understand wtf is going on.
+[2013-08-30 09:07:44 -0400] xhae: ^ this
+[2013-08-30 09:07:50 -0400] fclausen: pipework: indeed, I shall be kind to future self
+[2013-08-30 09:37:22 -0400] ichilton: What do people use for starting/monitoring unicorn and setting up the environment variables?
+[2013-08-30 10:09:13 -0400] Lawrence: Hi There, anyone know how to set the chef client interval (/etc/default/chef-client) from cloud-init?
+[2013-08-30 10:10:00 -0400] willejs: is there anyway to get the current cookbook version from the recipe?
+[2013-08-30 10:10:05 -0400] willejs: theres this, run_context.cookbook_collection[cookbook_name].metadata.version
+[2013-08-30 10:10:12 -0400] willejs: but its messy
+[2013-08-30 10:10:12 -0400] willejs: ?
+[2013-08-30 10:23:54 -0400] Lawrence: Hi There, anyone know how to set the chef client interval (/etc/default/chef-client) from cloud-init?
+[2013-08-30 11:10:56 -0400] s2r2: Lawrence: You can't using just cloud-init: http://bazaar.launchpad.net/~cloud-init-dev/cloud-init/trunk/view/head:/cloudinit/config/cc_chef.py  However, the chef-client cookbook lets you specify the interval.
+[2013-08-30 11:12:03 -0400] s2r2: see https://github.com/opscode-cookbooks/chef-client/blob/master/templates/default/debian/default/chef-client.erb
+[2013-08-30 11:13:01 -0400] Lawrence: Thanks s2r2
+[2013-08-30 11:13:07 -0400] s2r2: :)
+[2013-08-30 11:32:16 -0400] Breakin__: Guys.. Some advice please Is there any way to get the public ip from a openstack node
+[2013-08-30 11:32:34 -0400] Breakin__: I've tried with ohai but it doesn't show me anything
+[2013-08-30 11:48:44 -0400] Breakin__: any advice?
+[2013-08-30 12:02:19 -0400] Breakin__: ??
+[2013-08-30 12:11:35 -0400] fooJBar: Breakin__: From within a Chef recipe I don't think so. It doesn't even appear in ifconfig -a on the servers. The only way I know of is to ask OpenStack for the node metadata directly
+[2013-08-30 12:11:56 -0400] Breakin__: ok fooJBar
+[2013-08-30 12:12:03 -0400] Breakin__: thanks for your help
+[2013-08-30 12:12:04 -0400] Breakin__: ;)
+[2013-08-30 12:12:31 -0400] fooJBar: feel free to post here if you find another solution to this (I'd be interested)
+[2013-08-30 12:17:34 -0400] Breakin__: fooJBar it's possible to read a file in a chef recipe?
+[2013-08-30 12:31:44 -0400] fooJBar: Breakin__: certainly
+[2013-08-30 12:32:20 -0400] fooJBar: Breakin__: definitely possible with a ruby_block resource (I do that in quite a few places)
+[2013-08-30 12:35:25 -0400] s2r2: Breakin__: there is!
+[2013-08-30 12:35:33 -0400] Breakin__: s2r2 how?
+[2013-08-30 12:35:45 -0400] Breakin__: I mean the IP or the read
+[2013-08-30 12:35:48 -0400] s2r2: 1. hint ohai that it's openstack, i.e. create an empty file openstack.json in the hints directory
+[2013-08-30 12:35:55 -0400] s2r2: 2. ohai will slurp in the metadata
+[2013-08-30 12:36:11 -0400] s2r2: if the floating ip was already assigned, it is then known to ohai, hence chef
+[2013-08-30 12:36:22 -0400] s2r2: in node['cloud']['public_ipv4']
+[2013-08-30 12:36:45 -0400] fooJBar: s2r2: great tip will try
+[2013-08-30 12:36:53 -0400] Breakin__: lets see
+[2013-08-30 12:38:29 -0400] Breakin__: s2r2 if I run ohay from the command line I get the info too?
+[2013-08-30 12:38:47 -0400] s2r2: I guess...
+[2013-08-30 12:39:53 -0400] Breakin__: s2r2 I'm on my node, i created the openstack.json inside /etc/chef/ohai/openstack.json
+[2013-08-30 12:39:58 -0400] Breakin__: is this correct?
+[2013-08-30 12:40:13 -0400] s2r2: IIRC, yes; but I'm verifying this myself now, too ;)
+[2013-08-30 12:40:39 -0400] Breakin__: so with a simple ohai run it should work?
+[2013-08-30 12:40:40 -0400] s2r2: it's /etc/chef/ohai/hints/openstack.json
+[2013-08-30 12:40:46 -0400] Breakin__: ok
+[2013-08-30 12:41:25 -0400] Breakin__: I don't get anythin :( s2r2
+[2013-08-30 12:41:31 -0400] s2r2: I do...
+[2013-08-30 12:41:38 -0400] s2r2: weird.
+[2013-08-30 12:41:45 -0400] s2r2: grizzly? neutron?
+[2013-08-30 12:43:03 -0400] Breakin__: can you show me the output please s2r2
+[2013-08-30 12:43:10 -0400] s2r2: sure 1 sec
+[2013-08-30 12:43:44 -0400] s2r2: Breakin__: https://gist.github.com/srenatus/c6c2ad49829f2688672f
+[2013-08-30 12:44:17 -0400] s2r2: ohai 6.18.0
+[2013-08-30 12:45:05 -0400] Breakin__: I'm in ohai 6.14
+[2013-08-30 12:46:10 -0400] s2r2: ah there was a bug... with ohai using the metadata url from ec2, which isn't there in openstack
+[2013-08-30 12:46:30 -0400] s2r2: https://github.com/opscode/ohai/pull/157
+[2013-08-30 12:47:50 -0400] s2r2: this could be a problem... not quite sure why it works for me and not for you, though...
+[2013-08-30 12:48:11 -0400] Breakin__: but this should work on 6.14?
+[2013-08-30 12:49:05 -0400] s2r2: I don't know... try "ohai -l debug" and search for metadata_connect...
+[2013-08-30 12:49:22 -0400] Breakin__: lets see
+[2013-08-30 12:49:35 -0400] s2r2: my ohai version tries 2009-04-04 and finds it
+[2013-08-30 12:51:43 -0400] Breakin__: s2r2 no metadata_connect in my oputput...
+[2013-08-30 12:51:53 -0400] s2r2: anything "openstack"?
+[2013-08-30 12:52:02 -0400] Breakin__: nope
+[2013-08-30 12:52:04 -0400] Breakin__: :(
+[2013-08-30 12:53:47 -0400] Breakin__: s2r2 http://pastebin.com/zdg7pqH3
+[2013-08-30 12:54:01 -0400] Breakin__: this is the output for plugin search
+[2013-08-30 12:55:24 -0400] s2r2: hmm checked gems/ohai-*/lib/ohai/plugins/ ? (or just try the latest...)
+[2013-08-30 12:56:32 -0400] Breakin__: should be a openstack plugin here? /usr/lib/ruby/vendor_ruby/ohai/plugins#
+[2013-08-30 12:56:45 -0400] s2r2: yup among many others
+[2013-08-30 12:56:55 -0400] Breakin__: no openstack there.. :(
+[2013-08-30 12:57:02 -0400] Breakin__: where I can find it?
+[2013-08-30 12:57:16 -0400] s2r2: anything keeping you from using omnibus-chef?
+[2013-08-30 12:57:40 -0400] Breakin__: s2r2 yes
+[2013-08-30 12:57:46 -0400] s2r2: hmm
+[2013-08-30 13:29:20 -0400] mikeb2: greetings chef folk - I have a question regarding nginx recipe compiling addtional modules? Anyone see it work please?
+[2013-08-30 13:29:50 -0400] mveitas: mikeb2: I have seen it work, what issue are you having?
+[2013-08-30 13:30:43 -0400] mikeb2: hi mveitas, thanks, I am trying to add the passenger module, but I can't seem to get it to install - I'm using default_configure_flags under source node?
+[2013-08-30 13:32:01 -0400] mveitas: mikeb2: Give me a sec, I need to look back at some chat history with a co-worker I had with this
+[2013-08-30 13:32:14 -0400] mikeb2: amazing, thanks mveitas
+[2013-08-30 13:34:30 -0400] mveitas: mikeb2: can you gist the relavant parts of your cookbook/recipe to see
+[2013-08-30 13:34:51 -0400] mikeb2: mveitas: sure, one second..
+[2013-08-30 13:35:40 -0400] mveitas: mikeb2: I had to add "passenger" to the node attribute: default['nginx']['source']['modules']
+[2013-08-30 13:37:23 -0400] mikeb2: hi mveitas, yes, I think I've done that. Here's the gist https://gist.github.com/mikebrules/6389922
+[2013-08-30 13:38:12 -0400] mikeb2: I have tried with and without the nginx::passenger recipe - if I leave that out, nothing happens at all as the configure flag is failing
+[2013-08-30 13:39:07 -0400] mikeb2: if I leave it in, I get the "passenger unknown in conf" when nginx tries to restart...
+[2013-08-30 13:41:21 -0400] mveitas: mikeb2: By default ngix is installed with the package
+[2013-08-30 13:41:44 -0400] mveitas: mikeb2: you probably need to set node['nginx']['install_method'] = 'source'
+[2013-08-30 13:42:43 -0400] mikeb2: mveitas: ah - I thought having nginx::source would force that - in my run list I only have nginx::source. I will try that though, thanks
+[2013-08-30 13:44:41 -0400] mveitas: mikeb2: It's been a while, but I believe that is how we got it to work using those two things. My web guy swtiched to apache after having all those initial troubles
+[2013-08-30 13:45:23 -0400] mikeb2: mveitas: LOL. Everyone's been saying switch to Apache and I've been telling them it'll be easy! Makes sense!
+[2013-08-30 13:49:46 -0400] mveitas: mikeb2: yes, but ngix configuration is pretty simple, not that apache is too hard
+[2013-08-30 13:50:45 -0400] mikeb2: mveitas: agreed nginx is nicer to configure - I'm going to give this another hour - thanks for your help..
+[2013-08-30 13:51:17 -0400] mveitas: if you do get the magic combination, send me a message here in IRC!
+[2013-08-30 13:51:34 -0400] mikeb2: mveitas: sure, will do definitely...
+[2013-08-30 14:04:26 -0400] adamjk-dev: anyone seen Chef fail to set the group on a directory: http://pastebin.com/ntC9RxEg
+[2013-08-30 14:04:57 -0400] adamjk-dev: this was on an ubuntu 12.04 test-kitchen run of the jenkins cookbook (with tests I am adding)
+[2013-08-30 14:05:13 -0400] adamjk-dev: if I log in to the machine, the directory group was not actually set correctly, but chef said it succeeded
+[2013-08-30 14:10:03 -0400] teukka: adamjk-dev: maybe the jenkins package or init script changes it?
+[2013-08-30 14:11:04 -0400] adamjk-dev: teukka: I was hoping that were the case... I searched over the Chef log to see if anyone else changed the directory permissions... and I saw none of it that I could tell
+[2013-08-30 14:11:22 -0400] adamjk-dev: teukka: oh..... that wouldn't show up in the jenkins log I suppose
+[2013-08-30 14:11:30 -0400] adamjk-dev: errrr Chef log, rather
+[2013-08-30 14:12:38 -0400] adamjk-dev: teukka: I mean... I assume someone has to be changing it out from underneath Chef I presume... that has got to be the case
+[2013-08-30 14:13:16 -0400] adnichols: adamjk-dev try running chef w/ debug output to see if anything interesting is in there?
+[2013-08-30 14:13:37 -0400] adamjk-dev: adnichols: you know how to make test-kitchen do that?
+[2013-08-30 14:13:52 -0400] adamjk-dev: or just run outside of test kitchen?
+[2013-08-30 14:13:53 -0400] adnichols: ah.. hmm
+[2013-08-30 14:14:10 -0400] adnichols: you could probably run solo outside of test-kitchen
+[2013-08-30 14:14:24 -0400] ichilton: I take it you can't use attributes in a data bag?
+[2013-08-30 14:14:30 -0400] adamjk-dev: yeah... I can whip up a Vagrantfile too I guess
+[2013-08-30 14:14:39 -0400] adamjk-dev: I will try to get some debug output and see if anyone else changes it
+[2013-08-30 14:14:49 -0400] teukka: adamjk-dev: you can `kitchen login` to the box
+[2013-08-30 14:14:59 -0400] teukka: and then run chef-solo manually
+[2013-08-30 14:15:04 -0400] adamjk-dev: teukka: oh and run chef solo then?
+[2013-08-30 14:15:06 -0400] adamjk-dev: right right
+[2013-08-30 14:15:36 -0400] teukka: but you're right that if it not chef that changes the group it most probably won't show in the log
+[2013-08-30 14:15:41 -0400] evtuhovich: Ohai
+[2013-08-30 14:15:42 -0400] evtuhovich: http://docs.opscode.com/chef_shell.html
+[2013-08-30 14:15:53 -0400] evtuhovich: Who can edit docs?
+[2013-08-30 14:16:22 -0400] adamjk-dev: teukka: right... I mean "someone" has to be doing that I take it.... Chef wouldn't succeed with such a large bug :)
+[2013-08-30 14:16:24 -0400] teukka: evtuhovich: the docs site is somewhere in github. you can make pull requests
+[2013-08-30 14:16:25 -0400] siezer: evtuhovich you can! https://github.com/opscode/chef-docs
+[2013-08-30 14:16:32 -0400] evtuhovich: Because in some examples for chef 11 used recipe instead of recipe_mode
+[2013-08-30 14:16:59 -0400] siezer: thats definitely a bug
+[2013-08-30 14:17:06 -0400] evtuhovich: i'll fix
+[2013-08-30 14:17:35 -0400] evtuhovich: thanx for answer!
+[2013-08-30 14:17:46 -0400] siezer: np
+[2013-08-30 14:21:53 -0400] legoklods: Some of my colleagues have decided we should use berkshelf, so I did `GEM_HOME=/home/grove/chef/gem-sucks gem install -i /home/grove/chef/gem-sucks berkshelf` and it seemed to work (no errors in output), but when I then try to upload a cookbook with `GEM_HOME=/home/grove/chef/gem-sucks ../gem-sucks/bin/berks upload` I get a ruby error: http://paste.debian.net/32333/, can anyone explain what is wrong?
+[2013-08-30 14:22:28 -0400] adamjk-dev: teukka: yeah I ran chef-solo on the machine with log-level at debug... I didn't see anything that helped
+[2013-08-30 14:22:45 -0400] adamjk-dev: teukka: thanks for the pointer though, that was useful... someone has to be changing it out from underneath me
+[2013-08-30 14:25:34 -0400] adnichols: ichilton data bags are json data - they can't contain an attribute, no
+[2013-08-30 14:25:37 -0400] teukka: adamjk-dev: are you creating the dorectory before installing the jenkins?
+[2013-08-30 14:26:04 -0400] adnichols: ichilton but you could easily replace a value from a data bag w/ an attribute inside your recipe
+[2013-08-30 14:26:54 -0400] adamjk-dev: teukka: I believe the recipe does, yes.... I was wondering if I could log into the box... change the directory perms... then perform the package installation and see what happens
+[2013-08-30 14:27:18 -0400] adamjk-dev: teukka: https://github.com/opscode-cookbooks/jenkins/blob/master/recipes/server.rb#L34
+[2013-08-30 14:27:31 -0400] adamjk-dev: teukka: https://github.com/opscode-cookbooks/jenkins/blob/master/recipes/server.rb#L68 (then package or WAR install)
+[2013-08-30 14:28:45 -0400] ichilton: adnichols: yeah, thought so - just checking
+[2013-08-30 14:30:12 -0400] ichilton: adnichols: can you create a dynamic data bag for just that current run?
+[2013-08-30 14:30:43 -0400] ichilton: i.e take a databag and some attributes, present a virtual data bag like a cookbook is looking for, but then it would be thrown away at the end of the run?
+[2013-08-30 14:30:56 -0400] teukka: adamjk-dev: ok, then my bet is that the jenkins package's postinst script sets the permissions
+[2013-08-30 14:31:05 -0400] ichilton: would save forking or overriding a receipe in a wrapper cookbook.
+[2013-08-30 14:31:35 -0400] adnichols: ichilton other than building that in a recipe I'm not aware of a way
+[2013-08-30 14:31:55 -0400] ichilton: adnichols: so you could build a data bag in a recipe?
+[2013-08-30 14:32:09 -0400] fooJBar: ichilton: quite easy, you can wrap the get_data_bag method in your recipe to intercept the original data bag and then inject/replace some values with your own
+[2013-08-30 14:32:14 -0400] adnichols: ichilton well when you read a data bag it just results in a hash -  you can add whatever you want to that resulting hash
+[2013-08-30 14:32:33 -0400] fooJBar: ichilton: +1 what adnichols said
+[2013-08-30 14:33:13 -0400] ichilton: but if i've got a community cookbook which uses data_bag_item, could i write a wrapper to that which changed what the data_bag_item came back with in the community one, if that makes sense?
+[2013-08-30 14:33:47 -0400] adnichols: ichilton if the community cookbook recipe is the one doing the search it'll be hard to modify the results it gets back
+[2013-08-30 14:33:53 -0400] ichilton: ok, ta
+[2013-08-30 14:34:05 -0400] fooJBar: ichilton: short of wrapping the cookbook, you'll need to edit the recipe that reads the data bag
+[2013-08-30 14:34:10 -0400] ichilton: nod
+[2013-08-30 14:34:20 -0400] bean: chef-rewind is your friend :)
+[2013-08-30 14:34:37 -0400] ichilton: what does chef-rewind actually do? - I keep seeing it mentioned..
+[2013-08-30 14:34:41 -0400] adnichols: bean can chef-rewind modify a data bag result?
+[2013-08-30 14:34:55 -0400] adnichols: I know you can modify resources but I think this is different
+[2013-08-30 14:35:00 -0400] bean: basically it lets you monkey patch a cookbook
+[2013-08-30 14:35:09 -0400] bean: idk, if it happens in a cookbook you could likely do ti.
+[2013-08-30 14:35:12 -0400] bean: it*
+[2013-08-30 14:35:54 -0400] ichilton: ah, ok
+[2013-08-30 14:35:57 -0400] ichilton: ta
+[2013-08-30 14:50:28 -0400] ichilton: eh?!
+[2013-08-30 14:50:35 -0400] ichilton: Chef run failing with: can't convert Symbol into Integer
+[2013-08-30 14:50:52 -0400] ichilton: node.default[:mycompany_common][:users][:enable] = true
+[2013-08-30 14:51:02 -0400] ichilton: why the heck is it trying to convert it to an integer?!?
+[2013-08-30 14:51:56 -0400] ichilton: oh wait
+[2013-08-30 14:51:59 -0400] ichilton: i'm an idiot
+[2013-08-30 14:52:12 -0400] ichilton: key clash ;)
+[2013-08-30 14:55:32 -0400] adamjk-dev: teukka: I bet you are right... sorry was in meeting
+[2013-08-30 15:02:05 -0400] adamjk-dev: teukka: It has to be the package install.... because when I ran chef-solo it set the group on the directory back to "nogroup", but the package was already seen as installed so nothing happened for it
+[2013-08-30 15:02:45 -0400] adamjk-dev: teukka: so, the directory has the correct owner after running chef-solo again (this to me means that the jenkins package installer changes the group of the home directory)
+[2013-08-30 15:09:59 -0400] teukka: adamjk-dev: I'll buy that explanation =)
+[2013-08-30 15:10:44 -0400] adamjk-dev: teukka: it seems good enough for me :)   after all my pull request is just adding some tests... I am also testing the WAR install to see if it does the same
+[2013-08-30 15:12:36 -0400] adamjk-dev: teukka: so yeah, with the WAR install, the test passes
+[2013-08-30 15:12:53 -0400] adamjk-dev: teukka: im saying this case is closed... thanks for your help... I appreciate it
+[2013-08-30 15:15:29 -0400] teukka: adamjk-dev: cool, no prob :)
+[2013-08-30 15:33:45 -0400] mwildt: Anyone know where in omnibus the Ohai version is specified or where I can change it ? (I've searched for it but came up empty handed)
+[2013-08-30 15:40:44 -0400] aemcknig: hi #chef!  Could I ask a question?
+[2013-08-30 15:42:55 -0400] bean: aemcknig: ask away.
+[2013-08-30 15:48:48 -0400] aemcknig: bean: I'm (new to chef, by the way, and) trying to download a set of tarballs, extract them, and set permissions for the directories extracted from the tarballs.  I'm using an http HEAD request that notifies a remote_file to download the .tar files so that they're only downloaded if there's a newer version than is already on the machine.
+[2013-08-30 15:49:32 -0400] aemcknig: The part where I'm running into issues is setting the permissions.  It looks like remote_file can do this, but the directory whose permissions I'd like to set already exists
+[2013-08-30 15:50:06 -0400] aemcknig: and chef, I think, is looking for a file to copy over to the machine being chef'd
+[2013-08-30 15:50:39 -0400] aemcknig: I looked into using the file resource instead, but it doesn't seem to allow you to set the owner of the file
+[2013-08-30 15:50:45 -0400] aemcknig: Oh, shoot, and when I say 'file' I mean 'directory'
+[2013-08-30 15:50:48 -0400] aemcknig: haha
+[2013-08-30 15:51:03 -0400] bean: you could use both directory and file resources.
+[2013-08-30 15:51:36 -0400] aemcknig: Huh - both as in either or both as in in tandem?
+[2013-08-30 15:52:56 -0400] s2r2: aemcknig: btw, the remote_file resource defaults to use_conditional_get true
+[2013-08-30 15:53:14 -0400] bean: ^
+[2013-08-30 15:53:33 -0400] s2r2: which sends an "If-Modified-Since" header and only gets the file if needed...if the server supports that
+[2013-08-30 15:54:33 -0400] aemcknig: s2r2: ...no way!  That's crazy.  Thanks for the tip.
+[2013-08-30 16:00:23 -0400] ncoconnor: Hi, I was hoping to get a little direction on debugging Knife plugins.
+[2013-08-30 16:00:54 -0400] ncoconnor: specifically for the Eclipse IDE
+[2013-08-30 16:03:39 -0400] ncoconnor: I suppose my first question would be do I NEED to have the chef/knife source in order to debug the plugin or can I simply have the gem install.
+[2013-08-30 16:04:19 -0400] bean: o.o eclipse.
+[2013-08-30 16:05:10 -0400] ncoconnor: I suppose it's what I'm comfortable with.
+[2013-08-30 16:05:24 -0400] aemcknig: s2r2: bean: Think I got it figured out.  Thanks for your help!
+[2013-08-30 16:05:43 -0400] bean: sounds like overkill to me
+[2013-08-30 16:05:57 -0400] ncoconnor: what would you suggest?
+[2013-08-30 16:06:34 -0400] bean: vim or emacs, or even sublime text.
+[2013-08-30 16:06:46 -0400] bean: don't really need an IDE for ruby, imo
+[2013-08-30 16:06:59 -0400] xhae: ncoconnor: an installed gem means you have the source code, for a ruby-only gem
+[2013-08-30 16:07:15 -0400] xhae: ncoconnor: Eclipse' ruby support should deal with it fine.
+[2013-08-30 16:07:48 -0400] ncoconnor: So then should I use the gem folder as a library?
+[2013-08-30 16:08:59 -0400] xhae: ncoconnor: the system gem folders should already be in the ruby path
+[2013-08-30 16:08:59 -0400] ncoconnor: the issue I'm specifically having is I'm trying to run a subcommand in knife and it dies before getting to the def run method. So it would seem I need to run knife <subcommand> in order to get that method ro run
+[2013-08-30 16:11:31 -0400] ncoconnor: yes the system gem folders are in my path, I can resolve all dependancies. But ruby wont let me select knife since it's not in my source.
+[2013-08-30 16:12:53 -0400] ncoconnor: So when I setup a debug configuration I cannot specify "Knife <subcommand> <subcommand>" and such
+[2013-08-30 16:13:23 -0400] bean:  tried a lowercase k? :P
+[2013-08-30 16:15:22 -0400] xhae: ncoconnor: Fully qualify the path of the knife executable in the debug configuration.
+[2013-08-30 16:20:43 -0400] jbowman: hello, is there a way to configure the omnibus method of chef-server on redhat 6 to have nginx bind to a specifc ip? I figured out changing the port with chef-server.rb, but would rather just bind to a specific ip
+[2013-08-30 16:21:17 -0400] ncoconnor: ok so there are a couple options in eclipse that I can use for debugging. there is a "Ruby Application" a "Ruby Script" and a "Ruby Test" I can fully qualify the knife executable if I run as a "Ruby Application" however this dies with some errors that scroll by to fast to read. With "Ruby Script" the knife executable is not in my source and so it won't let me fully qualify it from it's gem path.
+[2013-08-30 16:22:57 -0400] cpuguy83: jbowman: nginx config is @ /var/opt/chef-server/nginx/etc/nginx.conf
+[2013-08-30 16:23:52 -0400] jbowman: cpuguy83: that would get overwritten by chef version updates though?
+[2013-08-30 16:24:26 -0400] cpuguy83: jbowman: I'm not sure.
+[2013-08-30 16:26:15 -0400] jbowman: I think I'll try changing the port and updating the clients to use that new port. I'm trying to get nagios and chef-server to co-exist on the same server.
+[2013-08-30 16:26:47 -0400] cpuguy83: jbowman: Have you looked at using Docker to run them in containers?
+[2013-08-30 16:28:18 -0400] aberrios: exit
+[2013-08-30 16:28:21 -0400] aberrios: oops
+[2013-08-30 16:28:25 -0400] jbowman: cpuguy83: hmm no, but I don't think I have the time to go through implementing another technology right now either. Everything I do have to get a secondary behind me up to speed on as well and we're maxed out. Good idea though and I've been wanting to poke at docker, I'll keep that in mind for later. Thanks
+[2013-08-30 16:37:24 -0400] magoo: i'm trying to wrap my head around berkshelf and am hung on the point of environment and role files.. where do these live?
+[2013-08-30 16:38:04 -0400] magoo: is this a completely separate base repo in most cases?
+[2013-08-30 16:38:23 -0400] magoo: would it also have a berksfile?
+[2013-08-30 16:38:38 -0400] magoo: (waiting for my aha! moment)
+[2013-08-30 16:40:41 -0400] siezer: magoo in the "pure" berkshelf pattern, you don't have roles, and environment and databags are tracked seperately
+[2013-08-30 16:41:07 -0400] magoo: but how do i relate that to the real world and incremental steps towards berkshelf?
+[2013-08-30 16:41:11 -0400] siezer: in practice, you keep a chef-repo with your databags and environments and use berks to "vendor" a cookbook and its deps into the cookbooks dir
+[2013-08-30 16:45:04 -0400] bdha: http://www.amazon.com/Infrastructure-Automation-Cookbook-Matthias-Marschall/dp/1849519226/ # Anyone read this yet?
+[2013-08-30 16:47:08 -0400] magoo: siezer: thanks for the clarification
+[2013-08-30 17:07:17 -0400] kppullin: is there an archive of older chef install.msi packages?  having an issue w/ the lastest and want to see if the prior release works
+[2013-08-30 17:22:45 -0400] SynchronE: Hi everyone
+[2013-08-30 17:23:22 -0400] SynchronE: is there any way to make nginx cookbook known to my recipe, but don't exectute nginx::default at the same time ?
+[2013-08-30 17:23:46 -0400] SynchronE: include_recipe doesn't seem to do it
+[2013-08-30 17:23:54 -0400] kl4m: SynchronE, add depends 'nginx' to metadata.rb
+[2013-08-30 17:24:11 -0400] teukka: kppullin: all should be available from http://www.opscode.com/chef/install/
+[2013-08-30 17:24:29 -0400] SynchronE: tried it, says "resource recipe[nginx is not available"
+[2013-08-30 17:24:31 -0400] kppullin: ah thanks!
+[2013-08-30 17:25:31 -0400] kl4m: SynchronE, what says this?
+[2013-08-30 17:25:40 -0400] SynchronE: vagrant provision
+[2013-08-30 17:27:28 -0400] SynchronE: because i have that:
+[2013-08-30 17:27:28 -0400] SynchronE: nginx_site ... do
+[2013-08-30 17:27:28 -0400] SynchronE: notifies :restart, "service[nginx]'
+[2013-08-30 17:27:29 -0400] SynchronE: end
+[2013-08-30 17:29:28 -0400] SynchronE: kl4m: oh, just noticed, it's not recipe[nginx]. it's: Chef::Exceptions::ResourceNotFound: resource execute[nxensite metastorage] is configured to notify resource service[nginx] with action reload, but service[nginx] cannot be found in the resource collection. execute[nxensite metastorage] is defined in /var/chef/cache/cookbooks/nginx/definitions/nginx_site.rb:23:in `block in from_file'
+[2013-08-30 17:30:47 -0400] kl4m: SynchronE, service[nginx] is not defined if there is no inlude_recipe 'nginx', because it's defined there https://github.com/opscode-cookbooks/nginx/blob/master/recipes/default.rb#L49
+[2013-08-30 17:31:13 -0400] SynchronE: okay, so how can I use that notify without including ?
+[2013-08-30 17:31:41 -0400] SynchronE: because it tries to `service restart nginx` in ::default
+[2013-08-30 17:31:45 -0400] kl4m: SynchronE, I guess you an copy the service definition in your own cookbook, but I'm not sure why you can't include_recipe 'nginx' ...
+[2013-08-30 17:32:28 -0400] SynchronE: and it
+[2013-08-30 17:32:41 -0400] SynchronE: oh, actually that can be an option
+[2013-08-30 17:33:03 -0400] SynchronE: it's just I expected no side-effects from a simple inclued
+[2013-08-30 17:34:12 -0400] VitorNascimento: Is necessary to install knife on chef-server machine that was installed with .deb omnibus?
+[2013-08-30 17:39:25 -0400] kl4m: VitorNascimento, I installed with the .deb and have knife installed as /usr/bin/knife -> /opt/chef/bin/knife
+[2013-08-30 17:41:28 -0400] mwildt: Anyone know where in omnibus the Ohai version is specified or where I can change it ? (I've searched for it but came up empty handed)
+[2013-08-30 17:44:14 -0400] VitorNascimento: kl4m: maybe I have a problem, knife dont appear on /usr/bin and other /bin folder ... Is it a problem?
+[2013-08-30 17:45:38 -0400] kl4m: VitorNascimento,  You can install knife another way if you wish but it's not necessary. I don't even a ruby install(aside from omnibus) on the chef server here.
+[2013-08-30 17:46:24 -0400] bscott: [chef-rundeck 1.0.0 has been released!
+[2013-08-30 17:49:27 -0400] VitorNascimento: kl4m: thanks .. I will test this machine as is ... recently Im having problem with encrypted databag with chef-server .. at time im trying databag in new clean installation :D
+[2013-08-30 17:53:34 -0400] charity_: ohai chefs!  i have a question about ohai plugins
+[2013-08-30 17:54:05 -0400] charity_: i wrote a plugin, and it works if i run ohai mongo -f /etc/chef/ohai_plugins/mongo.rb, or ohai mongo -d /etc/chef/ohai_plugins
+[2013-08-30 17:54:18 -0400] charity_: but it doesn't show up if i run just regular ohai
+[2013-08-30 17:54:27 -0400] charity_: i have this in my client.rb -- Ohai::Config[:plugin_path] << "/etc/chef/ohai_plugins"
+[2013-08-30 17:54:40 -0400] charity_: so i thought it should get loaded automagically.  is the expected behavior?
+[2013-08-30 17:59:36 -0400] Clem_: ohai
+[2013-08-30 17:59:51 -0400] Clem_: issue w/ knife node list
+[2013-08-30 17:59:58 -0400] Clem_: anyone around to discuss?
+[2013-08-30 18:05:14 -0400] Clem_: nife node list /Users/cclement/.rbenv/versions/1.9.3-preview1/lib/ruby/site_ruby/1.9.1/rubygems/specification.rb:1637:in `raise_if_conflicts': Unable to activate knife-ucs-0.0.3, because chef-11.6.0 conflicts with chef (~> 10.16.2) (Gem::LoadError)
+[2013-08-30 18:05:28 -0400] Clem_: Thoughts
+[2013-08-30 18:05:31 -0400] mattjalexander: is there any reason why assert_no_match wouldn't work with minitest-chef-handler?
+[2013-08-30 18:05:54 -0400] mattjalexander: are you using rvm?
+[2013-08-30 18:06:11 -0400] mwildt: charity_, if you're running ohai standalone then it will not take anything from client.rb. Client.rb is only processed when running chef-client.
+[2013-08-30 18:06:27 -0400] charity_: aha, thanks
+[2013-08-30 18:06:27 -0400] teukka: Clem_: you seem to have knife-ucs which depends on chef 10
+[2013-08-30 18:07:08 -0400] Clem_: aww
+[2013-08-30 18:07:15 -0400] teukka: Clem_: Chef v10.16.x exactly
+[2013-08-30 18:07:28 -0400] cwj: yeah looks like ohai doesnt check its config when initially loading plugins https://github.com/opscode/ohai/blob/master/lib/ohai/config.rb#L39
+[2013-08-30 18:07:48 -0400] Clem_: gem search  |grep chef zsh: correct 'chef' to '.chef' [nyae]? n chef (11.6.0, 10.16.6)
+[2013-08-30 18:08:01 -0400] Clem_: so, I need to remove the 11.6.0?
+[2013-08-30 18:08:51 -0400] cwj: charity_: i am intrigued by your ohai mongo plugin, might the source be published?
+[2013-08-30 18:09:37 -0400] teukka: Clem_: I would use bundler to specify the exact versions I want. but yeah, I think you must uninstall chef 11.6.0 or knife-ucs
+[2013-08-30 18:10:25 -0400] Clem_: Hey Teukka, I'm not familiar with bundler
+[2013-08-30 18:11:23 -0400] mwildt: charity_: if you want to have it included you can install by ohai cookbook or if you're running ohai standalone copy it to /opt/chef/embedded/lib/ruby/gems/1.9.3/gems/ohai-xxx/lib/ohai/plugins/
+[2013-08-30 18:12:30 -0400] mwildt: Clem_: do a 'gem uninstall chef -v 11.6.0'
+[2013-08-30 18:13:06 -0400] Clem_: done!
+[2013-08-30 18:13:07 -0400] aemcknig: question.. can you nest definitions?
+[2013-08-30 18:13:13 -0400] Clem_: thx mwildt
+[2013-08-30 18:38:22 -0400] gsymons-di: Anyone seen any issues with the user cookbook not removing users that have the remove action in the databag?
+[2013-08-30 18:47:01 -0400] pabst^: so when we are trying to bootstrap a node we get an error that cannot verify www.opscode.com certificate.... add --no-check-certificate
+[2013-08-30 18:47:07 -0400] pabst^: that isn't a knife bootstrap option
+[2013-08-30 18:47:12 -0400] pabst^: is there another way to get around this
+[2013-08-30 18:47:33 -0400] SynchronE: does curl https://opscode.com work ?
+[2013-08-30 18:48:06 -0400] SynchronE: maybe it has issues with your CA
+[2013-08-30 18:48:54 -0400] teukka: pabst^: you have to install the ca certificate bundle to your node. which os/distro?
+[2013-08-30 18:49:43 -0400] pabst^: teukka: centos 5/6
+[2013-08-30 18:49:48 -0400] pabst^: openssl?
+[2013-08-30 18:54:05 -0400] teukka: pabst^: I'm all for debianoids, but the centos boxes that I've used, had ca certificates already installed. in debianoids the package is "ca-certificates"
+[2013-08-30 19:37:13 -0400] a13x212: just discovered this command, knife node show <node> -a rackspace
+[2013-08-30 19:37:24 -0400] a13x212: how can i use that info in a cookbook?
+[2013-08-30 19:40:42 -0400] agarson: a13x212:  you'll do a search to find that node, you will get a node object, all of the info can be accessed with [] operations
+[2013-08-30 19:40:53 -0400] agarson: the_node = search("some search string").first
+[2013-08-30 19:41:02 -0400] agarson: the_node[:foo][:bar][:baz]
+[2013-08-30 19:43:11 -0400] a13x212: agarson, thanks i'll give that a try
+[2013-08-30 19:50:51 -0400] btm: @opscode no code review today or monday; long holiday weekend.
+[2013-08-30 19:51:26 -0400] josephholsten: aww, have fun!
+[2013-08-30 19:56:07 -0400] dgarstang: I have a new node, and I keep getting a 401 - Invalid signature for user or client 'chef-validator' ... I've confirmed the chef-validator is the same, and I've done a 'knife node delete' and a 'knife client delete'. What else could I be missing?
+[2013-08-30 19:59:20 -0400] magoo: anyone using vagrant-chef-zero plugin?
+[2013-08-30 19:59:45 -0400] thehar: Getting 400s from a server with hosted chef on api.opscode.com 443.
+[2013-08-30 19:59:47 -0400] bytheway: is anybody currently using a separate storage mechanism for configuration date / node attribues outside of chef?
+[2013-08-30 19:59:57 -0400] bytheway: s/date/data/
+[2013-08-30 20:01:19 -0400] bytheway: I'm running into a philosophical hurdle trying to make the final mapping between cookbooks/recipes and individual nodes
+[2013-08-30 20:03:17 -0400] bytheway: basically, how do you handle things when nearly every node needs to have slightly different configuration
+[2013-08-30 20:05:20 -0400] mveitas: bytheway: can you give an example?
+[2013-08-30 20:05:47 -0400] bytheway: our main application server is weblogic (java, I know, bear with me)
+[2013-08-30 20:06:05 -0400] mveitas: bytheway: no offense, I am a java guy
+[2013-08-30 20:06:15 -0400] bytheway: ok, good, that makes it easier :-)
+[2013-08-30 20:06:24 -0400] mveitas: bytheway: I am sorry that you are using weblogic though ;)
+[2013-08-30 20:06:31 -0400] bytheway: so, weblogic needs an admin server, and then manages a number of managed instances
+[2013-08-30 20:07:02 -0400] bytheway: we have a weblogic cluster, say, of 4 chef nodes.  one of those nodes needs to be designated (somehow) as an admin server
+[2013-08-30 20:07:48 -0400] bytheway: and then weblogic needs to be put down with a configuration knowing that it needs 3-4 managed instances in the cluster
+[2013-08-30 20:08:04 -0400] bytheway: and it needs to know the listening IPs of each instances
+[2013-08-30 20:08:38 -0400] bytheway: and all of the non-admin nodes needs to know which of the instances it is supposed to be responsible for running
+[2013-08-30 20:09:17 -0400] mveitas: you can use search to be able to find all the nodes of a type, either by using a role or assigning an attribute to a node that determines the type
+[2013-08-30 20:09:49 -0400] bytheway: multiply that one cluster by 100
+[2013-08-30 20:09:58 -0400] bytheway: every cluster being different
+[2013-08-30 20:10:26 -0400] bytheway: different sizes, different apps, different config needs
+[2013-08-30 20:11:24 -0400] mveitas: you could use environments for all of the different clusters and override the attributes there
+[2013-08-30 20:11:47 -0400] bytheway: I have thought of that.  Using a combination of environment, databags, roles, etc.
+[2013-08-30 20:12:00 -0400] dgarstang: I have a new node, and I keep getting a 401 - Invalid signature for user or client 'chef-validator' ... I've confirmed the chef-validator is the same, and I've done a 'knife node delete' and a 'knife client delete'. What else could I be missing?
+[2013-08-30 20:12:20 -0400] bytheway: a few weeks ago on the mailing list there was a discussion of "all config data in SCM" vs storing config data in something like a CMDB
+[2013-08-30 20:13:29 -0400] bytheway: I guess my basic hurdle is I think a lot of chef shops have a small number of apps scaled across a bunch of servers
+[2013-08-30 20:13:45 -0400] bytheway: we have a large number of apps, each on only a handfull of servers
+[2013-08-30 20:15:18 -0400] bytheway: I'm not sure for a lot of this config data, that a git checkout/commit/push + knife update/jenkins build + chef run is really a step forward
+[2013-08-30 20:16:29 -0400] dgarstang: I have a new node, and I keep getting a 401 - Invalid signature for user or client 'chef-validator' ... I've confirmed the chef-validator is the same, and I've done a 'knife node delete' and a 'knife client delete'. What else could I be missing?
+[2013-08-30 20:20:44 -0400] gazarsgo: how can i run a search from the context  of a particular node ?
+[2013-08-30 20:21:04 -0400] bytheway: maybe I'm just trying to stick too closely to our current architecture and need to simplify somehow
+[2013-08-30 20:25:36 -0400] dgarstang: I have a new node, and I keep getting a 401 - Invalid signature for user or client 'chef-validator' ... I've confirmed the chef-validator is the same, and I've done a 'knife node delete' and a 'knife client delete'. What else could I be missing?
+[2013-08-30 20:27:19 -0400] jchauncey: bytheway: why store your configuration information in git? a config change for a node(s) should just require a rerun of your chef environment
+[2013-08-30 20:27:25 -0400] jchauncey: client rather
+[2013-08-30 20:27:48 -0400] bytheway: but how do you capture/store that config change?
+[2013-08-30 20:28:07 -0400] jchauncey: for example if i wanted to update firefox on all of my build machines for selenium tests I would just update the environment attribute that defines that value and rerun the chef client
+[2013-08-30 20:28:30 -0400] jchauncey: in some cases you dont
+[2013-08-30 20:28:33 -0400] gazarsgo: oh good lord
+[2013-08-30 20:28:36 -0400] gazarsgo: that sounds terrible jchauncey
+[2013-08-30 20:29:01 -0400] jchauncey: for cases where i want to capture that in git logs then they are defined as the the defaults for whatever is being run
+[2013-08-30 20:29:21 -0400] gazarsgo: you can track attributes in cookbooks update the cookbook, upload it to chef, run chef-client on nodes to update
+[2013-08-30 20:29:39 -0400] jchauncey: if its a sensible default
+[2013-08-30 20:29:47 -0400] gazarsgo: if it's not a default for the cookbook put it in the role
+[2013-08-30 20:29:52 -0400] adnichols: my general principle is that I should be able to rebuild a new chef server & reconstituate my environment from a git repo - I should not be dependent on any info existing in the chef server
+[2013-08-30 20:29:55 -0400] gazarsgo: you can use jenkins or something to upload cookbooks and trigger via post commit hooks also
+[2013-08-30 20:29:56 -0400] jchauncey: which isn't versioned either
+[2013-08-30 20:30:06 -0400] gazarsgo: roles are versioned
+[2013-08-30 20:30:10 -0400] dgarstang: Invalid signature for user or client 'chef-validator'.... help... :(
+[2013-08-30 20:30:11 -0400] gazarsgo: in my git repo
+[2013-08-30 20:30:27 -0400] jchauncey: i guess if you are storing them that way
+[2013-08-30 20:30:33 -0400] gazarsgo: why wouldn't you store them that way ?
+[2013-08-30 20:30:40 -0400] jchauncey: a lot of this depends on how you have architected your environment
+[2013-08-30 20:30:47 -0400] jchauncey: we don't use roles
+[2013-08-30 20:31:00 -0400] jchauncey: although our environment right now isn't very complex yet
+[2013-08-30 20:31:01 -0400] gazarsgo: it's pretty independent of environment.. it's specific to how you use chef
+[2013-08-30 20:31:14 -0400] bytheway: that's what I'm struggling with
+[2013-08-30 20:31:22 -0400] jchauncey: application cookbooks help negate the need for roles
+[2013-08-30 20:31:26 -0400] bytheway: how am I supposed to use it
+[2013-08-30 20:31:29 -0400] gazarsgo: i have application cookbooks, you still need roles
+[2013-08-30 20:31:36 -0400] gazarsgo: you use roles to compose application cookbooks with services cookbooks
+[2013-08-30 20:31:47 -0400] adnichols: gazarsgo some folks use cookbooks / recipes for that
+[2013-08-30 20:31:56 -0400] adnichols: you can define attributes and recipes in both roles & recipes
+[2013-08-30 20:31:56 -0400] jchauncey: right
+[2013-08-30 20:31:56 -0400] gazarsgo: i use cookbooks for that too, for composition
+[2013-08-30 20:32:06 -0400] bytheway: we have simple config changes that we do many times a day, I worry that a full git/knife/push/chef run might be too heavy a requirement
+[2013-08-30 20:32:09 -0400] adnichols: and since cookbooks can be versioned, some prefer that approach
+[2013-08-30 20:32:10 -0400] gazarsgo: i use cookbooks for composition of services cookbooks, i still use roles to define specific node runlists
+[2013-08-30 20:32:11 -0400] gchristensen: coderanger: does depot require gpg2 or gpg1?
+[2013-08-30 20:32:21 -0400] gazarsgo: roles can be versioned also, just using git instead of native chef versioning :)
+[2013-08-30 20:32:23 -0400] adnichols: versioned in the chef server - in your git repo doesn't help when rolling out across different environments
+[2013-08-30 20:32:27 -0400] dgarstang: Invalid signature for user or client 'chef-validator'.... help... :(
+[2013-08-30 20:32:58 -0400] adnichols: gazarsgo your intent with versioning is different than the intent w/ versioning cookbooks in the chef server
+[2013-08-30 20:33:15 -0400] gazarsgo: it's the same function, different implementation ? i find too much overhead in using chef cookbook versions
+[2013-08-30 20:33:27 -0400] adnichols: gazarsgo for example I cannot run two different "versions" of a role in two different environments - without having two different roles
+[2013-08-30 20:33:33 -0400] gazarsgo: sure, roles are cheap though
+[2013-08-30 20:33:39 -0400] gazarsgo: cookbook versions are super expensive
+[2013-08-30 20:33:39 -0400] adnichols: umm.. maybe
+[2013-08-30 20:33:45 -0400] adnichols: how so?
+[2013-08-30 20:34:02 -0400] adnichols: I guess you'll have to define expensive for me
+[2013-08-30 20:34:39 -0400] bytheway: I also like the idea of being able to recreate an environment with some simple capture of configuration data
+[2013-08-30 20:34:55 -0400] gazarsgo: a cookbook version is expensive in that if i decide idon't need it it's almost impossible to throw away
+[2013-08-30 20:35:15 -0400] dgarstang: I have a new node, and I keep getting a 401 - Invalid signature for user or client 'chef-validator' ... I've confirmed the chef-validator is the same, and I've done a 'knife node delete' and a 'knife client delete'. What else could I be missing?
+[2013-08-30 20:35:25 -0400] adnichols: dgarstang I know - no suggestions
+[2013-08-30 20:35:32 -0400] dgarstang: adnichols: D'oh
+[2013-08-30 20:35:57 -0400] adnichols: gazarsgo okie doke - well it's good that there are multiple ways to do it then :)
+[2013-08-30 20:36:05 -0400] gazarsgo: TMTOWTDI indeed :)
+[2013-08-30 20:36:44 -0400] gazarsgo: what workflow do you use for debugging chef cookbooks ? chef-shell ?
+[2013-08-30 20:36:51 -0400] jchauncey: bytheway: the great thing about chef is that there is not right way
+[2013-08-30 20:37:18 -0400] bytheway: I know, the flexibility is one reason we chose chef over other tools
+[2013-08-30 20:37:44 -0400] bytheway: I'm just not coming up with any way of handling this that I like enough to move forward with
+[2013-08-30 20:38:18 -0400] stormerider: what's the berkshelf command to see where a cookbook dependency is coming from?
+[2013-08-30 20:39:11 -0400] dgarstang: jchauncey: that typicall leads to shit which requires refactoring
+[2013-08-30 20:39:12 -0400] stormerider: having trouble uploading rbenv to chef server (ridley crash) but i have no idea where rbenv is coming from
+[2013-08-30 20:39:14 -0400] agarson: stormerider:  there isn't one
+[2013-08-30 20:39:41 -0400] agarson: stormerider:  what is the ridley error?
+[2013-08-30 20:39:55 -0400] adnichols: dgarstang all roads lead to refactoring get over it :)
+[2013-08-30 20:40:14 -0400] dgarstang: adnichols: roads that follow a best practice typically lead to refactoring less often
+[2013-08-30 20:41:00 -0400] adnichols: maybe - I find that on fast evolving things best practices are moving targets
+[2013-08-30 20:41:15 -0400] jchauncey: no code is ever in a perfect state, you should constantly be learning from your mistakes and fixing stuff you have done before. i am constantly updating cookbooks to make them better and use new tools that i come across that make my life and my teams life much easier
+[2013-08-30 20:41:21 -0400] stormerider: rbenv: version `1.9.3-p448' is not installed | Ridley::Errors::CookbookSyntaxError: Invalid ruby files in cookbook: rbenv (1.6.4).
+[2013-08-30 20:41:28 -0400] dgarstang: Invalid signature for user or client 'chef-validator'.... *sigh* THREE matches on the entire internet for that eror
+[2013-08-30 20:42:08 -0400] adnichols: dgarstang http://xkcd.com/979/
+[2013-08-30 20:42:11 -0400] bytheway: dgarstang: regenerate the validator key?
+[2013-08-30 20:42:49 -0400] stormerider: looks like it came from logstash, which im not using anymore. grepped through ~/.berkshelf/cookbooks
+[2013-08-30 20:43:40 -0400] agarson: stormerider:  what version of ruby are you running?
+[2013-08-30 20:44:42 -0400] stormerider: agarson: whatever's current in ubuntu raring. sorted out by removing logstash, though, as i dont need it or rbenv.
+[2013-08-30 20:45:44 -0400] agarson: stormerider:  ok, it looks like you are running a version of ruby that ridley might not fully support anymore, i wanted to see what it was so we know if its something to look into further
+[2013-08-30 20:45:46 -0400] bytheway: is setting node attributes directly (like via knife, not in a role/cookbook) something that is generally frowned on?
+[2013-08-30 20:46:22 -0400] jchauncey: bytheway: i would think so
+[2013-08-30 20:46:43 -0400] stormerider: agarson: ah, blah, it's using 1.8 instead of 1.9 need to reset /etc/alternatives
+[2013-08-30 20:46:55 -0400] agarson: that'll do it
+[2013-08-30 20:46:56 -0400] adnichols: bytheway just consider how you reproduce that setting if that node goes away or your chef server blows up
+[2013-08-30 20:47:10 -0400] adnichols: I do set attributes on nodes but they are acceptable if lost
+[2013-08-30 20:47:22 -0400] agarson: stormerider:  i think we use ruby -c in ridley to do the syntax check, 1.9 style hashes are really common in cookbooks now
+[2013-08-30 20:47:26 -0400] bytheway: I would assume it is part of the mapping of a node to a runlist/role/attribute
+[2013-08-30 20:47:56 -0400] bytheway: at some point, a node has to be assigned specific things in order for chef to be useful
+[2013-08-30 20:48:22 -0400] adnichols: btw - jchauncey - which jchauncey are you? Not cuzzin? Hi :)
+[2013-08-30 20:48:35 -0400] jchauncey: adnichols: haha this is The Chauncey =)
+[2013-08-30 20:48:41 -0400] adnichols: hehe.. ok good to know
+[2013-08-30 20:48:50 -0400] jchauncey: adnichols: you guys going to seattle in nov?
+[2013-08-30 20:49:00 -0400] adnichols: what's in seattle?
+[2013-08-30 20:49:04 -0400] jchauncey: community summit
+[2013-08-30 20:49:21 -0400] bytheway: hopefully that's just a run list, but it be better to end up with managing a bunch or roles intended to only be assigned to a single node, or just do node.set[:weblogic_role] = :admin
+[2013-08-30 20:49:23 -0400] jchauncey: ah k, most of our team will be there
+[2013-08-30 20:49:28 -0400] adnichols: cool
+[2013-08-30 20:49:45 -0400] bytheway: s/it be/what would be/
+[2013-08-30 20:50:16 -0400] jchauncey: bytheway: I should say that I am not against the use of roles, but sometimes you need to decide how you are using them and if you might be able to do it another way
+[2013-08-30 20:50:50 -0400] bytheway: usually I'm using app cookbooks instead of roles
+[2013-08-30 20:50:58 -0400] jchauncey: bytheway: yeah
+[2013-08-30 20:51:01 -0400] stormerider: agarson: still dies with pointed to ruby1.9 via alternatives; ruby -v says ruby 1.9.3p194 (2012-04-20 revision 35410) [x86_64-linux]
+[2013-08-30 20:51:31 -0400] agarson: stormerider:  are you using rbenv for local dev?
+[2013-08-30 20:51:41 -0400] bytheway: but the thing I'm running into is managing the variation needed between nodes that I would LIKE to be able to manage with the same role/app cookbook
+[2013-08-30 20:53:39 -0400] agarson: stormerider:  hmm, i'm not sure whats going on, glad you got around the problem though, if it appears again please file a bug against ridley so we can dig deeper into it
+[2013-08-30 20:54:14 -0400] stormerider: bytheway: i've found that setting up a CI for chef + cookbooks makes things a lot easier lets you focus on git and then running chef-client
+[2013-08-30 20:54:33 -0400] jchauncey: bytheway: pm
+[2013-08-30 20:54:43 -0400] gazarsgo: stormerider: do you just upload everything on every CI run ?
+[2013-08-30 20:55:07 -0400] gazarsgo: would be interested if your CI job is shareable either way
+[2013-08-30 20:56:10 -0400] bytheway: stormerider: I think that is probably a good observation.  It has been in our plans to do it, but maybe we need to move that plan to build it earlier into our processes
+[2013-08-30 20:56:12 -0400] stormerider: yeah. i have one job that runs "rake all" which uploads databags, roles, envs, and then runs berkshelf. then another job which runs foodcritic and such on the cookbook commits, and if it passes it calls the first job.
+[2013-08-30 20:57:20 -0400] stormerider: and i cant share my work one, but i'm going to set up jenkins here at home and i'd be willing to share info on that once i have it set up.
+[2013-08-30 20:58:35 -0400] dgarstang: Invalid signature for user or client 'chef-validator'.... help... :(
+[2013-08-30 21:03:16 -0400] bytheway: thanks for the input, all
+[2013-08-30 21:04:00 -0400] agarson: dgarstang:  you are sure that chef-validator is the correct client name and that your key is correct?
+[2013-08-30 21:06:41 -0400] dgarstang: agarson: I ran a checksum between the clients /etc/chef/chef-validator.pem and the servers /etc/chef/chef-server/chef-validator.pem. They match.
+[2013-08-30 21:07:01 -0400] adnichols: they shouldn't tho
+[2013-08-30 21:07:08 -0400] agarson: yeah, those are different files
+[2013-08-30 21:07:09 -0400] dgarstang: adnichols: ???
+[2013-08-30 21:07:15 -0400] adnichols: one is the public key and one is the private key
+[2013-08-30 21:07:57 -0400] adnichols: use the key you download when you generate the validator key - not the one on the server
+[2013-08-30 21:07:58 -0400] dgarstang: so if /etc/chef/chef-validator.pem is the private, where's the public?
+[2013-08-30 21:07:58 -0400] agarson: dgarstang:  what chef server are you using? open source or private?
+[2013-08-30 21:08:05 -0400] dgarstang: adnichols: oh
+[2013-08-30 21:08:18 -0400] dgarstang: adnichols: Well I guess that'd be it. Tanx
+[2013-08-30 21:08:19 -0400] agarson: you generate the private key when you create the validator client
+[2013-08-30 21:08:31 -0400] agarson: if you have lost it, then you need to regenerate a new one
+[2013-08-30 21:08:32 -0400] dgarstang: agarson: is the public key anywhere on the servers fs?
+[2013-08-30 21:08:37 -0400] adnichols: dgarstang the server holds the public key - client has private key
+[2013-08-30 21:08:48 -0400] agarson: anybody else using that key will need the new key
+[2013-08-30 21:08:58 -0400] agarson: dgarstang:  who created that validator client?
+[2013-08-30 21:09:05 -0400] agarson: did you?
+[2013-08-30 21:09:08 -0400] dgarstang: /etc/chef-server/chef-validator.pem is private. Is that correct?
+[2013-08-30 21:09:17 -0400] agarson: you put the private key on the client
+[2013-08-30 21:09:18 -0400] dgarstang: agarson: I dunno
+[2013-08-30 21:09:22 -0400] adnichols: no, that's the public key - but it's irrelevant
+[2013-08-30 21:09:29 -0400] dgarstang: agarson: That's what I did
+[2013-08-30 21:09:33 -0400] adnichols: generate the validator key, download it, and put that on the client
+[2013-08-30 21:09:44 -0400] dgarstang: adnichols: I already have a validator key
+[2013-08-30 21:09:45 -0400] agarson: dgarstang:  who manages your chef server? do you?
+[2013-08-30 21:09:49 -0400] dgarstang: agarson: YEs
+[2013-08-30 21:10:03 -0400] agarson: ok, so when you created the chef-validator client, you downloaded a file
+[2013-08-30 21:10:05 -0400] adnichols: dgarstang but from your description you have two copies of the public key
+[2013-08-30 21:10:07 -0400] agarson: chef-validator.pem
+[2013-08-30 21:10:09 -0400] adnichols: so regenerate it
+[2013-08-30 21:10:23 -0400] dgarstang: agarson: I dind't creae a chef-validator client that I am aware of
+[2013-08-30 21:10:39 -0400] agarson: dgarstang:  ?
+[2013-08-30 21:10:45 -0400] dgarstang: agarson: ? ?
+[2013-08-30 21:10:52 -0400] agarson: what client do you use to validate new nodes then when you bootstrap?
+[2013-08-30 21:10:59 -0400] agarson: you had to have created some kind of validator client
+[2013-08-30 21:11:04 -0400] agarson: is this private or open source chef server?
+[2013-08-30 21:11:05 -0400] dgarstang: agarson: The default one? I have no idea
+[2013-08-30 21:11:08 -0400] agarson: ok
+[2013-08-30 21:11:09 -0400] adnichols: agarson I think that's the part that isn't working
+[2013-08-30 21:11:13 -0400] dgarstang: agarson: open source
+[2013-08-30 21:11:25 -0400] agarson: ok, so you don't have orgs, thats why its called chef-validator
+[2013-08-30 21:11:34 -0400] dgarstang: agarson: correct I think
+[2013-08-30 21:11:36 -0400] agarson: so, when you log into the server, you should be able to see a list of clients
+[2013-08-30 21:11:46 -0400] dgarstang: agarson: I'm trying not to use the UI
+[2013-08-30 21:11:47 -0400] agarson: i only have private atm, but there is a tab called "clients"
+[2013-08-30 21:11:55 -0400] adnichols: dgarstang stop resisting help
+[2013-08-30 21:11:56 -0400] agarson: dgarstang:  you can't not use the ui
+[2013-08-30 21:12:03 -0400] agarson: for this operation
+[2013-08-30 21:12:08 -0400] dgarstang: agarson: Ok...
+[2013-08-30 21:12:09 -0400] agarson: its only exposed through the ui
+[2013-08-30 21:12:23 -0400] agarson: at least i've never seen it anywhere else
+[2013-08-30 21:12:23 -0400] stormerider: adnichols: this is one of many reasons why they ended up on my ignore list.
+[2013-08-30 21:12:42 -0400] agarson: dgarstang:  so, once you are in the server, look at the list of clients
+[2013-08-30 21:12:48 -0400] dgarstang: agarson: ok
+[2013-08-30 21:12:48 -0400] agarson: find the chef-validator client
+[2013-08-30 21:12:48 -0400] adnichols:  stormerider I understand
+[2013-08-30 21:12:53 -0400] dgarstang: agarson: yep
+[2013-08-30 21:12:58 -0400] agarson: dgarstang:  this is a very important question
+[2013-08-30 21:13:09 -0400] agarson: are YOU the ONLY person who is bootstrapping nodes into this server?
+[2013-08-30 21:13:20 -0400] dgarstang: agarson: right now yes, in the future no.
+[2013-08-30 21:13:23 -0400] agarson: ok
+[2013-08-30 21:13:46 -0400] agarson: so, on the list of clients, the row with the chef-validator, there should be a link to "regenerate" the key
+[2013-08-30 21:13:59 -0400] agarson: if you click that, you will get a new chef-validator.pem
+[2013-08-30 21:14:05 -0400] dgarstang: agarson: I don't want to regeneate.
+[2013-08-30 21:14:10 -0400] agarson: anybody who needs to bootstrap will need that key
+[2013-08-30 21:14:15 -0400] dgarstang: agarson: The chef-validator.pem is on the server
+[2013-08-30 21:14:22 -0400] agarson: if you don't want to regenerate, then you need to find the original private key
+[2013-08-30 21:14:33 -0400] dgarstang: agarson: /etc/chef-server/chef-validator.pem .... ?
+[2013-08-30 21:14:37 -0400] agarson: the chef-validator.pem on the server is the public key file, you need the private key file
+[2013-08-30 21:14:46 -0400] agarson: you can ONLY get that ONCE when you generate new credentials
+[2013-08-30 21:15:04 -0400] dgarstang: agarson: '-----BEGIN RSA PRIVATE KEY-----' == /etc/chef-server/chef-validator.pem
+[2013-08-30 21:15:06 -0400] agarson: it is only used once per machine when you are bootstrapping
+[2013-08-30 21:15:12 -0400] agarson: thats on the server?
+[2013-08-30 21:15:27 -0400] dgarstang: agarson: yes, and I haven't modified it
+[2013-08-30 21:15:34 -0400] agarson: ok, then you need the public key
+[2013-08-30 21:15:47 -0400] dgarstang: agarson: which I can grab from the UI (it's not on disk!?)
+[2013-08-30 21:15:48 -0400] agarson: you can try this then
+[2013-08-30 21:15:50 -0400] agarson: one moment
+[2013-08-30 21:16:01 -0400] agarson: can you grab the public key from that ui?
+[2013-08-30 21:16:02 -0400] dgarstang: I'm pretty sure the client is supposed to get the private key
+[2013-08-30 21:16:12 -0400] agarson: i don't know
+[2013-08-30 21:16:15 -0400] agarson: i'm all confused now
+[2013-08-30 21:16:30 -0400] dgarstang: me too
+[2013-08-30 21:16:39 -0400] agarson: i would htink its the public key on the clients, but i'm not certain
+[2013-08-30 21:16:41 -0400] adnichols: either way - the other 1/2 is not on the server, no
+[2013-08-30 21:16:51 -0400] agarson: yeah, one goes on each side, it can't be the same
+[2013-08-30 21:17:06 -0400] dgarstang: agarson: well given the server has the private key...
+[2013-08-30 21:17:07 -0400] agarson: so, you can use openssl to generate a public key from the private key
+[2013-08-30 21:17:27 -0400] dgarstang: agarson: i have the public key. it's in the UI. What I need to know is what goes where
+[2013-08-30 21:17:52 -0400] dgarstang: This isn't a bootstrap btw. I've had to try and bake the keys into the Amazon AMI because knife ec2 doesn't work
+[2013-08-30 21:18:00 -0400] agarson: o
+[2013-08-30 21:18:19 -0400] agarson: yeah, i have no idea what you need to do for that
+[2013-08-30 21:18:41 -0400] jbz: dgarstang: Sorry, latecomer, you're trying to do what?
+[2013-08-30 21:18:50 -0400] jbz: bake a validator key into an AMI?
+[2013-08-30 21:18:59 -0400] dgarstang: jbz: Yes
+[2013-08-30 21:19:41 -0400] jbz: dgarstang: easysauce.  Install chef-client on the AMI template machine, then copy chef-validator.pem into /etc/chef (if linux)
+[2013-08-30 21:19:52 -0400] dgarstang: jbz: *lol* That's where I'm stuck
+[2013-08-30 21:19:56 -0400] agarson: dgarstang:  ok, i just checked, you want to put the private key on the client machine, so if you ahve that, it should be working
+[2013-08-30 21:19:58 -0400] jbz: Alternately
+[2013-08-30 21:20:10 -0400] jbz: use a userdata script that installs the omnibus
+[2013-08-30 21:20:24 -0400] dgarstang: agarson: That's what I've been doing. I copied the servers /etc/chef-server/chef-validator.pem to /etc/chef/chef-validator.pem on the client
+[2013-08-30 21:20:24 -0400] jbz: and have the key somewhere and copy it into /etc/chef when the install is done
+[2013-08-30 21:20:34 -0400] agarson: dgarstang:  what operation are you doing that is failing with that error?
+[2013-08-30 21:20:40 -0400] dgarstang: agarson: 'chef-client'
+[2013-08-30 21:20:50 -0400] gazarsgo: hmm i have a cookbook that does a node search (rsyslog::client) and manually my search works but my nodes seem to bomb out on it
+[2013-08-30 21:20:51 -0400] jbz: dgarstang: do these nodes already exist on the server?
+[2013-08-30 21:20:53 -0400] agarson: full stacktrace?
+[2013-08-30 21:21:01 -0400] jbz: i.e. are they registered? Or do they have clients in their name already?
+[2013-08-30 21:21:12 -0400] dgarstang: jbz: not according to knife node and knife client. I also overrode with node_name to make sure
+[2013-08-30 21:21:33 -0400] dgarstang: jbz: shitsngiggles1, shitsngiggles2.... shitsngigglesN
+[2013-08-30 21:21:56 -0400] jbz: so how is chef-client failing?
+[2013-08-30 21:22:34 -0400] dgarstang: jbz: with .... 'Failed to authenticate to the chef server (http 401)' and then 'Invalid signature for user or client 'chef-validator''
+[2013-08-30 21:27:20 -0400] mtpereira: has anyone read "Chef Infrastructure Automation Cookbook" ? it looks good
+[2013-08-30 21:27:21 -0400] agarson: dgarstang:  raise the log-level
+[2013-08-30 21:27:38 -0400] dgarstang: agarson: i ran with -l debug already.... it says ... 401
+[2013-08-30 21:30:40 -0400] stormerider: mtpereira: no, hadnt heard of that do you have a link?
+[2013-08-30 21:31:07 -0400] mtpereira: stormerider: http://www.opscode.com/blog/2013/08/29/whip-up-awesome-wthe-chef-infrastructure-automation-cookbook/
+[2013-08-30 21:31:28 -0400] dgarstang: ok, i'm confused. Servers /etc/chef-server/chef-validator.pem matches clients /etc/chef/chef-validator.pem on this new node. I looked at another node (with a functioniang knife) and the chef-validator is different. Copied to new node... now it works. What does that mean?
+[2013-08-30 21:31:53 -0400] stormerider: thanks. also, why do i not have the opscode blog on my feedly devops group? *smacks their wrist*
+[2013-08-30 21:32:16 -0400] mtpereira: hehe :P
+[2013-08-30 21:32:25 -0400] agarson: dgarstang:  somebody regenerated the key at some point
+[2013-08-30 21:32:43 -0400] agarson: you put a copy of the validator.pem on the chef server (its usually not on there) and it was the wrong one
+[2013-08-30 21:33:18 -0400] agarson: thats why i suggested you generate the public key from the private earlier, its the only way to be sure that the keys match up
+[2013-08-30 21:33:53 -0400] dgarstang: i'll just regenerate from scratch. Thanks
+[2013-08-30 21:34:23 -0400] dgarstang: if I can.. I don't see an option for that in the UI
+[2013-08-30 21:34:35 -0400] agarson: its gotta be there
+[2013-08-30 21:34:48 -0400] agarson: just remember, any images you have already baked with the old key will need to be rebaked
+[2013-08-30 21:34:57 -0400] dgarstang: agarson: Yep
+[2013-08-30 21:35:00 -0400] agarson: but if you foudn the working key, why not just use that?
+[2013-08-30 21:35:18 -0400] dgarstang: agarson: What would I do with it?
+[2013-08-30 21:35:41 -0400] dgarstang: replace /etc/chef-server/chef-validator.pem on the server with the good one and restart the server?
+[2013-08-30 21:35:45 -0400] agarson: keep it secret; keep it safe?
+[2013-08-30 21:35:56 -0400] dgarstang: agarson: What's on the server is wrong tho
+[2013-08-30 21:36:03 -0400] agarson: honestly, i dont know what that /etc/chef-server/chef-validator.pem file is
+[2013-08-30 21:36:07 -0400] agarson: i wouldn't mess with it
+[2013-08-30 21:36:21 -0400] agarson: if you have a working chef-validator.pem, i'd put it somewhere very safe
+[2013-08-30 21:36:24 -0400] dgarstang: Well, if that's not the private key that goes to the clients, what is?
+[2013-08-30 21:36:25 -0400] agarson: and use it as needed
+[2013-08-30 21:36:29 -0400] agarson: it is the private key
+[2013-08-30 21:36:36 -0400] agarson: but it might not be THAT private key
+[2013-08-30 21:36:50 -0400] dgarstang: pretty sure it is
+[2013-08-30 21:36:51 -0400] agarson: there could be multiple files called chef-validator.pem
+[2013-08-30 21:36:59 -0400] agarson: if it didn't work, then it isn't
+[2013-08-30 21:37:00 -0400] dgarstang: There's only one in /etc/chef-server
+[2013-08-30 21:37:18 -0400] dgarstang: but another one did... which means it's wrong
+[2013-08-30 21:37:56 -0400] agarson: right, what i'm saying is that when you installed chef-server then chef may have created 2 files called chef-validator.pem.one in /etc/chef-server that you are not suppoed to touch or even know about, and one that you download from the ui and are supposed to use to validate clients
+[2013-08-30 21:38:29 -0400] agarson: at some point, you lost the one you downloaded, went searching for it on the chef server (i dont think its ever on the file system btw) and you found the other one
+[2013-08-30 21:38:31 -0400] dgarstang: agarson: there is no private key to download from the  UI
+[2013-08-30 21:38:49 -0400] agarson: you can only download it ONCE when you generate a new key for the client
+[2013-08-30 21:38:56 -0400] agarson: its a security feature
+[2013-08-30 21:39:00 -0400] dgarstang: agarson: well if it's not on the fs, you cant regenerate it, and it's not in the UI...
+[2013-08-30 21:39:11 -0400] agarson: its stored encrypted in a database somewhere
+[2013-08-30 21:39:16 -0400] agarson: i'm lying
+[2013-08-30 21:39:21 -0400] agarson: they keep the public key
+[2013-08-30 21:39:22 -0400] dgarstang: agarson: you don't generate the validator.key. It gets created when chef server is installed
+[2013-08-30 21:39:25 -0400] agarson: and thats all you need
+[2013-08-30 21:39:38 -0400] dgarstang: agarson: pretty darn sure the client gets the private key
+[2013-08-30 21:39:43 -0400] agarson: yes
+[2013-08-30 21:39:45 -0400] dgarstang: agarson: That's what jbz said a moment ago
+[2013-08-30 21:39:49 -0400] agarson: and the server ONLY keeps the public key
+[2013-08-30 21:39:58 -0400] agarson: because its used for SIGNING, not encrypting
+[2013-08-30 21:40:08 -0400] dgarstang: agarson: Ok, so would the 'private key' be /etc/chef-server/chef-validator.pem ?
+[2013-08-30 21:40:13 -0400] agarson: no
+[2013-08-30 21:40:21 -0400] agarson: because the server doesn't need the private key, so it doesn't keep it
+[2013-08-30 21:40:29 -0400] agarson: you get the private key ONCE when you generate it for the client
+[2013-08-30 21:40:47 -0400] agarson: if you lose it, you need to generate and distribute a new one
+[2013-08-30 21:41:06 -0400] dgarstang: agarson: Hm
+[2013-08-30 21:41:27 -0400] dgarstang: agarson: but there's no way to regenerate it
+[2013-08-30 21:41:50 -0400] agarson: no
+[2013-08-30 21:41:55 -0400] agarson: but you found it on another node, so you are golden
+[2013-08-30 21:42:01 -0400] agarson: just dont lose it again :)
+[2013-08-30 21:42:18 -0400] dgarstang: agarson: it's gotta be on disk somewhere
+[2013-08-30 21:42:33 -0400] agarson: there has to be a way to generate a new one through the ui, but you CANNOT recover the private key
+[2013-08-30 21:42:40 -0400] agarson: it doesn't have to be on the disk somewhere
+[2013-08-30 21:42:46 -0400] agarson: why would it have to be on disk somewhere?
+[2013-08-30 21:42:56 -0400] dgarstang: agarson: This doesn't add up. Lose the validator.pem and have to reinstall chef from scatch?
+[2013-08-30 21:43:01 -0400] agarson: no
+[2013-08-30 21:43:08 -0400] dgarstang: agarson: Well, it isn't in the UI that I can see
+[2013-08-30 21:43:12 -0400] agarson: there is a button/link/tab somewhere in the UI that will generate a new one
+[2013-08-30 21:43:21 -0400] agarson: i know where it is in private, i dont know where it is in open source
+[2013-08-30 21:43:34 -0400] agarson: at worst, you can create a new client and give it the right to validate new clients
+[2013-08-30 21:43:45 -0400] dgarstang: agarson: for other keys yes, for the validator, don't see it. I'd like to generate again so I can see if it matches what is at /etc/chef/chef-validator.pem or something else on disk
+[2013-08-30 21:44:04 -0400] dgarstang: agarson: ah fond it
+[2013-08-30 21:44:07 -0400] dgarstang: found
+[2013-08-30 21:44:14 -0400] agarson: the regenerate link?
+[2013-08-30 21:44:23 -0400] dgarstang: agarson: yep, hidden
+[2013-08-30 21:44:29 -0400] agarson: yeah, its a dangerous link
+[2013-08-30 21:46:32 -0400] dgarstang: agarson: Thanks for your help
+[2013-08-30 21:46:57 -0400] agarson: dgarstang:  no worries dude
+[2013-08-30 21:48:05 -0400] dgarstang: agarson: confirmed... new private key no in /etc/chef-server anywhere
+[2013-08-30 21:56:08 -0400] dgarstang: 'Please copy and save as the client's validation key (e.g. client.pem)' could that be a little more confusing?
+[2013-08-30 21:58:39 -0400] Vitor_: Hi, im using chef 11.6 databag encryp version 2 and i have this error: Error decrypting data bag value: invalid hmac.... Any Idea?
+[2013-08-30 22:02:22 -0400] Vitor_: How to create encrypted_data_bag_secret to version 2?
+[2013-08-30 22:10:09 -0400] Vitor_: Hi, im using chef 11.6 databag encryp version 2 and i have this error: Error decrypting data bag value: invalid hmac.... Any Idea?
+[2013-08-30 22:12:23 -0400] agarson: Vitor_:  was the databag encrypted under chef 11? or 10?
+[2013-08-30 22:12:33 -0400] Vitor_: chef 11.6
+[2013-08-30 22:13:24 -0400] Vitor_: agarson: chef 11.6 with this command "openssl rand -base64 512 > encrypted_data_bag_secret"
+[2013-08-30 22:15:08 -0400] Vitor_: agarson: im my knife.rb i gave "data_bag_encrypt_version 2" ... and in another machine have client.rb with same value
+[2013-08-30 22:15:26 -0400] agarson: how did you make the data bag?
+[2013-08-30 22:15:47 -0400] Vitor_: agarson: "knife data bag create passwords teste -s ~\.chef\encrypted_data_bag_secret -e vi"
+[2013-08-30 22:16:01 -0400] agarson: hahaa
+[2013-08-30 22:16:09 -0400] agarson: Vitor_:  openssl rand doesn't generate a key
+[2013-08-30 22:16:15 -0400] agarson: it generates random bytes
+[2013-08-30 22:16:24 -0400] Vitor_: agarson: omg :(
+[2013-08-30 22:16:34 -0400] agarson: try gen-rsa
+[2013-08-30 22:16:49 -0400] agarson: that'll be why the hmac is wrong
+[2013-08-30 22:19:25 -0400] Vitor_: agarson: thanks, how is the sintax of gen-rsa? do you have an example?
+[2013-08-30 22:19:28 -0400] agarson: Vitor_:  just checked with somebody i work with
+[2013-08-30 22:19:36 -0400] agarson: this is what we use to make keys, you were right abotu rand
+[2013-08-30 22:19:37 -0400] agarson: openssl rand -base64 512 | tr -d '\r\n' > encrypted_data_bag_secret_key
+[2013-08-30 22:19:50 -0400] agarson: but you need to strp the newline maybe
+[2013-08-30 22:20:32 -0400] agarson: rand is fine because its a shared secret
+[2013-08-30 22:35:50 -0400] Vitor_: agarson: I created encrypted_data_bag_secret_key "knife data bag create passwords teste -s ~\.chef\encrypted_data_bag_secret_key -e vi"......... run "knife data bag delete passwords" ............. run "knife data bag create passwords teste -s ~\.chef\encrypted_data_bag_secret_key -e vi" ......... On another machine i copied  encrypted_data_bag_secret_key  to /etc/chef/encrypted_data_bag_secret and run the recipe X ... And the error app
+[2013-08-30 22:38:19 -0400] agarson: check if there is a newline at the end of your encrypted_data_bag_secret
+[2013-08-30 22:38:21 -0400] agarson: on both machines
+[2013-08-30 22:47:19 -0400] Vitor_: agarson: no newline at the end of both files :S
+[2013-08-30 22:47:30 -0400] Vitor_: agarson: ruby 1.8.x is a problem?
+[2013-08-30 22:47:39 -0400] agarson: ok, i dont use 11, so i dont know how to generate a proper key for it
+[2013-08-30 22:48:14 -0400] agarson: maybe? i dont know, is that the chef embedded ruby? if so then i'd guess no
+[2013-08-30 22:48:30 -0400] bluepojo: chef supports 1.8
+[2013-08-30 23:05:40 -0400] dgarstang: the chef ubuntu package doesn't get me a startup script, does it...?
+[2013-08-30 23:07:10 -0400] Vitor_: =( .. i run in just one machine with a unique sercret and i have the error any way :S
+[2013-08-30 23:07:20 -0400] Vitor_: maybe is a bug
+[2013-08-30 23:08:49 -0400] Vitor_: my encrypted is like this: "MSJReevyblETQSsANs3M7tlw6S+nZ1i3J8UWQBImzFiWPG11BfxmfzdjZqNCcEwoQi7.........7+U79sMuH5w8MaWzzQZzEmcPL4bzSyzVpjEHlMsb45OdRXoUw5xqRf5J0MciOrvUl5NrvJ57K6Vs="
+[2013-08-30 23:43:31 -0400] dgarstang: How can I get chef vagrant to show file deltas like chef-client does

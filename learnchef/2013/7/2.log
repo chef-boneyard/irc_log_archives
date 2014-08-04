@@ -1,0 +1,67 @@
+[2013-07-02 02:54:21 -0400] Creeves: hey guys, I'm following this guide: https://learnchef.opscode.com/common-use-cases/multi-node-ec2/
+[2013-07-02 02:54:29 -0400] Creeves: except using the couchbase recipe rather than memchaced
+[2013-07-02 02:54:50 -0400] Creeves: and i keep getting FATAL: Net::HTTPServerException: 412 "Precondition Failed"
+[2013-07-02 02:55:08 -0400] Creeves: upon server creation
+[2013-07-02 02:56:38 -0400] Creeves: http://pastebin.ca/2414162
+[2013-07-02 02:56:40 -0400] Creeves: that's the error
+[2013-07-02 02:56:48 -0400] Creeves: weirdly enough, it's telling me i'm missing the cookbook 'roles'
+[2013-07-02 02:56:52 -0400] Creeves: which confuses me a bit
+[2013-07-02 03:11:39 -0400] behemphi1: @Creeves I cannot find a couchbase cookbook in the opscode-cookbooks, so I will take a guess that the "roles" cookbook is either a.  specified as a dependency in metadata.rb or it is part of an include_recipe statement some where in a recipe.
+[2013-07-02 03:13:10 -0400] Creeves: this is the one i was using: http://community.opscode.com/cookbooks/couchbase
+[2013-07-02 03:13:25 -0400] Creeves: i dont' think it's in metadata.rb
+[2013-07-02 03:14:49 -0400] Creeves: i wish it would give me more info about specifically what is trying to use the cookbook 'roles'
+[2013-07-02 03:49:35 -0400] Creeves: eh i give up
+[2013-07-02 04:00:12 -0400] Creeves: oh this page: https://bradmontgomery.net/blog/2012/02/05/nethttpserverexception-412-precondition-failed/
+[2013-07-02 04:00:23 -0400] Creeves: they have a role which has a run_list which includes a role
+[2013-07-02 04:00:31 -0400] Creeves: whereas here: https://learnchef.opscode.com/common-use-cases/multi-node-ec2/
+[2013-07-02 04:00:41 -0400] Creeves: they have a role which has a run_list which includes a recipe
+[2013-07-02 04:25:09 -0400] Creeves: and all the livechat seems to do when i try and submit a question is say 'We will be with you shortly'
+[2013-07-02 04:42:48 -0400] Creeves: aaand still the same half an hour later... -.-
+[2013-07-02 04:59:42 -0400] Creeves: i've found that it works ok if I specify recipe[couchbase] in my run_list on the knife ec2 server create command
+[2013-07-02 05:00:06 -0400] Creeves: rather than specifying role[couchbase] in the command and having a run_list in my couchbase role for recipe[couchbase]
+[2013-07-02 05:06:31 -0400] Creeves: ok resolved, i think it was because i had a role with the same name as a recipe
+[2013-07-02 06:18:19 -0400] Creeves: anyone here ever had issues with dpkg not installing correctly
+[2013-07-02 06:18:24 -0400] Creeves: i mean installing packages
+[2013-07-02 11:10:23 -0400] behemphi: @Creeves it looks like your run_list has "roles" in it
+[2013-07-02 11:11:30 -0400] behemphi: if you could pate the output of `knife node edit <nodename>` to your pastebin, that might be helpful
+[2013-07-02 11:24:01 -0400] proppen: Hello, if I have a cookbook named "role", containing recipes/frontend.rb recipes/backend.rb attributes/frontend.rb attributes/backend.rb, will a node load attributes from file attributes/frontend.rb if a node have "recipe[role::backend]"?
+[2013-07-02 11:29:55 -0400] behemphi: @proppen yes
+[2013-07-02 11:30:07 -0400] behemphi: all attribute files are loaded
+[2013-07-02 11:30:19 -0400] behemphi: and the precedence of the attrs takes over
+[2013-07-02 11:30:24 -0400] behemphi: but if this is a problem
+[2013-07-02 11:30:31 -0400] behemphi: I suggest this 
+[2013-07-02 11:30:41 -0400] behemphi: in attr/frontend.rb 
+[2013-07-02 11:31:03 -0400] behemphi: default['frontend']['foo'] = '42'
+[2013-07-02 11:31:11 -0400] behemphi: and in attr/backend.rb
+[2013-07-02 11:31:34 -0400] behemphi: default['backend']['foo'] = 'meaning of life, universe and everything'
+[2013-07-02 11:32:04 -0400] behemphi: effectively namespacing the attrs so they don't mix in unexpected ways
+[2013-07-02 11:33:04 -0400] proppen: behemphi: thanks, I made a false assumption which was kind of driving me mad :)
+[2013-07-02 11:33:21 -0400] behemphi: happy cheffery!
+[2013-07-02 11:34:28 -0400] proppen: I think I'd need to redesign the whole cookbook in that case. I had a plan to have one big fat profile cookbook with recipes as "profiles", but perhaps it's better to just have one cookbook per profile then?
+[2013-07-02 11:35:01 -0400] behemphi: not sure what you mean by profile
+[2013-07-02 11:35:17 -0400] behemphi: generally we have cookbooks that implement community cookbooks such as nginx
+[2013-07-02 11:36:34 -0400] behemphi: then a role that describes a machine (db_host) that is a group of those cookbooks.  (e.g. run_list = our_users, our_mysql_install, our_copperegg_install, our_ntp_config)
+[2013-07-02 11:36:36 -0400] proppen: sorry by profile I mean Role
+[2013-07-02 11:36:53 -0400] behemphi: In this way new kinds of machines have very re-usable bits
+[2013-07-02 11:37:29 -0400] behemphi: e.g. our_users and our_ntp and our_copperegg could easily be used on a web server as well as a load balancer
+[2013-07-02 11:38:20 -0400] proppen: Yes I think I understand. In my case the same cookbook would use a different template for resin.conf depending on a variable SERVER_TYPE is set to 'frontend' or 'backend'
+[2013-07-02 11:38:40 -0400] behemphi: If you haven't taken time to watch this video it is really worth the hour: http://www.opscode.com/blog/chefconf-talks/the-berkshelf-way-jamie-winsor/
+[2013-07-02 11:38:45 -0400] proppen: while a lot of other settings would be the same
+[2013-07-02 11:38:56 -0400] behemphi: the language is sometimes foul so headphones might be necessary
+[2013-07-02 11:39:10 -0400] proppen: thanks behemphi!
+[2013-07-02 11:39:21 -0400] proppen: will try to take the time for it
+[2013-07-02 11:40:41 -0400] behemphi: So, I am not familiar with resin, but I woudl ask why not check the role rathe than SERVER_TYPE?
+[2013-07-02 11:44:26 -0400] proppen: I don't want to put the attributes directly in a role since I share chef server in dev & production. If I change the role in Dev it will have effect in production as well. To get around this I created a versioned "role" cookbook, and the role "Frontend" included the cookbook "role::frontend", which pointed to different versions of the cookbook depending on which environment it is in
+[2013-07-02 11:46:00 -0400] proppen: hm, I'm not sure what you mean. You mean to check something like the current recipe name?
+[2013-07-02 11:47:39 -0400] behemphi: That is a big problem for sure.  If it is just attrs you are worried about they can go in your cookbooks in the attrs files.  THe idea of a "rolebook" is catching on.  We are moving that direction too.  
+[2013-07-02 11:47:49 -0400] behemphi: In our current prod stuff we have a statemetn line this 
+[2013-07-02 11:47:50 -0400] behemphi: if node.chef_environment.include?('large')
+[2013-07-02 11:47:59 -0400] behemphi: that, of course checks the environment
+[2013-07-02 11:48:22 -0400] behemphi: but you could do something like if node.roles.include?('front_end')
+[2013-07-02 11:48:32 -0400] behemphi: however your not using roles
+[2013-07-02 11:49:09 -0400] behemphi: If your "rolebooks' have names like "frontend" and "backend" you can check for them in the run_list in a similar way
+[2013-07-02 11:49:44 -0400] behemphi: I think it is `if node.run_list.include?('frontend')` but be sure to test it
+[2013-07-02 11:50:47 -0400] proppen: Hm, I think I'll just go for the option to use a "rolebook" for each Role instead. Will be less code to change ;)
+[2013-07-02 11:51:13 -0400] behemphi: cool, I am trying to grok chefspec at the moment
+[2013-07-02 11:51:22 -0400] behemphi: not sure which of us will have more fun
+[2013-07-02 11:52:34 -0400] proppen: It's on my to-do list as well for sure

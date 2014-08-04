@@ -1,0 +1,56 @@
+[2013-10-12 00:00:38 -0400] dgarstang2: gem install knife-essentials == just hanging
+[2013-10-12 01:17:47 -0400] atomi: is default a good name a cookbook in ../site-cookbooks/
+[2013-10-12 01:17:57 -0400] atomi: or "main"
+[2013-10-12 01:18:32 -0400] atomi: my node is "server-web"
+[2013-10-12 05:07:34 -0400] jblack: Hi,  I have a recipe that tries to install a few packages.  the recipe seems to be installing some packages, but not others.  it's just silently skipping some
+[2013-10-12 05:08:51 -0400] paulmooring: jblack what does the recipe look like?
+[2013-10-12 05:09:17 -0400] jblack: let me test my latest latest, and if it still fails  I'll throw the recipe and the log up on pastebin?
+[2013-10-12 05:09:26 -0400] paulmooring: sure thing
+[2013-10-12 05:32:15 -0400] kewubenduben: scode
+[2013-10-12 05:46:48 -0400] jblack: paulmooring: http://pastebin.com/g662kCgk
+[2013-10-12 05:48:36 -0400] jblack: I didn't paste the second half of the recipe   and I snipped around the pertinent parts of the logs.
+[2013-10-12 05:59:59 -0400] jblack: Thoughts anyone?
+[2013-10-12 06:15:06 -0400] jblack: Is there a way for me to make package more verbose within the recipe?
+[2013-10-12 06:19:11 -0400] jblack: I already have chef.log_level set to :debug in my Vagrantfile
+[2013-10-12 06:21:24 -0400] paulmooring: jblack does the Chef run complete?
+[2013-10-12 06:22:15 -0400] jblack: it fails later down in the recip when  I try to chef_gem "bzip2-ruby".
+[2013-10-12 06:22:24 -0400] paulmooring: that's your problem
+[2013-10-12 06:22:34 -0400] paulmooring: Chef runs happen in 2 phases compile and execute
+[2013-10-12 06:22:52 -0400] jblack: Not quite.  the gem is attempting to build native extensions, and it' can't do so because libbz2-dev isn't installed
+[2013-10-12 06:22:55 -0400] paulmooring: your puts statements happen in compile when the Ruby is executed (as oppose to Chef.log)
+[2013-10-12 06:23:26 -0400] paulmooring: so you get output when it queues up the packages to be installed (during compile) but the Chef run fails before execute (when they would actually get installed)
+[2013-10-12 06:24:00 -0400] jblack: Ok. I did confirm that libbz2-dev didn't install by sshing into the virtual machine and checking aptitude
+[2013-10-12 06:24:03 -0400] paulmooring: if you want to use a package during a Chef run you need to install at compile time (look in the build-essential cookbook)
+[2013-10-12 06:25:09 -0400] paulmooring: https://github.com/opscode-cookbooks/build-essential/blob/master/recipes/debian.rb#L40-L43
+[2013-10-12 06:25:26 -0400] jblack: http://pastebin.com/9a3C5SPr
+[2013-10-12 06:25:27 -0400] paulmooring: you can set the package resource action to :nothing, then call :install as a run_action
+[2013-10-12 06:25:37 -0400] paulmooring: that will install during the compile phase
+[2013-10-12 06:26:10 -0400] jblack: does chef_gem actually run during compile time?
+[2013-10-12 06:26:25 -0400] jblack: Ok, I've seen that .
+[2013-10-12 06:26:42 -0400] paulmooring: http://pastebin.com/FDBR1SNx
+[2013-10-12 06:27:02 -0400] paulmooring: maybe you don't need to do all the packages, you can probably figure out what needs compile time installs
+[2013-10-12 06:27:17 -0400] paulmooring: but .run_action(:install) is the magic bits you need
+[2013-10-12 06:28:20 -0400] jblack: Yeah, I read up on run_action when I was having trouble iwth the gem not existing after install
+[2013-10-12 06:28:45 -0400] jblack: oh, wait, you want me to do this with the packages.
+[2013-10-12 06:29:26 -0400] paulmooring: so chef_gem is a special case, it's purely for gems you want Chef to use (it's to install to the omnibus ruby).  You generally always want those to be at compile time so Chef can use it during the same run
+[2013-10-12 06:29:57 -0400] paulmooring: the run_action on the packages is a pattern to work around the fact that things need for chef_gem happen during execute by default
+[2013-10-12 06:30:23 -0400] jblack: Right. I'm actually attempting to use ruby-bz2 later in taht recipe to read a bz2 packed sql dump
+[2013-10-12 06:31:32 -0400] paulmooring: yeah, that's the proper usage of chef_gem so the run_action install on the packages will fix your problem
+[2013-10-12 06:32:05 -0400] jblack: It makes sense that chef_gem has to run during compile.
+[2013-10-12 06:32:16 -0400] jblack: otherwise, the just installed gem isn't there 2 lines later. ;)
+[2013-10-12 06:32:38 -0400] paulmooring: as a side note, this is in my opinion the ugliest part of Chef it does require more knowledge of Chef internals than any other resource by far
+[2013-10-12 06:33:26 -0400] jblack: Yeah. I've been working on tring to import this databae for about 9 hours now
+[2013-10-12 06:33:58 -0400] jblack: but i think this'll do  it. =
+[2013-10-12 06:34:00 -0400] paulmooring: ouch
+[2013-10-12 06:35:08 -0400] jblack: a good chunk of that is being a novice...
+[2013-10-12 06:36:18 -0400] paulmooring: Don't judge Chef by this issue too much then, you skipped over the deep end and headed straight to the high dive here ;)
+[2013-10-12 06:36:39 -0400] jblack: Oh, not at all.
+[2013-10-12 06:37:22 -0400] jblack: this is not a simplistic tool. lopping my own fingers off from time to time is just part of the process!
+[2013-10-12 06:38:02 -0400] paulmooring: well, it's getting late here so I'm logging off. Good luck
+[2013-10-12 06:38:47 -0400] jblack: Thanks much!
+[2013-10-12 06:43:20 -0400] jblack: That got me past that problem! Thanks!
+[2013-10-12 08:16:09 -0400] admin0: hi all
+[2013-10-12 08:16:39 -0400] admin0: i have some nodes on port 22 ( ssh) , some on other ports ..  how do I make them accessible via knife ssh
+[2013-10-12 16:40:43 -0400] memelet: Berkshelf: How does one resolve the 'Cookbook "foo" not found in any of the default locations'? error
+[2013-10-12 16:40:59 -0400] memelet: How can I find out what depends on 'foo'?
+[2013-10-12 17:19:30 -0400] Guest57979: alx:

@@ -1,0 +1,85 @@
+[2012-12-15 00:24:26 -0500] abetterlie: Does anyone have a blog post on why using cap+chef is an antipattern? I've heard it before, but I don't remember what the reasoning was behind it.
+[2012-12-15 00:25:43 -0500] bluepojo: chef doesn't like to give up control
+[2012-12-15 00:25:56 -0500] bluepojo: anything done in cap is outside of chef's control.
+[2012-12-15 00:26:11 -0500] bluepojo: so chef is saying "I want the node to be like this"
+[2012-12-15 00:26:14 -0500] bluepojo: then cap changes something
+[2012-12-15 00:26:20 -0500] bluepojo: then chef-client daemon mode turns back on
+[2012-12-15 00:26:23 -0500] bluepojo: and resets it
+[2012-12-15 00:26:25 -0500] abetterlie: two sources of truth? Isin't it totally normal to use an orchestrator plus an automation tool?
+[2012-12-15 00:26:33 -0500] bluepojo: cap isn't really an orchestrator
+[2012-12-15 00:26:35 -0500] bluepojo: I mean
+[2012-12-15 00:26:36 -0500] bluepojo: it kinda is
+[2012-12-15 00:26:51 -0500] abetterlie: It's more of an orchestrator than chef is
+[2012-12-15 00:26:55 -0500] bluepojo: so lets say you want to turn on or off a web server
+[2012-12-15 00:27:00 -0500] nstielau1: yeah, cap and chef don't necesarily fit into CM and orchestration.
+[2012-12-15 00:27:13 -0500] bluepojo: in chef, you might make the service state an attribute
+[2012-12-15 00:27:15 -0500] nstielau1: it depends on your impl either way
+[2012-12-15 00:27:18 -0500] bluepojo: and then toggle that
+[2012-12-15 00:27:28 -0500] bluepojo: then when chef runs, it'll flip the service on or off depending on what the attribute is set to
+[2012-12-15 00:27:33 -0500] bluepojo: if you try to give that job to cap
+[2012-12-15 00:27:44 -0500] bluepojo: then chef won't know what the state of the service is supposed to be
+[2012-12-15 00:27:50 -0500] bluepojo: and you either have to make the recipes not care
+[2012-12-15 00:27:53 -0500] abetterlie: that's what I'm doing now, but there's still no convenient way of saying before this do that
+[2012-12-15 00:27:55 -0500] bluepojo: in which case new nodes will have no clue
+[2012-12-15 00:28:05 -0500] bluepojo: and might be on when they're supposed to be off
+[2012-12-15 00:28:10 -0500] bluepojo: or you have 2 sources of truth
+[2012-12-15 00:28:15 -0500] bluepojo: and the wrong one might win
+[2012-12-15 00:29:16 -0500] bluepojo: you can certainly make cap + chef work
+[2012-12-15 00:29:21 -0500] nstielau1: i.e. the symlink that cap makes to the production code, that isn't known to chef at all
+[2012-12-15 00:29:31 -0500] abetterlie: Yup. I don't mean to start things, but we're about to go into a forest of hacks involving cap, chef-client -j and passing a json file with a run list
+[2012-12-15 00:29:45 -0500] abetterlie: and I really don't want to dedicate much time to that
+[2012-12-15 00:29:46 -0500] bluepojo: ah yeah, that sounds like a bad plan
+[2012-12-15 00:29:52 -0500] bluepojo: I worked for a year on a system that was cap + chef
+[2012-12-15 00:29:59 -0500] bluepojo: and now a second year on replacing that system
+[2012-12-15 00:30:05 -0500] bluepojo: cause it didn't really work
+[2012-12-15 00:30:07 -0500] bluepojo: I mean it works
+[2012-12-15 00:30:07 -0500] bluepojo: but
+[2012-12-15 00:30:10 -0500] bluepojo: it's not good
+[2012-12-15 00:30:15 -0500] bluepojo: one major problem is that cap doesn't scale
+[2012-12-15 00:30:29 -0500] bluepojo: once we hit 300+ nodes with a cap task, the task slows wayyyyy down
+[2012-12-15 00:30:49 -0500] bluepojo: something that should take 5-10mins
+[2012-12-15 00:30:53 -0500] bluepojo: takes 60
+[2012-12-15 00:31:36 -0500] bluepojo: we're working on an orchestrator that talks to chef server rather than to the nodes
+[2012-12-15 00:31:42 -0500] abetterlie: oh
+[2012-12-15 00:31:55 -0500] abetterlie: I've thought of doing something like that instead of this cap nonsense
+[2012-12-15 00:32:06 -0500] abetterlie: but they don't want me to build this orchestrator
+[2012-12-15 00:32:27 -0500] bluepojo: we're planning on open sourcing ours once it's out of prototype stage
+[2012-12-15 00:32:38 -0500] bluepojo: but it's not really done yet, so soon()
+[2012-12-15 00:33:22 -0500] nstielau1: If you're just deploying a rails app or whatever, you can bake most of it into chef, and trigger 'chef-client' via cap or knife.
+[2012-12-15 00:33:27 -0500] bluepojo: prior to this generic orchestrator, we've had good luck writing thor tasks to do orchestration
+[2012-12-15 00:33:36 -0500] bluepojo: to do application specific orchestration
+[2012-12-15 00:33:44 -0500] bluepojo: have it call out to knife to flip attributes on the chef server
+[2012-12-15 00:33:47 -0500] bluepojo: to set service state and such
+[2012-12-15 00:33:50 -0500] abetterlie: are you at riot?
+[2012-12-15 00:33:52 -0500] bluepojo: yeah
+[2012-12-15 00:33:54 -0500] abetterlie: ah
+[2012-12-15 00:33:57 -0500] abetterlie: yeah
+[2012-12-15 00:34:04 -0500] abetterlie: I have heard mumblings about this
+[2012-12-15 00:34:48 -0500] abetterlie: a brain of sorts
+[2012-12-15 00:35:24 -0500] bluepojo: yeah, ultimately all it does is set attributes on chef server and then kick off a chef-client run on nodes that match a search
+[2012-12-15 00:35:31 -0500] bluepojo: I mean there's more to it, but that's the core
+[2012-12-15 00:38:49 -0500] abetterlie: yeah, I'm hyped
+[2012-12-15 00:40:09 -0500] abetterlie: I'll look into how I might be able to use thor for this task
+[2012-12-15 00:42:15 -0500] bluepojo: You might be able to use Ridley to talk to the chef server: https://github.com/reset/ridley
+[2012-12-15 00:43:22 -0500] bluepojo: that's what our orchestrator uses
+[2012-12-15 04:42:26 -0500] khimera: is there  a way to fetch the mysql root password that is generated in /etc/mysql/grants.sql other than parsing it out?
+[2012-12-15 04:43:57 -0500] khimera: Sorry I was disconnected. is there  a way to fetch the mysql root password that is generated in /etc/mysql/grants.sql other than parsing it out?
+[2012-12-15 04:44:26 -0500] khimera: or force a password? since it is hardcoded in my app?
+[2012-12-15 06:20:57 -0500] ssd7: khimera: Do you mean the one that is autogenerated by the mysql cookbook?
+[2012-12-15 06:24:38 -0500] khimera: ssd7: yes
+[2012-12-15 06:24:42 -0500] mirk_: Anyone seen this error when uploading a cookbook? /var/lib/gems/1.8/gems/chef-10.16.2/lib/chef/cookbook_uploader.rb:145:in `uploader_function_for': undefined method `body' for nil:NilClass (NoMethodError)
+[2012-12-15 06:53:53 -0500] ssd7: khimera: It should be in the node data for the mysql node
+[2012-12-15 06:54:02 -0500] ssd7: khimera: try knife node show NODENAME -a mysql
+[2012-12-15 06:58:42 -0500] ssd7: mirk_: It looks like some sort of error occured uploading one of the file but that for some reason the response that the error handling code would typically show you isn't there
+[2012-12-15 06:59:07 -0500] ssd7: mirk_: Is that againt Hosted Chef, or your own Chef server?
+[2012-12-15 07:11:40 -0500] khimera: ssd7: thanks ill check that out
+[2012-12-15 07:23:35 -0500] khimera: ssd7: looks like this did the trick. Thanks very much
+[2012-12-15 07:57:09 -0500] mirk_: ssd7 Its our own server
+[2012-12-15 07:58:39 -0500] mirk_: ssd7:  We have put an haproxy load balancer in front and are running 4 merb processes on the server.
+[2012-12-15 08:02:04 -0500] mirk_: The haproxy is terminating ssl and forwarding to the server.  It appears to be a problem with the ssl or load balancer.  When I knife directly to the server without ssl, the cookbook uploads just fine.
+[2012-12-15 16:40:31 -0500] Afterglow: any ideas what might cause this - NameError: python_pip[python-wifi] (pywifi::default line 17) had an error: NameError: Cannot find a resource for converge_by on debian version wheezy/sid ?
+[2012-12-15 17:40:52 -0500] mirk_: So, I've narrowed my problem down to the HTTP PUT over SSL.  I can upload a cookbook when SSL is disabled on the server side but get this error when it's enabled:
+[2012-12-15 17:40:56 -0500] mirk_: DEBUG: Sending HTTP Request via PUT to chef:443/sandboxes/a5d0f1ad8af54b27808533e24a0ab320 /usr/lib/ruby/1.9.1/net/protocol.rb:141:in `read_nonblock': end of file reached (EOFError)
+[2012-12-15 17:41:11 -0500] mirk_: knife client and node commands all work fine over ssl.
+[2012-12-15 17:41:26 -0500] mirk_: just knife cookbook upload is failing.
+[2012-12-15 17:41:50 -0500] mirk_: I upgraded ruby to 1.9.1 and gems as well...

@@ -1,0 +1,156 @@
+[2013-07-12 00:14:34 -0400] basic`: coderanger: are you familiar with deploy_revision?  We're trying to use it to deploy redmine and it seems to be stuck in a weird state where it thinks it deployed the app and the block gets skipped on runs
+[2013-07-12 00:15:02 -0400] coderanger: basic`: Remove /var/chef/cache/revision-deploys/<deployname>
+[2013-07-12 00:15:16 -0400] coderanger: basic`: I think kallistec got the fixes in to 11.6
+[2013-07-12 00:15:23 -0400] coderanger: but before that it isn't actually idempotent :-(
+[2013-07-12 00:15:34 -0400] basic`: coderanger: ahhh thank you very much! time to upgrade our chefs :)
+[2013-07-12 00:16:03 -0400] coderanger: heh, 11.6 is still in prerelease ;-0
+[2013-07-12 00:16:17 -0400] basic`: we're eagerly awaiting :)
+[2013-07-12 00:20:54 -0400] kcb: CHEF-2380 refers to a letting clients provide their key rather than the server generating it. anyone know if this was released and where to find details?
+[2013-07-12 00:22:55 -0400] coderanger: kcb: Yes, this is available in erchef (aka chef 11 server)
+[2013-07-12 00:24:20 -0400] kcb: coderanger, do you know as of what version? and in privatechef also?
+[2013-07-12 00:25:14 -0400] kcb: and what client version is needed to use it?
+[2013-07-12 00:25:32 -0400] coderanger: It was in 11.0 server, private chef I don't know what versions are using erchef at this point
+[2013-07-12 00:26:00 -0400] coderanger: the OPC releases confuse my brain, the version number involves something like 5 integers and 3 strings
+[2013-07-12 00:26:23 -0400] coderanger: As for client version, its an API feature, so not related to client version AFAIK
+[2013-07-12 00:26:36 -0400] kcb: yeah apparently we're going to opc11 instead of opc2 to get in sync with open source versions
+[2013-07-12 00:27:00 -0400] kcb: well yeah, but it isn't useful if the client doesn't know to actually generate the key?
+[2013-07-12 00:27:36 -0400] coderanger: To the best of my knowledge it isn't something thats done in chef-client, its provided as an API feature to ease server migrations and whatnot
+[2013-07-12 00:28:02 -0400] coderanger: I don't think there are plans to move keygen to the client by default, but I bet a patch would be welcome :)
+[2013-07-12 00:28:24 -0400] coderanger: warning: I am not actually involved in that part of chef, so "to the best of my knowledge" is not very far
+[2013-07-12 00:35:35 -0400] kcb: coderanger, thanks, CHEF-4373 :) maybe i'll work on the patch if i get some time
+[2013-07-12 01:46:42 -0400] BrianJ: does anyone have an example of a json file that you pass into chef client?
+[2013-07-12 02:19:25 -0400] inimit: someone mind explaining berkshelf to me a little
+[2013-07-12 02:20:05 -0400] inimit: silly enough, there's no big picture explanation behind it on their site
+[2013-07-12 02:29:02 -0400] coderanger: miah: You around?
+[2013-07-12 02:29:29 -0400] coderanger: BrianJ: You don't generally pass a json file to chef-client except during bootstrap, which knife bootstrap takes care of for oyu
+[2013-07-12 02:29:45 -0400] coderanger: inimit: bundler : ruby :: berkshelf : chef
+[2013-07-12 02:30:51 -0400] inimit: got it
+[2013-07-12 02:31:25 -0400] inimit: is there a central berksfile that manages all the cookbooks? or is it each cookbook gets it's own?
+[2013-07-12 02:31:37 -0400] coderanger: Yes :-)
+[2013-07-12 02:31:41 -0400] inimit: both?
+[2013-07-12 02:31:54 -0400] coderanger: So each cookbook gets its own berksfile for managing testing and dev on that cookbook in its own repo
+[2013-07-12 02:32:23 -0400] coderanger: and then depending on your workflow, you may have separate org-level berksfiles that pull all your cookbooks together
+[2013-07-12 02:32:31 -0400] coderanger: some people just manage each cookbook kind of in isolation though
+[2013-07-12 02:32:31 -0400] inimit: what if you need to modify that cookbook?
+[2013-07-12 02:32:38 -0400] BrianJ: im booting up a server using aws cloudformation, so I'm not using knife
+[2013-07-12 02:32:43 -0400] coderanger: "that cookbook" == which
+[2013-07-12 02:32:59 -0400] inimit: I dunno.. for instance the apache2 one, I added a new definition
+[2013-07-12 02:33:01 -0400] coderanger: BrianJ: Ahh, well just take a look at what the default bootstrap template renders
+[2013-07-12 02:33:02 -0400] BrianJ: json file still the wrong way to go?
+[2013-07-12 02:33:23 -0400] BrianJ: ah good idea
+[2013-07-12 02:33:44 -0400] inimit: do I now just keep all my mods in my own cookbook? I guess so huh
+[2013-07-12 02:34:12 -0400] coderanger: inimit: Ahh, you mean re: changes to community cookbooks?
+[2013-07-12 02:34:18 -0400] inimit: exactly
+[2013-07-12 02:34:57 -0400] coderanger: Yeah, there are two paths, either you think its something that should go upstream and you fork and submit a patch (and temporarily point your berksfile at your git repo instead of the upstream one) or you make a "wrapper cookook"
+[2013-07-12 02:35:12 -0400] coderanger: the wrapper is generally named like <company name>-apache2
+[2013-07-12 02:35:20 -0400] coderanger: and that has your local customization and whatnot
+[2013-07-12 02:35:42 -0400] inimit: I see, makes perfect sense thanks
+[2013-07-12 02:36:24 -0400] coderanger: And be aware of chef-rewind, very useful with the wrapper cookbook for when you need a really specific tweak that doesn't make sense upstream, but you can't do any other way
+[2013-07-12 02:36:47 -0400] coderanger: Its not the most robust solution, but less fragile/ugly than permanently forking the upstream cookbook
+[2013-07-12 02:39:20 -0400] inimit: nice.. just found out about chef_gem too.. needed that today to fix something
+[2013-07-12 02:50:18 -0400] josiah: Is it possible to search a data bag value which is an array
+[2013-07-12 02:51:06 -0400] coderanger: josiah: Yes, each value is setup as an independent (fake) facet
+[2013-07-12 02:51:10 -0400] josiah: say I have a databag with key "servers": ["foo.example.com", "bar.example.com"] could I search for all bags which have "foo.example.com" in their "server" key?
+[2013-07-12 02:51:14 -0400] inimit: just realized I enjoy programming in chef way more than rails
+[2013-07-12 02:51:27 -0400] coderanger: josiah: servers:foo.example.com
+[2013-07-12 02:51:32 -0400] josiah: ahh
+[2013-07-12 02:51:34 -0400] josiah: nice!
+[2013-07-12 02:51:41 -0400] josiah: thanks coderanger
+[2013-07-12 02:52:14 -0400] coderanger: inimit: The Rails stockholm syndrome fades quickly
+[2013-07-12 02:52:42 -0400] josiah: I'm liking chef much more than puppet so far - it seems less cobbled together and more well planned
+[2013-07-12 02:52:55 -0400] coderanger: inimit: Though you will quickly realize the hard way just how many of the methods you used regularly are nonsense active_support vomited into Object and not real Ruby code
+[2013-07-12 02:57:30 -0400] inimit: coderanger: I've been coding rails since '06.. still prefer it to any other framework/language for building web apps
+[2013-07-12 02:57:39 -0400] inimit: but since 09 with chef..
+[2013-07-12 02:58:22 -0400] inimit: still.. it's taken awhile, but chef is finally more polished and just nicer to use
+[2013-07-12 02:58:44 -0400] inimit: sweet idioms and kinda more enjoyable
+[2013-07-12 02:58:57 -0400] dieend: Hello, I am using cron resource with chef. I think the recipe running fine (no error etc), but I don't think the cron added to the crontab. Anyone can help me?
+[2013-07-12 02:59:15 -0400] inimit: dieend: run crontab -l and see if there's anything?
+[2013-07-12 02:59:26 -0400] coderanger: dieend: Can you pastebin the relevant recipe code?
+[2013-07-12 02:59:34 -0400] dieend: nothing new
+[2013-07-12 02:59:40 -0400] dieend: a second.
+[2013-07-12 03:00:09 -0400] inimit: also, do the logs say anything about it?
+[2013-07-12 03:02:55 -0400] dieend: inimit, coderanger, here is the snippet of the recipe code
+[2013-07-12 03:02:57 -0400] dieend: https://gist.github.com/dieend/3385d9431e9abdc373ca
+[2013-07-12 03:03:10 -0400] dieend: and here is the relevant chef log https://gist.github.com/dieend/0c7f4d3012d194919330
+[2013-07-12 03:03:53 -0400] coderanger: Looks correct
+[2013-07-12 03:04:18 -0400] inimit: which cookbook are you using?
+[2013-07-12 03:04:29 -0400] coderanger: Should end up in root's crontab
+[2013-07-12 03:04:34 -0400] coderanger: inimit: Thats a core chef resource
+[2013-07-12 03:04:42 -0400] inimit: ah
+[2013-07-12 03:05:15 -0400] coderanger: dieend: Do you have anything else massaging crontabs? One important note is that chef stores the name of the resource in a comment in the file so if you have another tool running that removes comments it would go poorly
+[2013-07-12 03:06:21 -0400] dieend: coderanger, I don't think so..
+[2013-07-12 03:07:02 -0400] dieend: coderanger, I run it on aws opswork, does it meant / changed anything?
+[2013-07-12 03:07:18 -0400] coderanger: dieend: Just that chef is super old so maybe there is a bug in it
+[2013-07-12 03:07:38 -0400] coderanger: dieend: unless they have finally upgraded, opsworks is using a forked version from something like 14 months ago
+[2013-07-12 03:08:03 -0400] dieend: coderanger: yeah, I know. They used chef v9 which I can't find where to download.
+[2013-07-12 03:09:38 -0400] coderanger: dieend: Heh, even if you did download the gem, I know they've made modifications
+[2013-07-12 03:09:52 -0400] coderanger: but the gem and tag should be present in our stuffs
+[2013-07-12 03:10:50 -0400] dieend: coderanger: should I try using cron cookbook?
+[2013-07-12 03:10:59 -0400] dieend: or is there any workaround?
+[2013-07-12 03:11:59 -0400] coderanger: There is a cron cookbook?
+[2013-07-12 03:12:09 -0400] coderanger: Also, next step would be run chef with log_level :debug
+[2013-07-12 03:12:13 -0400] coderanger: see what that outputs :)
+[2013-07-12 03:12:32 -0400] coderanger: I don't actually know how to do that in opsworks though
+[2013-07-12 03:13:00 -0400] dieend: cron cookbook: http://community.opscode.com/cookbooks/cron
+[2013-07-12 03:13:47 -0400] coderanger: Huh, didn't know we had that
+[2013-07-12 03:13:59 -0400] coderanger: That might work on systems that support the cron.d model
+[2013-07-12 03:14:13 -0400] coderanger: But I see no reason your resource isn't working
+[2013-07-12 03:14:19 -0400] coderanger: so hard to predict :)
+[2013-07-12 03:14:34 -0400] dieend: uh. *sigh
+[2013-07-12 03:15:14 -0400] dieend: thanks for your help. I'll try to use the cron cookbook.
+[2013-07-12 03:15:33 -0400] dieend: If it isn't working, I'll come back here. lol
+[2013-07-12 03:16:29 -0400] inimit: is there a way to reference other variables you've set within override_attributes?
+[2013-07-12 03:16:31 -0400] josiah: how do I get the FQDN of a node?
+[2013-07-12 03:17:12 -0400] josiah: found it: http://docs.opscode.com/ohai.html
+[2013-07-12 03:18:29 -0400] coderanger: josiah: node['fqdn']
+[2013-07-12 03:18:38 -0400] coderanger: inimit: Inside a role?
+[2013-07-12 03:18:50 -0400] inimit: in this case environment, but yea
+[2013-07-12 03:19:15 -0400] coderanger: No, roles/envs are fully declarative
+[2013-07-12 03:19:19 -0400] inimit: k
+[2013-07-12 03:19:29 -0400] coderanger: You can do it in a cookbook's attribute file though
+[2013-07-12 03:19:42 -0400] inimit: ahh yes
+[2013-07-12 03:23:33 -0400] inimit: any suggestions for replacements of god? monit is one..
+[2013-07-12 03:23:53 -0400] coderanger: inimit: supervisord
+[2013-07-12 03:24:16 -0400] inimit: thx
+[2013-07-12 03:26:21 -0400] inimit: and the http://community.opscode.com/cookbooks/supervisor cookbook?
+[2013-07-12 03:27:28 -0400] coderanger: Yarp, thats the one, though its due for a rewrite, it was having issues with pip 1.3
+[2013-07-12 03:27:36 -0400] coderanger: hopefully pip 1.4 has that all smoothed out though
+[2013-07-12 03:47:32 -0400] inimit: thx
+[2013-07-12 03:51:31 -0400] josiah: What is best practice for throwing an error when the configuration is flawed (e.g. required data bag attribute is missing)
+[2013-07-12 03:56:23 -0400] coderanger: josiah: Just throw an error strong
+[2013-07-12 03:56:23 -0400] coderanger: er, string
+[2013-07-12 03:56:28 -0400] coderanger: that will abort the chef run
+[2013-07-12 03:56:57 -0400] josiah: ok
+[2013-07-12 03:57:19 -0400] josiah: is there a good way to have default values for data bags?
+[2013-07-12 03:58:01 -0400] dieend: coderanger: I don't know whether cron cookbook actually works or not. There is new cron config at /etc/cron.d/file and that is what I want. But when I run sudo crontab -l it's still not showing the cron
+[2013-07-12 03:59:54 -0400] coderanger: josiah: x = data_bag_item('foo', 'bar'); x['baz'] || 'default'
+[2013-07-12 04:00:15 -0400] coderanger: dieend: crontab -l will not show stuff in the .d folders
+[2013-07-12 04:00:27 -0400] dieend: how to know it's actually working?
+[2013-07-12 04:00:29 -0400] coderanger: the crontab tool only manages personal crontabs, not the system ones
+[2013-07-12 04:00:38 -0400] coderanger: dieend: See if it runs?
+[2013-07-12 04:00:54 -0400] coderanger: If chef put the files in the right place, it should be working or your cron daemon is broken :_)
+[2013-07-12 04:03:02 -0400] josiah: would "x['bar'] = 'default' unless x['bar']" also work?
+[2013-07-12 04:03:10 -0400] coderanger: sure
+[2013-07-12 04:03:22 -0400] coderanger: or x['bar'] ||= 'default'
+[2013-07-12 04:03:30 -0400] coderanger: thats just a more compact way to write that
+[2013-07-12 04:32:38 -0400] FuZion755: hi all, I'm working on deploying Chef with a pre built image that comes with rbenv installed..  A global ruby is set, but during the run node[:languages][:ruby] points to the chef ruby installation.. should it not just pick up the system wide installation?
+[2013-07-12 04:57:20 -0400] hakunin: so how do you folks manage crontabs
+[2013-07-12 04:57:38 -0400] hakunin: just plain cron resource?
+[2013-07-12 04:58:19 -0400] hakunin: i'm contemplating on integrating with whenever gem
+[2013-07-12 04:59:07 -0400] hakunin: it comes with capistrano support, but thinking on various ways to make it work in chef
+[2013-07-12 04:59:40 -0400] hakunin: in fact, i think it would be ideal to make an LWRP of a whenever gem
+[2013-07-12 04:59:46 -0400] hakunin: that falls back on cron resource
+[2013-07-12 04:59:58 -0400] hakunin: just for syntax
+[2013-07-12 05:00:19 -0400] hakunin: might even be easy
+[2013-07-12 05:35:54 -0400] flaccid: when will the 683 open COOK issues be swooped?
+[2013-07-12 05:50:35 -0400] saintish: clear
+[2013-07-12 06:24:27 -0400] edwardc: in chef-solo, is there any argument can pass attributes in CLI ?
+[2013-07-12 06:27:21 -0400] josiah: anyone seen this error with berkshelf? Log: https://gist.github.com/Josiah/79286c6f1cb11e48f695
+[2013-07-12 06:27:40 -0400] josiah: Message was: Ridley::Errors::ConnectionFailed: SSL_connect returned=1 errno=0 state=SSLv3 read server certificate B: certificate verify failed
+[2013-07-12 06:49:31 -0400] johndeere: hi all
+[2013-07-12 06:49:42 -0400] johndeere: I am getting http://tickets.opscode.com/browse/CHEF-4218?page=com.googlecode.jira-suite-utilities:transitions-summary-tabpanel
+[2013-07-12 06:49:51 -0400] johndeere: it is listed as not a bug
+[2013-07-12 06:50:03 -0400] johndeere: should I just ignore the 403, or is there a way to make it go away?
+[2013-07-12 07:31:26 -0400] rava: anyone know why chef-server-webui wouldn't be able to find chef/solr, though it's installed?
+[2013-07-12 07:31:48 -0400] rava: the server api works fine, but the webui won't start due to unable to require it
+[2013-07-12 07:31:52 -0400] rava: chef 10.18.2

@@ -1,0 +1,123 @@
+[2013-01-31 18:10:16 -0500] monst: howdy
+[2013-01-31 18:10:39 -0500] monst: so today my environment deside to define my node1 as the wrong ip address
+[2013-01-31 18:11:05 -0500] monst: It has to be in knife somewhere, but I cant seem to locate it
+[2013-01-31 19:02:26 -0500] monst: rackerjoe, is it safe to upgrade "glance glance-api glance-common glance-registry" on alamo 2.0.0 ?
+[2013-01-31 19:03:43 -0500] rackerjoe: that vendor supplied packages or the cookbooks?
+[2013-01-31 19:04:10 -0500] monst: rackerjoe heres my issue
+[2013-01-31 19:04:11 -0500] monst: http://paste.openstack.org/raw/30056/
+[2013-01-31 19:04:32 -0500] monst: when I run chef-client ^ dependency kills the chef run
+[2013-01-31 19:04:53 -0500] monst: make sense?
+[2013-01-31 19:05:35 -0500] monst: i dont want to upgrade, but I want my chef-client to be able to run =\
+[2013-01-31 19:05:57 -0500] rackerjoe: they are minor version updates so your upgrade 'should' be ok.
+[2013-01-31 19:06:22 -0500] monst: this is production =(
+[2013-01-31 19:07:43 -0500] monst: any ideas on work around?
+[2013-01-31 19:08:08 -0500] rackerjoe: well, I don't know what to say other than you have a package dependency problem that you need to resolve.  python-ceph needs glance-common (of a certain version) which is in the repository but would also require you to upgrade other things.
+[2013-01-31 19:08:30 -0500] Apsu`: You shouldn't be upgrading in production until/unless you've upgraded a dev environment as a test case. Bare minimum.
+[2013-01-31 19:08:43 -0500] Apsu`: And if you are anyway, you can't complain too loudly if it blows up :P
+[2013-01-31 19:08:48 -0500] monst: agreed
+[2013-01-31 19:09:43 -0500] monst: it would be pretty awesome to provide a rackspace deb repo so this wouldnt happen till you guys sanctioned the update.
+[2013-01-31 19:11:08 -0500] rackerjoe: monst: that way lies madness.  You are better off creating a frozen repo inside of your environment and using that
+[2013-01-31 19:11:48 -0500] monst: that is true
+[2013-01-31 19:11:59 -0500] monst: I can live with that
+[2013-01-31 19:12:00 -0500] rackerjoe: we packaged during diablo and early essex and it was a nightmare
+[2013-01-31 19:12:38 -0500] monst: this being said, has any customers had issues upgrade these glance minor version, that you have heard of?
+[2013-01-31 19:15:55 -0500] rackerjoe: No but you would be best served by looking at the changelog for the ubuntu package and determine if the changes merit the perceived risk of upgrading
+[2013-01-31 19:16:06 -0500] monst: willdo
+[2013-01-31 19:16:33 -0500] rackerjoe: monst: I think this is the one that you are looking for: https://bugs.launchpad.net/ubuntu/+source/nova/+bug/1085255
+[2013-01-31 19:17:04 -0500] rackerjoe: Meta bug for tracking Openstack 2012.2.1 Stable Update
+[2013-01-31 19:18:28 -0500] monst: I would I could just install the older version of whatever has the newer dependency
+[2013-01-31 19:19:49 -0500] rackerjoe: in our latest cookbooks we have switched all of the 'upgrades' to 'install'
+[2013-01-31 19:20:06 -0500] rackerjoe: so we won't upgrade
+[2013-01-31 19:20:22 -0500] wkelly: that will resolve the issue for the future, though it obviously doesn't help you now
+[2013-01-31 19:20:45 -0500] monst: gotcha
+[2013-01-31 19:21:58 -0500] monst: it looks like I am forced to apt-get -f install and upgrade, doesn't seem to be a way to back it out
+[2013-01-31 19:24:29 -0500] wkelly: yeah, you might have some trouble backing out.  If you can find the older versions of packages, you can probably use dpkg to remove whichever package is bringing in the new glance client dependency and manually install the older version
+[2013-01-31 19:24:49 -0500] wkelly: that should get you out of the situation without needing to update, but it can be a painful process
+[2013-01-31 19:25:09 -0500] monst: Yeah I am gonna try that route first
+[2013-01-31 19:48:53 -0500] monst: I cant even get the apt-get -f install to work
+[2013-01-31 19:49:29 -0500] monst: wkelly, rackerjoe http://pastebin.com/raw.php?i=EJgE3TBa
+[2013-01-31 20:01:11 -0500] rackerjoe: did you by chance run an 'apt-get update' ?
+[2013-01-31 20:04:05 -0500] monst: yeah
+[2013-01-31 20:07:52 -0500] rackerjoe: try to update python-glance first and then the rest.  This is an ubuntu repo error as the packages have unmet dependencies.
+[2013-01-31 20:08:17 -0500] rackerjoe: if you haven't run apt-get update recently (in the last couple minutes) then do it again otherwise you may have to wait until their repo calms down
+[2013-01-31 20:08:28 -0500] rackerjoe: another reason to run a frozen repo
+[2013-01-31 20:13:39 -0500] monst: I tried python-glance first
+[2013-01-31 20:13:43 -0500] monst: says is already at the latest
+[2013-01-31 20:13:56 -0500] rackerjoe: dpkg -l python-glance?
+[2013-01-31 20:15:25 -0500] monst: http://paste.openstack.org/raw/30060/
+[2013-01-31 20:15:35 -0500] monst: btw I appreciate your help on this
+[2013-01-31 20:16:58 -0500] rackerjoe: glance-common depends on 2012.2.1-0ubuntu1~cloud0
+[2013-01-31 20:17:00 -0500] rackerjoe: glance-common depends on python-glance (= 2012.2.1-0ubuntu1~cloud0); however:
+[2013-01-31 20:17:00 -0500] rackerjoe:   Version of python-glance on system is 2012.2.1-0ubuntu1.1~cloud0.
+[2013-01-31 20:17:20 -0500] rackerjoe: but you have python-glance-2012.2.1-0ubuntu1.1~cloud0
+[2013-01-31 20:17:30 -0500] rackerjoe: that is unresolveable and it is an ubuntu problem.
+[2013-01-31 20:18:05 -0500] rackerjoe: sorry to say it.  Wait until they resolve the package dependency problem and try again
+[2013-01-31 20:18:16 -0500] monst: ugg ok
+[2013-01-31 20:24:37 -0500] monst: i am suprized alamo uses "deb     http://ubuntu-cloud.archive.canonical.com/ubuntu precise-proposed/folsom main"
+[2013-01-31 20:24:43 -0500] monst: "proposed"
+[2013-01-31 20:26:58 -0500] galstrom: monst: at the moment precise-updates and precise-proposed are identical
+[2013-01-31 20:31:35 -0500] monst: galstrom thats for the heads up
+[2013-01-31 20:53:03 -0500] galstrom: monst: np
+[2013-01-31 21:53:47 -0500] monst__: rackerjoe: I was able to resolve the package dependency
+[2013-01-31 21:53:55 -0500] monst__: chefclient is happy again
+[2013-01-31 21:54:17 -0500] monst__: one outstanding issue, my compute node sets the controller nodes ip wrong.
+[2013-01-31 21:54:27 -0500] monst__: Cant seem to find where it is setting it
+[2013-01-31 21:54:44 -0500] monst__: chef-client keeps updating all my files to the wrong ip for the controller
+[2013-01-31 21:55:12 -0500] monst__: wkelly: any ideas?
+[2013-01-31 21:57:57 -0500] wkelly: what does the wrong ip mean?  To a different server entirely or to an ip address that is on the controller but not the ip you want?
+[2013-01-31 21:58:23 -0500] monst__: so my controller is 172.16.120.6
+[2013-01-31 21:58:34 -0500] monst__: its putting 172.16.120.230
+[2013-01-31 21:58:40 -0500] monst__: which is a float ip address
+[2013-01-31 21:59:25 -0500] wkelly: ah, having floats on the same network as your management network can be problematic with our cookbooks
+[2013-01-31 22:00:13 -0500] monst__: any work arounds?
+[2013-01-31 22:01:03 -0500] wkelly: I think so, give me a second to look at the cookbook versions in alamo
+[2013-01-31 22:01:11 -0500] monst__: ok thanks man
+[2013-01-31 22:06:05 -0500] wkelly: try setting an environment override for [keystone][services][admin-api][host] and [keystone][services][service-api][host] to " - - - - - - - - - - - - - - - - - - - - - -
+[2013-01-31 22:06:09 -0500] wkelly: er
+[2013-01-31 22:06:30 -0500] wkelly: to "172.16.120.6"
+[2013-01-31 22:07:05 -0500] wkelly: you'll have to rerun chef, but we think that will get you running
+[2013-01-31 22:08:32 -0500] monst__: awesome
+[2013-01-31 22:10:48 -0500] monst__: is that done in knife?
+[2013-01-31 22:11:28 -0500] galstrom: knive environment edit rpcs
+[2013-01-31 22:23:53 -0500] monst__: galstrom, wkelly
+[2013-01-31 22:23:55 -0500] monst__: http://paste.openstack.org/raw/30074/
+[2013-01-31 22:24:08 -0500] monst__: I add this in to edit rpcs and it rejects them
+[2013-01-31 22:24:18 -0500] galstrom: monst: can you paste the whole env
+[2013-01-31 22:24:22 -0500] monst__: sure
+[2013-01-31 22:24:24 -0500] wkelly: two things
+[2013-01-31 22:24:35 -0500] galstrom: knife environment show rpcs -Fj
+[2013-01-31 22:24:41 -0500] wkelly: json is sensitive to comments for trailing elements
+[2013-01-31 22:24:47 -0500] wkelly: so wrong:
+[2013-01-31 22:25:05 -0500] wkelly:         "service-api": {
+[2013-01-31 22:25:07 -0500] wkelly:           "host" : "172.16.120.6"
+[2013-01-31 22:25:09 -0500] wkelly:         },
+[2013-01-31 22:25:14 -0500] wkelly: right:
+[2013-01-31 22:25:15 -0500] wkelly:         "service-api": {
+[2013-01-31 22:25:18 -0500] wkelly:           "host" : "172.16.120.6"
+[2013-01-31 22:25:20 -0500] wkelly:         }
+[2013-01-31 22:25:22 -0500] monst__: http://paste.openstack.org/raw/30075/
+[2013-01-31 22:25:50 -0500] wkelly: also
+[2013-01-31 22:25:51 -0500] monst__: kk remove comma
+[2013-01-31 22:26:31 -0500] wkelly: you are missing a "keystone" key
+[2013-01-31 22:26:36 -0500] galstrom: monst: where did you put the services block?
+[2013-01-31 22:26:36 -0500] wkelly: so:
+[2013-01-31 22:26:44 -0500] wkelly: "services": {
+[2013-01-31 22:26:47 -0500] monst__: I put the block under keystone
+[2013-01-31 22:27:01 -0500] monst__: between keystone and users
+[2013-01-31 22:27:02 -0500] galstrom: should be inserted between line no 39 and 40 in paste #30075
+[2013-01-31 22:27:03 -0500] wkelly:    "keystone": {
+[2013-01-31 22:27:10 -0500] galstrom: ok.. that is right..
+[2013-01-31 22:27:14 -0500] monst__: cool
+[2013-01-31 22:27:29 -0500] wkelly: ignore me
+[2013-01-31 22:27:33 -0500] wkelly: listen to galstrom! :P
+[2013-01-31 22:27:33 -0500] galstrom: remove the comma and it should be fine
+[2013-01-31 22:28:19 -0500] galstrom: monst: http://paste.openstack.org/show/30077/
+[2013-01-31 22:28:26 -0500] monst__: kk
+[2013-01-31 22:30:14 -0500] monst__: chef-clienting
+[2013-01-31 22:30:15 -0500] monst__: =O)
+[2013-01-31 22:30:37 -0500] monst__: doh, nova.conf still showing old IP
+[2013-01-31 22:32:18 -0500] monst__: nova.conf services still all point to 230 =(
+[2013-01-31 22:35:02 -0500] monst__: wkelly: any other suggestions for work around?
+[2013-01-31 22:50:28 -0500] galstrom: monst: how many nodes do are you using? one?
+[2013-01-31 22:50:44 -0500] monst__: I have one allinone, and a compute attached
+[2013-01-31 23:12:18 -0500] monst__: work around was manually edit the confs and make sure chef-client doesnt run

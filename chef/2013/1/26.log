@@ -1,0 +1,128 @@
+[2013-01-26 00:15:23 -0500] timsmith: has anyone noticed that apt 1.8.2 broke why run
+[2013-01-26 00:18:07 -0500] Qapf: Heya, i'm getting to know the ec2 commands in knife and one thing i'm noticing is the runlist for a node on my chef server isn't being set to the runlist I specify when I use knife ec2 create to spawn the node. Is there something I'm skipping that I should do other than go back after the node has booted and specify the runlist?
+[2013-01-26 00:25:30 -0500] cwj: Qapf: is it possible that you are encountering errors in the initial chef run? that typically causes the run list not to be saved back to the server.
+[2013-01-26 00:25:48 -0500] cwj: once you have a successful run the node data, including run list, is saved to the server
+[2013-01-26 00:26:04 -0500] cwj: gotta run
+[2013-01-26 00:27:25 -0500] Qapf: cwj,  ahh, yea. i'm still very much debugging things. i didn't know that operation only triggers at the end
+[2013-01-26 00:27:30 -0500] Qapf: TY
+[2013-01-26 00:28:24 -0500] timsmith: Qapf: A nice trick to prevent random events from ruining your run lists is to add a recipe at the very top with node.save in it
+[2013-01-26 00:28:39 -0500] timsmith: you'll save to server twice, but never end up with systems that have no run list
+[2013-01-26 00:29:02 -0500] Qapf: timsmith, thank you, i'll do that.
+[2013-01-26 00:47:42 -0500] tolland: timsmith: yyes, sounds like a good idea!
+[2013-01-26 00:47:58 -0500] tolland: have been bit on the ass by that
+[2013-01-26 00:48:09 -0500] timsmith: Chef 9 saved differently
+[2013-01-26 00:48:16 -0500] timsmith: I had to add that when I moved to Chef 10
+[2013-01-26 00:48:38 -0500] timsmith: the only downside is if you use search to find resources
+[2013-01-26 00:48:45 -0500] tolland: on a simlar note, i have a cookbook that modifies a sites-enabled file
+[2013-01-26 00:48:46 -0500] timsmith: you might try to connect to systems that aren't in a healthy state
+[2013-01-26 00:49:08 -0500] tolland: but due to various convergence issues to do with run lists,
+[2013-01-26 00:49:16 -0500] tolland: for apache2
+[2013-01-26 00:49:39 -0500] tolland: if the latter cookbook breaks the apache config, then apache2 dies on restart
+[2013-01-26 00:50:00 -0500] tolland: and never makes it back to the original cookbook, which would then correctly converge
+[2013-01-26 00:50:43 -0500] tolland: timsmith: ah, so what is the issue for searching for resources?
+[2013-01-26 00:50:45 -0500] timsmith: I'd make sure the action fails fatally
+[2013-01-26 00:51:03 -0500] timsmith: the bad scenario would be something like this
+[2013-01-26 00:51:08 -0500] timsmith: you bootstrap a memcached system
+[2013-01-26 00:51:19 -0500] timsmith: it fails before it ever gets memcached on it
+[2013-01-26 00:51:26 -0500] timsmith: but now you have a node with memcached in the runlist
+[2013-01-26 00:51:40 -0500] timsmith: and some web app runs chef and adds that node to a config file
+[2013-01-26 00:51:41 -0500] tolland: i see, so a dud node in the cluster
+[2013-01-26 00:51:45 -0500] timsmith: yes
+[2013-01-26 00:51:56 -0500] timsmith: or if you use something like Nagios and do that via search
+[2013-01-26 00:52:00 -0500] timsmith: you're going to get a pager bomb
+[2013-01-26 00:52:08 -0500] tolland: yes, I do
+[2013-01-26 00:52:10 -0500] tolland: exactly that
+[2013-01-26 00:52:49 -0500] tolland: also have a chef managed cluster of httpd-balancer/tomcat7/mysql which uses search... but there is failsafe
+[2013-01-26 00:52:59 -0500] tolland: but the nagios would light up ;-)
+[2013-01-26 00:54:41 -0500] tolland: hmm.. so if I put the node.save in the first cookbook/recipe, does it save back the entire run_list, or just that which it has processed correctly
+[2013-01-26 00:55:42 -0500] Qapf: could stick a node attribute at the end of the run list after memcached has come up, your web server can then check both that the server exists in the search results and that the success attribute is true
+[2013-01-26 00:56:11 -0500] tolland: so the nagios alert is also an alert of the failed chef run
+[2013-01-26 00:56:14 -0500] Qapf: kinna annoying, but so is zombie node with no runlist
+[2013-01-26 00:56:34 -0500] tolland: you still have to look into why the memcache install failed
+[2013-01-26 00:56:44 -0500] tolland: especially if you are using some dynamically cluster resizing
+[2013-01-26 00:57:31 -0500] tolland: Qapf: so we have many "crap" cookbooks, so the empty run_list problem is more likely that the dud node in cluster
+[2013-01-26 00:57:48 -0500] tolland: haha, "we" is the royal we
+[2013-01-26 00:58:31 -0500] timsmith: tolland: node.save saves the contents of the node at the point of the run.  The run would have made it through the compile phase so you'd have the entire run list, environment, and node attributes
+[2013-01-26 00:58:36 -0500] timsmith: basically everything
+[2013-01-26 01:00:25 -0500] tolland: so i rely on the first run to start the chef-client
+[2013-01-26 01:01:05 -0500] timsmith: I'd do that very high in the run list
+[2013-01-26 01:01:14 -0500] timsmith: I always try to prioritize what I do
+[2013-01-26 01:01:25 -0500] timsmith: for how important it is to have it there so that a failure can recover
+[2013-01-26 01:01:36 -0500] timsmith: first thing might be setting up chef client as a daemon
+[2013-01-26 01:01:51 -0500] tolland: gah,
+[2013-01-26 01:01:56 -0500] tolland: I have it at like 5
+[2013-01-26 01:02:06 -0500] tolland: below my shittiest creation
+[2013-01-26 01:03:15 -0500] timsmith: bump it to the top
+[2013-01-26 01:03:20 -0500] timsmith: so if you bad cookbook fails
+[2013-01-26 01:03:25 -0500] timsmith: at least it might suceed again in 30 minutes
+[2013-01-26 01:03:28 -0500] timsmith: or not
+[2013-01-26 01:03:30 -0500] timsmith: you never now
+[2013-01-26 01:05:49 -0500] tolland: Yes, I just pushed that to my pre-testing boxes
+[2013-01-26 01:06:55 -0500] tolland: though i would imagine that it will only cause problems with new nodes
+[2013-01-26 01:21:44 -0500] timsmith: only new nodes
+[2013-01-26 01:27:31 -0500] fly9: can I somehow source a script that will persist an entire recipe?
+[2013-01-26 01:36:32 -0500] poolpog: hgowdy
+[2013-01-26 01:36:34 -0500] poolpog: ugh
+[2013-01-26 01:36:34 -0500] poolpog: hi
+[2013-01-26 01:37:11 -0500] poolpog: so, how can I ensure a recipe that is required for a role, but is included in another role, runs before it is required?
+[2013-01-26 01:37:47 -0500] poolpog: i.e. is there a way to force a given recipe to run early? like BEGIN{run recipe} or suchlike
+[2013-01-26 01:41:19 -0500] timsmith: when are you trying to run it?
+[2013-01-26 01:41:30 -0500] timsmith: you can just stick it at the top of the run list
+[2013-01-26 01:41:34 -0500] timsmith: it's ordered
+[2013-01-26 01:42:33 -0500] poolpog: I figured it out
+[2013-01-26 01:42:48 -0500] poolpog: basically, we had two *roles* that were interdependent
+[2013-01-26 01:43:26 -0500] poolpog: but we chatted and just removed that interdependency by putting the same recipe in each role's run_list
+[2013-01-26 09:39:31 -0500] Flexa: Hi guys, I'm trying to use an encrypted data bag to store some ssh key, I have created a secret data bag which I see is encrypted and able to be decrypted OK using my key, the data bag is called chef_backup, the data bag item is called opscode_user and the key is ssh_key. Can anyone see what I am doing wrong here? https://gist.github.com/4641337 ... Have followed jtimberman guide as much as poss but receiving this err
+[2013-01-26 09:39:32 -0500] Flexa: or: "ERROR: NameError: Cannot find a resource for encrypted_data_bag_item on ubuntu version 12.04"
+[2013-01-26 09:53:45 -0500] poseid: good morning
+[2013-01-26 09:54:05 -0500] poseid: I am experimenting with vagrant and 2 instances
+[2013-01-26 09:54:34 -0500] poseid: .. now, I get one node saying; :Rack::ApplicationSpawner (Failed to connect to a master node at localhost:27017 (Mongo::ConnectionFailure)) (process 1140, thread #<Thread:0x0000000090e0e8>):
+[2013-01-26 09:57:10 -0500] poseid: ok... I have a problem with my template... nm
+[2013-01-26 15:51:42 -0500] deed02392: i'm trying to install nginx from source on an ubuntu machine, with the community nginx cookbook, but it fails due to the runit cookbook not being found
+[2013-01-26 15:51:42 -0500] deed02392: this isn't specified as a dependancy?
+[2013-01-26 16:30:03 -0500] wlll: Anyone here familiar with the postgresql recipe? I'm trying to use it but however I configure it it always installs 9.1, I'm trying to install 9.2 from Martin Pitti
+[2013-01-26 16:36:44 -0500] wlll: Seems like enable_pitti_ppa is never getting set, even though i'm setting it in a role
+[2013-01-26 16:38:07 -0500] deed02392: can anyone suggest the best practice for distributing web server SSL certificates?
+[2013-01-26 16:38:08 -0500] deed02392: to nodes that need them
+[2013-01-26 16:39:52 -0500] wlll: deed02392: encrypted databag perhaps
+[2013-01-26 16:40:37 -0500] deed02392: then I have to json encode the content of the certificate and write that to a file from a ruby script wlll ?
+[2013-01-26 16:42:02 -0500] wlll: Someone here wrote a script to do it, it's not too hard
+[2013-01-26 16:43:57 -0500] deed02392: oh! could you refer me to it please wlll
+[2013-01-26 16:45:29 -0500] wlll: I don't have it to hand. I think it was just a case of escaping newlines
+[2013-01-26 17:02:08 -0500] DanR_e: I'm new to chef and attempting to provision a raw client running Ubuntu 12.10 on an internal network.  At present, I have a laptop acting as workstation, chef-server, chef-client.  I am having trouble registering the new client.
+[2013-01-26 17:04:19 -0500] DanR_e: here is the command I use and the resulting error: dan@dan-D620:~/Devel/learn_chef/chef-repo$ knife bootstrap 192.168.192.22 -VVV
+[2013-01-26 17:04:21 -0500] DanR_e: DEBUG: Using configuration from /home/dan/.chef/knife.rb
+[2013-01-26 17:04:23 -0500] DanR_e: DEBUG: Looking for bootstrap template in /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.18.2/lib/chef/knife/bootstrap
+[2013-01-26 17:04:24 -0500] DanR_e: DEBUG: Found bootstrap template in /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.18.2/lib/chef/knife/bootstrap
+[2013-01-26 17:04:26 -0500] DanR_e: Bootstrapping Chef on 192.168.192.22
+[2013-01-26 17:04:28 -0500] DanR_e: ERROR: Errno::EACCES: Permission denied - /etc/chef/validation.pem
+[2013-01-26 17:04:29 -0500] DanR_e: dan@dan-D620:~/Devel/learn_chef/chef-repo$
+[2013-01-26 17:04:31 -0500] DanR_e: Any suggestions for next steps?  Thanx.
+[2013-01-26 17:25:57 -0500] lacion: i was wondering if there is a way to get os version like you can get os name by using node['platform']
+[2013-01-26 17:52:55 -0500] wlll: Anyone had any experience of chef ignoring attributes in a role?
+[2013-01-26 18:00:16 -0500] cheesepl_: wlll is it ignoring or are they being overridden?
+[2013-01-26 18:00:56 -0500] wlll: I'm not sure. This in the postgresql cookbook, I'm setting override_attributes and some are getting picked up
+[2013-01-26 18:01:16 -0500] wlll: but some are reverting to the defaults set in the attributes/default.rb file
+[2013-01-26 18:03:30 -0500] cheesepl_: well the only things that would override role overrides are env overrides and node overrides in the recipe
+[2013-01-26 18:04:12 -0500] cheesepl_: that and ohai
+[2013-01-26 18:09:23 -0500] wlll: cheesepl_: it's weird, anything I set in the role that has a default in the cookbook just gets reverted to the cookbook default :(
+[2013-01-26 18:10:15 -0500] cheesepl_: something else has to be going on there, are there any environments or other roles in play?
+[2013-01-26 18:10:23 -0500] cheesepl_: or existing node attributes already set?
+[2013-01-26 18:11:00 -0500] wlll: Just teh default environkent
+[2013-01-26 18:11:09 -0500] wlll: The node is really simple
+[2013-01-26 18:14:44 -0500] cheesepl_: hrm, can you gist the role?
+[2013-01-26 18:15:03 -0500] cheesepl_: not sure if it'll help for me to look at but it seems like there is a missing piece somewhere
+[2013-01-26 18:15:10 -0500] cheesepl_: also what chef version?
+[2013-01-26 18:16:00 -0500] wlll: chef 10.18.2
+[2013-01-26 18:20:55 -0500] wlll: cheesepl_: I'll poke around some more
+[2013-01-26 18:41:12 -0500] pabst^: if I have created environments and nodes in the webui, is it possible for me to download those json files using knife somehow?
+[2013-01-26 18:49:44 -0500] ranjibd: pabst^, yes
+[2013-01-26 18:50:14 -0500] ranjibd: pabst^, knife environment show <name of the environment> -Fj > env.json
+[2013-01-26 18:51:13 -0500] pabst^: thank you!
+[2013-01-26 18:52:12 -0500] pabst^: Also - is it possible for a server to exist in more than one environment?
+[2013-01-26 18:53:50 -0500] pabst^: er node i should say
+[2013-01-26 19:27:26 -0500] deed02392: i just read back an encrypted data bag with knife show, and the output for the items has '\n' all through it, even though it's encrypted
+[2013-01-26 19:28:00 -0500] deed02392: is that normal?! surely if it's encrypted the input then something like line breaks makes no sense in the encrypted form
+[2013-01-26 22:34:46 -0500] zuhaib: Any test-kitchen people around?  I got a question about chef_json and test-kitchen
+[2013-01-26 23:36:30 -0500] deed02392: i just read back an encrypted data bag with knife show, and the output for the items has '\n' all through it, even though it's encrypted
+[2013-01-26 23:36:30 -0500] deed02392: is that normal?! surely if it's encrypted the input then something like line breaks makes no sense in the encrypted form

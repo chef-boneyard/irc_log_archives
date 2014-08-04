@@ -1,0 +1,227 @@
+[2012-06-10 00:24:54 -0400] chaochao: hi everyone, i have a question  about library in cookbook, i have a simple file call default.rb under library with following content
+[2012-06-10 00:24:58 -0400] chaochao: def isInstalled()
+[2012-06-10 00:24:58 -0400] chaochao: File.exists?("C:/Program Files (x86)/Notepad++/notepad++.exe")
+[2012-06-10 00:24:59 -0400] chaochao: end
+[2012-06-10 00:25:43 -0400] chaochao: when i ran a cookbook using the library i got method `exists?' for Chef::Resource::File:Class error, why is library using the chef File resource but not ruby File class
+[2012-06-10 02:59:13 -0400] thedeeno: should I bootstrap as sodu?
+[2012-06-10 03:24:07 -0400] atomic-penguin: thedeeno, you need to run chef-client as root, if you mean sudo
+[2012-06-10 03:24:35 -0400] atomic-penguin: thedeeno, so yes, use sudo
+[2012-06-10 03:34:28 -0400] thedeeno: why does knife give me the option?
+[2012-06-10 03:34:55 -0400] thedeeno: atomic-penguin: seems like it would be the default then?
+[2012-06-10 03:38:05 -0400] atomic-penguin: thedeeno, thought you meant bootstrap with chef-solo
+[2012-06-10 03:38:32 -0400] atomic-penguin: thedeeno, knife bootstrap isn't operating on your local machine, so it may not be required there
+[2012-06-10 03:39:28 -0400] atomic-penguin: thedeeno, it has attributes for credentials as sub-options, see 'knife bootstrap --help'
+[2012-06-10 04:20:27 -0400] dylst_: one of my recipes is trying to access a data bag via Chef::EncryptedDataBagItem.load() and the server doesn't seem to have any locally.  the error I'm getting is:  Chef::Exceptions::InvalidDataBagPath: Data bag path '/var/chef/data_bags' is invalid.  am I missing something?
+[2012-06-10 04:25:27 -0400] ssd7_: dylst_: Are you using chef-solo?
+[2012-06-10 04:26:15 -0400] dylst_: ssd7_:  no, this is using the hosted chef.
+[2012-06-10 04:27:54 -0400] dylst_: ssd7_:  there is data there, but no data bags:   ls /var/chef/cache/,  chef-stacktrace.out  cookbooks  failed-run-data.json
+[2012-06-10 04:28:37 -0400] ssd7_: Hrm.  Yeah, so I think that error is from a code path where it is trying to load the data bag from the filesytem like it does via solo
+[2012-06-10 04:28:58 -0400] ssd7_: what if you use the data_bag_item() dsl function rather than calling load directly?
+[2012-06-10 04:30:53 -0400] dylst_: ssd7_:  Interesting.  Same path issue with the dsl function unfortunately
+[2012-06-10 04:31:27 -0400] ssd7_: can you place: puts Chef::Config[:solo].to_s in your recipe and see what it outputs?
+[2012-06-10 04:32:24 -0400] dylst_: ssd7_:  it returns "true"
+[2012-06-10 04:33:12 -0400] ssd7_: Well, that explains why you're getting that error.  Now the only puzzle is why that is being set to true.
+[2012-06-10 04:33:41 -0400] ssd7_: The code is basically: "if Chef::Config[:solo] then use the filesystem, otherwise ask the server"
+[2012-06-10 04:34:32 -0400] ssd7_: Might want to check your /etc/chef/client.rb on that system to see if you are setting solo to true in there.  Otherwise potentially grep through your cookbooks.
+[2012-06-10 04:38:10 -0400] dylst_: ssd7_:  Ahhh very interesting.  The file is there and doesn't reference "solo" anywhere.  It contains the chef_server_url, node name, etc.
+[2012-06-10 04:39:33 -0400] dylst_: ssd7_:  no reference to solo anywhere in my cookbooks either.  weird.  that's a great lead though, thanks.
+[2012-06-10 04:44:40 -0400] ssd7_: dylst_: No problem.  If you get any more leads let me know.  Might see if a debug log reveals anything useful.
+[2012-06-10 06:02:13 -0400] schuckles: hi
+[2012-06-10 06:02:18 -0400] schuckles: anyone still up?
+[2012-06-10 06:03:28 -0400] schuckles: was wondering if I could ask for some advice with a NoMethodError: undefined method `sudo' error
+[2012-06-10 06:09:45 -0400] ssd7_: schuckles: I'm around.  If you post the full error message on something like gist.github.com we can probably hunt it down. :)
+[2012-06-10 06:10:48 -0400] schuckles: https://gist.github.com/2904094
+[2012-06-10 06:12:14 -0400] ssd7_: Looks like an error in your cookbook.  Mind posting cookbooks/nagios/recipes/client_xinetd.rb?
+[2012-06-10 06:13:49 -0400] schuckles: https://gist.github.com/2904105
+[2012-06-10 06:16:36 -0400] ssd7_: schuckles: So that recipe is trying to use the "sudo" resource which is defined in a recent version of the sudo cookbook on the community site.
+[2012-06-10 06:16:55 -0400] ssd7_: Is it possible you have an older version of that cookbook or are using your own sudo cookbook instead?
+[2012-06-10 06:17:05 -0400] schuckles: hrm
+[2012-06-10 06:17:33 -0400] schuckles: i have sudo version 1.0.2
+[2012-06-10 06:17:41 -0400] schuckles: i think i downloaded it the other nite
+[2012-06-10 06:18:09 -0400] schuckles: low and behold
+[2012-06-10 06:18:13 -0400] schuckles: there is a new version
+[2012-06-10 06:18:31 -0400] ssd7_: Yeah, from the git history on that cookbook it looks like you need 1.1
+[2012-06-10 06:22:49 -0400] schuckles: hrm
+[2012-06-10 06:22:52 -0400] schuckles: still same error
+[2012-06-10 06:24:33 -0400] ssd7_: Hrm.  Sure you definitely uploaded the new version and that the new version was downloaded by the host running chef-client?  Is it possible you have a version constraint somewhere that is forcing it to use the old version.
+[2012-06-10 06:25:05 -0400] ssd7_: `knife cookbook show sudo` will show you what versions you have uploaded
+[2012-06-10 06:26:07 -0400] schuckles: o for peets sake
+[2012-06-10 06:26:11 -0400] schuckles: its still old
+[2012-06-10 07:03:54 -0400] schuckles: blast
+[2012-06-10 07:03:57 -0400] schuckles: ran into another error
+[2012-06-10 08:30:50 -0400] schuckles: Hi, I'm experiencing an issue with render_sudo_template, was wondering if I could - per chance bug you all for some advice
+[2012-06-10 08:30:51 -0400] schuckles: https://gist.github.com/2904479
+[2012-06-10 09:25:14 -0400] sako: hey all, are there some nice getting started guides that don't heavily encourage the use of hosted puppet? :)
+[2012-06-10 09:25:18 -0400] sako: er hosted chef**
+[2012-06-10 09:26:06 -0400] sako: sorry switching from puppet this will take some getting used to ;)
+[2012-06-10 09:34:08 -0400] schuckles: hi...
+[2012-06-10 09:34:22 -0400] schuckles: is it possible that chef keeps getting an old cookbook
+[2012-06-10 09:34:23 -0400] schuckles: ?
+[2012-06-10 09:37:39 -0400] danderson: jtimberman: is it expected that the chef-client git repo says v1.1.4 was cut three months ago, but http://community.opscode.com/cookbooks/chef-client only has v1.1.2?
+[2012-06-10 09:38:03 -0400] danderson: The bug fixed in 1.1.4 just bit me, and I spent a confused moment wondering why pulling the cookbook again didn't fix anything :)
+[2012-06-10 09:57:41 -0400] danderson: So, I'm very confused: I'm trying to use the chef-client recipe on the chef server. The chef-client::config recipe uses node.recipe?("chef-server") to decide how to configure stuff. Despite the webui showing me that both chef-client::config and chef-server are applied to the node, node.recipe?("chef-server") returns false.
+[2012-06-10 09:58:40 -0400] danderson: anyone have an idea why this might be?
+[2012-06-10 09:58:58 -0400] danderson: I'm clearly doing something wrong, but I can't figure out what.
+[2012-06-10 10:03:55 -0400] erikh: schuckles: if you've specified an earlier version in your environment configuration, yes
+[2012-06-10 10:04:14 -0400] danderson: ah, figured it out. node.recipe? only looks at already applied recipes in the current run, not the state of record for the node.
+[2012-06-10 10:04:21 -0400] danderson: that's mildly annoying :(
+[2012-06-10 10:06:18 -0400] erikh: danderson: have you checked with node.recipes.include?()
+[2012-06-10 10:07:31 -0400] danderson: erikh: that would work. Unfortunately, that's not what opscode's chef-client recipes use.
+[2012-06-10 10:07:41 -0400] danderson: I can fork it, of course, so it's not the end of the world.
+[2012-06-10 10:07:56 -0400] danderson: like I said, just mildly annoying. Now that I've figured it out, I can work with it :)
+[2012-06-10 10:18:19 -0400] erikh: ah, I see.
+[2012-06-10 14:14:37 -0400] schuckles: hi
+[2012-06-10 14:14:56 -0400] schuckles: sorry for the questions, however i had this working, and it seems to be broken
+[2012-06-10 14:15:09 -0400] schuckles: I'm experiencing an odd error
+[2012-06-10 14:15:09 -0400] schuckles: https://gist.github.com/2905836
+[2012-06-10 15:16:46 -0400] ashb: hmmmm encrypted databags and things like DB passwords: do I need to adjust the cookbooks to use this?
+[2012-06-10 15:39:11 -0400] cjs226: anyone using the s3_file cookbook?  while I can retrieve files without issue, I'm receiving "ERROR: Chef::Exceptions::ResourceNotFound: Cannot find a resource matching file[/tmp/cjs.trigger] (did you define it first?)" when I try to use notifications.
+[2012-06-10 15:39:32 -0400] cjs226: https://github.com/adamsb6/s3_file/issues/2
+[2012-06-10 15:42:35 -0400] ashb: cjs226: can you edit the issue and surrond the code with ``` above and below - will make it easier to use
+[2012-06-10 15:45:01 -0400] ashb: s/use/read/
+[2012-06-10 15:49:03 -0400] cjs226: ashb: updated
+[2012-06-10 15:49:43 -0400] ashb: yeah, you'r using the form of subscribes that needs the resource to be defined first
+[2012-06-10 15:50:03 -0400] ashb: http://wiki.opscode.com/display/chef/Resources#Resources-Notifications
+[2012-06-10 15:54:00 -0400] cjs226: ashb: thx.  i think i tried using notifie from the lower block before, let me play around.
+[2012-06-10 15:54:53 -0400] schuckles: hi all, sorry for the repeat question, tho wondering if anyone has any advice for this error https://gist.github.com/2905836
+[2012-06-10 15:55:47 -0400] ashb: schuckles: er interesting. whats the perms on /etc and /etc/nagios3 ?
+[2012-06-10 15:55:49 -0400] ssd7: schuckles: Does /etc/nagios3 exist on the machine?
+[2012-06-10 15:55:56 -0400] ashb: and to confurm what is on line 95 of /var/chef/cache/cookbooks/nagios/recipes/server_source.rb:
+[2012-06-10 15:55:57 -0400] cjs226: schuckles: does /etc/nagios3 already exist?
+[2012-06-10 15:56:15 -0400] schuckles: no
+[2012-06-10 15:56:17 -0400] schuckles: it doest
+[2012-06-10 15:56:53 -0400] cjs226: add "recursive true" so it'll be created with conf.d
+[2012-06-10 16:00:14 -0400] schuckles: recursive true on creates "/usr/sbin/nagios"?
+[2012-06-10 16:00:27 -0400] ashb: on /etc/nagios3/conf.d
+[2012-06-10 16:00:45 -0400] ashb: might be "#{node["nagios"]["dir"]}/conf.d" or similar
+[2012-06-10 16:01:52 -0400] schuckles: its directory "#{node['nagios']['conf_dir']}/conf.d" do
+[2012-06-10 16:02:06 -0400] schuckles: trying to find out the recursive option
+[2012-06-10 16:02:21 -0400] ashb: http://wiki.opscode.com/display/chef/Resources#Resources-Directory
+[2012-06-10 16:03:31 -0400] schuckles: o wait
+[2012-06-10 16:03:33 -0400] schuckles: its doing directory "/usr/lib/nagios3" do
+[2012-06-10 16:03:33 -0400] schuckles:   owner node['nagios']['user']
+[2012-06-10 16:03:33 -0400] schuckles:   group node['nagios']['group']
+[2012-06-10 16:03:34 -0400] schuckles:   mode "0755"
+[2012-06-10 16:03:34 -0400] schuckles: end
+[2012-06-10 16:03:52 -0400] ashb: that dir doesn't match the error your reported
+[2012-06-10 16:05:08 -0400] schuckles: wrong blip
+[2012-06-10 16:05:16 -0400] schuckles: directory "#{node['nagios']['conf_dir']}/conf.d" do
+[2012-06-10 16:05:16 -0400] schuckles:   owner "root"
+[2012-06-10 16:05:17 -0400] schuckles:   group "root"
+[2012-06-10 16:05:17 -0400] schuckles:   mode "0755"
+[2012-06-10 16:05:17 -0400] schuckles: end
+[2012-06-10 16:05:40 -0400] schuckles: so shouldnt i just add action :create
+[2012-06-10 16:05:48 -0400] ashb: so for me on debian /etc/nagios3 comes from the the debian package
+[2012-06-10 16:05:55 -0400] ashb: action :create is the default
+[2012-06-10 16:06:18 -0400] schuckles: than action:recursive
+[2012-06-10 16:06:28 -0400] schuckles: no no npo
+[2012-06-10 16:06:34 -0400] schuckles: action : create
+[2012-06-10 16:06:37 -0400] schuckles: recursive true
+[2012-06-10 16:06:39 -0400] schuckles: AHH
+[2012-06-10 16:07:10 -0400] ashb: this is from the nagios::server cookbook?
+[2012-06-10 16:07:17 -0400] schuckles: yea
+[2012-06-10 16:07:36 -0400] schuckles: this one
+[2012-06-10 16:07:37 -0400] schuckles: https://github.com/bryanwb/nagios_xinetd
+[2012-06-10 16:07:46 -0400] schuckles: i'm using it b/c i'm running RHEL
+[2012-06-10 16:08:00 -0400] ashb: hmmm well i've heavily editr mine so i can't tell anymore
+[2012-06-10 16:08:11 -0400] ashb: but that dir comes from the system nagios package
+[2012-06-10 16:08:16 -0400] ashb: so just installing that earlier should help
+[2012-06-10 16:10:11 -0400] motiejus: hi all. I am creating my first lightweight provider. Provider name: "drbd83". However, when I execute it, I get this error: ArgumentError: No provider found to match 'drbd83'
+[2012-06-10 16:10:11 -0400] motiejus: What can be wrong? There is a file providers/drbd83.rb
+[2012-06-10 16:10:32 -0400] ashb: motiejus: cookbookname_drdb83
+[2012-06-10 16:11:33 -0400] motiejus: ashb: that helped, thanks :)
+[2012-06-10 16:12:58 -0400] motiejus: here is another thing that was bugging me before this:
+[2012-06-10 16:12:58 -0400] motiejus: drbd_pair[xpair] (drbd::pair line 25) had an error: NameError: Cannot find a resource for resource on debian version 6.0.5
+[2012-06-10 16:13:13 -0400] motiejus: if I disconnect after asking a question, ignore, I have very flacky connectivity
+[2012-06-10 16:13:16 -0400] ashb: would need more context for that
+[2012-06-10 16:13:23 -0400] motiejus: the full cookbook is here: https://github.com/Motiejus/chef-drbd
+[2012-06-10 16:13:30 -0400] motiejus: what context do you need?
+[2012-06-10 16:13:40 -0400] ashb: that's probably enough (the code)
+[2012-06-10 16:14:03 -0400] ashb: is there any stack trace actually?
+[2012-06-10 16:14:14 -0400] motiejus: yes, there is, a moment, will paste it somewhere
+[2012-06-10 16:14:39 -0400] motiejus: http://paste.ubuntu.com/1034006/
+[2012-06-10 16:15:18 -0400] motiejus: I guess it doesn't bind my resource (pair.rb) with the debian version, but I have no idea how to do it
+[2012-06-10 16:17:55 -0400] ashb: motiejus: oh its basicaly saying the resrouce isn't what you think it is
+[2012-06-10 16:18:00 -0400] ashb: on line 9 here https://github.com/Motiejus/chef-drbd/blob/master/providers/drbd83.rb
+[2012-06-10 16:18:06 -0400] ashb: do you want that to be new_resource.SOMETHING ?
+[2012-06-10 16:18:19 -0400] ashb: or mabye remote instead of resource?
+[2012-06-10 16:19:22 -0400] motiejus: yeah. Thanks, nice catch.
+[2012-06-10 16:19:30 -0400] motiejus: resource has another meaning in drbd
+[2012-06-10 16:19:43 -0400] motiejus: that should have been res_name. I changed it almost everywhere, but not here...
+[2012-06-10 16:19:46 -0400] motiejus: thanks!
+[2012-06-10 16:20:37 -0400] motiejus: and I was wondering what I am doing wrong with the resource<->provider binding ...
+[2012-06-10 16:21:36 -0400] motiejus: needless to say, it worked perfectly now.
+[2012-06-10 18:46:16 -0400] jtimberman: danderson: oversight on my part, forgot to release, the chef-client cookbook is updated to 1.1.4 on the site.
+[2012-06-10 18:46:41 -0400] jtimberman: sorry about that
+[2012-06-10 19:45:44 -0400] matt__: hello all
+[2012-06-10 19:46:01 -0400] matt__: could someone please explain the difference between using the apt cookbook
+[2012-06-10 19:46:18 -0400] matt__: and the package resource with this provider Chef::Provider::Package::Apt
+[2012-06-10 19:47:24 -0400] matt__: seems like I can accomplish the same thing either way, or am I missing something?
+[2012-06-10 19:49:31 -0400] miah: the apt cookbook just does things like, runs apt-get update
+[2012-06-10 19:49:32 -0400] hoover_damm: the apt cookbook provides things to work with apt
+[2012-06-10 19:49:36 -0400] hoover_damm: the apt resource allows you to update
+[2012-06-10 19:49:45 -0400] miah: the apt package provider allows you to install packages via apt
+[2012-06-10 19:49:49 -0400] hoover_damm: the cookbook gives you the ability to easily add ppa's or other repos
+[2012-06-10 19:49:51 -0400] miah: read the code luke
+[2012-06-10 19:50:02 -0400] hoover_damm: and apt-get update
+[2012-06-10 19:50:03 -0400] hoover_damm: lol
+[2012-06-10 19:50:25 -0400] hoover_damm: miah, sometimes reading the code doesn't help them.
+[2012-06-10 19:50:34 -0400] miah: reading code is a good way to learn
+[2012-06-10 19:50:37 -0400] hoover_damm: miah, gotta have a understanding of what your reading to be able to read the code
+[2012-06-10 19:50:55 -0400] miah: i had no idea when i started reading chef code =)
+[2012-06-10 19:50:57 -0400] hoover_damm: I've never been able to start from line 1, go to the end and be full
+[2012-06-10 19:51:07 -0400] hoover_damm: always leaves bits out
+[2012-06-10 19:51:35 -0400] hoover_damm: miah, perhaps I should have suggested that to the last person I failed at teaching  chef
+[2012-06-10 19:51:38 -0400] hoover_damm: :-P
+[2012-06-10 19:53:48 -0400] matt__: alright thanks
+[2012-06-10 19:53:56 -0400] hoover_damm: hrm, interesting
+[2012-06-10 19:54:16 -0400] hoover_damm: nothing in kernel oops
+[2012-06-10 19:54:19 -0400] hoover_damm: hrm
+[2012-06-10 19:54:34 -0400] Mithrandir: some fs not responding?  NFS?
+[2012-06-10 19:54:42 -0400] hoover_damm: Mithrandir, no all fs's are reported for
+[2012-06-10 19:54:50 -0400] hoover_damm: Mithrandir, no nfs... only local fs's
+[2012-06-10 19:54:59 -0400] Mithrandir: odd, then
+[2012-06-10 19:55:04 -0400] hoover_damm: very
+[2012-06-10 19:55:27 -0400] hoover_damm: my guess is an EMR job is running
+[2012-06-10 19:55:31 -0400] hoover_damm: and spamming collectd
+[2012-06-10 19:55:48 -0400] hoover_damm: having 80 instances spinup for a quick job and spindown
+[2012-06-10 19:55:54 -0400] hoover_damm: creating a bunch of whisper files
+[2012-06-10 19:57:03 -0400] hoover_damm: sshd is just dropping the requests
+[2012-06-10 19:57:19 -0400] hoover_damm: it's still taking traffic, still writing to disk
+[2012-06-10 19:59:51 -0400] hoover_damm: hrm firmware update notice for one of my Supermicros
+[2012-06-10 19:59:52 -0400] hoover_damm: yay
+[2012-06-10 20:13:09 -0400] hoover_damm: Mithrandir, maybe more btrfs oopses... will have to just forward syslog and check
+[2012-06-10 20:14:21 -0400] Mithrandir: I should probably play with btrfs at some point
+[2012-06-10 20:15:06 -0400] hoover_damm: this is some graphite SSD boxes
+[2012-06-10 20:15:09 -0400] hoover_damm: so using btrfs is logical
+[2012-06-10 20:15:23 -0400] hoover_damm: to me
+[2012-06-10 20:35:12 -0400] matt__: hello
+[2012-06-10 20:35:46 -0400] matt__: another quick question about the package resource with the apt provider
+[2012-06-10 20:36:36 -0400] matt__: is it possible to install multiple packages in the same block
+[2012-06-10 20:37:05 -0400] matt__: similar to when i do "sudo apt-get install g++ curl libssl-dev apache2-utils -y"
+[2012-06-10 20:37:49 -0400] matt__: I looked, but didn't find examples of that, sorry if this is covered somewhere
+[2012-06-10 20:43:09 -0400] matt__: I think putting them in a list and looping through them would be the closest thing to what i want
+[2012-06-10 20:43:57 -0400] setient: maybe
+[2012-06-10 20:44:06 -0400] setient: but you could also create a dummy package and put it in your repo
+[2012-06-10 20:44:28 -0400] setient: with dependencies for those packages
+[2012-06-10 20:47:03 -0400] matt__: sorry, could you please elaborate a little more on the dummy package idea
+[2012-06-10 20:48:46 -0400] setient: the package just contains a list of dependencies...
+[2012-06-10 20:48:49 -0400] setient: it contains no files.
+[2012-06-10 20:49:19 -0400] setient: but you could just loop or better yet define each one individually
+[2012-06-10 20:50:04 -0400] matt__: would there be an advantage to defining each one individually?
+[2012-06-10 20:50:29 -0400] setient: flexability later with versions (you should be specifying versions too)
+[2012-06-10 20:51:44 -0400] matt__: oh I see
+[2012-06-10 20:51:49 -0400] matt__: good point, thanks
+[2012-06-10 21:11:12 -0400] miah: matt__: yes
+[2012-06-10 21:11:44 -0400] miah: use iterators. %w( package1 package2 package3 ).each { |foo| package foo }
+[2012-06-10 21:11:52 -0400] miah: BEHOLD THE POWER OF THE RUBY
+[2012-06-10 21:12:09 -0400] miah: no need to create a stupid dummy package =)
+[2012-06-10 21:16:26 -0400] miah: https://en.wikibooks.org/wiki/Ruby_Programming/Syntax/Literals for more details on that weird %w thing ;)
+[2012-06-10 21:18:33 -0400] matt__: mhm, I keep forgetting that I can use plain old ruby stuff within chef. thanks
+[2012-06-10 22:46:21 -0400] sivy: so, i'm creating nodes via knife ec2 server create, but finding that the created instance in AWS has no name. I think this is a knife bug (not sure). anyone have a good technique for automatically naming a just-provisioned node in AWS?
+[2012-06-10 22:47:03 -0400] ashb: sivy: no - i just named it manually but i wasn't ever creating enough nodes for that to be a problem
+[2012-06-10 22:47:37 -0400] sivy: ashb: yeah, it's not  HUGE thing, but when creating a number of nodes, it woul dbe nice to be ablt to name or tag them during the setup process
+[2012-06-10 22:50:24 -0400] sivy: ashb: ah, looks like this is fixed/implemented in the chef repo on github, but not in 10.0.4 (which we're using)
+[2012-06-10 22:50:30 -0400] ashb: ah okay
+[2012-06-10 22:50:55 -0400] ashb: right now for bonus points tell me why my deploy resource is symlinkg config into itself
+[2012-06-10 23:19:40 -0400] ashb: well i found why http://tickets.opscode.com/browse/CHEF-3189

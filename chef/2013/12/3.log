@@ -1,0 +1,837 @@
+[2013-12-03 00:51:17 -0500] jbellone: Hey all.
+[2013-12-03 00:51:25 -0500] jbellone: Got a Chef Solo question for anyone familiar :)
+[2013-12-03 00:51:44 -0500] coderanger: jbellone: Just ask
+[2013-12-03 00:59:10 -0500] kisoku: hrm. seeing precondition failed errors for the first time using test-kitchen and chef-zero
+[2013-12-03 00:59:15 -0500] kisoku: berks is solving the graph though
+[2013-12-03 00:59:22 -0500] kisoku: any hints on what I need to do ?
+[2013-12-03 00:59:32 -0500] jkeiser: God, we really need to get some good debugging flair into chef-zero's 412
+[2013-12-03 00:59:49 -0500] jkeiser: The issue is often that berkshelf's solver is different than chef and chef-zero's (which is sad)
+[2013-12-03 01:00:01 -0500] jkeiser: But I don't know the ways in which they are different, perhaps someone can shed light
+[2013-12-03 01:00:14 -0500] kisoku: yeah I was aware of that.
+[2013-12-03 01:00:18 -0500] kisoku: jst haven't hit it yet
+[2013-12-03 01:00:19 -0500] jkeiser: My typical way of solving dependency hell is a binary search
+[2013-12-03 01:00:39 -0500] kisoku: was wondeirng if you had any practical advice on how to figure out what it is barfing on
+[2013-12-03 01:00:40 -0500] jkeiser: I start removing dependencies from stuff until it starts working again, and then start adding them back
+[2013-12-03 01:00:47 -0500] kisoku: ouch
+[2013-12-03 01:00:50 -0500] kisoku: in this case
+[2013-12-03 01:00:53 -0500] kisoku: thats a lot
+[2013-12-03 01:01:21 -0500] jkeiser: I bet :)  another possibility is to get a Hosted account, add the cookbooks and solve that way--it might have better info?
+[2013-12-03 01:02:10 -0500] jkeiser: I seriously don't know what good output would be for chef-zero.  It's a REALLY thorny problem.  It's easy to find a solution, it's really hard to tell you what went wrong when we fail to find a solution
+[2013-12-03 01:07:51 -0500] coderanger: Step one, no more product features that require NP-complete solutions
+[2013-12-03 01:07:58 -0500] kisoku: 2hah
+[2013-12-03 01:07:58 -0500] coderanger: ;-)
+[2013-12-03 01:08:08 -0500] jkeiser: Definitely a step :)
+[2013-12-03 01:08:42 -0500] jkeiser: It's a weird edge in the server--for everything else, the server is really just a place that lets you store and search stuff
+[2013-12-03 01:23:13 -0500] kisoku: yeah. this is seriously painful in this particular cookbook
+[2013-12-03 01:23:24 -0500] kisoku: it rolls up a lot of stuff
+[2013-12-03 01:30:08 -0500] jkeiser: kisoku: you really are safe just getting rid of dependencies; strip half of them, see if you get 412 anymore, then move on
+[2013-12-03 01:30:17 -0500] kisoku: I think I found it
+[2013-12-03 01:30:22 -0500] jkeiser: awesome :)
+[2013-12-03 01:30:36 -0500] kisoku: I wound up doing berks install --path=.cookbooks
+[2013-12-03 01:31:02 -0500] kisoku: and then doing a find . -name 'metadata.rb' -exec grep 'depends' {} /dev/null;
+[2013-12-03 01:31:10 -0500] kisoku: and then focused on anything that had a constrint
+[2013-12-03 01:31:22 -0500] kisoku: as berks ignores all of that
+[2013-12-03 01:31:25 -0500] kisoku: :-P
+[2013-12-03 01:31:33 -0500] kisoku: at leats berks 2 does
+[2013-12-03 01:31:56 -0500] kisoku: also focused on our internal cookbooks, hedging that it was us that messed up :-D
+[2013-12-03 01:33:29 -0500] kisoku: yay the pitfalls of leting humans do stuff by hand
+[2013-12-03 01:37:47 -0500] kisoku: jkeiser: so there is no practical way for you guys to say what was the missing item ?
+[2013-12-03 01:38:24 -0500] jkeiser: kisoku: in specific cases we can.  The issue is that there is a giant dependency graph
+[2013-12-03 01:39:06 -0500] jkeiser: kisoku: basically, if there are m recipes with n versions, we will try m^n combinations.  It succeeds if any combination of cookbooks succeeds, and fails if ALL combinations fails
+[2013-12-03 01:39:36 -0500] spheromak: kisoku: jkeiser this all sounds familliar ;)
+[2013-12-03 01:39:39 -0500] jkeiser: kisoku: when all m^n combinations fail, it's not always easy to roll it up into one or more obvious reasons (it's possible they all failed for different reasons, in fact)
+[2013-12-03 01:40:09 -0500] jkeiser: kisoku: and, you and spheromak are in good company here :)
+[2013-12-03 01:40:16 -0500] kisoku: yay. found it :-P
+[2013-12-03 01:40:18 -0500] jkeiser: But seriously, can, should, and will find something better
+[2013-12-03 01:40:21 -0500] spheromak: kisoku: try with berks3 I had to hack up chef-zero to emit the copious debug output to trace the bad deps
+[2013-12-03 01:40:26 -0500] kisoku: guess my brain is a decent graph solver :-P
+[2013-12-03 01:40:42 -0500] kisoku: yeah. haven't ingested berks 3 yet
+[2013-12-03 01:40:46 -0500] kisoku: it's on the short list
+[2013-12-03 01:40:52 -0500] spheromak: me neither just in some testing here
+[2013-12-03 01:40:54 -0500] jkeiser: But right now my brain is completely occupied with chef-metal
+[2013-12-03 01:41:00 -0500] kisoku: chef-metal ?
+[2013-12-03 01:41:01 -0500] jkeiser: So it's on a back burner
+[2013-12-03 01:41:10 -0500] spheromak: is that what chefish is being called ?
+[2013-12-03 01:41:18 -0500] kisoku: that better be chef with some wicked guitar solos
+[2013-12-03 01:41:43 -0500] jkeiser: I split them out, so cheffish focuses entirely on putting stuff on the chef server and working with a chef server--environments, roles, nodes, etc.
+[2013-12-03 01:41:59 -0500] spheromak: chef-metal for provisioning infra
+[2013-12-03 01:42:07 -0500] jkeiser: And chef-metal focuses entirely on making a really good "machine" resource, some basic providers and a good set of apis for building more
+[2013-12-03 01:42:16 -0500] spheromak: yea
+[2013-12-03 01:42:34 -0500] spheromak: jkeiser: this all in yer repo ?
+[2013-12-03 01:42:34 -0500] jkeiser: Right now I have a vagrant provisioner, working with Windows and Unix, ssh and winrm transports
+[2013-12-03 01:42:44 -0500] jkeiser: http://github.com/jkeiser/chef-metal
+[2013-12-03 01:42:50 -0500] spheromak: indeed it is ;)
+[2013-12-03 01:43:06 -0500] jkeiser: For this Black Friday, I added a chef-zero tunneling mode
+[2013-12-03 01:43:48 -0500] spheromak: for bootstrapping
+[2013-12-03 01:43:51 -0500] spheromak: ;)
+[2013-12-03 01:43:52 -0500] jkeiser: So you can have a repo dir on the machine you are provisioning from, start a chef-zero against it easily, and then when you bootstrap and chef-client the nodes, it opens an ssh tunnel back to your provisioner
+[2013-12-03 01:44:09 -0500] spheromak: sweet
+[2013-12-03 01:44:50 -0500] jkeiser: It's ephemeral--it won't handle cases where you want long-lived machines that update *themselves* from a server--but it works great for one-time provisioning and bootstrapping, and for test scenarios
+[2013-12-03 01:45:14 -0500] jkeiser: I'm hoping it works as well as it ought to when I add ec2 (fog is my next provisioner target)
+[2013-12-03 01:45:26 -0500] jkeiser: Ranjib Dey is hacking around LXC, too, which is exciting
+[2013-12-03 01:45:30 -0500] spheromak: bootstrapping and baking images
+[2013-12-03 01:45:46 -0500] spheromak: using packer + chef-client -z for the later atm
+[2013-12-03 01:45:49 -0500] jkeiser: Yeah, baking images is another thing you could do with it if we add a simple primitive or two
+[2013-12-03 01:45:58 -0500] spheromak: and thats working fine
+[2013-12-03 01:46:07 -0500] spheromak: but bootstrapping fresh zones/datacenters
+[2013-12-03 01:46:10 -0500] spheromak: is a pita
+[2013-12-03 01:46:28 -0500] jkeiser: And then if we add pxe as a bootstrap protocol or something, we can bootstrap a data center with the provisioned images
+[2013-12-03 01:46:46 -0500] spheromak: gettin the first hypervisor + chef/razor up
+[2013-12-03 01:47:00 -0500] jkeiser: I'm excited about that, but it's down the road, I want super solid bootstrapping before I really solve image factories and image booting
+[2013-12-03 01:47:09 -0500] spheromak: the other end is using it to build multi-node tesint infra.
+[2013-12-03 01:47:17 -0500] jkeiser: Exactly!
+[2013-12-03 01:47:25 -0500] spheromak: jkeiser: this is stuff that you and matt intend to replace spiceweasel ?
+[2013-12-03 01:47:31 -0500] jkeiser: Yep
+[2013-12-03 01:47:38 -0500] spheromak: yea he talked to me about chefish
+[2013-12-03 01:47:40 -0500] spheromak: sweet
+[2013-12-03 01:47:48 -0500] spheromak: so I can do the vagrant multi-node dance right now ?
+[2013-12-03 01:47:52 -0500] jkeiser: There are a lot of projects that are doing bits and pieces of this--including test-kitchen, bootstrapped, and knife-cloud
+[2013-12-03 01:48:08 -0500] spheromak: looks like some code diving
+[2013-12-03 01:48:10 -0500] jkeiser: Yeah, vagrant multi-node is supported, but I have *not* added the in_parallel resource yet so it's painful
+[2013-12-03 01:48:19 -0500] spheromak: thats ok
+[2013-12-03 01:48:25 -0500] spheromak: it would be serial for my use case
+[2013-12-03 01:48:50 -0500] spheromak: kisoku: morning ;)
+[2013-12-03 01:48:53 -0500] jkeiser: Once the primitives are in, you can do groups of parallel installs--"install my master db, then all my slaves, then all my web servers"
+[2013-12-03 01:49:03 -0500] spheromak: jkeiser: yea
+[2013-12-03 01:49:18 -0500] spheromak: need tk integration too ;)
+[2013-12-03 01:49:20 -0500] jkeiser: That's the primitive multi-node orchestration I mysteriously tweeted about having accidentally created
+[2013-12-03 01:49:33 -0500] jkeiser: Yes, test-kitchen is one of the things on the list that needs to be brought into the fold
+[2013-12-03 01:49:54 -0500] jkeiser: chef-metal's idempotency means most of the other libraries are probably going to be folded into it rather than the other way around (I think)
+[2013-12-03 01:50:01 -0500] jkeiser: Since all other solutions are imperative
+[2013-12-03 01:50:25 -0500] jkeiser: But that's TBD.  I want something solid working and then we'll sort out where it all goes and how it gets used properly
+[2013-12-03 01:50:30 -0500] spheromak: jkeiser: there a gist for getting started with this stuff ? or just read the code right now ?
+[2013-12-03 01:50:48 -0500] jkeiser: One thing is for sure: ALL of us involved in all of these projects want them using the same base lib(s) in the end
+[2013-12-03 01:50:56 -0500] jkeiser: spheromak: there is an example recipe
+[2013-12-03 01:50:57 -0500] spheromak: yea for sure
+[2013-12-03 01:51:59 -0500] jkeiser: spheromak: you need to "rake install" from Cheffish, then "rake install" from chef-metal, then in chef-metal, "chef-client -z -o myapp::vagrant,myapp:linux,myapp:small"
+[2013-12-03 01:52:06 -0500] jkeiser: That will bring up two empty VMs
+[2013-12-03 01:52:39 -0500] jkeiser: Add recipes into the cookbooks dir, and add "recipe 'blah'" to the machine definitions in small.rb, and you can get it running more stuff in its run list
+[2013-12-03 01:53:01 -0500] jkeiser: It should be pretty simple stuff to read and use.  If it's not, kick me in the head and I'll fix what needs fixing
+[2013-12-03 01:53:45 -0500] spheromak: i see
+[2013-12-03 01:54:45 -0500] spheromak: this is parsing knife.rb
+[2013-12-03 01:54:50 -0500] spheromak: so wherevere cooks dir is.
+[2013-12-03 01:54:52 -0500] spheromak: this is dope
+[2013-12-03 01:55:38 -0500] spheromak: chefish is the providers/resources
+[2013-12-03 01:55:44 -0500] spheromak: *cheffish
+[2013-12-03 01:55:55 -0500] jkeiser: spheromak: since I like to talk, the basic idea is you specify the LAYOUT of your machines in a recipe like "small.rb" or "big.rb" or "web_servers_with_caching.rb" here https://github.com/jkeiser/chef-metal/blob/master/cookbooks/myapp/recipes/small.rb
+[2013-12-03 01:56:06 -0500] jkeiser: spheromak: chef fish provides the ability to modify nodes, clients, environments, etc.
+[2013-12-03 01:56:11 -0500] spheromak: yeap
+[2013-12-03 01:56:25 -0500] spheromak: i like the abstraction
+[2013-12-03 01:56:32 -0500] jkeiser: spheromak: but the primary resource that ties everything together is "machine"
+[2013-12-03 01:56:33 -0500] jkeiser: spheromak and that lives in chef-metal
+[2013-12-03 01:57:21 -0500] jkeiser: spheromak: then you compose the machine layout with your physical place--that's the vagrant.rb and linux.rb (or vagrant.rb and windows.rb) combo
+[2013-12-03 01:57:33 -0500] spheromak: yea your model for machine is in metal, models for chef stuffs in cheffish.
+[2013-12-03 01:57:56 -0500] jkeiser: Excatly.  chef-metal is the dude who handles machines, provisioning, bootstrap, everything to do with the real world
+[2013-12-03 01:59:13 -0500] spheromak: should pack a knife.rb or client.rb for the chef-metal cooks/example. for a stand-alone test
+[2013-12-03 01:59:32 -0500] spheromak: or example.
+[2013-12-03 01:59:37 -0500] spheromak: I grok this enough to do something.
+[2013-12-03 02:00:26 -0500] jkeiser: spheromak: you don't need one :)
+[2013-12-03 02:00:31 -0500] jkeiser: spheromak: chef-client -z will work
+[2013-12-03 02:01:24 -0500] jkeiser: Literally just run that at the top of the chef-metal (chef-client -z -o myapp::vagrant,myapp::linux,myapp::small)
+[2013-12-03 02:01:29 -0500] spheromak: it went for my local config
+[2013-12-03 02:01:41 -0500] jkeiser: oh?  What, ~/.chef/knife.rb?
+[2013-12-03 02:01:58 -0500] spheromak: lemme investigate which confnig i have loaded :D
+[2013-12-03 02:02:05 -0500] jkeiser: grr.  Just mkdir .chef, and echo "" > .chef/knife.rb
+[2013-12-03 02:02:10 -0500] spheromak: yea:)
+[2013-12-03 02:02:20 -0500] jkeiser: Need to find some way to route around this in future Chefs.  grrr
+[2013-12-03 02:02:54 -0500] spheromak: should be some toggle
+[2013-12-03 02:02:56 -0500] spheromak: no-config
+[2013-12-03 02:02:58 -0500] spheromak: for -z
+[2013-12-03 02:03:10 -0500] spheromak: or relative_repo
+[2013-12-03 02:03:12 -0500] spheromak: something
+[2013-12-03 02:03:26 -0500] jkeiser: I cannot tell you how awesome it is to work at a company where I have the desire, ability AND the power to fix things that bug me
+[2013-12-03 02:03:44 -0500] jkeiser: What I *want* is for -z to ignore ~/.chef/knife.rb
+[2013-12-03 02:03:44 -0500] spheromak: :)
+[2013-12-03 02:03:56 -0500] spheromak: well i may want an option to not ignore ~/.chef
+[2013-12-03 02:03:56 -0500] jkeiser: But maybe that's not the right thing.  Will have to think
+[2013-12-03 02:03:58 -0500] spheromak: ;)
+[2013-12-03 02:04:23 -0500] spheromak: i flip through ~27 ~/.chef environments
+[2013-12-03 02:04:27 -0500] jkeiser: Some people probably use it for log levels and stuff, stuff that is environment-independent
+[2013-12-03 02:04:35 -0500] spheromak: ^^
+[2013-12-03 02:04:36 -0500] jkeiser: yeah, me too
+[2013-12-03 02:04:46 -0500] jkeiser: which is why I actually don't use ~/.chef/knife.rb at all
+[2013-12-03 02:05:01 -0500] spheromak: use chefvm shell scripts to manage links
+[2013-12-03 02:05:11 -0500] spheromak: usued to just use aliases in my bashrc ;)
+[2013-12-03 02:06:10 -0500] spheromak: blargh gotta fix vagrant lxcbridge bs on this workstation, but that def worked (using empty .chef/knife.rb) I see it trying to build boxes.  My vagrant is fubar atm tho
+[2013-12-03 02:07:42 -0500] jkeiser: I only tested using vagrant 2 fyi
+[2013-12-03 02:07:51 -0500] jkeiser: er, whatever the latest is
+[2013-12-03 02:08:02 -0500] jkeiser: btw, vagrant up will be parallelizable in 1.4 :)
+[2013-12-03 02:08:09 -0500] jkeiser: just in time for an in_parallel resource
+[2013-12-03 02:08:11 -0500] spheromak: yea
+[2013-12-03 02:10:16 -0500] spheromak: jkeiser: yer vagrant base box isn't resolving
+[2013-12-03 02:10:34 -0500] jkeiser: spheromak: oh my bad.  you need to point the url at something real
+[2013-12-03 02:10:44 -0500] spheromak: bento of course
+[2013-12-03 02:10:45 -0500] jkeiser: I wrote that bit of it after I had already downloaded the box,
+[2013-12-03 02:10:46 -0500] spheromak: ;)
+[2013-12-03 02:11:51 -0500] jkeiser: spheromak: maybe this one?
+[2013-12-03 02:11:51 -0500] jkeiser: http://dl.dropbox.com/u/1537815/precise64.box
+[2013-12-03 02:11:56 -0500] jkeiser: Chef doesn't need to be on the box
+[2013-12-03 02:12:02 -0500] jkeiser: the bootstrapper will take care of that
+[2013-12-03 02:12:24 -0500] spheromak: latest bentos are provisionerless
+[2013-12-03 02:12:30 -0500] jkeiser: cool :)
+[2013-12-03 02:12:33 -0500] jkeiser: let me know how they go!
+[2013-12-03 02:12:39 -0500] jkeiser: I have only tested linux and windows
+[2013-12-03 02:12:52 -0500] jkeiser: It SHOULD work for any other unixish thing that Opscode's install.sh works on
+[2013-12-03 02:13:09 -0500] jkeiser:  but  should is the biggest word a programmer can ever say :)
+[2013-12-03 02:13:23 -0500] spheromak: yea
+[2013-12-03 02:13:33 -0500] spheromak: i found a bug with install.sh/bootstrap on xenserver 6
+[2013-12-03 02:13:46 -0500] spheromak: detects as rhel 6 when its actually a rhel5 derivitive.
+[2013-12-03 02:13:57 -0500] spheromak: need to go pop that in tickets
+[2013-12-03 02:14:18 -0500] jkeiser: spheromak: interesting :)  note that if you want to test a modified install.sh, you can do that pretty easily with this stuff
+[2013-12-03 02:14:25 -0500] spheromak: yea
+[2013-12-03 02:14:27 -0500] spheromak: this is dope
+[2013-12-03 02:14:30 -0500] jkeiser: go modify the chef-metal gem where it downloads install.sh, and grab yours instead
+[2013-12-03 02:14:35 -0500] spheromak: seriously awesome..
+[2013-12-03 02:14:50 -0500] jkeiser: Yeah I think it will change a lot of the way we think about provisioning and chef in general
+[2013-12-03 02:15:01 -0500] jkeiser: Funny how the addition of just one little old resource can do that
+[2013-12-03 02:15:37 -0500] spheromak: zero changed alot
+[2013-12-03 02:16:14 -0500] spheromak: so I should be albe to use this with my cookbook server :) for integration tests.
+[2013-12-03 02:16:45 -0500] kisoku: is there any easy way to get tk to use a cached chef install right now ?
+[2013-12-03 02:17:59 -0500] spheromak: kisoku: fnichol had a sweet polipo hack
+[2013-12-03 02:18:02 -0500] cwj: https://gist.github.com/fnichol/7551540
+[2013-12-03 02:18:11 -0500] cwj: ^^ said hack
+[2013-12-03 02:18:12 -0500] spheromak: https://gist.github.com/fnichol/7551540
+[2013-12-03 02:18:17 -0500] spheromak: ah cwj beat me to it
+[2013-12-03 02:18:19 -0500] spheromak: ;)
+[2013-12-03 02:18:28 -0500] cwj: ;D
+[2013-12-03 02:18:32 -0500] spheromak: using this on jenkins right now
+[2013-12-03 02:19:54 -0500] spheromak: jkeiser: chef-metal libvirt
+[2013-12-03 02:19:57 -0500] spheromak: :)
+[2013-12-03 02:20:12 -0500] spheromak: the provider api doesn't look too bad
+[2013-12-03 02:20:47 -0500] spheromak: can use vagrant for glue tho for now
+[2013-12-03 02:24:45 -0500] jkeiser: spheromak: yeah.  I want to get vagrant, fog and docker in there
+[2013-12-03 02:24:51 -0500] spheromak: yea
+[2013-12-03 02:24:58 -0500] jkeiser: spheromak: and then let people build specific providers that leverage more of the direct functionality
+[2013-12-03 02:25:10 -0500] spheromak: so on the vagrant provider theres provisioner options right now
+[2013-12-03 02:25:15 -0500] spheromak: but nothing for mem/networking
+[2013-12-03 02:25:33 -0500] jkeiser: spheromak: you can literally use any vagrant options you want
+[2013-12-03 02:25:44 -0500] jkeiser: spheromak: it's a string you dump in there, that gets written out to the vagrant config file
+[2013-12-03 02:25:52 -0500] jkeiser: spheromak: I just kinda step out of your way and let you go crazy
+[2013-12-03 02:25:52 -0500] spheromak: si that what provisioner_options is
+[2013-12-03 02:25:59 -0500] spheromak: i thought it was passing to the vagrant provisioner.
+[2013-12-03 02:26:06 -0500] spheromak: I didn't look @ provider side yet. just the resource
+[2013-12-03 02:26:08 -0500] spheromak: yea
+[2013-12-03 02:26:10 -0500] spheromak: sweet
+[2013-12-03 02:26:10 -0500] jkeiser: Let me find a link, one sec
+[2013-12-03 02:26:13 -0500] spheromak: so its raw config
+[2013-12-03 02:26:22 -0500] spheromak: gets dumped to the Vagrantfile
+[2013-12-03 02:27:01 -0500] kisoku: that's quite the hack
+[2013-12-03 02:27:05 -0500] jkeiser: spheromak: provisioner_options is a blank slate, that is interpreted by each provisioner
+[2013-12-03 02:27:28 -0500] jkeiser: vagrant happens to be interpret it that way (well, there is a key you pass, finding it)
+[2013-12-03 02:27:31 -0500] spheromak: right I thought it was omething getting passed into "vagrant provisioner" the inception is too deep ;)
+[2013-12-03 02:27:58 -0500] jkeiser: spheromak: it is getting passed to our vagrant provisioner, in fact :)
+[2013-12-03 02:28:02 -0500] spheromak: talking on irc and trying to reat through the code while yer round
+[2013-12-03 02:28:04 -0500] spheromak: yea
+[2013-12-03 02:28:06 -0500] spheromak: i get that ;)
+[2013-12-03 02:28:12 -0500] jkeiser: spheromak: note that you can set the options on the vagrant_box itself
+[2013-12-03 02:28:14 -0500] spheromak: one level up where where i was :D
+[2013-12-03 02:28:45 -0500] jkeiser: And they will be used on all future "machine"s
+[2013-12-03 02:28:52 -0500] jkeiser: Unless overridden on a specific "machine"
+[2013-12-03 02:28:57 -0500] spheromak: that are using that resource
+[2013-12-03 02:29:02 -0500] spheromak: yea
+[2013-12-03 02:29:13 -0500] spheromak: this is nutty
+[2013-12-03 02:29:14 -0500] jkeiser: Or unless you then call with_provisioner_options :)
+[2013-12-03 02:29:18 -0500] spheromak: and awesome
+[2013-12-03 02:29:47 -0500] spheromak: this being ued inside opscode already. or just you mucking around ?
+[2013-12-03 02:30:25 -0500] jkeiser: spheromak: not yet, but soon. My team is going to use it for our testing and development of the next version of Pushy, assuming I can get enough of it done before we, like, ship that project
+[2013-12-03 02:30:43 -0500] jkeiser: spheromak: the whole thing is like 3-4 weeks old anyway :)
+[2013-12-03 02:30:55 -0500] spheromak: ChefMetal Is fun to type.
+[2013-12-03 02:31:01 -0500] jkeiser: spheromak: before I delve into code, here is a cookbook that uses the options/config: https://github.com/jkeiser/chef-metal/blob/master/cookbooks/myapp/recipes/windows.rb
+[2013-12-03 02:31:22 -0500] spheromak: yea i looked at everything but windows in there
+[2013-12-03 02:31:34 -0500] spheromak: lol
+[2013-12-03 02:31:52 -0500] spheromak: jkeiser: yea got that from the vagrant_box provider
+[2013-12-03 02:32:01 -0500] jkeiser: spheromak: the vagrant provisioner treats provisioner_options as a hash with two keys, "vagrant_options" and "vagrant_config"
+[2013-12-03 02:32:11 -0500] spheromak: makes sense
+[2013-12-03 02:32:14 -0500] jkeiser: I will find better ways to do this, but here is what they mean now
+[2013-12-03 02:32:18 -0500] spheromak: yea
+[2013-12-03 02:32:22 -0500] spheromak: its good nuf for now.
+[2013-12-03 02:32:28 -0500] spheromak: passing a block into the Vagrantfile
+[2013-12-03 02:32:40 -0500] spheromak: or evaling a block that gets rendered into it.
+[2013-12-03 02:32:43 -0500] jkeiser: vagrant_options is a series of key/value pairs, which get dumped to the config file as "config.vm.KEY = VALUE.inspect"
+[2013-12-03 02:32:50 -0500] jkeiser: vagrant_config is then appended directly to the file
+[2013-12-03 02:32:54 -0500] spheromak: heh
+[2013-12-03 02:32:56 -0500] jkeiser: two different ways of specifying stuff
+[2013-12-03 02:33:07 -0500] kisoku: kitchen diganose
+[2013-12-03 02:33:13 -0500] jkeiser: The reason for this is, vagrant doesn't always do key value pairs :)
+[2013-12-03 02:33:17 -0500] spheromak: kisoku: not good
+[2013-12-03 02:33:24 -0500] jkeiser: as you can see in the windows config
+[2013-12-03 02:33:27 -0500] spheromak: yea
+[2013-12-03 02:33:57 -0500] spheromak: jkeiser: should be able to pass the resource a block, and have that block get dumped into the repo/machines/machine.stub.rb
+[2013-12-03 02:34:12 -0500] spheromak: yer vagrant file could just class eval that shit .
+[2013-12-03 02:34:18 -0500] jkeiser: I'm not happy with how similar the names are, and the similar names are sort of cruft because I started with "options" and had to add "config."  Still thinking about names.  I don't want to remove options because that provides a way for you to specify options that the provisioner can actually use--which is how it detects windows
+[2013-12-03 02:34:42 -0500] jkeiser: spheromak: you can dump a block?  How does that work?
+[2013-12-03 02:34:51 -0500] jkeiser: Like, vagrant_config = lambda do
+[2013-12-03 02:34:59 -0500] jkeiser:   config.vm.blah = 'x'
+[2013-12-03 02:35:00 -0500] jkeiser: end
+[2013-12-03 02:35:02 -0500] jkeiser: and such?
+[2013-12-03 02:35:03 -0500] spheromak: yea
+[2013-12-03 02:35:05 -0500] jkeiser: That would be awesome
+[2013-12-03 02:35:06 -0500] spheromak: inside the provider
+[2013-12-03 02:35:14 -0500] jkeiser: That can be dumped as text?
+[2013-12-03 02:35:15 -0500] spheromak:  need to noodle it
+[2013-12-03 02:35:26 -0500] spheromak: can't marshall that down into a file as prure ruby ?
+[2013-12-03 02:35:42 -0500] jkeiser: I don't know :)  I assumed not, but I should have learned not to assume with ruby
+[2013-12-03 02:35:52 -0500] spheromak: jkeiser: i haven't attempted it
+[2013-12-03 02:36:06 -0500] jkeiser: OTOH, there's no reason I can't have you specify it all as a string, and eval that stuff in my own little stub context
+[2013-12-03 02:36:13 -0500] jkeiser: And then dump the string to file
+[2013-12-03 02:36:16 -0500] spheromak: with old vagrant you could just magic this all up in a vagrant config object and act on that.
+[2013-12-03 02:36:26 -0500] spheromak: stru
+[2013-12-03 02:36:28 -0500] spheromak: *true
+[2013-12-03 02:36:51 -0500] spheromak: really the biggest loss to the omni vagrant was not having a programatical api.
+[2013-12-03 02:37:07 -0500] jkeiser: yeah, I'm sad he totally got rid of the api.  And kinda pissed, this stuff is slower than it should be because of it
+[2013-12-03 02:37:13 -0500] jkeiser: even vagrant status takes a long time
+[2013-12-03 02:37:17 -0500] spheromak: ;)
+[2013-12-03 02:37:34 -0500] spheromak: yea it blew up my entire workflow (vagrant flow)
+[2013-12-03 02:38:17 -0500] jkeiser: oh, btw, if you want to see the ideas we have noodling around, who is doing what, etc., we are managing this in a public Trello which you can freely edit and add yourself to
+[2013-12-03 02:38:38 -0500] jkeiser: https://trello.com/b/GcSzW0GM/chef-metal
+[2013-12-03 02:39:49 -0500] spheromak: heh
+[2013-12-03 02:40:25 -0500] spheromak: you want a chef-metal cook to install chef-metal ?
+[2013-12-03 02:40:31 -0500] spheromak: into the chef-gem path ?
+[2013-12-03 02:44:36 -0500] jkeiser: spheromak: yep.  In the end, I want to be able to run chef-metal resources on provisioned nodes
+[2013-12-03 02:44:43 -0500] jkeiser: spheromak: to run provisioners on my actual cluster
+[2013-12-03 02:45:16 -0500] jkeiser: The possibilities are pretty staggering once you go that direction
+[2013-12-03 02:45:59 -0500] spheromak: yea its a similar case I have to building up our private openstack/cloudstack infra.
+[2013-12-03 02:46:47 -0500] spheromak: anyhow this is sweet
+[2013-12-03 02:47:14 -0500] spheromak: thanks for the tour. time to go do hack somethingup with this
+[2013-12-03 02:48:34 -0500] jkeiser: With bated breath :)
+[2013-12-03 03:25:17 -0500] jbellone: statusbar window remove act
+[2013-12-03 04:45:51 -0500] mdpatrick: If I reach my node limit on opscode hosted chef, can I just delete any node I'm not using and replace it immediately?
+[2013-12-03 04:47:12 -0500] mdpatrick: I've found I'm unable to knife bootstrap and seeing how I am in fact a major noob it's possible I'm overlooking something, but without rhyme or reason I've found myself unable to authenticate when running knife bootstrap now. Not sure what could cause it other than reaching my node limit (though I've deleted some and made room and this has no effect).
+[2013-12-03 04:47:28 -0500] jtimberman: mdpatrick: yeah it's not extremely strictly enforced, we're pretty nice about it :)
+[2013-12-03 04:47:44 -0500] jtimberman: mdpatrick: "hey man, you have more nodes than you're paying for, maybe you want a bigger plan?"
+[2013-12-03 04:47:47 -0500] jtimberman: (something like that :D)
+[2013-12-03 04:47:54 -0500] jchauncey: jtimberman: hehe
+[2013-12-03 04:48:03 -0500] mdpatrick: OK then my issue is definitely something else. PS that's pretty cool
+[2013-12-03 04:48:16 -0500] jchauncey: jesus the wind sounds like its going to blow my house down
+[2013-12-03 04:49:36 -0500] stormerider: mdpatrick: might be a client limit rather than nodes?
+[2013-12-03 04:50:04 -0500] jtimberman: jchauncey: hah yup
+[2013-12-03 04:50:12 -0500] jtimberman: stormerider: no client limit afaik
+[2013-12-03 04:51:04 -0500] mdpatrick: Hmm! Let's delete a few and find out!!!
+[2013-12-03 04:51:37 -0500] stormerider: ah, ok. i havent played with hosted chef since i started bootstrapping my windows nodes. sadly, havent had time to actually _do_ anything with them yet :)
+[2013-12-03 04:51:43 -0500] mdpatrick: Here's the error I'm getting when running knife bootstrap (trying to re-provision)Failed to authenticate to the chef server (http 401). Ensure that your node_name and client key are correct. If these settings are correct, your client_key may be invalid.
+[2013-12-03 04:52:16 -0500] stormerider: mdpatrick: if you're bootstrapping a node, it might already have a client.pem in /etc/chef that you need to delete?
+[2013-12-03 04:52:47 -0500] mdpatrick: AhhHhhHhhh. OK, I think that totally explains it then
+[2013-12-03 04:52:48 -0500] stormerider: ive run into that before after cloning a node and such
+[2013-12-03 04:53:13 -0500] stormerider: not sure why knife doesnt delete it, but was easy enough to work around
+[2013-12-03 04:53:17 -0500] mdpatrick: First time I used bootstrap server create had failed to provision the server (even though it was created on EC2) -- thus, it would've succeeded since no client.pem
+[2013-12-03 04:53:33 -0500] mdpatrick: How do you tell chef to re-provision an existing server??
+[2013-12-03 05:04:10 -0500] jchauncey: mdpatrick: what do you mean reprovision?
+[2013-12-03 05:04:29 -0500] jchauncey: you can just rerun the chef-client if you want to reconverge a box
+[2013-12-03 05:04:40 -0500] mdpatrick: jchauncey: Re-run my recipe
+[2013-12-03 05:04:49 -0500] jchauncey: just rerun chef-client
+[2013-12-03 05:05:00 -0500] jchauncey: you cna edit the nodes runlist ofy ou want to only have 1 recipe run
+[2013-12-03 05:05:15 -0500] mdpatrick: ahhh
+[2013-12-03 05:05:32 -0500] mdpatrick: so I just ssh in and run chef-client on the node and it'll fire off the recipes in its run list?
+[2013-12-03 05:05:40 -0500] jchauncey: yeah
+[2013-12-03 05:05:46 -0500] jchauncey: or you can use knife ssh to do that for you
+[2013-12-03 05:06:06 -0500] jchauncey: knife ssh is your friend =)
+[2013-12-03 05:07:32 -0500] mdpatrick: that's nifty :)
+[2013-12-03 05:07:36 -0500] mdpatrick: (didn't know about it)
+[2013-12-03 05:08:16 -0500] mdpatrick: You guys are great! Thanks for the help today
+[2013-12-03 05:08:37 -0500] mdpatrick: jchauncey, stormerider, jtimberman the lot of ya! I think I'm done for the night though. Have a good one!
+[2013-12-03 05:08:45 -0500] jchauncey: no prob
+[2013-12-03 05:10:32 -0500] stormerider: mdpatrick: np, take care
+[2013-12-03 06:25:14 -0500] pcarrier: https://github.com/opscode-cookbooks/homebrew/pull/21 <-- is it acceptable to just open github PRs for opscode cookbooks?
+[2013-12-03 06:25:37 -0500] pcarrier: is there anything I should do to make sure it gets tracked, any way to get this handled like a bug?
+[2013-12-03 06:26:17 -0500] pcarrier: jtimberman: ^ I hear from a colleague you're who I should be talking to
+[2013-12-03 06:31:51 -0500] jtimberman: pcarrier: the version shouldn't be incremented in the metadata
+[2013-12-03 06:32:25 -0500] jtimberman: pcarrier: for opscode's maintained cookbooks we like to have a COOK ticket for them
+[2013-12-03 06:32:44 -0500] jtimberman: the CONTRIBUTING file in the repo should have more info
+[2013-12-03 06:32:47 -0500] jtimberman: ima sleep soon :)
+[2013-12-03 06:32:49 -0500] jtimberman: cheers
+[2013-12-03 07:19:53 -0500] Garo__: I'd like to use a function inside ruby_block which is defiend in a library which is inside another cookbook (aws in this case). How should I access the library functions inside the ruby_block? the function in this ase is ec2 which is defined in module Opscode::Aws::Ec2, inside ec2.rb library file (https://github.com/opscode-cookbooks/aws/blob/master/libraries/ec2.rb). I have set depends 'aws' in my metadata.rb
+[2013-12-03 07:23:48 -0500] alxism: hello there, i'm having an issue with the rabbitmq cookbook. it looks like the rabbitmq service is enabled and started immediately. However the recipe does not require immediate notification. See https://gist.github.com/alexism/c943bd2f42ea5e760a5c and https://github.com/opscode-cookbooks/rabbitmq/blob/master/recipes/default.rb#L106
+[2013-12-03 07:24:29 -0500] alxism: in that occurence, the chef run does not fail, but in some other, rabbitmq startup fails because the config is missing
+[2013-12-03 07:24:39 -0500] alxism: am I missing something?
+[2013-12-03 07:34:43 -0500] alxism: ok. I'm mixing up service action :start with notifications. Only notifications are queued at the end of the run.
+[2013-12-03 07:35:31 -0500] alxism: but there's still a bug in the recipe, config files should get created before the service is started. There's a pull request open actually: https://github.com/opscode-cookbooks/rabbitmq/pull/93
+[2013-12-03 07:41:36 -0500] pcarrier: jtimberman: ok, thanks. so I just remove that version bump commit?
+[2013-12-03 07:47:05 -0500] pcarrier: ok, went through the CLA process
+[2013-12-03 07:47:10 -0500] pcarrier: can anybody ACK+?
+[2013-12-03 07:47:32 -0500] pcarrier: jtimberman: ^ sorry to spam you, my colleague kinda insists on involving you ;)
+[2013-12-03 08:12:42 -0500] pcarrier: so, trying to get some code from a cookbook loaded, to add a provider
+[2013-12-03 08:12:49 -0500] pcarrier: more specifically, the homebrew cookbook
+[2013-12-03 08:13:11 -0500] pcarrier: I tried adding depends 'homebrew' in my "base" cookbook (which contains the only entry in my runlist)
+[2013-12-03 08:13:23 -0500] pcarrier: I keep running into:
+[2013-12-03 08:13:23 -0500] pcarrier: Cannot find a resource for homebrew_package on mac_os_x version 10.9
+[2013-12-03 08:13:46 -0500] pcarrier: quite desperate to get something up and running as a proof of concept at this point.
+[2013-12-03 08:36:33 -0500] coderanger: pcarrier: The Opscode CLA stuff still has to be updated by hand right now I think
+[2013-12-03 08:36:36 -0500] coderanger: so it takes a bit
+[2013-12-03 08:43:28 -0500] pcarrier: sgtm
+[2013-12-03 08:43:36 -0500] pcarrier: any help wrt my error? :)
+[2013-12-03 08:59:45 -0500] pcarrier: well, worked around with package $foo do   provider Chef::Provider::Package::Homebrew end
+[2013-12-03 08:59:48 -0500] pcarrier: not nice, but works for now
+[2013-12-03 08:59:54 -0500] pcarrier: would love some help with that :)
+[2013-12-03 09:39:40 -0500] ptrf: hmm, so I've got a setup where I'm using user data to provision my aws instances. I knife ec2 server create-bootstrap the instances with a wrapper cookbook - in that cookbook I have some logic that infers from user data which recipes to include
+[2013-12-03 09:40:56 -0500] ptrf: so now I'm looking at the chef-monitor cookbook, which uses search to find the master. this search is on recipe-name
+[2013-12-03 09:42:19 -0500] ptrf: and since my nodes are all registered with my wrapper cookbook, it wont find a master
+[2013-12-03 09:51:12 -0500] flaccid__: ptrf: why
+[2013-12-03 09:52:06 -0500] ptrf: so, is this a really bad pattern?
+[2013-12-03 09:52:35 -0500] flaccid__: the question is why does that happen. nodes are not registered by a cookbook and i'm not sure why they should use user data
+[2013-12-03 09:53:43 -0500] ptrf: well, I bootstrap nodes with a runlist that just includes recipe[wrapper]
+[2013-12-03 09:54:24 -0500] ptrf: adn then wrapper::default tries to include the cookbooks that actually matter
+[2013-12-03 09:54:48 -0500] ptrf: by doing include_recipe "..."
+[2013-12-03 09:54:58 -0500] flaccid__: i don't think you have been specific about the actual problem
+[2013-12-03 09:55:25 -0500] ptrf: ah okay. my problem is that the recipe list only includes the wrapper cookbook
+[2013-12-03 09:56:02 -0500] ptrf: I would have thought that, since recipe list != run list, it would list all the recipes that get pulled in during a chef-client run
+[2013-12-03 09:57:47 -0500] ptrf: but that doesnt seem to happen, which means I cant use discovery based on which recipes get pulled in
+[2013-12-03 09:58:08 -0500] ptrf: now, I do the inclusion with some hackety hacked ruby code rather than a lwrp
+[2013-12-03 09:58:22 -0500] ptrf: or whatever way you would want to build the node
+[2013-12-03 10:00:08 -0500] ptrf: hmm, node.save?
+[2013-12-03 10:11:22 -0500] nebrera: hello
+[2013-12-03 10:11:30 -0500] nebrera: I am getting [2013-12-03T10:11:29+00:00] WARN:  xxxxxx
+[2013-12-03 10:11:32 -0500] nebrera: messages
+[2013-12-03 10:11:55 -0500] nebrera: how could I avoid this or log this into specific file (not into stdout)
+[2013-12-03 10:14:14 -0500] ptrf: nebrera: do you get info messages? and do you want them? because then it's a bit tricky, as warns have a higher precedence than info
+[2013-12-03 10:14:26 -0500] ptrf: otherwise you should set log level to :error
+[2013-12-03 10:15:13 -0500] ptrf: nebrera: http://docs.opscode.com/config_rb_client.html <- search for log_level
+[2013-12-03 10:36:09 -0500] flaccid__: ptrf: whats a recipe list?
+[2013-12-03 10:36:54 -0500] wassy121_: flaccid__: He's talking about node.run_list I believe
+[2013-12-03 10:37:06 -0500] wassy121_: or "search recipes:foo"
+[2013-12-03 10:37:28 -0500] ptrf: flaccid__: hmm, maybe I'm not getting this... when I knife search node "chef_environment:staging", I get some output for each of my nodes ofc.
+[2013-12-03 10:37:54 -0500] ptrf: flaccid__: the fields for each node are name, fqdn, etc. and then there's recipes and run_list
+[2013-12-03 10:39:09 -0500] wassy121_: ptrf: You can make knife search return whatever fields you're looking for with "-a fqdn" -a recipes, -a foo_bar_variable
+[2013-12-03 10:39:47 -0500] ptrf: yes, but my problem is that my node data for each of my nodes only include the wrapping recipe
+[2013-12-03 10:40:05 -0500] ptrf: even though I know that I pull in a bunch of other recipes during my chef-client run (and bootstrap)
+[2013-12-03 10:40:20 -0500] flaccid__: thats why its a wrapper.
+[2013-12-03 10:40:46 -0500] flaccid__: it wraps.
+[2013-12-03 10:41:00 -0500] wassy121_: A better way to do this might be to set a variable upon "when conditionx; include recipe_y ; set attribute_z; done"; then search(:node, "attributes_z: true")
+[2013-12-03 10:41:11 -0500] gregkare: ptrf: There's a ticket for this, Opscode are aware of it
+[2013-12-03 10:41:17 -0500] ptrf: gregkare: oh, thanks
+[2013-12-03 10:41:28 -0500] flaccid__: gregkare: url?
+[2013-12-03 10:41:31 -0500] gregkare: https://tickets.opscode.com/browse/CHEF-1977
+[2013-12-03 10:41:31 -0500] ptrf: wassy121_: yeah, that's what I was wondering, if that was the way forward
+[2013-12-03 10:41:55 -0500] ptrf: gregkare: thank you so much
+[2013-12-03 10:42:03 -0500] gregkare: No problem
+[2013-12-03 10:43:08 -0500] wassy121_: A few caveats: use node.default (not node.set).  The "recipes" array doesn't get set until the first run completes I believe, so you won't find the bootstrapping node if searching for recipes:foo
+[2013-12-03 10:43:27 -0500] wassy121_: but that's the pattern I've seen used (searching for a variable)
+[2013-12-03 10:43:48 -0500] flaccid__: oh, this is code inspection to be possible or logging of recipes done in a run which is not accurate
+[2013-12-03 10:43:54 -0500] flaccid__: pretty arbitrary stuff
+[2013-12-03 10:43:57 -0500] ptrf: the most important thing for me was to make sure my conceptual understanding was correct
+[2013-12-03 10:44:18 -0500] wassy121_: yep, glad to see it's a bug with Chef, and not one with your brain :)
+[2013-12-03 10:44:23 -0500] ptrf: :)
+[2013-12-03 10:44:37 -0500] flaccid__: i have no idea on how chef server is expected to know the 'recipes' of a node if they are not in the run_list and conditionally included.
+[2013-12-03 10:44:42 -0500] ptrf: it's sometimes pretty hard to make sense of the chef architecture
+[2013-12-03 10:44:45 -0500] flaccid__: i would call this a feature request
+[2013-12-03 10:45:44 -0500] flaccid__: on a practical level though, i'm not sure why you would search by recipe for any kind of state accuracy of real use
+[2013-12-03 10:46:31 -0500] ptrf: I'd just like to drop in chef-monitor (sensu wrapper cookbook) and have that work without configuration :)
+[2013-12-03 10:47:00 -0500] ptrf: the thing is, it tries to discover the sensu master server by searching recipe lists of all nodes
+[2013-12-03 10:47:09 -0500] ptrf: returns the first one
+[2013-12-03 10:47:33 -0500] ptrf: but in my case, I never have anything else than wrapper in my recipe list
+[2013-12-03 10:47:46 -0500] ptrf: so this wouldn't be as big an issue if it wasnt' for the fact that you cant version roles
+[2013-12-03 11:36:49 -0500] flaccid__: ptrf: that design is flawed. something like tags is a better method.
+[2013-12-03 11:37:05 -0500] joelmoss: hey all
+[2013-12-03 11:37:18 -0500] joelmoss: so who's using a single repo per cookbook
+[2013-12-03 11:37:20 -0500] joelmoss: ?
+[2013-12-03 11:37:29 -0500] flaccid__: lots of people
+[2013-12-03 11:37:36 -0500] flaccid__: who likes kim kardashian?
+[2013-12-03 11:37:42 -0500] joelmoss: I'm using a single repo per cookbook, but its starting to annoy me having to switch all over the place
+[2013-12-03 11:37:44 -0500] joelmoss: lol
+[2013-12-03 11:37:56 -0500] joelmoss: so I like the idea of a single repo for all cookbooks
+[2013-12-03 11:38:03 -0500] joelmoss: or even just keeping them in my chef repo
+[2013-12-03 11:38:09 -0500] joelmoss: but what are the downsides of that?
+[2013-12-03 11:38:11 -0500] flaccid__: ok coolio
+[2013-12-03 11:38:36 -0500] flaccid__: mostly to do with version control
+[2013-12-03 11:38:49 -0500] flaccid__: and if you pull down the repo, it can be large
+[2013-12-03 11:39:00 -0500] joelmoss: but if you branch everything, all should be good right?
+[2013-12-03 11:39:18 -0500] flaccid__: what are the branches for
+[2013-12-03 11:39:35 -0500] joelmoss: for development
+[2013-12-03 11:39:43 -0500] joelmoss: but what about Berkshelf?
+[2013-12-03 11:39:53 -0500] joelmoss: doesn't seem to like a single repo for all cookbooks
+[2013-12-03 11:40:12 -0500] joelmoss: https://github.com/berkshelf/berkshelf/issues/535#issuecomment-18123272
+[2013-12-03 11:40:45 -0500] flaccid__: i do development with single repos per cookbook fine,always better than shared
+[2013-12-03 11:40:55 -0500] flaccid__: i don't use berkshelf to comment there. i use librarian-chef
+[2013-12-03 11:41:20 -0500] flaccid__: what specific problem are you trying to solve joelmoss?
+[2013-12-03 11:42:54 -0500] joelmoss: I'm not
+[2013-12-03 11:43:03 -0500] joelmoss: just wanting to find the best way
+[2013-12-03 11:44:37 -0500] flaccid__: single repositories means each cookbook has its own SDLC
+[2013-12-03 11:44:51 -0500] flaccid__: that seems better than sharing
+[2013-12-03 11:45:12 -0500] flaccid__: after all opscode switched for reasons like that
+[2013-12-03 11:47:39 -0500] joelmoss: SDLC?
+[2013-12-03 11:47:44 -0500] flaccid__: yes
+[2013-12-03 12:03:16 -0500] ptrf: joelmoss: I'm using berksfile, it works alright for me - you should check out this blog post, it might help shed some light on how to use berksfile: http://jtimberman.housepub.org/blog/2012/11/19/chef-repository-berkshelf-conversion/
+[2013-12-03 12:03:36 -0500] joelmoss: yeah I know how to use it
+[2013-12-03 12:05:53 -0500] flaccid__: case closed it seems
+[2013-12-03 12:10:10 -0500] homegrown: I have a working cookbook which now also requires an apache frontedn to it, when i add "include_recipe "apache2::mod_dav_svn" in my recipe it errors "ERROR: Cannot find a resource for apache_module on ubuntu version 12.04"
+[2013-12-03 12:10:27 -0500] homegrown: Any clues, if I run them seperately they run OK
+[2013-12-03 12:10:51 -0500] flaccid__: homegrown: does your cookbook depend on apache2 in metadata.rb ?
+[2013-12-03 12:11:03 -0500] homegrown: possibly not
+[2013-12-03 12:11:11 -0500] flaccid__:  that would do it
+[2013-12-03 12:11:24 -0500] homegrown: perfect thanks!
+[2013-12-03 12:11:46 -0500] flaccid__: np
+[2013-12-03 12:12:57 -0500] spheromak: joelmoss: ownsides to single repo is that its all now one project. every change is potentially a conflict with someone elses chnage... Each cook should have its own life in testing IMO. If you want to aggregate them into a single place thats what librarian/berks can do for you. I lived single repo back in the early days, and 1 repo per cook is much more sane IMO when you have many people working on things.
+[2013-12-03 12:14:18 -0500] flaccid__: thus own sdlc and version control
+[2013-12-03 12:14:39 -0500] joelmoss: yup, think I'm gonna stay with single repo per cookbook
+[2013-12-03 12:14:59 -0500] spheromak: flaccid__: yea
+[2013-12-03 12:18:01 -0500] joelmoss: anyone using chef-zero for dev and testing?
+[2013-12-03 12:20:13 -0500] m4rcu5: are you guys btw using a chef-server for testing, or does each dev run his on chef-server with some vms for testing or how do you test searches etc?
+[2013-12-03 12:20:40 -0500] m4rcu5: i now incounter the problem where we all use the same testing server, but a broken cookbook of one developer stalls the others testing
+[2013-12-03 12:21:01 -0500] joelmoss: m4rcu5: I was just looking at https://github.com/jonlives/knife-spork for that
+[2013-12-03 12:21:18 -0500] drrk_: did the install.sh move from http://www.opscode.com/chef/ to https://www.opscode.com/chef/ recently?
+[2013-12-03 12:21:52 -0500] drrk_: because it seems only http_proxy not https_proxy is set in the chef-full.erb template
+[2013-12-03 12:22:00 -0500] m4rcu5: joelmoss: whats sprok bringing into the mix? its managing environments and versions right?
+[2013-12-03 12:22:58 -0500] joelmoss: m4rcu5: http://codeascraft.com/2013/08/02/infrastructure-upgrades-with-chef/
+[2013-12-03 12:24:07 -0500] drrk_: ah, I found the bug, CHEF-4513
+[2013-12-03 12:25:14 -0500] m4rcu5: joelmoss: thats my acceptance procedure as well, knife flip and spork make sense if everything is on one server, but how is the development side looking?
+[2013-12-03 12:25:51 -0500] joelmoss: dunno, but that is what I am looking at too
+[2013-12-03 12:26:02 -0500] joelmoss: up until now, its been only me using chef
+[2013-12-03 12:26:22 -0500] joelmoss: but now my team are about to use it all, and I need some standards in place to help us develop with chef
+[2013-12-03 12:26:28 -0500] m4rcu5: joelmoss: thats when i started to use a testing chef server, but now we have about 5 people working on it, we interfere :)
+[2013-12-03 12:26:47 -0500] joelmoss: yeah so I'm wanting to avoid the use of a chef server for dev and testing
+[2013-12-03 12:26:55 -0500] joelmoss: and instead rely on Vagrant
+[2013-12-03 12:27:25 -0500] m4rcu5: joelmoss: but vagrant at a local desktop?
+[2013-12-03 12:31:18 -0500] joelmoss: yeah of course
+[2013-12-03 12:31:25 -0500] joelmoss: thats what its meant for
+[2013-12-03 12:32:02 -0500] m4rcu5: joelmoss: but won't your desktop be to light? for acample if im testing i have upward of 8 vm's running
+[2013-12-03 12:32:37 -0500] m4rcu5: testing if all cookboks work together and do not break
+[2013-12-03 12:33:01 -0500] joelmoss: just run one at a time
+[2013-12-03 12:33:28 -0500] joelmoss: if you are trying to test several cookbooks at once, then I would say you are doing it wrong
+[2013-12-03 12:33:39 -0500] joelmoss: a cookbook should be able to be run on its own
+[2013-12-03 12:37:21 -0500] m4rcu5: joelmoss: depends, if you want to test how the NFS server creates exports for the webservers etc, that needs more machines
+[2013-12-03 12:38:41 -0500] joelmoss: then I think Docker is your friend
+[2013-12-03 12:39:41 -0500] flaccid__: just do vagrant multiple machines
+[2013-12-03 12:43:17 -0500] m4rcu5: hhm, new stuff to test :)
+[2013-12-03 13:09:00 -0500] lewiz: Any devs able to help me out.  I'm trying to patch the deploy resource to work on Windows.  I've included a 'require "chef/mixin/file_class"' and am trying to use file_class.symlink in place of FileUtils.ln_sf but receive "Cannot find a resource for file_class on windows version 6.2.9200".  My require must be wrong somehow... but I can't understand how/why.  Any help much appreciated
+[2013-12-03 13:14:54 -0500] lewiz: Okay, I was being an idiot.  Seems I also need to issue an include directive
+[2013-12-03 13:34:13 -0500] storme_away: working with gem_package, how do you specify that you want the latest version installed? using 'version "latest"' errors with: ArgumentError: Illformed requirement ["latest"]
+[2013-12-03 13:39:53 -0500] gregkare: You shouln't depend on a gem's latest version without knowing what changed anyway; if you omit the version you'll get the latest as of this moment, but then all your servers have different versions depending on when they installed that gem
+[2013-12-03 13:43:17 -0500] bryanl: I'm working the with opscode nagios cookbook, and it doesn't seem to work very well out of the box if you choose to use nginx as your web server. It would be easier to find issues if a link to opscode's issue tracker was in the readme.
+[2013-12-03 13:55:07 -0500] henk_: Hi people, Is it possible to add an timeout in a recipe for stopping a windows services? I've got this custom made services that waits untill all sessions are gone, and sometimes chef gets an "execution expired" on it
+[2013-12-03 14:05:52 -0500] storme_away: gregkare: it's only on one box (wrapper cookbook recipe specific to one node), i just want to keep foodcritic up to date for jenkins runs
+[2013-12-03 14:09:29 -0500] gregkare: storme_away: Have you tried using the :upgrade action without specifying the version? I still don't think it's a good idea, but it should work
+[2013-12-03 14:17:54 -0500] henk_: don't want to spam, but i'll put my question here again. perhaps someone missed it. ;).  Is it possible to add an timeout in a recipe for stopping a windows services? I've got this custom made services that waits untill all sessions are gone, and sometimes chef gets an "execution expired" on it
+[2013-12-03 14:28:51 -0500] ctote: Hello
+[2013-12-03 14:29:01 -0500] ctote: I need a bit of help if someone has some time
+[2013-12-03 14:29:33 -0500] CPS: just ask your question
+[2013-12-03 14:29:34 -0500] ctote: Is this the correct place to ask questions?
+[2013-12-03 14:29:37 -0500] ctote: Ok :)
+[2013-12-03 14:30:04 -0500] atomic-penguin: Its never correct to ask if you can ask a question, it just wastes space and time
+[2013-12-03 14:30:41 -0500] ctote: I'm trying to run the knife bootstrap on a remote server, and it gets to the point where it downloads the .msi - once that's finished, I get the following error:  ERROR: WinRM::WinRMHTTPTransportError: Bad HTTP response returned from server (500).
+[2013-12-03 14:31:01 -0500] ctote: I've ran winrm set winrm/config @{MaxTimeoutms="1800000"}, but that didn't do anything different
+[2013-12-03 14:32:22 -0500] CPS: 500 is not a helpful error
+[2013-12-03 14:33:07 -0500] cpuguy83: ctote: Hang on, I've got a script to setup WinRM
+[2013-12-03 14:33:40 -0500] henk_: me to.
+[2013-12-03 14:33:42 -0500] henk_: ;)
+[2013-12-03 14:33:49 -0500] binamov: me 3 :P
+[2013-12-03 14:34:01 -0500] binamov: https://gist.github.com/binamov/6499320
+[2013-12-03 14:34:22 -0500] henk_: did you also tell winrm to use AllowUnencrypted and @{Basic
+[2013-12-03 14:34:43 -0500] binamov: ctote see my link above
+[2013-12-03 14:34:45 -0500] henk_: binamov beat me to it
+[2013-12-03 14:34:52 -0500] BryanWB: ohai chefs!
+[2013-12-03 14:35:10 -0500] binamov: ohai BryanWB :)
+[2013-12-03 14:35:18 -0500] cpuguy83: ctote: Also, make sure the firewall profile is not set to public.  WinRM will not work on public profiles.
+[2013-12-03 14:35:40 -0500] BryanWB: does chef provide any ways to get at more granular OS/distro info? such as release #, major version, minor version?
+[2013-12-03 14:35:55 -0500] BryanWB: i always access this via  node[:platform_version].to_i
+[2013-12-03 14:35:57 -0500] ctote: I did everything on this page:  http://docs.opscode.com/plugin_knife_windows.html
+[2013-12-03 14:36:12 -0500] cpuguy83: BryanWB: ohai has all that
+[2013-12-03 14:36:30 -0500] BryanWB: or node[:platform_version].split('.')[-1] for minor version
+[2013-12-03 14:36:37 -0500] henk_: does anyone know the answer to my question?  Is it possible to add an timeout in a recipe for stopping a windows services? I've got this custom made services that waits untill all sessions are gone, and sometimes chef gets an "execution expired" on it
+[2013-12-03 14:36:51 -0500] atomic-penguin: BryanWB, there is also an lsb_release ohai attribute
+[2013-12-03 14:37:08 -0500] BryanWB: cpuguy83: ur right i should just look thru my ohai results, this is actually just for reference as i am building a separate system apart from chef
+[2013-12-03 14:37:24 -0500] cpuguy83: ctote: Make sure your network profile is not public
+[2013-12-03 14:37:24 -0500] BryanWB: atomic-penguin: uff, lsb gives me nightmares :)
+[2013-12-03 14:37:44 -0500] CPS: henk_: you may be able to hack it by adding whatever that return code is to the block's return code list
+[2013-12-03 14:38:01 -0500] ctote: cpuguy83: I'm not sure what that means.
+[2013-12-03 14:38:01 -0500] CPS: we have a service that always times out
+[2013-12-03 14:38:51 -0500] cpuguy83: ctote: In WIndows, when you first connect to a new network it pops up a dialog and asks you to select public, home, or work
+[2013-12-03 14:39:13 -0500] cpuguy83: ctote: Even with the firewall disabled, WinRM will not work if you selected public (or didn't select anything at all)
+[2013-12-03 14:39:19 -0500] henk_: cps, do you have an example i could use?
+[2013-12-03 14:39:46 -0500] ctote: Ah ok
+[2013-12-03 14:39:46 -0500] atomic-penguin: BryanWB, I don't know what you're trying to do, but node.lsb gives you more information so to speak.  https://gist.github.com/atomic-penguin/7770193
+[2013-12-03 14:39:51 -0500] cpuguy83: So you'll need to change that possible
+[2013-12-03 14:40:05 -0500] CPS: returns [0, 1605]
+[2013-12-03 14:40:09 -0500] cpuguy83: ctote: Also, make sure you are running those winrm setup commands with elevated privileges
+[2013-12-03 14:40:15 -0500] CPS: in execute
+[2013-12-03 14:40:40 -0500] henk_: ok, i only use the service statement
+[2013-12-03 14:40:40 -0500] CPS: 1605 is what msiexec returns if it's already installed
+[2013-12-03 14:41:02 -0500] CPS: uninstalled, rather
+[2013-12-03 14:41:35 -0500] CPS: see http://docs.opscode.com/chef/resources.html#execute
+[2013-12-03 14:41:43 -0500] ctote: cpuguy83: Mine is set to Domain network
+[2013-12-03 14:42:46 -0500] henk_: Thanks cps. i'll look into it.
+[2013-12-03 14:45:00 -0500] ctote: maybe it's worth mentioning I have to use HTTP instead of HTTPS - HTTPS is refused, I assume because I haven't opened the port on the server
+[2013-12-03 14:46:33 -0500] ptrf: hmm, my berkshelf is acting up now
+[2013-12-03 14:46:37 -0500] ptrf: ==> parsing Chef response body as JSON
+[2013-12-03 14:46:38 -0500] ptrf: Cookbook 'monitor' not found in any of the default locations
+[2013-12-03 14:46:48 -0500] ptrf: knife cookbook search monitor works fine
+[2013-12-03 14:46:59 -0500] cpuguy83: ctote: Well, make sure not to use it over the internet
+[2013-12-03 14:47:00 -0500] CPS: ctote: did you configure winrm to use unencrypted?
+[2013-12-03 14:47:14 -0500] ptrf: running berks in the cookbook that includes monitor works
+[2013-12-03 14:47:24 -0500] ptrf: but from the chef-repo, it's a no go
+[2013-12-03 14:47:43 -0500] cpuguy83: ctote: winrm set winrm/config/service '@{AllowUnencrypted="true"}'
+[2013-12-03 14:47:50 -0500] ptrf: even when I drop the version requirement
+[2013-12-03 14:48:00 -0500] ctote: Yes, I ran everything on this page:  http://docs.opscode.com/plugin_knife_windows.html
+[2013-12-03 14:48:05 -0500] cpuguy83: ctote: Definitely make sure your connection to the box is otherwise encrypted
+[2013-12-03 14:48:10 -0500] ctote: To update these settings, run the following commands:  $ winrm set winrm/config/winrs @{MaxMemoryPerShellMB="300"} and:  $ winrm set winrm/config @{MaxTimeoutms="1800000"} and:  $ winrm set winrm/config/service @{AllowUnencrypted="true"} and then:  $ winrm set winrm/config/service/auth @{Basic="true"}
+[2013-12-03 14:48:49 -0500] cpuguy83: ctote: Did you do: winrm quickconfig -q ?
+[2013-12-03 14:48:52 -0500] CPS: ctote: see if you can dump the winrm settings. i vaguely remember some of those commands not actually taking effect for me
+[2013-12-03 14:49:12 -0500] CPS: they're in the registry somewhere if i recall correctly
+[2013-12-03 14:49:13 -0500] ctote: Config     MaxEnvelopeSizekb = 150     MaxTimeoutms = 1800000     MaxBatchItems = 32000     MaxProviderRequests = 4294967295     Client         NetworkDelayms = 5000         URLPrefix = wsman         AllowUnencrypted = false         Auth             Basic = true             Digest = true             Kerberos = true             Negotiate = true             Certificate = true             CredSSP = false         DefaultPorts             HT
+[2013-12-03 14:49:22 -0500] CPS: AllowUnencrypted = false
+[2013-12-03 14:49:26 -0500] ctote: cpuguy83: Yes, I think I did
+[2013-12-03 14:49:39 -0500] cpuguy83: ctote: Looks like you aren't allowing unencrypted connections
+[2013-12-03 14:49:39 -0500] CPS: there's your problem
+[2013-12-03 14:50:29 -0500] ctote: How can I fix that? I just tried running the command again, and it didn't change
+[2013-12-03 14:50:50 -0500] CPS: figure out where in the registry it is and flip it
+[2013-12-03 14:50:51 -0500] ctote: Maybe because it's set for the service?
+[2013-12-03 14:50:52 -0500] ctote: Service     RootSDDL = O:NSG:BAD:P(A;;GA;;;BA)S:P(AU;FA;GA;;;WD)(AU;SA;GWGX;;;WD)     MaxConcurrentOperations = 4294967295     MaxConcurrentOperationsPerUser = 15     EnumerationTimeoutms = 60000     MaxConnections = 25     MaxPacketRetrievalTimeSeconds = 120     AllowUnencrypted = true     Auth         Basic = true         Kerberos = true         Negotiate = true         Certificate = false         CredSSP = false         CbtHardeningL
+[2013-12-03 14:51:46 -0500] ctote: do I also need to do set winrm/config @{AllowUnencrypted=true} ?
+[2013-12-03 14:51:56 -0500] ctote: as opposed to winrm/config/service
+[2013-12-03 14:53:36 -0500] ctote: nvm I'm a dummie
+[2013-12-03 14:55:42 -0500] ctote: So it looks like AllowUnencrypted is true now, but same 500 error issue after the remote node has downloaded the .msi
+[2013-12-03 14:57:11 -0500] CPS: ctote: that setting exists for service and client - maybe try setting it for both?
+[2013-12-03 14:58:08 -0500] ctote: CPS: no dice   :/
+[2013-12-03 15:13:06 -0500] ctote: what is the HTTPS listener for?
+[2013-12-03 15:27:13 -0500] ctote: Can someone tell me what the significance of these steps are?     ---     The knife windows plugin supports Microsoft Windows domain authentication. This requires:  An SSL certificate on the target node The certificate details can be viewed and its thumbprint hex values copied To create the listener over HTTPS, run the following command:
+[2013-12-03 15:27:31 -0500] ctote: I haven't done that step, I'm not sure if I need to?
+[2013-12-03 15:28:37 -0500] s2r2: BryanWB: by any chance, could you publish chef-rewind with the fixes merged last month?
+[2013-12-03 15:28:49 -0500] BryanWB: s2r2: oh fuck, sure
+[2013-12-03 15:29:14 -0500] BryanWB: s2r2: thought i had
+[2013-12-03 15:29:46 -0500] spheromak: mornign #chef
+[2013-12-03 15:33:05 -0500] cpuguy83: ctote: If you want to encrypt the winrm connection then you need to do that, otherwise no need.
+[2013-12-03 15:33:31 -0500] cpuguy83: ctote: If you are going to be going across the internet, or even a network that other people have access to you should be using HTTPS
+[2013-12-03 15:36:34 -0500] ctote: Ok - I can deal with security later I suppose. For now, I'd like to just get going with this stuff
+[2013-12-03 15:37:16 -0500] ctote: I can't even get the bootstrap to complete though
+[2013-12-03 15:37:59 -0500] cpuguy83: Or if you really want to look at it... Google found that the NSA had been snooping on their internal network comms, which were unencrypted because they were completely internal/server-to-server.
+[2013-12-03 15:38:05 -0500] cpuguy83: So, encrypt all the things!
+[2013-12-03 15:38:58 -0500] cpuguy83: ctote: bootstrap script didn't work for me either.  I just rsync the files up and login using the Ruby winrm gem
+[2013-12-03 15:40:20 -0500] ctote: I don't know any of what you're talking about :)
+[2013-12-03 15:40:20 -0500] Otterley: ohai chefs
+[2013-12-03 15:40:36 -0500] Otterley: what's the best way to access recipe-level functions inside a resource declaration?
+[2013-12-03 15:41:08 -0500] s2r2: BryanWB: thanks :)
+[2013-12-03 15:41:14 -0500] cpuguy83: ctote: https://gist.github.com/cpuguy83/7771365
+[2013-12-03 15:42:59 -0500] spheromak: Otterley: are you running into an issue ? do you have a gist ?
+[2013-12-03 15:43:09 -0500] Otterley: I can whip up a gist
+[2013-12-03 15:43:16 -0500] ctote: cpuguy83: so you hardcode your password?
+[2013-12-03 15:43:44 -0500] cpuguy83: ctote: For this yeah, because it's about 150 digital signage players all with the same password, not servers
+[2013-12-03 15:44:09 -0500] Otterley: spheromak, https://gist.github.com/mfischer-zd/bb9e0ced25a4aaed82bc
+[2013-12-03 15:44:37 -0500] Otterley: for whatever reason, the url method isn't available inside the block passed to remote_file
+[2013-12-03 15:47:38 -0500] spheromak: yea it's scoped local to wherever the block is being executed (in Chef::Provider::RemoteFile probably)
+[2013-12-03 15:47:59 -0500] spheromak: you can try namespacing:  source Chef::Recipe.url
+[2013-12-03 15:48:35 -0500] spheromak: or ::Chef::Recipe.url  General I like to add my custom methods to some subclass of Chef::Recipe or in a library as a singleton
+[2013-12-03 15:49:14 -0500] Otterley: spheromak, does declaring a function in a recipe cause it to be defined as a Chef::Recipe class method?
+[2013-12-03 15:51:19 -0500] spheromak: if it's not
+[2013-12-03 15:51:33 -0500] ctote: cpuguy83: do you know what this means when I try to do `gem install winrm`?  read server certificate B: certificate verify failed (https://rubygems.org/latest_specs.4.8.gz
+[2013-12-03 15:51:34 -0500] spheromak: and it may not be. I have to go look at the loader
+[2013-12-03 15:51:53 -0500] Otterley: spheromak, I'd hope not, too much chance of pollution
+[2013-12-03 15:52:23 -0500] cpuguy83: ctote: Not able to verify rubygem's SSL cert for some reason.
+[2013-12-03 15:52:53 -0500] Otterley: spheromak, I would just like some example code where I can define a very simple method that can be used inside a resource and doesn't pollute any Chef namespace
+[2013-12-03 15:53:05 -0500] Otterley: defining methods in Chef::Recipe sounds like a Bad Idea
+[2013-12-03 15:58:16 -0500] spheromak: Otterly can build any singleton class and call mehtods on it. can pass node or run_context to it if you need @ node objects. in this way you can prevent any pollution. or by extending the Dsl with your own methdos in a class..
+[2013-12-03 15:58:18 -0500] spheromak: http://docs.opscode.com/essentials_cookbook_libraries.html
+[2013-12-03 15:59:55 -0500] spheromak: Otterley: also commented on your gist, which should work inside a recipe
+[2013-12-03 16:00:43 -0500] Otterley: yeah, that's just hideous :(
+[2013-12-03 16:01:13 -0500] Otterley: as far as I'm concerned, I declared the function definition in an enclosing scope; it should just work
+[2013-12-03 16:02:17 -0500] spheromak: cept the resource block is called outside that scope
+[2013-12-03 16:02:47 -0500] Otterley: that usually doesn't matter, to my knowledge
+[2013-12-03 16:02:53 -0500] Otterley: at least in most Ruby
+[2013-12-03 16:03:28 -0500] spheromak: im not 100% on exactly whats going on here tbh, by no means the expert. Just what i've done as I've plowed through trying to not pollute, and get some dry stuff into recipes
+[2013-12-03 16:03:57 -0500] Otterley: *nods*
+[2013-12-03 16:04:42 -0500] Otterley: oh, I think I'm mistaken - variables are visible but not necessarily functions
+[2013-12-03 16:06:14 -0500] sparr_: When a chef client run completes I would like it to update the motd on the node to reflect the results, whether it completed or encountered an error, and when. Is there an existing recipe for that?
+[2013-12-03 16:06:50 -0500] spheromak: sparr_: you can use an event handler for that. which will work if the run failed. doing it inside a recipe runs the chance that it never actually does the write on fail.
+[2013-12-03 16:07:09 -0500] spheromak: sparr_: "report handler"
+[2013-12-03 16:07:17 -0500] spheromak: http://docs.opscode.com/chef/essentials_handlers.html
+[2013-12-03 16:08:36 -0500] sparr_: spheromak: thanks, I'll look into that
+[2013-12-03 16:20:49 -0500] ctote: cpuguy83: Do you have to require 'winrm' for your script? I keep getting .rb:4:in `<main>': uninitialized constant WinRM (NameError)
+[2013-12-03 16:23:05 -0500] cpuguy83: ctote: Yep.
+[2013-12-03 16:23:33 -0500] cpuguy83: ctote: You must have got to the gist before I updated it with the require statement
+[2013-12-03 16:27:12 -0500] ctote: hrm
+[2013-12-03 16:27:22 -0500] ctote: I still get the same NameError
+[2013-12-03 16:28:00 -0500] cpuguy83: Can you gist what you have?
+[2013-12-03 16:28:50 -0500] ctote: https://gist.github.com/anonymous/7772324
+[2013-12-03 16:28:55 -0500] ctote: pretty much the exact as yours
+[2013-12-03 16:29:45 -0500] cpuguy83: That should do it.  Also,  I didn't put in the script how to get the files to the system (client.rb, validation.pem, and the chef installer), you'll need to do that on your own
+[2013-12-03 16:29:53 -0500] ctote: Sorry, I get this instead:  C:/Ruby193/lib/ruby/site_ruby/1.9.1/rubygems/custom_require.rb:36:in `require': cannot load such file -- winrm (LoadError)         from C:/Ruby193/lib/ruby/site_ruby/1.9.1/rubygems/custom_require.rb:36:in `require'         from C:/opscode/chef/chef_windows_boostrap.rb:1:in `<main>'
+[2013-12-03 16:30:20 -0500] cpuguy83: ctote: Sounds like it's not finding the gem
+[2013-12-03 16:31:55 -0500] ctote: even requiring the full path throws errors:  require 'C:\opscode\chef\embedded\lib\ruby\gems\1.9.1\gems\winrm-1.1.3\lib\winrm.rb'
+[2013-12-03 16:33:32 -0500] eherot: Re: the Java cookbook (https://github.com/opscode-cookbooks/java/blob/v1.15.4/recipes/openjdk.rb#L44).  Does anyone know why it only agrees to run update-alternatives when the java version gets a priority of 1061?  This seems to be preventing java 7 from being set as the default on my system (and I need it to be)
+[2013-12-03 16:43:33 -0500] ctote: cpuguy83: I'm lost here I think. https://gist.github.com/anonymous/7772591
+[2013-12-03 16:43:49 -0500] ctote: cpuguy83: I can't require even relative paths to winrm?
+[2013-12-03 16:44:47 -0500] cpuguy83: ctote: I wouldn't use require_relative.  Looks like you installed winrm into the Chef Ruby, but you are using a custom Ruby installation (not the Chef one)
+[2013-12-03 16:45:39 -0500] ctote: cpuguy83: how can I verify that?
+[2013-12-03 16:46:12 -0500] cpuguy83: ctote: I can see it in the exception you pasted in
+[2013-12-03 16:46:41 -0500] ctote: if I uninstall ruby 1.9.3 then, maybe it would work?
+[2013-12-03 16:47:01 -0500] ctote: I had downloaded ruby standalone at one point to mess around with
+[2013-12-03 16:48:03 -0500] CPS: anyone have experience setting up a ruby gem server? i can hit the root  of the server but /gems gives me a 404. the main index lists all the gems i expect to see
+[2013-12-03 16:50:07 -0500] ctote: cpuguy83: nevermind, now no .rb files are recognized :(
+[2013-12-03 17:02:53 -0500] glen: why is that knife bootstrap -j takes json STRING, but chef-client -j takes json URL
+[2013-12-03 17:03:53 -0500] glen: http://sprunge.us/AjgV
+[2013-12-03 17:05:02 -0500] coderanger: btm: Who is in charge of ohai's EC2 bits right now?
+[2013-12-03 17:07:25 -0500] jmkacz: Ohai chefs. I'm not sure if this exists in chef, but is there a way to set a constant that can be referenced by the recipes and templates within a given cookbook? Or, would one have to make due with the node attributes.
+[2013-12-03 17:13:18 -0500] benjohnson77_: hi, im having trouble with chef client hanging
+[2013-12-03 17:13:20 -0500] benjohnson77_: https://gist.github.com/benjohnson77/7773217
+[2013-12-03 17:14:23 -0500] benjohnson77_: any ideas what can cause it to hang ... happens with knife solo prepare and knife bootstrap using the server.
+[2013-12-03 17:15:40 -0500] benjohnson77_: probably an Id10T error ... but I need some help to figure out what it is
+[2013-12-03 17:18:52 -0500] benjohnson77_: if I end the client run then subsequent runs fail with "client busy error"
+[2013-12-03 17:32:57 -0500] bryanl: What strategy should I use for booting more than one server at once with knife ec2?
+[2013-12-03 17:34:55 -0500] teukka: benjohnson77_: check that you don't have other chef runs going on. or maybe some crashed but left the lock file...
+[2013-12-03 17:36:31 -0500] ctote: cpuguy83: I was able to get your script to run (finally) but now I get this:  Bad HTTP response returned from server (401). (WinRM::WinRMHTTPTransportError)
+[2013-12-03 17:39:48 -0500] benjohnson77_: teukka: no other runs going. where is lock file ... I end up rebooting the node to clear the lock and that works
+[2013-12-03 17:52:38 -0500] holoway: good morning open source friends
+[2013-12-03 17:52:49 -0500] holoway: (or afternoon, or evening, depending on where you are on the planet)
+[2013-12-03 17:53:12 -0500] teukka: benjohnson77_: probably in /var/cache/chef/ by default. or something like that
+[2013-12-03 17:53:31 -0500] teukka: holoway: and depends on the planet, too
+[2013-12-03 17:54:36 -0500] benjohnson77_: teukka: an ideas what can cause it to hang
+[2013-12-03 17:58:05 -0500] teukka: benjohnson77_: dunno. sounds weird if there was no other process that had the lock file open
+[2013-12-03 18:10:59 -0500] billbur: guys my privarte chef is not letting me create roles via the webui: 2013-12-03_18:08:49.90281 [2013-12-03T13:08:49-05:00] ERROR: Connection refused connecting to 127.0.0.1:8000 for /roles, retry 2/5
+[2013-12-03 18:11:12 -0500] billbur: whats the deal, no firewall running, I am able to perform other operations through the webui, such as deleting databags and nodes
+[2013-12-03 18:13:07 -0500] gchristensen: is your private chef server located at 127.0.0.1:8000?
+[2013-12-03 18:13:30 -0500] billbur: no it has a hostname
+[2013-12-03 18:13:44 -0500] billbur: but i supposed it was possible webui communications used loopback
+[2013-12-03 18:13:45 -0500] gchristensen: and does that hostname resolve to 127.0.0.1?
+[2013-12-03 18:15:10 -0500] billbur: no it resolves to its actual ip address
+[2013-12-03 18:15:12 -0500] holoway: billbur: you probably need to talk with opscode support - odds are that you have something in your private-chef.rb
+[2013-12-03 18:21:41 -0500] ssd7: billbur: If you shoot an email to support@opscode.com we can help take a look.  To speed things up you may want to include private-chef-ctl status and attach /var/log/opscode/opscode-erchef/current to your mail.
+[2013-12-03 18:22:06 -0500] billbur: thanks, i will try this.
+[2013-12-03 18:29:49 -0500] holms: when setting path: "./site-cookbooks"' under cookbook in Berksfile, does berkshelf reads git commit or just takes a file?
+[2013-12-03 18:30:21 -0500] holms: i have in site-cookbokos and in cookbooks dir (this is overrided insttead of ~.berks), which has same file, and yet it still doess old chanes
+[2013-12-03 18:30:26 -0500] holms: old scenario*
+[2013-12-03 18:32:51 -0500] jblack: Ok, so, chef-solo cook HOSTNAME    defaults to nodes/HOSTNAME.json,  and I can override that with the -j option.
+[2013-12-03 18:33:18 -0500] jblack: That's cool and all.  Is there a standard json file that I can put configuration data that's common to all nodes
+[2013-12-03 18:33:22 -0500] holms: it's deathh  time =(
+[2013-12-03 18:36:38 -0500] holms: LOL why chef-server has 3 versions of cookbook :DDD
+[2013-12-03 18:38:02 -0500] teukka: jblack: you can use for example roles (or role cookbooks) which you include to the run lists of all nodes
+[2013-12-03 18:38:46 -0500] jblack: Ok. I'll read up on roles
+[2013-12-03 18:41:06 -0500] teukka: holms: not sure I get your question. but berkshelf needs path to the cookbook's root dir, not to "cookbooks" upper-level dir. and it reads the metadata.rb for the dependencies
+[2013-12-03 18:42:07 -0500] teukka: jblack: btw `chef-solo cook` is not a thing. maybe `knife solo cook`? ;)
+[2013-12-03 18:43:06 -0500] holms: teukka: made  knife cookbook show logstash -- showed me 3   versions of cookbook. master, 0.7.0 and 0.6.1,, and it's somehow was    using 0.7.0
+[2013-12-03 18:43:11 -0500] jblack: yeah, I meant knife-solo cook. =)
+[2013-12-03 18:43:33 -0500] jblack: knife solo cook, even
+[2013-12-03 18:43:33 -0500] holms: jblack: take a lookk some day github.com/holms/chef-starter
+[2013-12-03 18:44:05 -0500] jblack: Thanks. I've been using chef in a managed environment for a few months. Decided it's about time to round out the rest of chef.
+[2013-12-03 18:44:38 -0500] teukka: jblack: and the `-j` option currently doesn't override or even merge the json with nodes/host.json. you can pass a specific json file as a second argument though
+[2013-12-03 18:45:22 -0500] teukka: jblack: or use `--node-name/-N`
+[2013-12-03 18:45:46 -0500] holms: taking about node's mergin from config, you can forget about this :D
+[2013-12-03 18:46:08 -0500] holms: https://github.com/holms/chef-starter/issues/33
+[2013-12-03 18:46:19 -0500] holms: some guy gaved me chef plugin for merging node config
+[2013-12-03 18:46:28 -0500] holms: instead of completely overwrite node state
+[2013-12-03 18:46:41 -0500] jblack: Ok. Just so that you can tell what I'm looking to replace... I've been using vagrant and chef-solo recently.  I set up my vagrantfile to merge 3 json files.. a node.json that has data common to all nodes, a nodename.json that has the runlist and data specific to the particular node, and a third out-of-tree json file that holds passwords.  (Yes, I need to read up on databags)
+[2013-12-03 18:47:33 -0500] holms: jblack: you did discovered roles did you?/
+[2013-12-03 18:48:13 -0500] holms: http://learnchef.getharvest.com/introduction.html#mapping
+[2013-12-03 18:48:46 -0500] teukka: holms, jblack: here is an open knife-solo issue for merging `--json-attributes` with the nodes/hostname.json: https://github.com/matschaffer/knife-solo/issues/232
+[2013-12-03 18:48:52 -0500] jblack: Not intentially. I actually loaded up the three jsons, converted them to hashes and merged the hashes, and passed that into vagrant
+[2013-12-03 18:49:05 -0500] teukka: but I haven't found enough time/motivation to hack it up :/
+[2013-12-03 18:49:47 -0500] jblack: I think roles is a better way to do what I did.  My concern at the time was just stripping out redudnancy, and getting the passwords out of git.
+[2013-12-03 18:50:38 -0500] stormerider: Mixlib::ShellOut -- how do you check the return code without raising an exception?
+[2013-12-03 18:51:10 -0500] teukka: jblack: yes, I would use roles or "role cookbooks" to collect common attributes and run lists
+[2013-12-03 18:52:07 -0500] jblack: presumably if I put runlists in roles and in a node's json file, knife will merge them.  I suppose I should the docs first before I start asking questions. =)
+[2013-12-03 18:52:10 -0500] teukka: jblack: for passwords etc you can also use encrypted data bags. just distribute the key to all developers somehow and not commit it to git
+[2013-12-03 18:53:18 -0500] jblack: Ok. I think I only skipped databags because I don't think rightscale supported them at the time (if even now)
+[2013-12-03 19:00:18 -0500] miah: sup
+[2013-12-03 19:08:04 -0500] rhys: is there a way to set mutli-line attributes?
+[2013-12-03 19:08:07 -0500] rhys: or is that what databags are for
+[2013-12-03 19:08:44 -0500] CPS: rhys: look up how to do multi line variables in ruby
+[2013-12-03 19:23:18 -0500] ctote: Is there somewhere else I should go for help with Bad HTTP response returned from server (401). (WinRM::WinRMHTTPTransportError)?
+[2013-12-03 19:43:10 -0500] ajkerr: Hi all, some of our EC2 instances are failing to provision all of the sudden.  chef-solo hangs immediately after printing out its version string.  Any ideas?
+[2013-12-03 19:54:41 -0500] juliancdunn: ajkerr: the ec2 metadata service could be down
+[2013-12-03 19:54:52 -0500] juliancdunn: at which point, Ohai will block on a network call to it
+[2013-12-03 19:55:02 -0500] ajkerr: ohai is definitely the culprit
+[2013-12-03 19:56:41 -0500] a13x212: how do people deal with downloading large files as part of a chef run?
+[2013-12-03 19:58:10 -0500] stormerider: a13x212: remote_file?
+[2013-12-03 19:58:13 -0500] Skeletor1: I dont, if im using aws I bake that into the ami, if im using something like cobbler I let that happen in the bootstrap of the host before a chef run occurs
+[2013-12-03 19:59:36 -0500] ajkerr: ohai is blocking, but I can access the metadata service via curl.
+[2013-12-03 19:59:53 -0500] stormerider: download it with remote_file and a only_if { doesn't exist already } and it's fine, unless you're bootstrapping new machines for like autoscaling... in which case, add the chef recipe, run it, then bake a new ami... best of both worlds.
+[2013-12-03 20:00:03 -0500] juliancdunn: ajkerr: are you sure you can access all the URLs it's trying to load?
+[2013-12-03 20:00:15 -0500] juliancdunn: you can run ohai -ldebug to see what it's attempting to do
+[2013-12-03 20:02:19 -0500] ajkerr: it looks like it's getting the ec2 metadata ok.  The last line that appears before hanging is:  [2013-12-03T20:01:22+00:00] DEBUG: Loading plugin rackspace
+[2013-12-03 20:03:10 -0500] stormerider: why are you loading rackspace ohai plugin on ec2?
+[2013-12-03 20:03:57 -0500] juliancdunn: ohai will load all plugins whether they're needed or not
+[2013-12-03 20:04:15 -0500] juliancdunn: ajkerr: you could try disabling the 'rackspace' plugin in your client.rb to see if that helps
+[2013-12-03 20:04:22 -0500] stormerider: ah. well, if it's blocking on rackspace, probably want to block it, yeah.
+[2013-12-03 20:04:23 -0500] juliancdunn: Ohai::Config[:disabled_plugins] = ["rackspace"]
+[2013-12-03 20:05:06 -0500] stormerider: i thought it only loaded the cload plugins if it detected something to indicate that it was using that provider
+[2013-12-03 20:05:28 -0500] ajkerr: it seems to be hanging in has_rackspace_metadata?
+[2013-12-03 20:06:22 -0500] ajkerr: how can i disable the plugin with chef-solo?  add that line to solo.rb?
+[2013-12-03 20:06:54 -0500] juliancdunn: ajkerr: yes, I believe that will work
+[2013-12-03 20:07:03 -0500] juliancdunn: all that has_rackspace_metadata? does is shell_out to "xenstore-read vm-data/provider_data/provider"
+[2013-12-03 20:07:07 -0500] juliancdunn: so if that command is blocking for some reason...
+[2013-12-03 20:07:55 -0500] juliancdunn: stormerider: it'll load & run all plugins, but won't collect any data if the preconditions aren't met (in this case, looks_like_rackspace?)
+[2013-12-03 20:08:47 -0500] stormerider: ah, ok. so in this case, it's the attempt to see if it's on rackspace that's causing the blocking operation, not trying to access non-existant metadata resources
+[2013-12-03 20:08:59 -0500] juliancdunn: right
+[2013-12-03 20:09:13 -0500] juliancdunn: I immediately jumped to the Ockham's Razor conclusion, since I've seen that a lot :-P
+[2013-12-03 20:09:14 -0500] stormerider: ok, that makes more sense to me, thanks.
+[2013-12-03 20:14:38 -0500] juliancdunn: ctote: I usually poke around in the Windows event log to see what's up
+[2013-12-03 20:17:37 -0500] ajkerr: juliancdunn: modifying solo.rb didn't work, and chef-solo doesn't use client.rb.  the strange thing is that xenstore-read isn't even installed on our systems (even the ones where ohai is working)
+[2013-12-03 20:18:51 -0500] stormerider: ajkerr: well, if that fails with a command not found it should be fine, as it will just go "ok, doesn't look like i'm on rackspace, moving on to the next plugin"
+[2013-12-03 20:19:15 -0500] ajkerr: agreed, but it's now hanging for some strange reason.
+[2013-12-03 20:19:50 -0500] stormerider: right, not sure what's different about those nodes, but it failing to exist isn't a bad thing
+[2013-12-03 20:20:05 -0500] juliancdunn: the next plugin that is loaded, for me, is eucalyptus
+[2013-12-03 20:20:23 -0500] juliancdunn: so I wonder...
+[2013-12-03 20:20:31 -0500] ajkerr: here's where the hang appears to be: from /usr/lib/ruby/gems/1.9.1/gems/ohai-6.18.0/lib/ohai/mixin/command.rb:230:in `popen4'
+[2013-12-03 20:21:29 -0500] juliancdunn: you could truss to see what file it's trying to popen
+[2013-12-03 20:23:23 -0500] ajkerr: it's the command for the rackspace metadata
+[2013-12-03 20:23:54 -0500] ajkerr: which doesn't exist.  it's blockign on a call to Process.wait(cid)
+[2013-12-03 20:27:25 -0500] stormerider: http://wiki.opscode.com/display/chef/Disabling+Ohai+Plugins only says the client.rb, and https://gist.github.com/nstielau/1323597 gives that link for chef-solo and chef-client
+[2013-12-03 20:36:59 -0500] ajkerr: hmm, ok, disabling rackspace did work, but now it hangs in the gce plugin.  very strange.
+[2013-12-03 20:42:06 -0500] molson: Are there any examples/pointers to using knife or the chef gem to get the attributes of a node as it would be during a chef run?
+[2013-12-03 20:45:00 -0500] ajkerr: i switched my servers to a different AZ and now they are working.  perhaps there's an EC2 issue, although I don't see anything on the status page.  thanks for your help.
+[2013-12-03 20:51:01 -0500] juliancdunn: ajkerr: no worries
+[2013-12-03 20:58:15 -0500] molson: eg, I'd like to generate a doc for each of my environments, each containing a list of the software and versions found in the run_list and attributes.
+[2013-12-03 21:00:06 -0500] chris6131: molson: you can use `knife node show -a <attribute> <node>` to see what the attributes were as of the end of the last run.
+[2013-12-03 21:00:26 -0500] chris6131: I don't know of any way to determine ahead of time what they "would" be during the next run
+[2013-12-03 21:02:18 -0500] molson: @chris6131 I suspect `knife node show` requires chef-server. I'm running Solo over here. "Just" (loaded word, I know) loading the environment and cookbook attribute files would be sufficient, I think? We don't have anything going on in the recipes.
+[2013-12-03 21:03:51 -0500] chris6131: molson: Ah yeah sorry I have no experience with chef-solo. Perhaps you could do something with `shef` (chef-shell in 11 I think?), but I wouldn't know what
+[2013-12-03 21:04:14 -0500] rhys: ahhh... why do a bunch of opscode recipes pull in build-essential?
+[2013-12-03 21:07:00 -0500] molson: No worries, and thanks for the suggestion just the same
+[2013-12-03 21:08:46 -0500] jidar: chef-server-ctl reconfigure is hanging on '* ruby_block[supervise_rabbitmq_sleep] action run' I found a blog that reads: /opt/chef-server/embedded/cookbooks/runit/recipes/default.rb needs to get something added on oracle linux, but I'm running amazon EC2 instances
+[2013-12-03 21:08:51 -0500] jidar: any ideas?
+[2013-12-03 21:26:55 -0500] joelteon: can you guys verify that this exists http://community.opscode.com/cookbooks/application
+[2013-12-03 21:28:07 -0500] holms: anybody with basic ruby skills??
+[2013-12-03 21:31:18 -0500] doomviking: it'd be a shame if nobody here had basic ruby skills
+[2013-12-03 21:35:42 -0500] surge_: Maybe i'm misunderstood the purpose of chef-shell but isn't the point of passing the "-z" option just to load the run_list, not to actually attempt to run through it?
+[2013-12-03 21:36:10 -0500] surge_: I want to test some commands without initiating a chef run as I normally do with regular ruby stuff in IRB
+[2013-12-03 21:37:03 -0500] surge_: I'm not seeing that behavior and it's trying to install fog
+[2013-12-03 21:37:42 -0500] surge_: Just to be sure it used the embedded gem binary, i passed "env PATH=/opt/chef/embedded/bin:$PATH sudo chef-shell -z" but it still can't find 'gem' in the PATH for some reason
+[2013-12-03 21:42:31 -0500] EJC_: does anyone know if the aws IAM role support is in the knife-ec2 plugin version 0.6.6?  I'm having a hard time tracking that down
+[2013-12-03 21:51:18 -0500] gyre007: guys is there any way to delete JUST contents of a directory ? not the directory itself ?
+[2013-12-03 21:52:29 -0500] zanshin: I'm trying to use application_java to deploy a war to Tomcat. I'm getting an `uninitialized constant Chef::DSL` error. Do I need to require something beyond `application_java` in my cookbook?
+[2013-12-03 21:53:44 -0500] surge_: gyre007: You can try using file "/path/to/dir/*" do action :delete end (i have no idea if this'll work though, you can poke around the chef code i suppose or try this on a vagrant VM)
+[2013-12-03 21:54:42 -0500] b-dean: where should I make issues for the mercurial cookbook? it used to be in opscode-cookbooks on git but now is poise/mercurial. it still has the standard opscode CONTRIBUTING file, but there is no mercurial component on the jira anymore.
+[2013-12-03 21:55:37 -0500] flaccid__: b-dean: ping coderanger
+[2013-12-03 21:56:24 -0500] gyre007: surge_: might try that...
+[2013-12-03 21:56:26 -0500] gyre007: cheers
+[2013-12-03 21:57:54 -0500] flaccid__: i sent an email to Sean OMeara asking to take over the openvpn cookbook but have not heard back yet. anyone know if he is on holidays or something?
+[2013-12-03 22:05:30 -0500] saida: hi
+[2013-12-03 22:13:52 -0500] joelteon: hey, i'm going crazy, if anybody could help me with this that would be cool https://gist.github.com/joelteon/41311b1ef9921853da8d
+[2013-12-03 22:20:48 -0500] prometheanfire: I am getting an error, a file load failure (so seems like a gem is missing)
+[2013-12-03 22:20:48 -0500] prometheanfire: cannot load such file -- mysql
+[2013-12-03 22:21:05 -0500] prometheanfire: /var/chef/cache/cookbooks/database/libraries/provider_database_mysql_user.rb:29:in `load_current_resource'
+[2013-12-03 22:21:15 -0500] prometheanfire: latest release version of the database cookbook
+[2013-12-03 22:22:02 -0500] prometheanfire: huh, mysql is missing from the embedded gems
+[2013-12-03 22:23:50 -0500] prometheanfire: so, I get this error when I try to call 'mysql_database_user'
+[2013-12-03 22:27:42 -0500] flaccid__: prometheanfire: sounds like it should be doing chef_gem 'mysql', perhaps there is a bug on it
+[2013-12-03 22:28:50 -0500] prometheanfire: that's my guess
+[2013-12-03 22:28:58 -0500] prometheanfire: I'm going to try that manually next
+[2013-12-03 22:29:57 -0500] stormerider: joelteon: i haven't tried the metadata berksfile syntax myself. that said, you did a berks update, but did you do a berks upload?
+[2013-12-03 22:30:29 -0500] joelteon: test-kitchen uploads automatically as far as i know
+[2013-12-03 22:31:35 -0500] stormerider: joelteon: also, the metadata.rb can be simplified as "%w{ application application_ruby application_nginx mysql database rbenv ruby_build runit }.each do |cb|" "  depends cb" "end"
+[2013-12-03 22:31:49 -0500] joelteon: yeah, i'm familiar with basic ruby
+[2013-12-03 22:32:59 -0500] flaccid__: hehe
+[2013-12-03 22:33:18 -0500] stormerider: ah, because foodcritic will complain a lot if you run it on the syntax you have now. not familiar with chef-zero to check what cookbooks it sees as being available; if you were using chef-server i'd suggest checking if the cookbooks actually got uploaded.
+[2013-12-03 22:36:13 -0500] c_t: chef-zero should behave the same way
+[2013-12-03 22:36:18 -0500] c_t: (theoretically)
+[2013-12-03 22:36:33 -0500] jidar: this is just horrible
+[2013-12-03 22:37:10 -0500] jidar: 11.0.8 just wants to piss and moan trying to bootstrap during the installer
+[2013-12-03 22:46:17 -0500] vigith: any idea why ridley is throwing out '/usr/local/share/gems1.9/gems/celluloid-0.15.2/lib/celluloid/proxies/sync_proxy.rb:21:in `method_missing': wrong number of arguments (0 for 1)' when i try to do a node find
+[2013-12-03 22:46:25 -0500] EJC_: did this bug get fixed for the 10.X series of chef? https://tickets.opscode.com/browse/CHEF-3835  ?
+[2013-12-03 22:46:34 -0500] EJC_: it seems to only be corrected for 11.X
+[2013-12-03 22:46:47 -0500] gleam: it says it was fixed in 10.20
+[2013-12-03 22:56:27 -0500] bluethundr: hey all .. I have a fresh installl of chef 11.8.0 under ubuntu 13.10 and I am getting the following errors when I try to run knife configure --initial
+[2013-12-03 22:56:42 -0500] bluethundr: http://pastebin.com/yCfbskbB
+[2013-12-03 22:57:01 -0500] bluethundr: are there any thoughts on how i can get around this error?
+[2013-12-03 22:57:02 -0500] bluethundr: thanks
+[2013-12-03 23:00:24 -0500] jblack: bluethundr: Um, give "sudo gem install chef" a try?
+[2013-12-03 23:00:58 -0500] bluethundr: jblack: sure, i'll give it a shot thanks
+[2013-12-03 23:04:17 -0500] bluethundr: hmm when I tried to do the gem install chef comand I got this result
+[2013-12-03 23:04:18 -0500] bluethundr: http://pastebin.com/t1dWunCv
+[2013-12-03 23:08:55 -0500] jblack: apt-get install ruby-dev
+[2013-12-03 23:09:13 -0500] jblack: So you're new to both chef and ruby.
+[2013-12-03 23:11:49 -0500] rhys: why do so many chef cookbooks depend on build-essential?
+[2013-12-03 23:12:24 -0500] programmerq: rhys: build-essential includes things you need to compile things from source. If a cookbook wants to support a source distribution of something, build-essential helps them do that.
+[2013-12-03 23:13:20 -0500] jblack: also many ruby gems, which may be relied upon for recipes, may require native extensions that have to be compiled
+[2013-12-03 23:18:08 -0500] flaccid__: the native extensions thing cracks me up, coz its not native hah
+[2013-12-03 23:18:45 -0500] flaccid__: bluethundr: omnibus installer would of looked after that for you iirc
+[2013-12-03 23:48:38 -0500] jblack: flaccid__:  Hmmm?
+[2013-12-03 23:49:26 -0500] flaccid__: jblack: native to the system, not native to chef :)
+[2013-12-03 23:52:13 -0500] supercom32: When trying to use the 'file' resource to delete a large (3G) file, why  does it actually consume space on disk?
+[2013-12-03 23:53:49 -0500] supercom32: I had about 1G of free space, and after the delete failed (Out of disk space) I noted the space was consumed.

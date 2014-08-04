@@ -1,0 +1,717 @@
+[2012-06-29 00:02:21 -0400] evalencia: Hi all, anyone running chef-clients on solaris11 and how are you going arround not being able to install ips pkgs from cookbooks?
+[2012-06-29 00:03:42 -0400] cheeseplus: +1
+[2012-06-29 00:06:50 -0400] hoover_damm: bawt_, forget bootstrap
+[2012-06-29 00:06:51 -0400] bawt_: alright
+[2012-06-29 00:06:58 -0400] hoover_damm: bawt_, bootstrap is http://wiki.opscode.com/display/chef/Custom+Knife+Bootstrap+Script
+[2012-06-29 00:15:47 -0400] miah: guh. trying to figure out how to work around package -> version and that it does install/upgrade
+[2012-06-29 00:16:45 -0400] miah: while i want all of my database servers to run the same version of percona, if they are currently 'running' i dont want chef to do a version upgrade.
+[2012-06-29 00:17:21 -0400] miah: so i suppose i want to determine if percona/mysql is currently running, and if so, log and skip the package upgrade.
+[2012-06-29 00:28:32 -0400] hakunin: YAY, i got ruby/rails app on postgres+nginx+unicorns bootstrapping without error from scratch on an empty ec2 instance. so it's like "create instance, add to hosts, run bootstrap, run deploy, navigate to url" <- it works!
+[2012-06-29 00:32:16 -0400] paulmooring: miah: any reason you don't want to just shell out to ps and grep?
+[2012-06-29 00:33:26 -0400] hoover_damm: shelling out and using ps and grep is for sillies
+[2012-06-29 00:33:36 -0400] hoover_damm: I really wish people used rush more often
+[2012-06-29 00:33:43 -0400] hoover_damm: at least then the process matching wouldn't be so gorey
+[2012-06-29 00:34:05 -0400] hoover_damm: http://rush.heroku.com/
+[2012-06-29 00:34:10 -0400] hoover_damm: if anyone wants context
+[2012-06-29 00:34:43 -0400] hoover_damm: box.processes.filter(:cmdline => /ssh/)
+[2012-06-29 00:35:48 -0400] danderson: "the power of unix with the elegance of ruby"
+[2012-06-29 00:35:54 -0400] danderson: can't tell if trolling or serious...
+[2012-06-29 00:35:58 -0400] paulmooring: hoover_damm: seems like it would be more difficult to build off external tools
+[2012-06-29 00:37:04 -0400] hoover_damm: danderson, little of both likely
+[2012-06-29 00:37:20 -0400] hoover_damm: as a rubyist and a chef user the most painful thing for me is to shell out to use grep
+[2012-06-29 00:37:39 -0400] hoover_damm: not_if 'ps aux | grep [p]rocess'
+[2012-06-29 00:37:48 -0400] paulmooring: it does sound dirty, but sometimes it's the simplest solution
+[2012-06-29 00:37:53 -0400] danderson: hoover_damm: I was also trolling a little bit tbh. The description just tickled me a bit :)
+[2012-06-29 00:38:12 -0400] hoover_damm: paulmooring, or is it?
+[2012-06-29 00:38:15 -0400] hoover_damm: ;)
+[2012-06-29 00:38:34 -0400] hoover_damm: paulmooring, I guess the easiest solution here is to make a cross-platform process list / matcher built into chef
+[2012-06-29 00:38:38 -0400] hoover_damm: paulmooring, and then submit it
+[2012-06-29 00:38:53 -0400] hoover_damm: paulmooring, not_if Process.running(:match => /sshd/)
+[2012-06-29 00:39:06 -0400] hoover_damm: or whatever
+[2012-06-29 00:43:27 -0400] paulmooring: in spite of my new found feeling of inadequacy due to this solution, I'm not finding a better solution to shelling out
+[2012-06-29 00:43:42 -0400] paulmooring: besides of course convincing hoover_damm to create a library for it
+[2012-06-29 00:44:00 -0400] hoover_damm: paulmooring, oh I was thinking of just something to contribute back to chef on
+[2012-06-29 00:44:17 -0400] hoover_damm: paulmooring, because I think process matching / a little more built in would just the sugar on top
+[2012-06-29 00:44:40 -0400] swolf: i'll say the one disadvantage of using hosted chef as a noobie is that, holy crap, i am uploading a lot
+[2012-06-29 00:44:42 -0400] paulmooring: It would be nice, I'm a little surprised I can't find a gem that already does it
+[2012-06-29 00:44:43 -0400] hoover_damm: paulmooring, it'd prolly just be a resource that uses the unix 'ps' tool to do the job.  But just make it pretty
+[2012-06-29 00:44:54 -0400] hoover_damm: there's gems that do it
+[2012-06-29 00:45:22 -0400] hoover_damm: my preference would not to add dependencies to chef and just re-work it from scrath and license it appropriately
+[2012-06-29 00:45:25 -0400] hoover_damm: so you guys have no issue
+[2012-06-29 00:46:23 -0400] paulmooring: an ohai plugin that lists info on all the running pids?
+[2012-06-29 00:55:13 -0400] hoover_damm: no
+[2012-06-29 00:55:38 -0400] hoover_damm: That sounds neat, and it has an appeal that you can use the search index to match your running processes
+[2012-06-29 00:56:01 -0400] hoover_damm: but what worries me is the insanity that you could do with it
+[2012-06-29 00:56:11 -0400] hoover_damm: and what kind of load it would put on hosted/server
+[2012-06-29 01:00:27 -0400] hakunin: everybody talks about idempotent this idempotent that, but when it comes down to it, everything is freaking broken
+[2012-06-29 01:00:49 -0400] hakunin: </troll>
+[2012-06-29 01:01:00 -0400] yfeldblum: hakunin, how so?
+[2012-06-29 01:01:49 -0400] hakunin: yfeldblum: well, can't get through a minute of bootstrapping without running into breakages that differ from one deploy to the next, depending on which parts I fixed at which points
+[2012-06-29 01:02:51 -0400] Twirrim: what distro?
+[2012-06-29 01:03:16 -0400] hakunin: ubuntu 12.04, but currenlty i don't have problems, fixed them all mostly in the last week or so
+[2012-06-29 01:03:49 -0400] hakunin: about to try setup more stuff
+[2012-06-29 01:04:16 -0400] hakunin: and somehow not expecting any flawlessly working cookbooks :)
+[2012-06-29 01:05:46 -0400] yfeldblum: hakunin, so are you planning to make some software that always just works right and share it?
+[2012-06-29 01:08:05 -0400] miah: lol shellout and ps|grep. no. i wont do that. because its like using a rock as a hammer.
+[2012-06-29 01:08:21 -0400] hakunin: yfeldblum: i contribute where i can :P. i think it's impractical for opscode to consistently support many platforms though, one platform working very well would be more useful imo.
+[2012-06-29 01:08:26 -0400] miah: its funny that people will write chef code in ruby, and then shellout for things ruby can still do.
+[2012-06-29 01:09:37 -0400] miah: i am writing a library for the percona-install cookbook now and writing a percona_running? method right now. :P
+[2012-06-29 01:10:15 -0400] miah: programming is awesome!
+[2012-06-29 01:10:15 -0400] williamherry: msf, sorry for bother you again,  I looked that file and find client.rb file the bootstrap created use #{@chef_config[:chef_server_url]} as the chef_server_url, where this setting come from, it is not set localhost in my server.rb file
+[2012-06-29 01:11:05 -0400] yfeldblum: miah, what should one use instead when one has that which needs sledgehamming?
+[2012-06-29 01:11:20 -0400] ypaq: hi
+[2012-06-29 01:11:23 -0400] miah: a sludgehammer =)
+[2012-06-29 01:11:28 -0400] doomviking: mmm
+[2012-06-29 01:12:09 -0400] williamherry: msf, ignore that question, I find it is in knife.rb
+[2012-06-29 01:12:10 -0400] ypaq: i have a question about conditional execution
+[2012-06-29 01:13:43 -0400] doomviking: I will configure the dependency in your metadata, with my foot.
+[2012-06-29 01:14:27 -0400] ypaq: when i use for example the execute resource with some command and want to have it executed with an only_if and the command is supposed to run as a certain user. is the condition tested as the same user that i set for the command?
+[2012-06-29 01:19:08 -0400] doomviking: ypaq: IIRC, its just looking for the return code of the command you have it run
+[2012-06-29 01:19:43 -0400] ypaq: my problem is the user under which the condition check is run
+[2012-06-29 01:21:02 -0400] ypaq: but nevermind.. the doc says a condition can have optional arguments and among them is :user which defines the user the check is run under
+[2012-06-29 01:21:20 -0400] ypaq: this behavior makes sense
+[2012-06-29 01:21:31 -0400] ypaq: kk
+[2012-06-29 01:21:39 -0400] ypaq: thanks whoever bothered
+[2012-06-29 01:26:31 -0400] doomviking: brain mush.
+[2012-06-29 01:27:43 -0400] hoover_damm: hakunin, done any testing yet?
+[2012-06-29 01:27:53 -0400] hoover_damm: hakunin, testing helps with the odd regressions
+[2012-06-29 02:04:39 -0400] williamherry: rabbitmqctl will lost vhost ... when reboot or change hsotname?, I meet this problem second time today, is this normal?
+[2012-06-29 02:05:05 -0400] hoover_damm: ec2?
+[2012-06-29 02:05:05 -0400] bawt_: ec2 is a real on demand public cloud
+[2012-06-29 02:05:33 -0400] hoover_damm: bawt_, chat
+[2012-06-29 02:05:33 -0400] bawt_: bleything chooses not to the server only
+[2012-06-29 02:07:08 -0400] jlight: is there a way to 'knife node from file <blah>.json' without subsequently losing the IP until the next chef client run?
+[2012-06-29 02:07:58 -0400] jlight: to somehow include the automatic / Ohai attributes that were in the node before uploading the newly edited node json?
+[2012-06-29 02:08:26 -0400] hoover_damm: knife from file reloads the record in question
+[2012-06-29 02:08:34 -0400] hoover_damm: so unless <blah>.json holds the ipaddress record
+[2012-06-29 02:08:40 -0400] hoover_damm: yes you will loose data
+[2012-06-29 02:09:07 -0400] jlight: right, but when I get the json with 'knife show node <node> -fjson' > <node>.json
+[2012-06-29 02:09:08 -0400] hoover_damm: the answer is to have ipaddress in the json or stop reloading the node and reload the role instead?
+[2012-06-29 02:09:12 -0400] jlight: the IP isn't included there.
+[2012-06-29 02:09:16 -0400] hoover_damm: hrm yer it is
+[2012-06-29 02:09:21 -0400] jlight: hm.
+[2012-06-29 02:09:32 -0400] hoover_damm: but basically the problem is with how your doing it
+[2012-06-29 02:09:36 -0400] jlight: okay, so reload the role, not the node.
+[2012-06-29 02:09:37 -0400] hoover_damm: if you can reload roles or environments instead
+[2012-06-29 02:10:19 -0400] jlight: okay... good to know.
+[2012-06-29 02:10:27 -0400] jlight: thx
+[2012-06-29 02:11:09 -0400] jlight: so when is a good case to use the 'node from file' workflow?
+[2012-06-29 02:11:23 -0400] jlight: ::gotta hit bathroom. brb::
+[2012-06-29 02:14:32 -0400] jlight: maybe this is just not a workflow that is Best Practice?
+[2012-06-29 02:14:40 -0400] jeremyolliver: can I sanity check something against you guys, before I start trying to do something ridiculous?
+[2012-06-29 02:15:02 -0400] jeremyolliver: I'm wanting to rsync data from one node to another
+[2012-06-29 02:15:27 -0400] jeremyolliver: to get a postgres backup up to date, then I'm continuing with streaming replication from there out
+[2012-06-29 02:15:28 -0400] jlight: I think someone earlier said there is a 'remote_directory' cookbook
+[2012-06-29 02:16:17 -0400] jlight: for copying directories, which I understood to be a similar use case of rsyncing two nodes. Don't know if that helps or not. I'm a n00b myself.
+[2012-06-29 02:16:36 -0400] jameson: what is the command to change your current environment to using knife?
+[2012-06-29 02:16:38 -0400] jeremyolliver: I've got no problems running an rsync command, I just don't want to start force setting user passwords for my unix postgres user account etc
+[2012-06-29 02:16:52 -0400] jeremyolliver: but maybe I'll have to, I'll check that cookbook
+[2012-06-29 02:17:33 -0400] jeremyolliver: oh nope, remote_directory copies stuff from your cookbook onto the node
+[2012-06-29 02:17:36 -0400] jameson: -E :| hrm
+[2012-06-29 02:17:41 -0400] jeremyolliver: I want to copy from node1 to node2
+[2012-06-29 02:18:14 -0400] jeremyolliver: maybe I will just set the postgres user password in an encrypted databag so I can do an rsync like that
+[2012-06-29 02:19:11 -0400] jlight: jeremyolliver: yea, I don't know. from what I know the general approach is treat nodes as transients and to keep persistent data in cookbooks and recipes
+[2012-06-29 02:19:57 -0400] jlight: by saying you need to rsync from one to another, that would imply the source node is a canonical source for that data, no?
+[2012-06-29 02:20:44 -0400] jlight: but again, I'm just starting to figure this stuff out, so I'm no authority on anything here.
+[2012-06-29 02:21:26 -0400] jeremyolliver: Yeah, I'm essentially setting up postgresql in a master and slave replication
+[2012-06-29 03:46:41 -0400] miah: hi
+[2012-06-29 03:47:57 -0400] yfeldblum: hi
+[2012-06-29 03:50:47 -0400] miah: hows it going yfeldblum ?
+[2012-06-29 03:52:25 -0400] yfeldblum: doing alright
+[2012-06-29 03:52:40 -0400] cheeseplus: ohai
+[2012-06-29 03:52:58 -0400] yfeldblum: u?
+[2012-06-29 03:52:59 -0400] erikh: helo
+[2012-06-29 03:53:08 -0400] miah: doing well
+[2012-06-29 03:54:24 -0400] miah: just got home after dinner and dessert with my gf. now we are watching a movie.
+[2012-06-29 03:54:43 -0400] yfeldblum: clearly not paying enough attention to either
+[2012-06-29 03:54:56 -0400] miah: lol
+[2012-06-29 03:55:27 -0400] miah: well, my phone was blowing up with nagios alerts
+[2012-06-29 03:55:43 -0400] yfeldblum: always fun
+[2012-06-29 03:56:30 -0400] yfeldblum: wish nagios would ship a single "hey everything's wrong all at once" alert
+[2012-06-29 03:57:36 -0400] yfeldblum: servers need rebooting?
+[2012-06-29 03:59:08 -0400] miah: looks like others are resolving those issues
+[2012-06-29 03:59:22 -0400] miah: so i can ignore :P (and write code instead)
+[2012-06-29 04:01:29 -0400] yfeldblum: heh
+[2012-06-29 04:01:37 -0400] yfeldblum: well, latez
+[2012-06-29 04:02:40 -0400] hakunin: https://github.com/damm/redis vs https://github.com/jsierles/chef_cookbooks/tree/master/redis vs https://github.com/ctrabold/chef-redis
+[2012-06-29 04:02:59 -0400] hakunin: hoover_damm: you have bias so :)
+[2012-06-29 04:04:48 -0400] miah: =)
+[2012-06-29 04:05:04 -0400] miah: i am trying to figure out how to write a little program to connect to mysql socket and pull some details.
+[2012-06-29 04:06:13 -0400] hakunin: miah: could just use the mysql ruby gem
+[2012-06-29 04:10:38 -0400] hakunin: miah: well, mysql2 https://github.com/brianmario/mysql2/
+[2012-06-29 04:16:16 -0400] miah: ah nice
+[2012-06-29 04:18:25 -0400] miah: why mysql2 vs mysql? i havent really written much stand alone ruby codes before
+[2012-06-29 04:18:44 -0400] cheeseplus: miah: my phone has been blowing up with nagios alerts that I can't even do anything to fix
+[2012-06-29 04:18:52 -0400] cheeseplus: someone pushed a bad cookbook :(
+[2012-06-29 04:19:09 -0400] miah: doh
+[2012-06-29 04:20:44 -0400] hoover_damm: hakunin, your missing a few
+[2012-06-29 04:21:34 -0400] hoover_damm: hakunin, I forked mine because I reviewed metachef (silverware now) and was disgusted by the way they loaded things
+[2012-06-29 04:22:02 -0400] hoover_damm: hakunin, it actually blew up on me is why I made my redis cookbook the way it is.  No dependencies because the world will screw you over if you look the other way.
+[2012-06-29 04:22:03 -0400] hakunin: miah: mysql2 is a revamped version of mysql gem (which hasn't been updated since 2009). it's much cleaner, faster, and used in rails. the README there shows how to use it. Let me know if you need ruby help.
+[2012-06-29 04:22:32 -0400] miah: awesome. thanks
+[2012-06-29 04:22:40 -0400] hoover_damm: did they update the mysql gem to support 1.9.x?
+[2012-06-29 04:22:45 -0400] hoover_damm: or is it still the shitty patch?
+[2012-06-29 04:23:17 -0400] hoover_damm: running a encoding aware ruby with a non-encoding aware database driver
+[2012-06-29 04:23:22 -0400] hoover_damm: can lead to some very bad inserts
+[2012-06-29 04:23:30 -0400] miah: i would assume that if it works with rails, it will work with 1.9.x =)
+[2012-06-29 04:24:00 -0400] hoover_damm: #1 Rule of Rails.  Don't assume anything.
+[2012-06-29 04:24:16 -0400] hakunin: hoover_damm: interesting, never heard of metachef/silverware. i'm looking for what seem to be most watched/top google options
+[2012-06-29 04:24:19 -0400] hoover_damm: If you assume something you will assume wrong
+[2012-06-29 04:24:47 -0400] hoover_damm: hakunin, https://github.com/infochimps-labs/ironfan-pantry/tree/master/cookbooks/silverware
+[2012-06-29 04:25:07 -0400] hakunin: hoover_damm: miah: mysql2 is a complete rewrite with lots of love and awesomeness packed in by people i respect immensely in the community
+[2012-06-29 04:25:21 -0400] hoover_damm: hakunin, https://github.com/infochimps-labs/ironfan-pantry/commit/5a31e2d4ec8e416d00e7af57c28c5df25f5ab3f0
+[2012-06-29 04:25:35 -0400] miah: hakunin: awesome
+[2012-06-29 04:25:36 -0400] hoover_damm: hakunin, I hate how brianmario versioned the mysql2 gem personally
+[2012-06-29 04:26:15 -0400] hakunin: hoover_damm: what you mean?
+[2012-06-29 04:26:21 -0400] hoover_damm: I hated having to tell customers 'Remember you need to add mysql2 with the 0.2.x'
+[2012-06-29 04:26:34 -0400] hoover_damm: most people are unaware of the api changes between 0.2.x and 0.3.x
+[2012-06-29 04:26:41 -0400] hoover_damm: they were in rails favor of course
+[2012-06-29 04:26:55 -0400] hoover_damm: but for rails 2.3.x users trying to avoid mysql pain
+[2012-06-29 04:27:01 -0400] hoover_damm: the 0.3.x gem didn't work well LOL
+[2012-06-29 04:27:14 -0400] hakunin: hoover_damm: minor allows api changes
+[2012-06-29 04:27:14 -0400] hoover_damm: and before you say man they should update that rails app
+[2012-06-29 04:27:23 -0400] hakunin: according to semver rules
+[2012-06-29 04:27:28 -0400] hoover_damm: the larger the site
+[2012-06-29 04:27:30 -0400] hoover_damm: the older it is
+[2012-06-29 04:27:42 -0400] hakunin: no i would say "stay on older version"
+[2012-06-29 04:27:44 -0400] hoover_damm: there's some pretty popular rails 2.1.x sites
+[2012-06-29 04:27:53 -0400] hoover_damm: makes me vomit
+[2012-06-29 04:28:13 -0400] hoover_damm: and trying to support the mentality of trying to scale with 2.1.x and wanting proactive support
+[2012-06-29 04:28:16 -0400] hoover_damm: just boggles my brain
+[2012-06-29 04:28:31 -0400] hoover_damm: or anything less then the current and a few past releases
+[2012-06-29 04:28:48 -0400] hoover_damm: Gosh I'm glad I don't have that job anymore :D
+[2012-06-29 04:31:00 -0400] hakunin: hoover_damm: incidentally we're in the process of moving our app from rails 2.3.14 to 3.2.6, and doing a full redesign. Investors are itching to see, they almost committed. And here I am stuck on infrastructure. :)
+[2012-06-29 04:33:05 -0400] hoover_damm: hakunin, ahh that's not too bad.  At least they tried to keep up
+[2012-06-29 04:33:22 -0400] hoover_damm: good luck
+[2012-06-29 04:34:14 -0400] hakunin: hoover_damm: thanks. the rails jump already succeeded. redesign needs some more work to get specs to pass, but first i need to finish this provisioning. you aren't suddenly available for contracting by any chance?
+[2012-06-29 04:35:28 -0400] hakunin: hoover_damm: i could use a few of your hours to finish up this setup
+[2012-06-29 05:30:09 -0400] josephholsten_: grr mysql on windows
+[2012-06-29 05:30:49 -0400] josephholsten_: also, someone needs to help me convert these windows_batch resources to whatever the new hotness is
+[2012-06-29 05:31:37 -0400] josephholsten_: whatever uses mixlib-shellout internally
+[2012-06-29 05:36:03 -0400] josephholsten_: hell
+[2012-06-29 05:36:23 -0400] josephholsten_: windows_package isn't playing nice either?
+[2012-06-29 05:36:57 -0400] jgrevich: why are node files .json but most other files are .rb?
+[2012-06-29 05:49:27 -0400] hakunin: jgrevich: rb are ruby programs. json is data serialization. i guess they could've used yaml, but preferred json...
+[2012-06-29 05:49:28 -0400] josephholsten_: jgrevich: most of the .rb files are just a shorthand that is actually stored on the server as json
+[2012-06-29 05:49:50 -0400] josephholsten_: I've got a patch that adds yaml support
+[2012-06-29 05:50:29 -0400] hakunin: josephholsten_: jgrevich: yaml, json, not really much difference there
+[2012-06-29 05:50:35 -0400] hakunin: practical
+[2012-06-29 05:51:10 -0400] josephholsten_: but environments, roles, cookbook metadata all get stored in a json representation on the server
+[2012-06-29 05:51:50 -0400] josephholsten_: hakunin: indeed
+[2012-06-29 06:03:21 -0400] jgrevich: hakunin: by isn't json required for the node definitions? I figured there would be the option yaml/json
+[2012-06-29 06:04:05 -0400] hakunin: jgrevich: it is required because they decided it to be. just a convenient structured format to store and pass data around
+[2012-06-29 06:05:23 -0400] hakunin: although i'm not sure if chef supports declaring values in some other format(s), i read somewhere you could have them declared in ruby, not 100% sure.
+[2012-06-29 06:05:43 -0400] hakunin: but if i understood correctly, it still will create a json out of them
+[2012-06-29 06:07:47 -0400] jgrevich: that makes sense, but I feel it would be nice to give the programmer flexibility.  I guess json is as standard as html/css these days.
+[2012-06-29 06:19:27 -0400] BryanWB_: ohai chefs!
+[2012-06-29 06:54:07 -0400] dkannan: artur bergman had a talk at chefconf where he announced he would release his artur cookbook. anyone know if it is released ?
+[2012-06-29 06:59:13 -0400] specialsauce: dkannan - this looks like his gihub page so I'd say no (https://github.com/crucially/)
+[2012-06-29 07:05:54 -0400] dkannan: specialsauce: thx
+[2012-06-29 07:41:49 -0400] huhongbo: is possible to know the OHAI collected info is diff from last time
+[2012-06-29 07:46:31 -0400] specialsauce: huhongbo, ohai data will almost always be different even if you haven't explicitly changed anything in your recipes etc - because ohai contains mountpoint kbs used, memory usage etc etc which is all dynamic info.
+[2012-06-29 07:46:42 -0400] specialsauce: what are you trying to check or do?
+[2012-06-29 07:47:56 -0400] huhongbo: i want to use ohai to collect some os configuration,I want to trigger a alarm when some configuration changed
+[2012-06-29 07:50:22 -0400] specialsauce: huhongbo, ok, well you could certainly do that if you were only concerned with specific keys in the returned hash. The mechanism is provided to run ohai, but you'd have to bolt on something to presist the data from the last ohai run and store it for comparison, as well as dot he comparison, I believe. At elast, I'm not aware of an existing cookbook that does this for you - that doesn't mean that there isn't one of course :-)
+[2012-06-29 08:19:26 -0400] sfritz: hi, anybody who knows why chef does not do a deep merge including the node attributes?
+[2012-06-29 08:19:58 -0400] sfritz: wiki states deep merge is only done with role and environment attributes
+[2012-06-29 08:20:11 -0400] sfritz: what's the reason?
+[2012-06-29 08:21:03 -0400] specialsauce: sfritz: can you link to the wiki page? I wasn't aware of this
+[2012-06-29 08:21:47 -0400] sfritz: http://wiki.opscode.com/display/chef/Deep+Merge
+[2012-06-29 08:21:58 -0400] sfritz: right at the top ...
+[2012-06-29 08:22:57 -0400] frank_: /2/2
+[2012-06-29 09:05:03 -0400] leitz: Anyone familier with installing chef on Fedora? I installed ruby, and then rubygems, but can't install chef. The error is: mkmf.rb can't find header files for ruby at /usr/lib/ruby/ruby.h
+[2012-06-29 09:05:20 -0400] leitz: Have already installed ruby-libs.
+[2012-06-29 09:06:31 -0400] chrisa2: try ruby-devel, too?
+[2012-06-29 09:09:17 -0400] leitz: chrisa2, good thought! Let me try that.
+[2012-06-29 09:15:53 -0400] leitz: chrisa2, so far that seems to resolve the issue. Thanks! Now I just need some more coffee so my brain kicks in a little faster.
+[2012-06-29 09:16:28 -0400] chrisa2: :) cool
+[2012-06-29 09:18:44 -0400] jerem`: how to reinitialize my chef local repo ? i'm on my workstation
+[2012-06-29 09:30:09 -0400] jerem`: rm -rf ~/my-repo/* && knife cookbook site install mycookbook
+[2012-06-29 09:30:10 -0400] jerem`: ?
+[2012-06-29 09:44:48 -0400] ashmere: I saw on some of the chefconf videos talk of installing chef-server using omnibus and having it isolated with all its own packages, where can I find the link to this for the open source version?
+[2012-06-29 10:06:38 -0400] jerem`: how to reinitialize my chef repo from ?
+[2012-06-29 10:07:34 -0400] jerem`: I'm on a new workstation and would like get all my repo
+[2012-06-29 10:16:08 -0400] ashmere: if you repo is in git I think you should be fine either using git clone or create a new git repository with git init and git pull
+[2012-06-29 10:21:02 -0400] jerem`: ashmere: how to use git clone with my chef server ?
+[2012-06-29 10:30:16 -0400] dkannan: jerem`: use the execute resource
+[2012-06-29 10:30:43 -0400] dkannan: while using chef-solo, can in find out if it being run for the first time
+[2012-06-29 10:42:24 -0400] jerem`: How to get all my chef repo (databags, cookbooks, roles, etc) from a workstation ?
+[2012-06-29 10:42:56 -0400] jerem`: I have a lot of recipes on my chef-server but nothing on my workstation
+[2012-06-29 11:04:57 -0400] jameson: ok whoever is opscode update the java cookbook
+[2012-06-29 11:05:01 -0400] jameson: please remember
+[2012-06-29 11:05:05 -0400] jameson: '6' != 6
+[2012-06-29 11:27:20 -0400] BryanWB_: jameson: umm, i have done a lot of work on the opscode java cookbook
+[2012-06-29 11:31:27 -0400] jameson: it breaks down rather terribly on ubuntu 12.04
+[2012-06-29 11:32:38 -0400] jameson: BryanWB_: https://github.com/opscode-cookbooks/java/blob/master/recipes/openjdk.rb#L45
+[2012-06-29 11:32:49 -0400] jameson: BryanWB_: https://github.com/opscode-cookbooks/java/blob/master/attributes/default.rb#L25
+[2012-06-29 11:32:57 -0400] jameson: the default is '6'
+[2012-06-29 11:33:04 -0400] jameson: while rest checks for 6
+[2012-06-29 11:33:30 -0400] erikh: ohai folks
+[2012-06-29 11:34:16 -0400] jameson: BryanWB_: also all the stuff in the recipe, -> should be Chef::ShellOut (like below went not ubuntu nor java-6)
+[2012-06-29 11:34:19 -0400] jameson: ohai
+[2012-06-29 11:34:50 -0400] jameson: i'm surprised no one has caught this yet :X I guess everyone is running sun-java binaries?
+[2012-06-29 11:36:06 -0400] erikh: ah yep
+[2012-06-29 11:36:08 -0400] erikh: https://github.com/opscode-cookbooks/java/blob/master/recipes/openjdk.rb#L45
+[2012-06-29 11:36:23 -0400] erikh: bugs happen
+[2012-06-29 11:36:44 -0400] jameson: code revieewwwsss
+[2012-06-29 11:37:13 -0400] erikh: raging about a bug and applying 20/20 hindsight never solved much. how about a pull request instead?
+[2012-06-29 11:37:22 -0400] BryanWB_: jameson: wow! can't believe i wrote that shit :p
+[2012-06-29 11:37:31 -0400] jameson: waiting for CCDA from engineering
+[2012-06-29 11:38:09 -0400] jameson: so I can do tickets and pull-requests
+[2012-06-29 11:38:17 -0400] erikh: fork it and apply your patch, and use that cookbook in the meantime
+[2012-06-29 11:38:26 -0400] jameson: I am ;)
+[2012-06-29 11:38:29 -0400] erikh: cool
+[2012-06-29 11:38:44 -0400] jameson: there are a few more monkey-patches i put in for 12.04
+[2012-06-29 11:39:41 -0400] erikh: BryanWB_: resolved your berkshelf config issue
+[2012-06-29 11:39:46 -0400] erikh: should be applied tomorrow most likely.
+[2012-06-29 11:40:20 -0400] BryanWB_: erikh: awesome!
+[2012-06-29 11:40:46 -0400] BryanWB_: erikh: am really enjoing working, w/ it.  It's great for setting up a test environemnt
+[2012-06-29 11:40:56 -0400] erikh: yeah I'm biased but it's pretty awesome
+[2012-06-29 11:41:01 -0400] erikh: :P
+[2012-06-29 11:41:27 -0400] erikh: hoping to come up with a way to parallelize the downloads, and adding a sync tool over the weekend
+[2012-06-29 11:41:37 -0400] erikh: e.g., only upload if something changed.
+[2012-06-29 11:41:49 -0400] BryanWB_: the only pain point for me right now is that there isn't a way to update the shims when new files have been added
+[2012-06-29 11:42:04 -0400] erikh: ah, the shims are definitely jamie's deal, you should talk to him about it
+[2012-06-29 11:42:06 -0400] erikh: aka reset
+[2012-06-29 11:42:34 -0400] jameson: normal to do pull-req/ticket that only fixes stuff for one OS type?
+[2012-06-29 11:42:46 -0400] BryanWB_: jameson: y
+[2012-06-29 11:44:43 -0400] agosse: probably a simple answer - but my metadata file is getting huge - can i "#include" something in it - somehow?
+[2012-06-29 11:45:16 -0400] erikh: it's just ruby; you should be able to 'require' inside of it.
+[2012-06-29 11:45:26 -0400] erikh: or better yet; load
+[2012-06-29 11:48:23 -0400] jameson: BryanWB_: because I'm running deploys on ubuntu, so I wont be testing on redhat, centos, arch, etc.
+[2012-06-29 11:48:32 -0400] jameson: monkey patching as I go
+[2012-06-29 11:48:55 -0400] agosse: erikh: cool thanks
+[2012-06-29 11:49:10 -0400] BryanWB_: anybody know a vagrant box  for centos 6 i386  w/ chef built-in?
+[2012-06-29 11:51:48 -0400] BryanWB_: i c some on vagrantbox.es but not clear to me which one has chef built-in
+[2012-06-29 11:52:11 -0400] jameson: probably should update this image to have 10.12
+[2012-06-29 11:52:15 -0400] jameson: :X
+[2012-06-29 11:53:01 -0400] jameson: welp, back to sleep, BryanWB_,erikh: thx for feedback & verifying :)
+[2012-06-29 11:53:14 -0400] BryanWB_: jameson: later
+[2012-06-29 12:26:02 -0400] jerem`: how to get all my databags, my roles, my nodes, etc, with knife ?
+[2012-06-29 12:26:30 -0400] specialsauce: chaps - is there an easy way of calling a search directly from a (non-chef) ruby file? I'm just execing the knife CLI tool at the moment which obviusly I would like to replace
+[2012-06-29 12:26:50 -0400] chrisa2: jerem`: check out "Export objects from the Chef server" on this page: http://wiki.opscode.com/display/chef/Backing+Up+Chef+Server
+[2012-06-29 12:27:09 -0400] chrisa2: it won't give you exactly a chef-repo layout, but it should give you all the objects
+[2012-06-29 12:29:52 -0400] jerem`: chrisa2: this script must be executed in the chef-server
+[2012-06-29 12:29:54 -0400] jerem`: ?
+[2012-06-29 12:30:52 -0400] jerem`: but where is the repo chef path
+[2012-06-29 12:30:54 -0400] chrisa2: anywhere you can run knife against the server, i thing
+[2012-06-29 12:30:57 -0400] chrisa2: *think
+[2012-06-29 12:31:38 -0400] ashb: specialsauce: you can require 'chef' and do it somehow that way
+[2012-06-29 12:32:00 -0400] specialsauce: ashb, yeah i'm trying and failing that at the moment :-P
+[2012-06-29 12:32:13 -0400] ashb: specialsauce: i don't know more than 'its possible somehow'
+[2012-06-29 12:32:28 -0400] ashb: if you get stuck I suggest asking on the mailing list
+[2012-06-29 12:41:43 -0400] jerem`: chrisa2: this script doesn't create the ~/.chef/chef_server_backup directory
+[2012-06-29 12:42:43 -0400] masterkorp: chrisa2: and trow it
+[2012-06-29 12:42:57 -0400] masterkorp: chrisa2: altough it might be dangerous
+[2012-06-29 12:44:50 -0400] chrisa2: in what way?
+[2012-06-29 12:46:01 -0400] masterkorp: trowing knife against servers
+[2012-06-29 12:50:14 -0400] jerem`: chrisa2: had you use this script ?
+[2012-06-29 12:50:52 -0400] jerem`: have you used sorry
+[2012-06-29 12:51:34 -0400] chrisa2: yeah, occasionally
+[2012-06-29 12:52:27 -0400] jerem`: I'm using this script from my workstation but it not create any ~/.chef/chef_server_backup dir
+[2012-06-29 12:52:28 -0400] chrisa2: actually though, i just re-read the docs and it doesn't pull down cookbooks, so sorry, it's not what you need
+[2012-06-29 12:53:14 -0400] jerem`: in fact, I can get my cookbooks back with "knife cookbook download mycookbook"
+[2012-06-29 12:53:35 -0400] jerem`: but it doesn't get my databags, my roles, etc..
+[2012-06-29 12:54:04 -0400] jerem`: this seems normal, because i run a knife cookbook command
+[2012-06-29 12:54:08 -0400] chrisa2: i'm not sure - it works for me, i'm afraid
+[2012-06-29 12:54:29 -0400] jerem`: but, some cookbooks are linked to databags
+[2012-06-29 12:55:08 -0400] jerem`: and i can't get them back
+[2012-06-29 12:55:18 -0400] jerem`: :go 2
+[2012-06-29 12:55:26 -0400] jerem`: oups sorry for ":go 2"
+[2012-06-29 12:56:54 -0400] jerem`: ideas please ?
+[2012-06-29 13:19:35 -0400] agosse: erikh: still there?
+[2012-06-29 13:22:12 -0400] jerem`: How to get back my repo chef ?
+[2012-06-29 13:22:16 -0400] jerem`: with knife
+[2012-06-29 13:24:12 -0400] agosse: while using load or require to include stuff into metadata.rb is a good plan, it breaks `knife cookbook metadata`, because knife does some magic to "run" the metadata.rb in the context of some chef::metadata class
+[2012-06-29 13:24:24 -0400] drrk: knife role show, knife node show, knife data bah show etc
+[2012-06-29 13:24:45 -0400] drrk: with -Fj (format json) you can recreate all the json files
+[2012-06-29 13:24:50 -0400] agosse: if you use load or require in metadata.rb, you get an invalid or unknown method in Object::main error
+[2012-06-29 13:24:51 -0400] drrk: read the docs
+[2012-06-29 13:36:39 -0400] jerem`: :go 2
+[2012-06-29 13:39:49 -0400] dkannan: https://gist.github.com/3017966
+[2012-06-29 13:40:05 -0400] dkannan: tp does not install, but after going a --force-yes and purge. normal install again works ?
+[2012-06-29 13:40:38 -0400] dkannan: eh. ntp does not install
+[2012-06-29 13:42:35 -0400] ashb: dkannan: after the --force-yes the deps will be installed
+[2012-06-29 13:42:43 -0400] ashb: the problem was WARNING: The following packages cannot be authenticated!
+[2012-06-29 13:43:00 -0400] ashb: but forcing it installed them, so that the package would just install cleanly without needing to be forced next time
+[2012-06-29 13:45:46 -0400] dkannan: ashb: how do i authenticate the packages. had done a apt-key update before
+[2012-06-29 13:46:08 -0400] ashb: no idea. you'd have to look at what repo they are coming from and install the right key
+[2012-06-29 13:46:15 -0400] ashb: do you have any custom apt repos on that box?
+[2012-06-29 13:46:20 -0400] dkannan: ashb: thanks. will uninstall the deps and check if i can reproduce the issue
+[2012-06-29 13:46:50 -0400] dkannan: ashb: had changed the sources.list as the box was on rackspace
+[2012-06-29 13:47:19 -0400] ashb: that should'nt need anything so long as its just a mirror of the offical repos
+[2012-06-29 13:47:54 -0400] dkannan: ashb: it is
+[2012-06-29 13:48:13 -0400] dkannan: ashb: i purged the deps, but even now install works fine
+[2012-06-29 13:48:26 -0400] ashb: beats me
+[2012-06-29 13:49:00 -0400] dkannan: np. thanks
+[2012-06-29 14:21:40 -0400] lewjg: So, I'm trying to use the chef_gem functionality, and the run bombs out because I don't have development tools installed.
+[2012-06-29 14:21:55 -0400] lewjg: However, I have a build-essential cookbook to install them, and it's first in line
+[2012-06-29 14:22:15 -0400] lewjg: But I guess the order of the chef run prioritizes the chef_gem command.
+[2012-06-29 14:22:29 -0400] lewjg: So the build-essential packages never get installed.
+[2012-06-29 14:49:32 -0400] jerem`: drrk: thanks a lot, you've resolved my problem
+[2012-06-29 14:51:38 -0400] lewjg: Well, this is what I'm going with for now: https://gist.github.com/3018413
+[2012-06-29 14:53:18 -0400] drrk: jerem`: no problem :)
+[2012-06-29 15:17:48 -0400] jelder: is it possible to call "cookbook upload" from within knife exec?
+[2012-06-29 15:32:00 -0400] hoover_damm: jelder, all knife commands are plugins
+[2012-06-29 15:32:11 -0400] hoover_damm: jelder, so everything can be messed with
+[2012-06-29 15:32:51 -0400] hoover_damm: jelder, https://github.com/opscode/chef/blob/master/chef/lib/chef/knife/cookbook_upload.rb
+[2012-06-29 15:34:36 -0400] jelder: hoover_damm: i got that far, but i don't see how to pass arguments to it
+[2012-06-29 15:34:37 -0400] jelder: http://pastebin.com/kHtLxxJg
+[2012-06-29 15:34:45 -0400] jelder: (base is a cookbook)
+[2012-06-29 15:41:05 -0400] jelder: hoover_damm: would think something like this would work: knife exec -VV -E 'Chef::Knife::CookbookUpload.new(["-a"])'
+[2012-06-29 15:41:09 -0400] jelder: no?
+[2012-06-29 15:49:10 -0400] hoover_damm: jelder, not sure how to run it from knife directly
+[2012-06-29 15:49:34 -0400] jelder: got it!
+[2012-06-29 15:49:35 -0400] jelder: knife exec  -E 'Chef::Knife::CookbookUpload.new(["elasticsearch"]).run'
+[2012-06-29 15:50:05 -0400] hoover_damm: if it's not in the right path you might need to add that
+[2012-06-29 15:50:06 -0400] hoover_damm: but yah
+[2012-06-29 15:50:17 -0400] jelder: cool
+[2012-06-29 15:50:35 -0400] jelder: working on a script to detect changes in cookbooks and immediately deploy them to a test cluster
+[2012-06-29 16:15:20 -0400] miah: jelder: https://gist.github.com/2048310
+[2012-06-29 16:16:47 -0400] ashmere: I saw on the chefconf videos talk of installing chef-server using omnibus and isolated with all its own packages, where can I find the link to this for the open source version?
+[2012-06-29 16:24:41 -0400] j-v-e: is there a way to create an encrypted data bag without using the editor ?
+[2012-06-29 16:25:01 -0400] j-v-e: I don't want to store the databag in chef directly, I just want the output
+[2012-06-29 16:26:27 -0400] j-v-e: with an indirection or something ?
+[2012-06-29 16:27:12 -0400] ashb: does knife upload it automatically or just write the file?
+[2012-06-29 16:30:49 -0400] j-v-e: I'd like knife to just write the file
+[2012-06-29 16:31:32 -0400] ashb: looks like you might have to write a small plugin
+[2012-06-29 16:31:36 -0400] ashb: but the code to do it isn't hard:
+[2012-06-29 16:31:41 -0400] ashb: Chef::EncryptedDataBagItem.encrypt_data_bag_item( {"id"=>"x", "y"=>"z"}, "ABCDEF" )
+[2012-06-29 16:31:47 -0400] ashb: {"id"=>"x", "y"=>"y3xvH+Pe0AafbW+nip0CsQ==\n"}
+[2012-06-29 16:36:01 -0400] miah: knife data bag from file <foo> --secret-file <bar>
+[2012-06-29 16:36:22 -0400] j-v-e: that's to load it
+[2012-06-29 16:36:26 -0400] j-v-e: I want to create it
+[2012-06-29 16:36:56 -0400] j-v-e: I'll write a plugin
+[2012-06-29 16:37:06 -0400] miah: knife data bag show <foo> --secret-file -Fj
+[2012-06-29 16:37:55 -0400] miah: but ya. im not sure if there is a way to 'encrypt' a json file on the commandline, using knife without ever touching the server.
+[2012-06-29 16:38:11 -0400] miah: you can certainly import/export easily though
+[2012-06-29 16:39:31 -0400] j-v-e: I could use my development vagrant to generate the json, but that's ugly
+[2012-06-29 16:50:41 -0400] agosse: quit
+[2012-06-29 16:50:54 -0400] agosse: oops
+[2012-06-29 16:50:57 -0400] specialsauce: agosse, no, you quit! :-P
+[2012-06-29 16:51:19 -0400] agosse: i think I will!
+[2012-06-29 16:54:26 -0400] till__: i just signed up for hosted chef, trying to upload cookbooks to setup a role
+[2012-06-29 16:54:32 -0400] till__: http://help.opscode.com/kb/knife/manage-cookbooks-with-knife < doesn't seem to go anywhere
+[2012-06-29 16:56:33 -0400] jessicab: till_ - thats been moved here - http://wiki.opscode.com/display/chef/Managing+Cookbooks+With+Knife but it sounds like you might actually be looking for this? - http://wiki.opscode.com/display/chef/Managing+Roles+With+Knife
+[2012-06-29 16:56:57 -0400] till__: ah
+[2012-06-29 16:57:06 -0400] till__: all the links here need updates, i guess: https://manage.opscode.com/cookbooks
+[2012-06-29 16:58:14 -0400] till__: i guess i need to create a knife configuration first and then upload using that
+[2012-06-29 16:58:21 -0400] till__: or am i missing a web gui?
+[2012-06-29 16:58:56 -0400] jessicab: till_ - i thought they were? i dont see any links to the old help.opscode/kb site
+[2012-06-29 16:59:05 -0400] ashb: you'll need a knfie config yes. ISTR there's a button on the Orgs tab of manage.opscode.com to get a knife.rb
+[2012-06-29 17:01:19 -0400] swolf_: i just do not undertsand cookbook file apparently.  my path attribuet is set to C:\dir1\dir2\file1, and my source dir is set to dir2\file1 (and there is a directory dir2 with file file1 in it in my cookbook's files\default directory) and yet chef is trying to put the files at C:\dir2\file1.
+[2012-06-29 17:02:41 -0400] till__: jessicab: well, the link behind knife just goes to opscode.com/support
+[2012-06-29 17:02:45 -0400] till__: hm, anyway
+[2012-06-29 17:04:02 -0400] till__: looking at the knife configuration, where do i get the client config and regeneration key?
+[2012-06-29 17:04:14 -0400] till__: is there anything i should read before? =)
+[2012-06-29 17:04:26 -0400] till__: sorry, client_key*
+[2012-06-29 17:07:29 -0400] jessicab: till_ - might want to follow an install guide? http://wiki.opscode.com/display/chef/Installation the regeneration key is probably your orgs validator, and you can create the client config manually or create it with knife if the clients on the same machine
+[2012-06-29 17:08:10 -0400] till__: ok, i'll follow that, thank you!
+[2012-06-29 17:22:26 -0400] xerxas: hi all
+[2012-06-29 17:24:19 -0400] xerxas: I have the [ "one" , "two" ].each do |site| template "/path/to/#{site}" do source "my_erb", variables({ :site => site })  end
+[2012-06-29 17:24:27 -0400] xerxas: and in my template I use @site , but it doesn't work
+[2012-06-29 17:24:39 -0400] xerxas: @site is empty ...
+[2012-06-29 17:24:54 -0400] xerxas: how should I pass my variables to templates ?
+[2012-06-29 17:25:11 -0400] xerxas: is there a difference between [].each and %w{}.each ?
+[2012-06-29 17:26:18 -0400] JasonF: xerxas: My hunch is that the variable "site" is actually going to be named one or two
+[2012-06-29 17:27:31 -0400] xerxas: it's what I want , my template contains <%= site %>.domain.com
+[2012-06-29 17:27:53 -0400] xerxas: but instead, in the rendered template I get : ".domain.com"
+[2012-06-29 17:27:57 -0400] xerxas: without my site names
+[2012-06-29 17:28:49 -0400] ashb: xerxas: nopaste your receipe and template please
+[2012-06-29 17:31:02 -0400] xerxas: ashb: yep , 2sec ...
+[2012-06-29 17:34:05 -0400] xerxas: ashb:  recipe: http://pastebin.com/ghgV3qAY and  template: http://pastebin.com/8N7higpB
+[2012-06-29 17:36:44 -0400] doomviking: ah pebkac. love it.
+[2012-06-29 17:37:06 -0400] doomviking: it pays to be looking at the right data bag file.
+[2012-06-29 17:37:12 -0400] doomviking: good morning.
+[2012-06-29 17:37:34 -0400] ashb: xerxas: does it write to one.company.com correctly?
+[2012-06-29 17:37:51 -0400] ashb: xerxas: it might be a ruby scoping issue (around the 'template do' block)
+[2012-06-29 17:38:11 -0400] xerxas: ashb: yeah, filenames are correct
+[2012-06-29 17:38:19 -0400] xerxas: but content in the files aren't
+[2012-06-29 17:38:28 -0400] ashb: try changing it to this:
+[2012-06-29 17:38:57 -0400] ashb: http://pastebin.com/WSM5DHgJ
+[2012-06-29 17:39:16 -0400] ashb: that might just error at converge time
+[2012-06-29 17:40:08 -0400] hoover_damm: why are we even setting t?
+[2012-06-29 17:40:35 -0400] hoover_damm: oh i see
+[2012-06-29 17:40:42 -0400] hoover_damm: ashb, your weird... does that work? if so cool
+[2012-06-29 17:40:46 -0400] ashb: hoover_damm: no idea
+[2012-06-29 17:41:04 -0400] ashb: i think the problem is by the time the block inside template runs site is 'out of scope' i.e. the loop has ended
+[2012-06-29 17:41:08 -0400] ashb: but that might be wrong
+[2012-06-29 17:41:37 -0400] linTest: I have a chef-server and would like to test with a Windows node. This Windows node previously was working with Hosted Chef. What do I do to transition node to my local chef server?
+[2012-06-29 17:41:38 -0400] hoover_damm: ashb, just looks like eh code
+[2012-06-29 17:43:26 -0400] hoover_damm: ashb, https://gist.github.com/c1b1de701fef55c3e07f
+[2012-06-29 17:43:29 -0400] hoover_damm: ashb, that should work
+[2012-06-29 17:44:14 -0400] ashb: hoover_damm: thats what xerxas tried first here http://pastebin.com/ghgV3qAY and @site seemed to be empty
+[2012-06-29 17:45:09 -0400] hoover_damm: ashb, the ({ })
+[2012-06-29 17:45:15 -0400] hoover_damm: ashb, turns it into ruby truth kinda
+[2012-06-29 17:45:22 -0400] hoover_damm: ashb, i forget the exact how/why
+[2012-06-29 17:45:31 -0400] hoover_damm: ashb, not really truth but more like a block
+[2012-06-29 17:45:39 -0400] ashb: hoover_damm: don't think it does
+[2012-06-29 17:45:55 -0400] hoover_damm: ashb, anywho that pattern has worked and failed randomly for me
+[2012-06-29 17:45:55 -0400] ashb: xerxas: try without the {} inside variables function
+[2012-06-29 17:45:59 -0400] hoover_damm: i never looked into why
+[2012-06-29 17:46:07 -0400] ashb: hoover_damm: but yeah - ruby parser is confusing at times
+[2012-06-29 17:46:11 -0400] hoover_damm: ashb, i figured meh it doesn't work... and go another route
+[2012-06-29 17:46:14 -0400] hoover_damm: yep
+[2012-06-29 17:49:50 -0400] linTest: I have a chef-server and would like to test with a Windows node. This Windows node previously was working with Hosted Chef. What do I do to transition node to my local chef server? Tweak knife.rb manually?
+[2012-06-29 17:50:40 -0400] cheeseplus: linTest: you'll need to change the keys for one
+[2012-06-29 17:51:02 -0400] linTest: OK, I have a new set of keys.
+[2012-06-29 17:51:48 -0400] cheeseplus: and then setup client.rb
+[2012-06-29 17:51:55 -0400] cheeseplus: to point to the new server and keys
+[2012-06-29 17:52:19 -0400] linTest: Do I need to run any knife commands, or do everything manually?
+[2012-06-29 17:52:20 -0400] cheeseplus: it's not much different than the hosted chef setup
+[2012-06-29 17:52:41 -0400] cheeseplus: you will probably want to delete the node and client from the hosted chef server
+[2012-06-29 17:53:17 -0400] cheeseplus: knife node delete NODE && knife client delete CLIENT
+[2012-06-29 17:53:55 -0400] linTest: and I can run both of these from my local Windows node?
+[2012-06-29 17:55:15 -0400] cheeseplus: if it's setup as a client (your knife.rb is configured to use it) then yes
+[2012-06-29 17:55:23 -0400] cheeseplus: or you can remove it from the web interface
+[2012-06-29 17:55:27 -0400] cheeseplus: whichever you prefer
+[2012-06-29 17:57:06 -0400] linTest: cheeseplus: thx for the help!
+[2012-06-29 17:58:37 -0400] cheeseplus: no problem linTest
+[2012-06-29 17:59:13 -0400] cheeseplus: linTest: the client/server connection stuff can be easily swapped, it shouldn't make anything unhappy
+[2012-06-29 18:12:13 -0400] randomautomator: hey question about couchdb replication
+[2012-06-29 18:12:20 -0400] randomautomator: i just tried to replicate a fresh chef install
+[2012-06-29 18:12:27 -0400] randomautomator: and it's missing 2 items from the couchdb replication
+[2012-06-29 18:12:59 -0400] randomautomator: _design/nodes and the chef-webui user
+[2012-06-29 18:13:07 -0400] randomautomator: any idea why? is there a password and username i don't know about?
+[2012-06-29 18:13:29 -0400] hoover_damm: replication should have gotten that.  check into the error log of couchdb
+[2012-06-29 18:13:37 -0400] hoover_damm: and see why replication didn't do what you thought it should have
+[2012-06-29 18:13:45 -0400] randomautomator: it actually doesn't finish
+[2012-06-29 18:13:51 -0400] randomautomator: it just sits in the curl command
+[2012-06-29 18:13:51 -0400] hoover_damm: that's why
+[2012-06-29 18:13:59 -0400] hoover_damm: enable replication via futon?
+[2012-06-29 18:14:06 -0400] hoover_damm: see if what it says?
+[2012-06-29 18:14:11 -0400] randomautomator: lemm give that a try
+[2012-06-29 18:14:20 -0400] hoover_damm: futon and log file :)
+[2012-06-29 18:14:21 -0400] hoover_damm: good luck
+[2012-06-29 18:15:04 -0400] randomautomator: thx
+[2012-06-29 18:26:13 -0400] xerxas: hoover_damm, ashb : thanks guys !
+[2012-06-29 18:26:27 -0400] xerxas: I'll let you know if it works
+[2012-06-29 19:14:10 -0400] lflux: ohai
+[2012-06-29 19:14:22 -0400] lflux: i feel the urge to cheferize all my servers after being at velocity
+[2012-06-29 19:15:20 -0400] Twirrim: once you start, you can't stop.
+[2012-06-29 19:15:28 -0400] lflux: I feel that the people actually on-call 9 timezones away don't agree with me doing it right now though
+[2012-06-29 19:24:19 -0400] LinuxHorn: is it wrong that i want to deploy lolcats with chef?  i am tired of manually inserting images into emails
+[2012-06-29 19:25:09 -0400] thehar: LWRP lolcats
+[2012-06-29 19:26:55 -0400] LinuxHorn: action :lol
+[2012-06-29 19:27:32 -0400] c_t: just add recipe[bukkit] to your run list
+[2012-06-29 19:27:38 -0400] thehar: ROFL
+[2012-06-29 19:27:48 -0400] c_t: then it will gribe about not being able to find the cookbook bukkit
+[2012-06-29 19:27:55 -0400] c_t: gripe, even
+[2012-06-29 19:28:02 -0400] LinuxHorn: heh
+[2012-06-29 19:28:30 -0400] LinuxHorn: thehar: action :ROFL is only for servers with the env-production environment applied
+[2012-06-29 19:35:07 -0400] Twirrim: our jr sysadmin is sitting behind me muttering under his breath as he practices the presentation he's giving to our developers about Chef.  Ever so slightly disconcerting..
+[2012-06-29 19:36:25 -0400] thehar: Scared?
+[2012-06-29 19:36:50 -0400] lflux: choosing lolcats is a very manual task
+[2012-06-29 19:36:54 -0400] lflux: can't automate that
+[2012-06-29 19:36:55 -0400] Twirrim: if he starts making a sound that even remotely sounds like chuckling I'm finding a good reason to need to go to the datacenter.
+[2012-06-29 19:37:04 -0400] pwelch__: does anyone know if there are plans for a bootstrap method using omnibus?
+[2012-06-29 19:40:10 -0400] LinuxHorn: lflux: i would think we could tap into an API for cheezburger and deploy using attributes that we populate from their tags
+[2012-06-29 19:41:46 -0400] hoover_damm: cheezburger role from griddle bigmac.lolcat
+[2012-06-29 19:44:16 -0400] lflux: that's a start, but choosing lolcats needs to be done with care
+[2012-06-29 19:44:20 -0400] lflux: not all are created equal
+[2012-06-29 19:50:26 -0400] hoover_damm: lflux, right you'd want the dsl to be lolcat as well
+[2012-06-29 19:51:35 -0400] LinuxHorn: good times
+[2012-06-29 19:53:18 -0400] cescalante: can I use/is it bad to use template files in roles?
+[2012-06-29 19:53:50 -0400] thehar: chefspec needs to be able to work on lwrps :(
+[2012-06-29 19:54:03 -0400] miah: make it!
+[2012-06-29 19:54:05 -0400] thehar: lol
+[2012-06-29 19:54:27 -0400] benburkert: if i add an ignore_failure to a resource that's actually a definition, will it pass that along to all the resources in the definition?
+[2012-06-29 19:55:17 -0400] _aeris_: hello #chef
+[2012-06-29 19:55:23 -0400] _aeris_: i have a problem with chef
+[2012-06-29 19:55:58 -0400] _aeris_: at the end of a chef-client run
+[2012-06-29 19:56:03 -0400] _aeris_: i have a  FATAL: Net::HTTPServerException: 403 "Forbidden" 
+[2012-06-29 19:56:14 -0400] Twirrim: new client?
+[2012-06-29 19:56:14 -0400] bawt_: new client is using .json files for all of their roles
+[2012-06-29 19:56:19 -0400] _aeris_: but nothing in stacktrace and no way to debug
+[2012-06-29 19:56:33 -0400] _aeris_: Twirrim not new client
+[2012-06-29 19:57:52 -0400] danryan: hey _aeris_: run chef-client with `-l debug` option and gist as much of the output as you can, please
+[2012-06-29 19:58:24 -0400] danryan: _aeris_: 403 means chef-server is rejecting the client somehow, but we need more context to diagnose the problem
+[2012-06-29 19:59:11 -0400] LinuxHorn: right, possibly the client.pem does not match what is on the chef server for that node/client
+[2012-06-29 20:00:03 -0400] cakehero: How do I use a template from another cookbook?
+[2012-06-29 20:01:12 -0400] danryan: cakehero: use the `cookbook` attribute of the template resource. e.g. https://gist.github.com/3020325
+[2012-06-29 20:01:32 -0400] cakehero: danryan thansk
+[2012-06-29 20:01:45 -0400] danryan: cakehero: http://wiki.opscode.com/display/chef/Resources#Resources-Template Check out the Chef wiki for more context
+[2012-06-29 20:01:57 -0400] cakehero: danryan y'know I was there but I missed it
+[2012-06-29 20:02:12 -0400] danryan: cakehero: there's a lot of info to digest on that page :)
+[2012-06-29 20:02:16 -0400] cakehero: danryan ahh I was here: http://wiki.opscode.com/display/chef/Templates
+[2012-06-29 20:03:44 -0400] cakehero: If there is a template that I want to customize from a community cookbook is it recommended to alter the community cookbook or to make a copy in my cookbook?
+[2012-06-29 20:03:54 -0400] cakehero: I often need to customize templates for config files for nginx, unicorn, etc
+[2012-06-29 20:04:08 -0400] cakehero: but I have all the community cookbooks as git submodules so I wasn't going to mess w/them
+[2012-06-29 20:04:20 -0400] _aeris_: danryan > http://pastebin.com/uu2RMUY4
+[2012-06-29 20:04:24 -0400] danryan: cakehero: the workflow is different for everyone, but I personally like to start with the community cookbook and personalize it to my needs/tastes
+[2012-06-29 20:04:45 -0400] cakehero: Do you personalize the community one or do you copy it out to a new cookbook as-needed?
+[2012-06-29 20:04:59 -0400] cakehero: I have a few recipes for apps that all use nginx, so I could make 1 template for all 3 or 3 templates
+[2012-06-29 20:05:08 -0400] cakehero: I suppose it just depends on how varied the templates are
+[2012-06-29 20:05:08 -0400] danryan: cakehero: I copy and then personalize the community cookbook
+[2012-06-29 20:07:23 -0400] _aeris_: danryan > seems this is a problem of permission on hosted chef
+[2012-06-29 20:07:44 -0400] _aeris_: clients have no update permissions on node
+[2012-06-29 20:08:44 -0400] danryan: _aeris_: interesting. I don't have much experience with hosted Chef, but I know it has more complex ACL rules than self chef
+[2012-06-29 20:08:58 -0400] danryan: _aeris_: but that looks right
+[2012-06-29 20:13:40 -0400] mattray: _aeris_: http://wiki.opscode.com/display/chef/Common+Errors#CommonErrors-403Forbidden
+[2012-06-29 20:15:31 -0400] c_t: I think there's a need for a knife plugin (or something in chef proper) called "lambada" to help fix those Forbidden things for you
+[2012-06-29 20:15:57 -0400] randomautomator: so has anyone else here had problems doing a couchdb replication? i posted something up on #couchdb but they're not answering.
+[2012-06-29 20:16:04 -0400] randomautomator: I'm just replicating a brand new chef db
+[2012-06-29 20:16:18 -0400] randomautomator: and it's barfing and fails after about 20 minutes
+[2012-06-29 20:16:19 -0400] xerxas: ashb: doesn't work with t= template ...
+[2012-06-29 20:16:41 -0400] xerxas: I get  "NoMethodError: undefined method `variables' for nil:NilClass"
+[2012-06-29 20:17:02 -0400] xerxas: undefined method `variables' for nil:NilClass
+[2012-06-29 20:18:11 -0400] _aeris_: thanks mattray
+[2012-06-29 20:18:38 -0400] doomviking: c_t: ouch
+[2012-06-29 20:22:25 -0400] jasond: is the attributes/default.rb file automatically included in the default recipe or do i need load it with include_attributes?
+[2012-06-29 20:28:45 -0400] jasond: oh, nevermind, include_attribute is for something else.  for some reason my attributes in default.rb aren't being loaded
+[2012-06-29 20:34:58 -0400] ashb: xerxas: thought that might happen. the other suggestion we had was to remove the {} inside the variables (inside the block) so it looks like this: https://gist.github.com/c1b1de701fef55c3e07f
+[2012-06-29 20:58:32 -0400] luckymike: opscode status is down?
+[2012-06-29 21:00:07 -0400] jtimberman: luckymike: http://status.opscode.com/ is up for me.
+[2012-06-29 21:03:17 -0400] luckymike: back for me too
+[2012-06-29 22:20:47 -0400] kevmo: I am trying to use the following command, or something like it "   openssl passwd -1 "S@ftyFurst!   " and am getting the follwing error "-bash: !": event not found"  How do I get it so that it will accept the !
+[2012-06-29 22:21:11 -0400] ashb: use single quotes
+[2012-06-29 22:21:38 -0400] kevmo: around 'S@ftyFurst!'  ? the whole thing?
+[2012-06-29 22:21:46 -0400] ashb: yup
+[2012-06-29 22:21:53 -0400] kevmo: Thank you!
+[2012-06-29 22:43:12 -0400] epall: hey guys, I'm having some trouble setting up postgres using the 'postgresql' cookbook on my Ubuntu 12.04 server. The 'pg' gem is failing to install due to some linking errors with libpq.so. My mkmf.log is at https://gist.github.com/3021188
+[2012-06-29 22:43:43 -0400] hoover_damm: epall, the pg gem needs to link with ssl
+[2012-06-29 22:43:48 -0400] hoover_damm: at least obviously in this ase
+[2012-06-29 22:43:50 -0400] hoover_damm: case*
+[2012-06-29 22:44:01 -0400] epall: hoover_damm: yeah, that's what it looks like to me. But I have libssl and libssl-dev installed
+[2012-06-29 22:44:06 -0400] hoover_damm: that's prolly what the whole shennigans of the pg gem that me and hakunin hav ebeen having an issue with
+[2012-06-29 22:44:11 -0400] hoover_damm: epall, but the pg gem isn't linking it
+[2012-06-29 22:44:22 -0400] epall: agreed
+[2012-06-29 22:44:30 -0400] hoover_damm: epall, psycopg2 works
+[2012-06-29 22:44:32 -0400] hakunin: hoover_damm: epall: not me, Majost
+[2012-06-29 22:44:41 -0400] hoover_damm: hakunin, actually his error is ours
+[2012-06-29 22:44:46 -0400] hoover_damm: we just suck at debugging
+[2012-06-29 22:45:04 -0400] hoover_damm: hakunin, I remembered that traceback after seeing his gist and /facepalming and saying screw it
+[2012-06-29 22:45:04 -0400] hakunin: hoover_damm: i never had error with compiling pg
+[2012-06-29 22:45:11 -0400] hoover_damm: really?
+[2012-06-29 22:45:15 -0400] epall: so I notice that libssl ends up in /usr/lib/x86_64-linux-gnu/libssl.so
+[2012-06-29 22:45:15 -0400] hakunin: hoover_damm: it was Majost
+[2012-06-29 22:45:22 -0400] hoover_damm: hakunin, both of us
+[2012-06-29 22:45:40 -0400] hakunin: hoover_damm: nope, pg always compiled perfectly for me
+[2012-06-29 22:45:55 -0400] hakunin: i had some other issue with postgresql cookbook
+[2012-06-29 22:45:59 -0400] hakunin: permissions-related
+[2012-06-29 22:46:13 -0400] hakunin: with directories
+[2012-06-29 22:46:20 -0400] epall: if I install ruby1.9 and 'gem install pg' with libpq-dev installed, it installs okay, so I'm thinking it has to do with the private ruby that chef uses?
+[2012-06-29 22:46:23 -0400] hoover_damm: hakunin, hakunin lucky you
+[2012-06-29 22:47:29 -0400] epall: hm. /opt/chef/embedded/lib has its own version of libssl
+[2012-06-29 22:47:42 -0400] epall: so why isn't the gem install finding it??
+[2012-06-29 22:47:51 -0400] hakunin: hoover_damm: epall: the difference between mine and Majost's setup (and probably all of yours) is that I bootstrapped my server with github.com/iain/roundsman.
+[2012-06-29 22:48:09 -0400] hoover_damm: hakunin, nah your ruby is system ruby
+[2012-06-29 22:48:14 -0400] hoover_damm: hakunin, how you installed it is irrelevent
+[2012-06-29 22:48:20 -0400] hoover_damm: hakunin, ours is embedded
+[2012-06-29 22:48:23 -0400] hoover_damm: or omnibus
+[2012-06-29 22:48:35 -0400] hoover_damm: hakunin, which includes a lot of it's own dependencies.  rsync, ssl, etc
+[2012-06-29 22:48:48 -0400] hoover_damm: hakunin, and no postgresql
+[2012-06-29 22:48:51 -0400] hakunin: hoover_damm: epall: i told it to install ruby 1.9.3 and roundsman also installs a bunch of packages and gem dependencies.
+[2012-06-29 22:49:07 -0400] epall: yeah, the ubuntu ruby package is fun
+[2012-06-29 22:49:21 -0400] hoover_damm: I have a old patch up of that ubuntu ruby package
+[2012-06-29 22:49:23 -0400] hakunin: epall: never install anything ruby-related from packages
+[2012-06-29 22:49:24 -0400] hoover_damm: i need to update it again but haven't
+[2012-06-29 22:49:33 -0400] hoover_damm: haven't gotten a contract that cares about ubuntu ruby
+[2012-06-29 22:49:35 -0400] hoover_damm: so i won't
+[2012-06-29 22:49:53 -0400] epall: hakunin: never do
+[2012-06-29 22:50:07 -0400] hoover_damm: hakunin, I prefer to package up my ruby dependencies
+[2012-06-29 22:50:12 -0400] epall: in fact, I don't care about ruby, except that the postgresql package is forcing the pg gem
+[2012-06-29 22:50:19 -0400] hoover_damm: but i've been doing package management and ops for a long time
+[2012-06-29 22:50:23 -0400] epall: is there a better cookbook out there?
+[2012-06-29 22:50:50 -0400] hakunin: epall: every single cookbook i used, no matter how good, is forked and slightly fixed-up somehow by me : )
+[2012-06-29 22:50:55 -0400] hoover_damm: epall, the problem isn't the cookbook in this case
+[2012-06-29 22:51:03 -0400] epall: what's the problem in this case?
+[2012-06-29 22:51:17 -0400] hakunin: epall: so if a cookbook is forcing the pg gem on you and you don't even need a gem, maybe you can fork/patch
+[2012-06-29 22:51:21 -0400] hoover_damm: epall, if what hakunin says is correct.  Our problem is due to us using omnibus and not a ruby that's installed using the system dependencies
+[2012-06-29 22:51:41 -0400] hoover_damm: so when it tries to find the proper linkage for the pg gem
+[2012-06-29 22:51:43 -0400] hoover_damm: it gets a little hairy
+[2012-06-29 22:51:46 -0400] hakunin: hoover_damm: wait, my ruby is not coming from a package either
+[2012-06-29 22:51:58 -0400] hoover_damm: hakunin, read the words above clearly
+[2012-06-29 22:52:03 -0400] hoover_damm: hakunin, you linked against the system
+[2012-06-29 22:52:04 -0400] epall: hoover_damm: any ideas how to navigate the hairyness?
+[2012-06-29 22:52:10 -0400] hoover_damm: hakunin, we linked against ourselves
+[2012-06-29 22:52:28 -0400] hoover_damm: epall, is this just for the user creation / automation stuff?
+[2012-06-29 22:52:30 -0400] hakunin: hoover_damm: probably just me being not well versed in the terminology
+[2012-06-29 22:52:49 -0400] hoover_damm: hakunin, that's why it's hard for developers to be sysadmins
+[2012-06-29 22:52:54 -0400] epall: hoover_damm: looks like it wants the pg gem for assign-postgres-password
+[2012-06-29 22:52:58 -0400] hakunin: hoover_damm: indeed
+[2012-06-29 22:53:00 -0400] hoover_damm: hakunin, there's so many nuances that exist that are insane to find
+[2012-06-29 22:53:21 -0400] hoover_damm: hakunin, and as a developer you know how to do your job and do it well.  Sometimes those same patterns don't apply well to ops
+[2012-06-29 22:53:33 -0400] hakunin: hoover_damm: agreed
+[2012-06-29 22:53:35 -0400] hakunin: i'm struggling
+[2012-06-29 22:53:37 -0400] hoover_damm: epall, hakunin has one method that he shared the other day that was good
+[2012-06-29 22:53:40 -0400] hoover_damm: to avoid that
+[2012-06-29 22:54:10 -0400] hakunin: for assign-postgres-password?
+[2012-06-29 22:54:15 -0400] hoover_damm: hakunin, if you want to submit that to on a pull to my branch
+[2012-06-29 22:54:17 -0400] hoover_damm: i'll take it
+[2012-06-29 22:54:28 -0400] hoover_damm: yeah didn't you have some user creation stuff?
+[2012-06-29 22:54:31 -0400] hoover_damm: i know i had some janky stuff
+[2012-06-29 22:54:45 -0400] hakunin: i posted this gist: https://gist.github.com/3c92cbf490ae93e7ddee
+[2012-06-29 22:55:03 -0400] hakunin: it creates users idempotently by running an sql script via psql
+[2012-06-29 22:55:20 -0400] hakunin: it could easily be altered to also assign pg password
+[2012-06-29 22:55:27 -0400] epall: thanks!
+[2012-06-29 22:56:04 -0400] hoover_damm: epall, fwiw i wrote github.com/damm/postgresql
+[2012-06-29 22:56:13 -0400] hoover_damm: it's 9.1 for ubuntu
+[2012-06-29 22:56:24 -0400] hoover_damm: epall, has the password stuff in an attribute
+[2012-06-29 22:57:11 -0400] hakunin: epall: the gist is meant to be put as a template in a cookbook, and takes username/password from node (as you see in there)
+[2012-06-29 22:57:16 -0400] Majost: hoover_damm, hakunin: I opened an issue w/opscode on the postgresql/ruby-pg issue
+[2012-06-29 22:57:18 -0400] epall: got it
+[2012-06-29 22:57:39 -0400] Majost: also filed a bug with the ruby-pg maintaners
+[2012-06-29 22:57:46 -0400] Majost: opscode reproduced the issue
+[2012-06-29 22:58:07 -0400] Majost: and the ruby-pg guys are working on reproducing it in isolation as well
+[2012-06-29 22:58:09 -0400] epall: Majost: do you have a link to the issue you filed?
+[2012-06-29 22:59:19 -0400] hoover_damm: Majost, cool
+[2012-06-29 22:59:27 -0400] Majost: ruby-pg:   https://bitbucket.org/ged/ruby-pg/issue/130/ruby-pg-fails-to-build-on-ubuntu-1204-with
+[2012-06-29 22:59:40 -0400] Majost: epall: The opscode issue is a support issue
+[2012-06-29 22:59:47 -0400] Majost: https://www.opscode.com/support/tickets/12522
+[2012-06-29 22:59:56 -0400] Majost: not sure you if can see it or not
+[2012-06-29 23:00:01 -0400] epall: can't see it
+[2012-06-29 23:00:03 -0400] epall: but thanks!
+[2012-06-29 23:00:06 -0400] Majost: np
+[2012-06-29 23:00:37 -0400] Majost: the both have been very quick to respond
+[2012-06-29 23:00:51 -0400] Majost: so I am hoping to have the issue fixed soon
+[2012-06-29 23:01:25 -0400] hoover_damm: but if it is because we use omnibus i guess that's why
+[2012-06-29 23:01:55 -0400] Majost: So much stuff uses postgres these days...
+[2012-06-29 23:03:21 -0400] Majost: something to note -- the issue I filed was the first they had heard of the issue
+[2012-06-29 23:03:45 -0400] Majost: so I encourage people to file a bug too
+[2012-06-29 23:04:25 -0400] hoover_damm: fwiw it doesn't appear to link ssl by default
+[2012-06-29 23:11:57 -0400] hoover_damm: fwiw I tried forcing it to link to ssl, that clearly didn't help.  I can point it to the libs and the include and :(
+[2012-06-29 23:12:12 -0400] hoover_damm: /usr/bin/ld: warning: cannot find entry symbol xport-dynamic-lssl; defaulting to 00000000004006a0
+[2012-06-29 23:12:32 -0400] hoover_damm: even with -lssl attached to the link
+[2012-06-29 23:12:33 -0400] hoover_damm: hehe
+[2012-06-29 23:12:54 -0400] hakunin: gotta run for a few hrs
+[2012-06-29 23:13:47 -0400] c_t: Oh good lord
+[2012-06-29 23:14:19 -0400] c_t: I've been banging away on this one page trying to figure out why this one page that shouldn't have been a huge problem was taking ~5 seconds to load
+[2012-06-29 23:14:42 -0400] c_t: doing all sorts of looking, trying caching etc.
+[2012-06-29 23:14:54 -0400] c_t: but everytime it was a fresh load it took about 5 seconds
+[2012-06-29 23:15:01 -0400] c_t: finally noticed this at the bottom of the template
+[2012-06-29 23:15:04 -0400] c_t: <% sleep 5 %>
+[2012-06-29 23:16:13 -0400] hoover_damm: http://likens.us/third-party-facepalm.jpg
+[2012-06-29 23:16:48 -0400] c_t: Something that boneheaded must have been there for a reason, but fuck if I can think of what it was
+[2012-06-29 23:17:05 -0400] hoover_damm: don't expect a good answer on what
+[2012-06-29 23:17:07 -0400] hoover_damm: you won't find one
+[2012-06-29 23:17:32 -0400] hoover_damm: I got to the point I stopped caring about why, and resolved to just either fix it or shutup
+[2012-06-29 23:18:54 -0400] c_t: Nothing anyone else could say right now could make me feel more stupid
+[2012-06-29 23:18:57 -0400] c_t: still, it does explain a lot
+[2012-06-29 23:19:34 -0400] hoover_damm: feel stupid when you walk away
+[2012-06-29 23:19:38 -0400] c_t: seems to work without it
+[2012-06-29 23:19:39 -0400] hoover_damm: not when you find something stupid
+[2012-06-29 23:20:10 -0400] hoover_damm: your peers won't know how to do it better if you don't share with them in a non emotional manner
+[2012-06-29 23:20:12 -0400] c_t: I've come up with a few tenuous theories, but I think I'll just settle on "taking it out"
+[2012-06-29 23:20:41 -0400] c_t: obviously I'm not too torn up or else I wouldn't tell the world about it
+[2012-06-29 23:20:52 -0400] hoover_damm: irc isn't that big of a deal
+[2012-06-29 23:21:06 -0400] hoover_damm: I see people say all sorts of 'bad' things on irc that they would never utter on facebook
+[2012-06-29 23:21:09 -0400] c_t: oh, something this braindead I had to tweet too
+[2012-06-29 23:21:09 -0400] hoover_damm: or twitter
+[2012-06-29 23:21:42 -0400] c_t: fortunately it was not a particularly important page
+[2012-06-29 23:22:07 -0400] c_t: and actually it lead to a good thing, because some of the rejiggering I did to fix the problem has other benefits
+[2012-06-29 23:24:02 -0400] hoover_damm: my favorite commit message was ez != ey
+[2012-06-29 23:24:04 -0400] hoover_damm: :)
+[2012-06-29 23:24:44 -0400] hoover_damm: we all learn, we all grow, and we get better.  Bad code yesterday is code to fix tomorrow
+[2012-06-29 23:24:51 -0400] c_t: oh sure
+[2012-06-29 23:25:04 -0400] c_t: but you can still marvel over "wtf was I (or someone near me) thinking??"
+[2012-06-29 23:25:10 -0400] hoover_damm: that's why i ephasize on teaching people
+[2012-06-29 23:25:24 -0400] hoover_damm: because if they do a wtf like this and you don't do steps to fix it from happening again
+[2012-06-29 23:25:27 -0400] JasonF: I have a general rule: If I don't hate my code in 2 years or less, I'm not learning fast enough.
+[2012-06-29 23:25:29 -0400] hoover_damm: you haven't exactly done better
+[2012-06-29 23:25:40 -0400] hoover_damm: JasonF, 6months?
+[2012-06-29 23:25:41 -0400] hoover_damm: lol
+[2012-06-29 23:26:01 -0400] hoover_damm: JasonF, hardest part for me is when I work with people who don't like throwing away code
+[2012-06-29 23:26:09 -0400] Twirrim: but.. but... my code is flawless and perfect.  Why would I ever hate it?
+[2012-06-29 23:26:54 -0400] hoover_damm: Twirrim, there is always someone who can and does better then you for less pay and less emotion
+[2012-06-29 23:27:00 -0400] hoover_damm: your boss just hasn't found him yet

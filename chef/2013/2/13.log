@@ -1,0 +1,1028 @@
+[2013-02-13 00:10:24 -0500] jtimberman: mconigliaro: i'd probably do that in a data bag instead.
+[2013-02-13 00:11:14 -0500] mconigliaro: so one data bag with all my vagrant config stuff?
+[2013-02-13 00:11:21 -0500] jtimberman: log1kal: the actual issue is that we optimistically removed the hard constraint on the json gem in 11.2.0, and then we got bit by a breaking change in 1.7.6 -> 1.7.7 related to the DoS vulnerability that was released yesterday.
+[2013-02-13 00:12:01 -0500] jtimberman: rava: what error is knife giving you?
+[2013-02-13 00:12:09 -0500] jtimberman: can you run the knife command with -VV and gist the output?
+[2013-02-13 00:14:42 -0500] log1kal: jtimberman: a much better way to put that, apologies
+[2013-02-13 00:14:47 -0500] jtimberman: log1kal: no worries :)
+[2013-02-13 00:15:07 -0500] jtimberman: log1kal: we're working on getting 11.4 and 10.22 out to address the issue.
+[2013-02-13 00:15:42 -0500] log1kal: I've been assuming that if I used the omnibus installers, that wouldn't have bit me. Truth?
+[2013-02-13 00:16:36 -0500] mconigliaro: jtimberman: is it a really bad idea to stick additional data in my roles? i kind of like how it's all self-contained.
+[2013-02-13 00:17:39 -0500] jtimberman: log1kal: truth. the json gem and chef gem wouldn't have changed (unless you went around doing gem installs from the internal rubygems)
+[2013-02-13 00:17:49 -0500] log1kal: Excellent. Thanks!
+[2013-02-13 00:18:07 -0500] jtimberman: mconigliaro: like, making new keys that aren't necessarily attributes?
+[2013-02-13 00:18:10 -0500] mconigliaro: i guess if i stored it in a different place, i don't even need a data bag, i can just make a new directory with a bunch of configuration files for vagrant
+[2013-02-13 00:18:14 -0500] mconigliaro: yeah, exactly
+[2013-02-13 00:18:28 -0500] mconigliaro: i figure as long as I'm not conflicting with any chef stuff, I'm ok
+[2013-02-13 00:18:35 -0500] leifmadsen: I've been trying to keep the information in roles to a minimum and instead using data bags and attributes in the cookbooks themselves, then overriding where necessary
+[2013-02-13 00:18:47 -0500] mconigliaro: does anyone else do anything like this?
+[2013-02-13 00:21:16 -0500] mconigliaro: leifmadsen: here's my question: community.opscode.com/questions/273
+[2013-02-13 00:21:19 -0500] log1kal: mconigliaro: I actually run everything on one vagrant for testing, instead of booting multiple vagrants to replicate production. My stack allowes that, though
+[2013-02-13 00:21:38 -0500] log1kal: so, no, not really.
+[2013-02-13 00:22:35 -0500] leifmadsen: I spin up multiple vagrant machines, the first of which is a self contained chef-server built via chef-solo and the chef-server cookbook. I then use another cookbook to import the data from my hard drive (cwd) into the chef-server. From there I just spin up VMs that connect to that chef server and provision themselves.
+[2013-02-13 00:23:00 -0500] leifmadsen: so basically each developer has their own chef-server they can turn up, destroy, and re-provision with their local cookbook changes
+[2013-02-13 00:23:00 -0500] mconigliaro: hmm, seems complicated
+[2013-02-13 00:23:07 -0500] mconigliaro: why not use chef-solo?
+[2013-02-13 00:23:29 -0500] leifmadsen: because we use chef-server in production and I need all the functionality chef-server provides in my cookbooks, such as search
+[2013-02-13 00:23:48 -0500] mconigliaro: i see
+[2013-02-13 00:24:04 -0500] leifmadsen: otherwise nothing works in vagrant
+[2013-02-13 00:24:23 -0500] leifmadsen: and it's not really that hard once you get the data loaded into chef (which is just done via knife commands)
+[2013-02-13 00:24:29 -0500] leifmadsen: I just automated the knife upload part
+[2013-02-13 00:25:16 -0500] leifmadsen: in terms of your question about vagrant data, I try to just keep that in the chef.json parts of the vagrantfile itself
+[2013-02-13 00:25:28 -0500] rava: jtimberman: sorry, was afk trying again
+[2013-02-13 00:25:52 -0500] mconigliaro: right, but that defeats the whole point of what I'm trying to do. i want vagrant to generate it's config dynamically
+[2013-02-13 00:26:08 -0500] leifmadsen: oh, ya I don't really believe in that method :)
+[2013-02-13 00:26:09 -0500] rava: jtimberman: the server returns the same error to knife that it shows in the server log
+[2013-02-13 00:26:17 -0500] mconigliaro: every time someone creates a new role, i want a new vm
+[2013-02-13 00:26:28 -0500] rava: "Unable to create Chef::RunList::RunListItem from String:"recipe[]
+[2013-02-13 00:26:31 -0500] leifmadsen: I don't create roles that often
+[2013-02-13 00:27:34 -0500] leifmadsen: seems like you might just program the vagrantfile to iterate through your roles directory and make the creation of the vagrant machines dynamic from there based on the chef-repo contents
+[2013-02-13 00:27:53 -0500] leifmadsen: my viewpoint is that vagrant should learn to work with your chef data, not chef data learn to control your vagrant
+[2013-02-13 00:27:56 -0500] rava: the full output: https://gist.github.com/bd-erik/4780128
+[2013-02-13 00:28:42 -0500] jtimberman: rava: and what was the knife command you tried?
+[2013-02-13 00:28:51 -0500] rava: knife node delete CI1TEST
+[2013-02-13 00:29:07 -0500] mconigliaro: leifmadsen: that's exactly what I'm doing
+[2013-02-13 00:29:18 -0500] mconigliaro: but maybe some vas need to be different
+[2013-02-13 00:29:24 -0500] mconigliaro: so where do i store that config?
+[2013-02-13 00:29:37 -0500] mconigliaro: i thought it would be nice to stick it in the role itself, since it's all self contained
+[2013-02-13 00:29:38 -0500] leifmadsen: use an eval to import the contents fo that data?
+[2013-02-13 00:29:50 -0500] mconigliaro: no, pson.parse
+[2013-02-13 00:29:52 -0500] leifmadsen: I'm not sure I'm convinced having it in the role is the best idea, but it could work I guess
+[2013-02-13 00:29:55 -0500] mconigliaro: *json
+[2013-02-13 00:30:10 -0500] mconigliaro: where would you stick it?
+[2013-02-13 00:30:17 -0500] leifmadsen: I have it in my vagrantfile
+[2013-02-13 00:30:34 -0500] leifmadsen: I don't like the idea of putting vagrant related data in the cookbooks/roles/etc
+[2013-02-13 00:30:41 -0500] mconigliaro: ok
+[2013-02-13 00:30:46 -0500] leifmadsen: perhaps you could put it in an environment file
+[2013-02-13 00:30:56 -0500] leifmadsen: something independent and separate from production data
+[2013-02-13 00:31:00 -0500] mconigliaro: well, vas are per role, not environment
+[2013-02-13 00:31:02 -0500] leifmadsen: that's just my viewpoint though
+[2013-02-13 00:31:12 -0500] mconigliaro: *vms
+[2013-02-13 00:31:37 -0500] mconigliaro: if i had a vm per environment, i think that would make sense
+[2013-02-13 00:32:09 -0500] rava: jtimberman: anyway i can manually gank the entries in couchdb for that node?
+[2013-02-13 00:32:24 -0500] rava: jtimberman: i'm pretty sure i know how i broke it: using pychef to edit the node's attributes
+[2013-02-13 00:33:18 -0500] leifmadsen: mconigliaro: I don't think anything is going to stop you from putting it in the role file if you really want everything to be role controlled. I don't like the idea, but that's just my approach to the problem.
+[2013-02-13 00:33:30 -0500] mconigliaro: sure, i understand
+[2013-02-13 00:33:44 -0500] leifmadsen: I'd just have it controlled externally from some other centralized data source and generate what I need when I need it
+[2013-02-13 00:36:32 -0500] rava: or anyway i can manually set the attribute for this node using knife exec?
+[2013-02-13 00:36:38 -0500] rava: knife search fails to find the node in ruby code
+[2013-02-13 00:36:58 -0500] maplebed: jtimberman: I'm curious for your opinion on how to manage nagios timeperiods.  go data bags like with the rest of the nagios config elements, do the wrapper-cookbook style edit template[timeperiods] to relpace it with your own, or something different?
+[2013-02-13 00:37:29 -0500] maplebed: I have finally made some alerts I only want to be business hours...
+[2013-02-13 00:38:47 -0500] jtimberman: rava: ah. yeah, you can definitely remove it from couchdb directly.
+[2013-02-13 00:38:57 -0500] jtimberman: that won't update the solr index thoguh, you'd have to reindex
+[2013-02-13 00:39:20 -0500] rava: jtimberman: i can't rebuild the index currently due to this node
+[2013-02-13 00:39:27 -0500] rava: so that would be an improvement :)
+[2013-02-13 00:41:23 -0500] jtimberman: :)
+[2013-02-13 00:41:39 -0500] jtimberman: maplebed: i don't have any particularly strong opinions about it
+[2013-02-13 00:41:55 -0500] c_t: :-O
+[2013-02-13 00:42:18 -0500] rava: jtimberman: guessing curl -X DELETE http://localhost:5984/chef/<document id> ?
+[2013-02-13 00:43:11 -0500] maplebed: :(
+[2013-02-13 00:43:30 -0500] rava: c_t: indeed
+[2013-02-13 00:44:30 -0500] rava: c_t: i've tried updating to chef server 10.18 from .16, updating gems, updating gems on my local ws for knife. still no dice
+[2013-02-13 00:44:48 -0500] c_t: hopefully that deleting the node business irons it out
+[2013-02-13 00:45:14 -0500] rava: that curl request look good for deleting it without screwing the pooch?
+[2013-02-13 00:45:31 -0500] c_t: ah, that is a question I can't answer I'm afraid
+[2013-02-13 00:45:38 -0500] c_t: I haven't dinked much with chef server
+[2013-02-13 00:47:42 -0500] rava: this is the line in the document that's breaking shit: "run_list":["role[base]","recipe[]"],"chef_type":"node"}
+[2013-02-13 00:48:00 -0500] jtimberman: rava: that curl *looks* right but i haven't used direct queries against couch in a really long time.
+[2013-02-13 00:48:18 -0500] jtimberman: rava: you can also connect to the couchdb webui and poke around
+[2013-02-13 00:48:24 -0500] rava: well i do have a couchdb-dump back up..
+[2013-02-13 00:50:40 -0500] tomdzk: rava: instead of trying to delete the node, maybe you could fix it's runlist in couch ?
+[2013-02-13 00:50:53 -0500] rava: yeah, thinking about that
+[2013-02-13 00:52:09 -0500] tomdzk: rava: I guess using chef server API directly to update the run list gets you the same error ?
+[2013-02-13 00:55:21 -0500] rava: tomdzk: correct
+[2013-02-13 00:55:59 -0500] rava: now to find the setting to make couchdb web ui available outside of the local instance
+[2013-02-13 00:56:20 -0500] tomdzk: ssh tunnel ?
+[2013-02-13 00:57:43 -0500] rava: that's the lazy way :P
+[2013-02-13 00:58:08 -0500] tomdzk: that's the spirit :)
+[2013-02-13 01:00:26 -0500] rava: victory!
+[2013-02-13 01:00:50 -0500] rava: that's it, i won today.
+[2013-02-13 01:03:26 -0500] tomdzk: rava: you think this is worth a chef jira issue to make it easier for the next person who has to deal with this ?
+[2013-02-13 01:04:07 -0500] rava: tomdzk: you'd have to try and get yourself into this state. outside of the issue where the webui was doing it
+[2013-02-13 01:04:28 -0500] tomdzk: rava: how did it get into this state to begin with ?
+[2013-02-13 01:04:33 -0500] rava: tomdzk: i did this to my data set by setting the attribute directly using pychef
+[2013-02-13 01:05:13 -0500] maplebed: I'm trying to override the template of a cookbook that I'm using.  I see an example in the reusable chef cookbooks article[1] about the 'edit' resource, and a mailing list post[2] talking about it as a gem.  Also there's chef-rewind[3] that talks about rewind and just redefining the template.  Any advice on the right path to follow?
+[2013-02-13 01:05:14 -0500] tomdzk: rava: so the chef server api allows you to get into this state ?
+[2013-02-13 01:05:17 -0500] maplebed: [1] http://devopsanywhere.blogspot.com/2012/11/how-to-write-reusable-chef-cookbooks.html
+[2013-02-13 01:05:24 -0500] maplebed: [2] http://lists.opscode.com/sympa/arc/chef/2012-11/msg00093.html
+[2013-02-13 01:05:32 -0500] maplebed: [3] http://devopsanywhere.blogspot.com/2012/11/editing-chef-resources.html
+[2013-02-13 01:07:28 -0500] rava: tomdzk: yeah, pychef's just a python wrapper for the api
+[2013-02-13 01:07:52 -0500] tomdzk: rava: might warrant a bug report then, chef server should prob. not allow you to do that
+[2013-02-13 01:08:25 -0500] silk: When trying to pass commandline values to a knife plugin, using options, i get a NoMethodError for true:TrueClass, which makes sense, but I am unsure why it is a TrueClass, when :boolean is set to false. Does anyone have an idea of where to look?
+[2013-02-13 01:34:35 -0500] log1kal: Say I have an environment up on my chef server. I want to get it back from the server, and put it into the familiar hash syntax.
+[2013-02-13 01:34:56 -0500] log1kal: I assumed that knife environment show <env> -f pp would've done that, but I just get the environment name
+[2013-02-13 01:35:54 -0500] chip-: log1kal: knife environment show -Fj should do it.
+[2013-02-13 01:36:31 -0500] log1kal: that gives me the json format, which isn't quite what I want
+[2013-02-13 01:37:27 -0500] rava: tomdzk: i'll try and remember to file one tonight when i get home. thanks guys for all the help
+[2013-02-13 01:42:44 -0500] log1kal: ah ha.
+[2013-02-13 01:47:17 -0500] log1kal: Here's how to get a current environment down from a chef server, as a nice ruby hash, suitable for copy/pasting to a VagrantFile: https://gist.github.com/logikal/4839223
+[2013-02-13 02:47:14 -0500] [locke]: anyone familiar with chef server HA setup?
+[2013-02-13 03:06:02 -0500] jubilo: hmm
+[2013-02-13 03:06:25 -0500] jubilo: is it possible to have a couple of different management workstations and manage cookbooks from both?
+[2013-02-13 03:10:38 -0500] juliancdunn: jubilo: sure
+[2013-02-13 03:17:34 -0500] jubilo: would you need to do anything special to keep them in sync, or would it matter as long as you uploaded changes to the server?
+[2013-02-13 03:30:12 -0500] juliancdunn: well... it'd be better to store things in revision control
+[2013-02-13 03:30:28 -0500] juliancdunn: but personally I put my working cookbooks directory in Dropbox so I have access to it from all systems
+[2013-02-13 03:40:28 -0500] btm: Chef 11.4.0 is available for working around JSON 1.7.7
+[2013-02-13 03:40:34 -0500] btm: Chef Client 11.4.0 that is.
+[2013-02-13 04:23:59 -0500] DanR_e: Starting with what is probably obvious:  I'm no expert at chef, ruby, or devops.  I really want to get a working version of chef (server, client, solo, knife) working in order to use/create recipies for confiurations that matter for me.  At first, I was plaguedd by multiple issues related chef validation, now mostly resolved.  Now,  issues related to multiple ruby versions (required by...
+[2013-02-13 04:24:01 -0500] DanR_e: ...chef?) and rvm (my choice, without expertise to handle those multiple ruby versions installed with chef).  I am using chef chef-10.20.0 and ruby ruby-1.9.2-p290, but system ruby is 1.8.7 (2011-06-30 patchlevel 352).  OS is Ubuntu 11.10.
+[2013-02-13 04:24:02 -0500] DanR_e: Where should I turn to resolve the following knife error (same error happens with vagrant up etc.)? Error due to multiple versions of ruby?
+[2013-02-13 04:24:04 -0500] DanR_e: dan@dan-D620:~/Devel/learn_chef/chef-repo$ knife kitchen demosolo
+[2013-02-13 04:24:05 -0500] DanR_e: /home/dan/.rvm/rubies/ruby-1.9.2-p290/lib/ruby/site_ruby/1.9.1/rubygems/custom_require.rb:60:in `require': no such file to load -- knife-solo/knife_solo_error (LoadError)
+[2013-02-13 04:24:07 -0500] DanR_e: from /home/dan/.rvm/rubies/ruby-1.9.2-p290/lib/ruby/site_ruby/1.9.1/rubygems/custom_require.rb:60:in `rescue in require'
+[2013-02-13 04:24:08 -0500] DanR_e: from /home/dan/.rvm/rubies/ruby-1.9.2-p290/lib/ruby/site_ruby/1.9.1/rubygems/custom_require.rb:35:in `require'
+[2013-02-13 04:24:10 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/knife-solo-0.0.15/lib/chef/knife/kitchen.rb:9:in `block in <class:Kitchen>'
+[2013-02-13 04:24:12 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.20.0/lib/chef/knife.rb:204:in `call'
+[2013-02-13 04:24:13 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.20.0/lib/chef/knife.rb:204:in `load_deps'
+[2013-02-13 04:24:15 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.20.0/lib/chef/knife.rb:165:in `run'
+[2013-02-13 04:24:16 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.20.0/lib/chef/application/knife.rb:123:in `run'
+[2013-02-13 04:24:18 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/gems/chef-10.20.0/bin/knife:25:in `<top (required)>'
+[2013-02-13 04:24:19 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/bin/knife:23:in `load'
+[2013-02-13 04:24:21 -0500] DanR_e: from /home/dan/.rvm/gems/ruby-1.9.2-p290/bin/knife:23:in `<main>'
+[2013-02-13 04:24:22 -0500] DanR_e: dan@dan-D620:~/Devel/learn_chef/chef-repo$
+[2013-02-13 04:24:24 -0500] DanR_e: So, let's look at what is in rubygems of site_ruby/1.9.1:
+[2013-02-13 04:24:25 -0500] DanR_e: dan@dan-D620:~/Devel/learn_chef/chef-repo$ cd /home/dan/.rvm/rubies/ruby-1.9.2-p290/lib/ruby/site_ruby/1.9.1/rubygems/
+[2013-02-13 04:24:27 -0500] DanR_e: dan@dan-D620:~/.rvm/rubies/ruby-1.9.2-p290/lib/ruby/site_ruby/1.9.1/rubygems$ ls -l
+[2013-02-13 04:24:28 -0500] DanR_e: total 468
+[2013-02-13 04:24:30 -0500] DanR_e: [partial response to ls -l command]
+[2013-02-13 04:24:31 -0500] DanR_e: drwxrwxr-x 2 dan dan  4096 2013-02-11 22:15 commands
+[2013-02-13 04:24:33 -0500] DanR_e: -rw-r--r-- 1 dan dan  9920 2013-01-20 09:06 config_file.rb
+[2013-02-13 04:24:34 -0500] DanR_e: -rw-r--r-- 1 dan dan  1871 2013-01-20 09:06 custom_require.rb
+[2013-02-13 04:24:36 -0500] DanR_e: -rw-r--r-- 1 dan dan  2716 2013-01-20 09:06 defaults.rb
+[2013-02-13 04:24:37 -0500] DanR_e: . . . .
+[2013-02-13 04:24:39 -0500] DanR_e: -rw-r--r-- 1 dan dan 14114 2013-01-20 09:06 remote_fetcher.rb
+[2013-02-13 04:24:40 -0500] DanR_e: -rw-r--r-- 1 dan dan  5126 2013-02-11 22:15 requirement.rb
+[2013-02-13 04:24:42 -0500] DanR_e: -rw-r--r-- 1 dan dan   577 2013-01-20 09:06 require_paths_builder.rb
+[2013-02-13 04:24:43 -0500] DanR_e: . . . .
+[2013-02-13 04:24:45 -0500] DanR_e: ..  (note that require.rb was not listed as one of the files here.  Must be somewhere else.
+[2013-02-13 04:33:50 -0500] miah: hi DanR_e . could you please paste to gist, or nopaste and not this channel
+[2013-02-13 04:35:36 -0500] miah: and its not that 'rquire' is missing its that require can't load knife-solo or whatever extra gem you may have installed
+[2013-02-13 04:40:45 -0500] DanR_e: miah: OK.  will paste elsewhere.  is there a hint in all that misguided pasted stuff as to what's missing?  I thought that I had all necessary gems installed.  I guess I was wrong.  Installed gem knife-solo. Still no joy.
+[2013-02-13 04:44:17 -0500] manimal_: umm isnt that the break from teh ruby update?
+[2013-02-13 04:53:24 -0500] DanR_e: Success!  ( steps:  gem clean knife-solo; knife solo init demosolo;  tree demosolo)  On to the next hurdle with many thanks, miah.
+[2013-02-13 05:13:25 -0500] c00p: On CentOS 6 - I have a Chef Server 10.16.2 -> What's my best way to upgrade - Just backup cookbooks and uninstall then install the new 11 RPM ?
+[2013-02-13 06:01:47 -0500] halcyonCorsair: hi is anyone around who can tell me why chef is having issues with elasticsearch's use of attributes like: https://gist.github.com/halcyonCorsair/4942587
+[2013-02-13 06:11:50 -0500] c_t: halcyonCorsair: looks like default.elasticsearch[:data] hasn't been initialized as a hash
+[2013-02-13 06:14:05 -0500] halcyonCorsair: c_t: do you know what order attributes files are loaded in?
+[2013-02-13 06:26:36 -0500] c_t: halcyonCorsair: take a look at http://wiki.opscode.com/display/chef/Attributes#Attributes-Precedence
+[2013-02-13 06:48:40 -0500] BryanWB__: ohai chefs!
+[2013-02-13 06:49:29 -0500] c_t: I'm starting to realize that once I see the "ohai" from BryanWB__ that it's time for bed
+[2013-02-13 06:49:46 -0500] BryanWB__: c_t:  probably a good rule :)
+[2013-02-13 06:50:28 -0500] c_t: which, since you're generally around when I get up, too, makes me wonder if you ever actually sleep
+[2013-02-13 06:51:03 -0500] BryanWB__: c_t: lolz, i sleep very well during PST working hours, which is quite inconvenient for chef hacking
+[2013-02-13 06:57:53 -0500] UForgotten: sleep, yes, good idea.  I am going to get some. then when I wake up, I'm going to have a field day in here trying to figure out why chef-solo has forsaken our cookbooks.
+[2013-02-13 06:58:01 -0500] UForgotten: nighty night :)
+[2013-02-13 07:01:57 -0500] halcyonCorsair: BryanWB__: ohai, you don't know anything about chef and the elasticsearch cookbook do you?
+[2013-02-13 07:02:09 -0500] BryanWB__: halcyonCorsair: i do
+[2013-02-13 07:02:11 -0500] BryanWB__: what's up
+[2013-02-13 07:02:47 -0500] halcyonCorsair: i'm having all sorts of issues trying to get it up and running on ec2
+[2013-02-13 07:03:00 -0500] BryanWB__: halcyonCorsair: ouch, i have never used ec2 :(
+[2013-02-13 07:03:22 -0500] BryanWB__: halcyonCorsair: #elasticsearch is ur best bet and karmi once he is awake
+[2013-02-13 07:03:27 -0500] BryanWB__: he is super helpful
+[2013-02-13 07:03:55 -0500] halcyonCorsair: any ideas on what timezone karmi is in?
+[2013-02-13 07:04:09 -0500] BryanWB__: same as me , gmt+1 iirc
+[2013-02-13 07:04:16 -0500] BryanWB__: he should be up soon
+[2013-02-13 07:04:21 -0500] BryanWB__: if he isn't already
+[2013-02-13 07:05:13 -0500] halcyonCorsair: ok, maybe I'll check back later :\
+[2013-02-13 07:07:20 -0500] c00p: Anyone here done the move from 10.x to 11 ? Looking to do it now
+[2013-02-13 07:07:31 -0500] c00p: p.s. anyone going to be @ the Mountain View meetup tomorrow?
+[2013-02-13 07:14:46 -0500] manimal_: dangit i wanna play with chef tonight but i got some stupid apache url rewrite problem to wrap my head around blarg
+[2013-02-13 07:31:18 -0500] c00p: manimal_: yeah cookbooks can't fix auto fix all erros - lame :(
+[2013-02-13 08:06:47 -0500] PapaSierra_: morning. i'm using the opscode php cookbook and i'm installing apc from pecl using the prescribed method. however, apc is giving me issue and the solution is to compile it with ./configure --disable-apc-debug. now, using chef how does one do this because i'm assuming what it's doing is installing compiled binaries
+[2013-02-13 08:20:37 -0500] ohadlevy: hmm.. how do i edit node attributes? via knife
+[2013-02-13 08:21:17 -0500] manimal_: knife node edit nodename
+[2013-02-13 08:22:29 -0500] ohadlevy: manimal_: and under which section do i put it? (/me is searching for an example)
+[2013-02-13 08:22:40 -0500] BryanWB__: ohadlevy: hey buddy!
+[2013-02-13 08:22:49 -0500] ohadlevy: BryanWB__: hey :)
+[2013-02-13 08:23:02 -0500] BryanWB__: ohadlevy: u can do it in attributes/default.rb or in the recipes/default.rb
+[2013-02-13 08:23:22 -0500] BryanWB__: in attributes shud be   default['foo'] = bar
+[2013-02-13 08:23:32 -0500] BryanWB__: in recipe  node.default['foo'] = var
+[2013-02-13 08:23:43 -0500] ohadlevy: BryanWB__: so its not defined as part of the node objecT?
+[2013-02-13 08:23:58 -0500] BryanWB__: ohadlevy: in attirbutes the node object is implied
+[2013-02-13 08:24:22 -0500] BryanWB__: node.{default,set,override}   where the second part is the precedence level
+[2013-02-13 08:25:08 -0500] ohadlevy: BryanWB__: just trying to figure out from where do i start ;)
+[2013-02-13 08:25:09 -0500] BryanWB__: here are some examples http://www.opscode.com/blog/2013/02/05/chef-11-in-depth-attributes-changes/
+[2013-02-13 08:25:12 -0500] ohadlevy: Bryanstein: i have http://pastie.org/6148844
+[2013-02-13 08:25:33 -0500] ohadlevy: or is that the wrong place to add that
+[2013-02-13 08:25:59 -0500] manimal_: i started in the webui, setting attributes on a role applied to a node
+[2013-02-13 08:26:08 -0500] manimal_: using the little json edit
+[2013-02-13 08:26:11 -0500] manimal_: editor*
+[2013-02-13 08:27:08 -0500] BryanWB__: ohadlevy: u can put new attrs inside "normal"
+[2013-02-13 08:27:41 -0500] ohadlevy: BryanWB__: ok, so what would be the hash key then?
+[2013-02-13 08:28:37 -0500] BryanWB__: "normal" : { "foo" : "bar",  ...  }
+[2013-02-13 08:29:11 -0500] manimal_: just look at knife node edit nodename you will see the syntax for chef_client bin location
+[2013-02-13 08:29:42 -0500] ohadlevy: BryanWB__: sorry for being diffuclt, but if i have a cookbook that has `node['motd-tail']['additional_text']`
+[2013-02-13 08:30:19 -0500] ohadlevy: then i need to add "node":{'motd-tail':{'additional_text'}} ?
+[2013-02-13 08:30:28 -0500] BryanWB__: "normal" : { "motd_tail" : { "additional_text" :"foobar" },  ...  }
+[2013-02-13 08:30:45 -0500] BryanWB__: don't need to add node
+[2013-02-13 08:31:04 -0500] BryanWB__:  as the entire json document u c w/ knife node edit   is the node object
+[2013-02-13 08:31:32 -0500] ohadlevy: BryanWB__: got it! thanks!
+[2013-02-13 08:31:40 -0500] BryanWB__: ohadlevy: np dude
+[2013-02-13 08:31:52 -0500] ohadlevy: BryanWB__: so in which level on the hierarchy can you override ?
+[2013-02-13 08:32:03 -0500] BryanWB__: all 3
+[2013-02-13 08:32:16 -0500] BryanWB__: default, normal, override
+[2013-02-13 08:32:37 -0500] BryanWB__: ohadlevy: tho the best way to explore all of this is w/ pry
+[2013-02-13 08:32:48 -0500] BryanWB__: $ chef-shell
+[2013-02-13 08:32:59 -0500] BryanWB__: chef-shell> require 'pry'; binding.pry
+[2013-02-13 08:33:04 -0500] ohadlevy: BryanWB__: i mean, you can define something on the role level, on the cookbook level and on the node level? or can you take into accout ohai values?
+[2013-02-13 08:33:06 -0500] ohadlevy: ok
+[2013-02-13 08:33:34 -0500] BryanWB__: the levels are independent of roles cookbook or node
+[2013-02-13 08:33:47 -0500] BryanWB__: u can just set them in multiple places
+[2013-02-13 08:34:04 -0500] BryanWB__: cuz chef is just so damn flexible, like razor wire :)
+[2013-02-13 08:34:22 -0500] BryanWB__: all ohai values are at default  level i believe
+[2013-02-13 08:34:44 -0500] ohadlevy: BryanWB__: :)
+[2013-02-13 08:35:26 -0500] BryanWB__: ohadlevy: have u seen nathenharvey learning chef series? http://nathenharvey.com/blog/2012/12/06/learning-chef-part-1/
+[2013-02-13 08:35:43 -0500] ohadlevy: BryanWB__: oh great - thanks!
+[2013-02-13 08:35:53 -0500] BryanWB__: that's probably the best place to start
+[2013-02-13 08:36:10 -0500] BryanWB__: ohadlevy: that means u r learning :), which is a good thing
+[2013-02-13 08:43:58 -0500] PapaSierra_: i'm using the opscode php cookbook. using it i'm installing the APC module. it seems chef is installing a version of it with "debug" turned on. this is not right, it should be compiled with debug off. i'm not sure how to tell chef to do this, or if i need a recipe that does the compilation for me (i'd write this by hand i guess)
+[2013-02-13 08:50:01 -0500] PapaSierra_: so APC prompts for debug mode when you run "pecl install APC". so when chef runs it it seems to be answering yes. but the default is actually no.
+[2013-02-13 08:57:42 -0500] manimal_: # install apc pecl with directives
+[2013-02-13 08:57:42 -0500] manimal_: php_pear "apc" do
+[2013-02-13 08:57:43 -0500] manimal_:   action :install
+[2013-02-13 08:57:43 -0500] manimal_:   directives(:shm_size => 128, :enable_cli => 1)
+[2013-02-13 08:57:43 -0500] manimal_: end
+[2013-02-13 08:57:57 -0500] manimal_: in the docs are those install/compile options?
+[2013-02-13 08:58:09 -0500] manimal_: shm_size and enable_cli?
+[2013-02-13 09:01:06 -0500] PapaSierra_: manimal_ those look like runtime configurations as opposed to install/compile options
+[2013-02-13 09:01:59 -0500] PapaSierra_: without chef, when you type "pecl install APC" you'd get a prompt. i'm not sure how to deal with it
+[2013-02-13 09:10:47 -0500] manimal_: ./config --with-php-config=/home/dxxx/php/bin/php-config --enable-apc --enable-apc-debug
+[2013-02-13 09:10:50 -0500] manimal_: hope that helps
+[2013-02-13 09:11:03 -0500] manimal_: http://php.net/manual/en/apc.installation.php
+[2013-02-13 09:12:46 -0500] PapaSierra_: manimal_ so confirm: step 1: install via chef as per the php cookbook docs. step 2: run the above. is that right?
+[2013-02-13 09:15:50 -0500] PapaSierra_: manimal_ oh, i'm getting the understanding that this is *instead of* using the php cookbook php_pear method.
+[2013-02-13 09:26:33 -0500] manimal_: yeah im not sure how to go about it, its weird that it compiles with debug on as default?
+[2013-02-13 09:38:40 -0500] alex____: hello i have a little problem starting my chef-client i get the following error : [2013-02-13T10:37:40+01:00] INFO: HTTP Request Returned 401 Unauthorized: Failed to authenticate. Ensure that your client key is valid. But i dont have/get a client.pem and the client is also not registered on the server
+[2013-02-13 09:39:27 -0500] alex____: someone have seen this before?
+[2013-02-13 09:41:26 -0500] manimal_: are you tryig to add a node to the server?
+[2013-02-13 09:41:36 -0500] alex____: yes
+[2013-02-13 09:41:48 -0500] alex____: i have made the client.rb
+[2013-02-13 09:41:50 -0500] manimal_: the easiest way is to run knife bootstrap from a workstation
+[2013-02-13 09:41:58 -0500] alex____: and placed the validation.pem
+[2013-02-13 09:42:31 -0500] alex____: yeah but the system is already installed and everything so i dont want to reinstall the machine
+[2013-02-13 09:43:16 -0500] manimal_: copy the pem files from teh server, and on the node run knife configure
+[2013-02-13 09:43:41 -0500] manimal_: and ansnwer the questions
+[2013-02-13 09:43:59 -0500] alex____: knife configure?
+[2013-02-13 09:44:00 -0500] alex____: oke
+[2013-02-13 09:44:05 -0500] alex____: will test it now
+[2013-02-13 09:44:24 -0500] manimal_: or if you already have a chef workstation setup just run knife bootstrap nodename from the workstation
+[2013-02-13 09:44:51 -0500] alex____: what do you mean
+[2013-02-13 09:45:01 -0500] alex____: i already have chef-client installed
+[2013-02-13 09:45:26 -0500] alex____: i think i already found the problem over here : http://blog.loftninjas.org/2011/07/14/recreating-the-opscode-chef-validation-key/
+[2013-02-13 09:45:27 -0500] manimal_: you need a computer configured as a chef workstation to work with cookbooks and nodes from the command line
+[2013-02-13 09:45:54 -0500] alex____: I already installed that ;)
+[2013-02-13 09:46:22 -0500] manimal_: so just run 'knife bootstrap nodeipaddress' from the workstation and it will do all the work
+[2013-02-13 09:46:41 -0500] manimal_: you dont have to configure anything on the node it will do it, and you can do 'knife client list' from the workstation and it will show up
+[2013-02-13 09:46:58 -0500] manimal_: easiest way to add nodes to chef server
+[2013-02-13 09:51:40 -0500] alex____: I tried it but still getting the same error
+[2013-02-13 09:52:19 -0500] alex____: is it possible to check if couchdb have the correct values
+[2013-02-13 09:52:20 -0500] alex____: ?
+[2013-02-13 09:54:07 -0500] manimal_: you're missing something it asked during knife configure probably
+[2013-02-13 09:54:46 -0500] manimal_: are you specifying /etc/chef for the directory to store the rb file?
+[2013-02-13 10:05:52 -0500] iverson0881: anyone still having issues with chef 11.4.0?
+[2013-02-13 10:06:01 -0500] iverson0881: JSON::ParserError: Unsupported `json_class` type 'Symbol'
+[2013-02-13 10:12:41 -0500] iverson0881: should this be <=1.7.6 ?
+[2013-02-13 10:12:42 -0500] iverson0881: https://github.com/opscode/chef/blob/10-stable/chef/chef.gemspec#L26
+[2013-02-13 10:13:24 -0500] alex____: manimal_ i got it working the site solved the problem
+[2013-02-13 11:52:30 -0500] stPundit: guys i am writing a chef script where I needed to clone code from mercurial. could you please advice me how can I solve this https://gist.github.com/stkaushal/4944096
+[2013-02-13 11:57:11 -0500] zts: stPundit: that suggests you don't have the mercurial cookbook loaded on your node
+[2013-02-13 12:00:59 -0500] stPundit: zst: thanks, so basically irrespective of installed mercurial on node i need to have mercurial package ?  how can i make sure in my chef recipe, if a cookbook is not installed  then go and download that cookbook and proceed further ?
+[2013-02-13 12:02:02 -0500] stPundit: *mercurial cookbook rather than mercurial package
+[2013-02-13 12:04:58 -0500] pehlert: Will the chef-server ever try to connect to the nodes on it's own behalf?
+[2013-02-13 12:05:37 -0500] pehlert: Because I'm having a VPN / firewall system setup that currently does not allow that and I'd prefer if I didn't have to change it right now
+[2013-02-13 12:09:08 -0500] zts: stPundit: it looks like the mercurial cookbook will also install the package for you, so that's the right way to go if you want to use the mercurial resource
+[2013-02-13 12:09:44 -0500] zts: stPundit: and you would need to be doing that either by putting "recipe[mercurial::default]" directly into your node's run_list, or in some role that it uses
+[2013-02-13 12:10:27 -0500] zts: pehlert: no, the clients connect to the server only
+[2013-02-13 12:11:05 -0500] zts: pehlert: well, that's definitely the case for the open-source server.  Apparently the latest Private Chef server has some kind of "run this thing immediately" button in the web interface, but I've seen no details about how that works
+[2013-02-13 12:14:39 -0500] pehlert: zts: Perfect, thank you very much
+[2013-02-13 12:15:34 -0500] BryanWB__: are there any lwrps or gems that add  something like   `package_installed? "git" `
+[2013-02-13 12:15:34 -0500] BryanWB__: ?
+[2013-02-13 12:15:56 -0500] BryanWB__: so i don't have to shellout, grep, and bloody awk to find out?
+[2013-02-13 12:19:31 -0500] siXy: a) you never need to grep AND awk.  b) have a look at the package resource.
+[2013-02-13 12:30:32 -0500] zts: BryanWB__: a while back, I tried to write a library to do that as an exercise - it turned out to be harder than I was expecting, and I gave up because I wouldn't use it anyway
+[2013-02-13 12:30:55 -0500] BryanWB__: zts: basically would hhave to write a wrapper around dpkg and rpm
+[2013-02-13 12:30:58 -0500] zts: BryanWB__: am curious about the use case though - when would you want to be branching based on whether a package is installed, rather than asserting that the package _is_ installed?
+[2013-02-13 12:31:22 -0500] zts: BryanWB__: I think it should be possible to do it using the package resource
+[2013-02-13 12:31:44 -0500] zts: BryanWB__: when it loads the current resource, it knows what version is installed (if it is indeed installed).  So I figured on a library that did that
+[2013-02-13 12:31:46 -0500] BryanWB__: hmm, not explaining myself well
+[2013-02-13 12:31:50 -0500] zts: can't remember exactly what I got stuck on though
+[2013-02-13 12:32:01 -0500] BryanWB__: this is for packages not explicitly installed by chef, to see if they are there
+[2013-02-13 12:32:27 -0500] BryanWB__: but now that i think of this, better done w/ a `subscribes` attribute
+[2013-02-13 13:03:20 -0500] maruq: hey guys, seem to be getting an error when booting a node via knife ec2 server create
+[2013-02-13 13:03:34 -0500] robbkidd: What's the error?
+[2013-02-13 13:04:14 -0500] maruq: it can't find a run list for a hash
+[2013-02-13 13:04:36 -0500] maruq: I run it via chef-client -o -l debug & get
+[2013-02-13 13:04:37 -0500] robbkidd: You've probably been bit by the JSON 1.7.7 upgrade.
+[2013-02-13 13:04:37 -0500] maruq: https://gist.github.com/markbate/6475b6069c84c143de88
+[2013-02-13 13:04:57 -0500] maruq: chef 10.20.0 on the client
+[2013-02-13 13:05:13 -0500] maruq: I think the server is old though.. 10.10 / 10.12 perhaps
+[2013-02-13 13:05:39 -0500] robbkidd: I bet the client is using JSON gem v.1.7.7
+[2013-02-13 13:05:55 -0500] maruq: robbkidd, hmm new bug?
+[2013-02-13 13:05:56 -0500] robbkidd: I'm reading through the IRC logs to see if there has been an update since yesterday.
+[2013-02-13 13:06:11 -0500] robbkidd: Yep. 1.7.7 is new. Broke lots of stuff with just a security patch.
+[2013-02-13 13:06:27 -0500] robbkidd: The only workaround I've got is to downgrade the JSON gem on the host running chef-client.
+[2013-02-13 13:07:10 -0500] robbkidd: sudo gem install json --version '= 1.7.6' && sudo gem uninstall json --version '=1.7.7'
+[2013-02-13 13:08:02 -0500] robbkidd: Which does kinda put a damper on spinning machines up in an automated way.
+[2013-02-13 13:09:35 -0500] robbkidd: The ticket opened for the JSON 1.7.7 bug: https://tickets.opscode.com/browse/CHEF-3863
+[2013-02-13 13:10:45 -0500] robbkidd: Ah. There's a release candidate for a fix: 11.4 and 10.22
+[2013-02-13 13:11:00 -0500] maruq: hmm seems to have fixed. thanks
+[2013-02-13 13:11:18 -0500] itchyouch: robbkidd, what does 11.4 fix?
+[2013-02-13 13:11:35 -0500] maruq: now I get bitten by my a bug in my recipe (my fault), easier to fix ;)
+[2013-02-13 13:11:48 -0500] robbkidd: itchyouch: Bugs introduced by a new version of the JSON gem. See the ticket linked for details.
+[2013-02-13 13:11:55 -0500] itchyouch: ahh, okay
+[2013-02-13 13:12:07 -0500] itchyouch: I just logged in unfortunately.
+[2013-02-13 13:12:18 -0500] robbkidd: maruq: Certainly more under your control.
+[2013-02-13 13:13:37 -0500] itchyouch: with chef moving as quickly as it does, how often do you guys update prod/dev to the latest client & server versions?
+[2013-02-13 13:14:04 -0500] itchyouch: for other projects, we usually only do it on an as-needed basis
+[2013-02-13 13:14:43 -0500] itchyouch: but it seems that the cost of not keeping up with the latest "stable" versions makes upgrade pain down the road, much more painful
+[2013-02-13 13:14:43 -0500] robbkidd: Haven't got chef running my production boxes, yet.
+[2013-02-13 13:15:12 -0500] itchyouch: robbkidd, same here.  I have it running on psuedo production stuff, that if it were to break, it's not the end of the world
+[2013-02-13 13:15:16 -0500] maruq: itchyouth: the client I've been updating as soon as I can confirm my things work...
+[2013-02-13 13:15:22 -0500] itchyouch: some monitoring tools, etc
+[2013-02-13 13:15:37 -0500] itchyouch: yea, it seems like the client is more the moving target
+[2013-02-13 13:16:24 -0500] itchyouch: I'm glad that I found the omnibus installer.  Before I was setting up my own gem mirror being behind a firewall...
+[2013-02-13 13:16:31 -0500] maruq: itchyouch: server stuff has fallen a bit behind generally, things shouldn't break in minor releases, but have just been a little cuatious
+[2013-02-13 13:17:12 -0500] itchyouch: makes sense maruq.  as long as the api stays stable, I guess the server doesn't matter as much
+[2013-02-13 13:17:45 -0500] maruq: itchyouch: well, obviously there's security issues that should be patched on the server...
+[2013-02-13 13:17:48 -0500] itchyouch: right
+[2013-02-13 13:18:30 -0500] stPundit: zts, I have downloaded mercurial cookbook and uploaded on server and getting fallowing error...   FATAL: Chef::Exceptions::ResourceNotFound: resource execute[sync repository /home/vagrant/mercurial/] is configured to notify resource execute[set permissions] with action run, but execute[set permissions] cannot be found in the resource collection. execute[sync repository /home/vagrant/mercurial/] is defined in /var/cache/chef/cookbooks/mercurial/providers/d
+[2013-02-13 13:18:30 -0500] stPundit: efault.rb:3:in `class_from_file'
+[2013-02-13 13:19:30 -0500] robbkidd: Reading the IRC logs. So many have come here having been but by the JSON gem trouble, I'm surprised they haven't changed the topic.
+[2013-02-13 13:25:50 -0500] maruq: robbkidd: to be honest, I never thought to check IRC log, I assumed I'd done something wrong
+[2013-02-13 13:28:42 -0500] robbkidd: maruq: I did, too, yesterday. Then I stayed parked in here and realized everyone's suffering.
+[2013-02-13 13:29:40 -0500] kernel_panik: Hi guys, I'm writing a cookbook including from a recipe from another cookbook..on the included cookbook there is variable foo (it is not in attributes, is a simple variable inside recipes/default.rb)  How can override it?   something list   node.set['mycookbook]['foo]  ?
+[2013-02-13 13:34:17 -0500] robbkidd: kernel_panik: That may work if you set it before you include the recipe. You could also set the attribute in an environment file to override the default present in the cookbook.
+[2013-02-13 13:36:01 -0500] kernel_panik: ok thanks!
+[2013-02-13 13:36:36 -0500] stPundit:  I have downloaded mercurial cookbook and uploaded on server and getting fallowing error...   FATAL: Chef::Exceptions::ResourceNotFound: resource execute[sync repository /home/vagrant/mercurial/] is configured to notify resource execute[set permissions] with action run, but execute[set permissions] cannot be found in the resource collection. execute[sync repository /home/vagrant/mercurial/] is defined in /var/cache/chef/cookbooks/mercurial/providers/defau
+[2013-02-13 13:36:36 -0500] stPundit: lt.rb:3:in `class_from_file' .. any ideas ?
+[2013-02-13 13:40:02 -0500] maruq: stPundit, the resource is defined in the code https://github.com/opscode-cookbooks/mercurial/blob/master/providers/default.rb
+[2013-02-13 13:40:30 -0500] maruq: stPundit, but I'm not sure what the new_resource.mode does? perhaps someone knows more
+[2013-02-13 13:41:03 -0500] robbkidd: I'm a bit confused by that cookbook. 'execute[set permissions]' is defined after 'execute[sync repository /blah]'
+[2013-02-13 13:41:48 -0500] robbkidd: But the [sync repo] resource notifes [set permissions] before [set permissions] is defined.
+[2013-02-13 13:44:48 -0500] maruq: robbkidd, that should be okay in chef 10 if they're using the correct syntax (looks okay)
+[2013-02-13 13:45:03 -0500] robbkidd: Yea? OK.
+[2013-02-13 13:45:30 -0500] maruq: robbkidd, but the execute is only defined if new_resource.mode. not sure what that means
+[2013-02-13 13:45:40 -0500] robbkidd: Yea, I was wondering about that next.
+[2013-02-13 13:46:39 -0500] stPundit: is there anything i can provide to help with any clarifications?
+[2013-02-13 13:46:43 -0500] robbkidd: stPundit: Is there a "mode '###'" line inside your use of the mercurial resource in your recipe?
+[2013-02-13 13:48:08 -0500] stPundit: robbkidd :  here is what i have in my recipe .. https://gist.github.com/stkaushal/4944096
+[2013-02-13 13:49:05 -0500] maruq: robbkidd, stPundit, the mode is passed down from https://github.com/opscode-cookbooks/mercurial/blob/master/resources/default.rb
+[2013-02-13 13:49:29 -0500] robbkidd: stPundit: Just for kicks, add "mode '777'" between "key" and "action" lines. See "mode" in Resource/Provider -> mercurial -> Parameter Attributes in the mercurial README.
+[2013-02-13 13:49:55 -0500] robbkidd: 777 is probably not the mode you'll want to use in the end, but it's something to start with.
+[2013-02-13 13:50:44 -0500] stPundit: cool .. will try and get back ..
+[2013-02-13 13:50:46 -0500] maruq: robbkidd, stPundit, it's octal, so you need "0777"
+[2013-02-13 13:51:20 -0500] robbkidd: maruq: Careful! It is either octal or a string. If you put an octal inside a string, really weird modes get applied.
+[2013-02-13 13:51:41 -0500] robbkidd: Or at least that's bitten me on file/directory resources.
+[2013-02-13 13:52:34 -0500] robbkidd:  but in this case, it looks like either will work inside the string. Belay my warning.
+[2013-02-13 13:52:45 -0500] robbkidd: https://github.com/opscode-cookbooks/mercurial/blob/master/providers/default.rb#L36
+[2013-02-13 13:52:46 -0500] siXy: robbkidd: er, I think you mean it's either "0777" or 00777 - also advising people to set *anything* 777 is really, really bad.
+[2013-02-13 13:53:04 -0500] robbkidd: siXy: Only meant for it to be temporary.
+[2013-02-13 13:53:16 -0500] robbkidd: But yes. Bad.
+[2013-02-13 13:54:48 -0500] siXy: regardless of how long you intend for it to be there, setting any file or directory to 777 is a hanging offence in any competent IT team ;)
+[2013-02-13 13:55:31 -0500] robbkidd: stPundit: I've been called out. Don't use 777.
+[2013-02-13 13:55:33 -0500] maruq: siXy, robbkidd: yep, that's the octal I was referring too -- "0777" or 00777 ;)
+[2013-02-13 13:55:55 -0500] maruq: but yeah, "0644" or "0755" is probably a little safer
+[2013-02-13 13:57:14 -0500] robbkidd: OK. On octal vs. string, I'm looking at http://docs.opscode.com/resource_directory.html#attributes  "An octal number should be a quoted string (644). A numeric value should be five digits (00644)."
+[2013-02-13 13:57:41 -0500] robbkidd: I put "0644" just like that in a directory mode and got wacky permissions.
+[2013-02-13 13:58:42 -0500] siXy: robbkidd: right, putting 06xx on a directory is not smart - directories need to be executable
+[2013-02-13 13:58:58 -0500] stPundit: robbkidd, maruq : it worked with mode, i used 755  though
+[2013-02-13 13:59:21 -0500] robbkidd: stPundit: Good. You didn't listen to me.
+[2013-02-13 13:59:53 -0500] stPundit: ha ha .. did .. but just wanted to be bit safe .. :)
+[2013-02-13 13:59:54 -0500] maruq: haha! glad it's working
+[2013-02-13 14:00:10 -0500] robbkidd: siXy: OK. Yes. Might have been a file? Anywho, perms came out something like -----w---x
+[2013-02-13 14:00:24 -0500] robbkidd: I'll see if I can recreate or shut up.
+[2013-02-13 14:00:27 -0500] maruq: stPundit, robbkidd: probably best not to listen to every crazy person on IRC ;)
+[2013-02-13 14:00:41 -0500] robbkidd: I read it on the internet; it must be true!
+[2013-02-13 14:02:25 -0500] siXy: robbkidd: not seen that before, on any version of chef we've run, unless we put XXXX without quotes and without a leading 0.  and the first "0" is important in some cases, so it's good practice to leave it there and not just put "XXX"
+[2013-02-13 14:05:52 -0500] stPundit: robbkidd maruq: though appreciated ur suggestions :)
+[2013-02-13 14:05:58 -0500] pattersonc: where would be the best place to store a hash of `warnings` that will be part of a chef handler that sends a email? directly on the node?
+[2013-02-13 14:06:05 -0500] pattersonc: dumb to file?
+[2013-02-13 14:06:10 -0500] pattersonc: dump*
+[2013-02-13 14:12:48 -0500] mattt: what's the process for resetting admin password on chef-server 11 ?
+[2013-02-13 14:13:12 -0500] maruq: pattersonc: kind of depends on context maybe recipe / attributes / role / env or data bag. you could read from file too if you sanitise it
+[2013-02-13 14:14:02 -0500] maruq: pattersonc: recipe / attributes if it's a cookbook specific, role / env if it's role / env specific. data bag if global
+[2013-02-13 14:15:44 -0500] mattt: n/m, think i can do with knife
+[2013-02-13 14:16:11 -0500] pattersonc: maruq: each node sends a notification email when the run is complete so I will try storing in the node attr
+[2013-02-13 14:16:49 -0500] maruq: pattersonc: yeah, but is that content node specific, or is it the same from every node?
+[2013-02-13 14:17:24 -0500] maruq: pattersonc: pushing it to node attr from one of those locations seems okay to me though
+[2013-02-13 14:17:49 -0500] pattersonc: maruq: it's the same. basically it's a warning if migrate is set to false and there are pending migrations. we use rds
+[2013-02-13 14:18:04 -0500] pattersonc: it doesn't hurt to warn for each node deployment
+[2013-02-13 14:18:48 -0500] maruq: pattersonc: yeah, sure. I guess send from node then.
+[2013-02-13 14:19:28 -0500] zts: pattersonc: you can use node.run_state to pass things from the chef run to the handlers, if you don't want it to be saved to the Chef server
+[2013-02-13 14:21:13 -0500] robbkidd: siXy: OK. I found where our trouble with mode was. On a template, we had < mode 644 > (no leading zero). *That* caused wackiness: --w----r-T 1 user  group Jan  8 17:57 config.yml
+[2013-02-13 14:22:17 -0500] pattersonc: zts: that might be exactly what im looking for
+[2013-02-13 14:26:38 -0500] ndemoor: hi
+[2013-02-13 14:26:59 -0500] ndemoor: if I have a definition that creates a service resource
+[2013-02-13 14:27:09 -0500] ndemoor: is it possible to notify that service?
+[2013-02-13 14:29:59 -0500] cwj: yes
+[2013-02-13 14:30:05 -0500] cwj: as long as you know what its name would be
+[2013-02-13 14:30:20 -0500] cwj: definitions are replaced with the resources they contain
+[2013-02-13 14:30:38 -0500] ndemoor: so if I reference it by name
+[2013-02-13 14:30:41 -0500] ndemoor: it should work?
+[2013-02-13 14:31:00 -0500] ndemoor: service "my_name" do ... end
+[2013-02-13 14:31:08 -0500] pixie79: hi all - i am trying to setup up rabbitmq-server on OEL6.3  for use as a chef server but each time i try and start rabbitmq it dies saying it is currently running, If i stop and kill all processes running under rabbit then restart I still get the same error. Andy ideas on how to fix this ?
+[2013-02-13 14:31:30 -0500] ndemoor: and then in the recipe notify :restart, "my_name"
+[2013-02-13 14:31:38 -0500] cwj: yeah
+[2013-02-13 14:31:39 -0500] pixie79: i tried the rpm install for chef 11 first but that failed due the an issue with daemontools and the rpm
+[2013-02-13 14:31:58 -0500] cwj: the notification would be sent from another resource, e.g. a template
+[2013-02-13 14:35:31 -0500] ndemoor: but can I notify the service outside of the definition?
+[2013-02-13 14:37:49 -0500] maruq: ndemoor: my understanding is as long as the resource exists, it could be called from the recipe
+[2013-02-13 14:39:04 -0500] cwj: ndemoor: yes
+[2013-02-13 14:39:41 -0500] ndemoor: because right now I get Chef::Exceptions::ResourceNotFound
+[2013-02-13 14:39:55 -0500] cwj: gist your work
+[2013-02-13 14:40:03 -0500] ndemoor: ok sec
+[2013-02-13 14:42:53 -0500] ndemoor: cwj: https://gist.github.com/ndemoor/4945037
+[2013-02-13 14:43:44 -0500] ndemoor: and when I just copy past the definition compiled resources in the recipe it works
+[2013-02-13 14:43:54 -0500] ndemoor: so let's say the general flow is ok
+[2013-02-13 14:45:35 -0500] cwj: looks ok at first glance
+[2013-02-13 14:46:24 -0500] cwj: hrm
+[2013-02-13 14:48:44 -0500] cwj: trying to find a relevant example in my own cookbooks, im pretty sure ive done this before
+[2013-02-13 14:49:40 -0500] railsraider: hi, i am trying to define a new resource but i don't know how to get the params to work http://pastie.org/6152017
+[2013-02-13 14:50:51 -0500] railsraider: how do i pass the servers_group as a param
+[2013-02-13 14:51:34 -0500] cwj: ndemoor: seems like it should work
+[2013-02-13 14:51:47 -0500] cwj:  is it possible that you are trying to deploy the same revision each time you test it?
+[2013-02-13 14:51:58 -0500] cwj: e.g. are you sure the notifications should have fired
+[2013-02-13 14:52:53 -0500] cwj: railsraider: first thing that stands out to me is that your notification isn't associated with a resource
+[2013-02-13 14:53:07 -0500] cwj: it should probably be inside the template resource
+[2013-02-13 14:53:22 -0500] railsraider: ok
+[2013-02-13 14:53:22 -0500] cwj: which should probably just be 'template' instead of 'template_file'
+[2013-02-13 14:53:35 -0500] railsraider: moved
+[2013-02-13 14:53:58 -0500] railsraider: now how do i pass the servers_groups as a params
+[2013-02-13 14:54:57 -0500] cwj: same syntax as you use with the attributes of a resource
+[2013-02-13 14:55:21 -0500] cwj: so nix the : before servers_group and the hash rocket (=>)assignment
+[2013-02-13 14:56:00 -0500] UForgotten: so all of a sudden I'm having trouble with getting chef to work on new systems.  dependency sets have changed so I apparently can't install older chef, and newer chef doesn't work with my cookbooks :(
+[2013-02-13 14:56:14 -0500] railsraider: i don't follow you cwj
+[2013-02-13 14:57:45 -0500] cwj: railsraider http://pastie.org/6152124
+[2013-02-13 14:58:04 -0500] railsraider: ah
+[2013-02-13 14:58:06 -0500] railsraider: thank you
+[2013-02-13 14:58:15 -0500] UForgotten: Has anyone conquered this gem depedency problem, or implemented cookbook changes from 0.10.4 to 11.4?  I'm kinda stuck either way it looks like.
+[2013-02-13 14:58:30 -0500] ndemoor: cwj
+[2013-02-13 14:58:45 -0500] ndemoor: cwj: it is indeed the same revision
+[2013-02-13 14:58:53 -0500] ndemoor: but the run doesn't even get that far
+[2013-02-13 14:59:11 -0500] cwj: ndemoor: well where the stacktrace at yo :)
+[2013-02-13 14:59:25 -0500] ndemoor: FATAL: Chef::Exceptions::ResourceNotFound: resource deploy_revision[/srv/node/graph-generator] is configured to notify resource resource[graph-generator.hc] with action restart, but resource[graph-generator.hc] cannot be found in the resource collection.
+[2013-02-13 14:59:32 -0500] jtimberman: railsraider: you should set a default value for servers_group otherwise if it's used in a recipe w/o that parameter, sending the include? method will result in a nilClass exception.
+[2013-02-13 15:00:18 -0500] jtimberman: railsraider: you can do that with, define :processes_plugin, :servers_group => []
+[2013-02-13 15:00:36 -0500] railsraider: thanks man
+[2013-02-13 15:00:52 -0500] ndemoor: added the complete stacktrace to the gist
+[2013-02-13 15:01:04 -0500] ndemoor: https://gist.github.com/ndemoor/4945037
+[2013-02-13 15:02:56 -0500] ndemoor: mmm, I do have to add the the definition is coming from another cookbook
+[2013-02-13 15:03:25 -0500] cwj: well i am confused by the part of the stacktrace which says "resource resource[graph-generator.hc]"
+[2013-02-13 15:03:38 -0500] ndemoor: does it need extra reference then?
+[2013-02-13 15:04:02 -0500] cwj: if the recipe were actually executing as written in that gist i would expect the error to say "resource service[graph-generator.hc]"
+[2013-02-13 15:04:26 -0500] ndemoor: ah yes
+[2013-02-13 15:04:40 -0500] ndemoor: I fumbled with the notify lines and changed service to resource just to try
+[2013-02-13 15:04:46 -0500] ndemoor: but the same error remains
+[2013-02-13 15:04:48 -0500] cwj: UForgotten: have you tried 10.22.0.rc0? i think was released last night for a json gem dependency issue
+[2013-02-13 15:05:31 -0500] UForgotten: cwj: no, I was on 10.22.0, I guess there's a difference? hehe
+[2013-02-13 15:05:39 -0500] railsraider: jtimberman:  if i do this   options :servers_group => nodejs_servers and then in the definition   if options[:servers_group].include?(node.fqdn)
+[2013-02-13 15:05:54 -0500] railsraider: will it work
+[2013-02-13 15:05:58 -0500] cwj: UForgotten: hrm no, rc0 would have been the prerelease
+[2013-02-13 15:06:31 -0500] UForgotten: cwj: whatever the problem is, 10.22.0 is still broken, or it's changed things that no longer work with my cookbooks.
+[2013-02-13 15:07:56 -0500] cwj: sounds like you get to decide between troubleshooting your rubygems setup (e.g. locking versions with bundler) or updating your cookbooks
+[2013-02-13 15:08:22 -0500] jinnko: anyone been seeing the following errors?  This started yesterday for me on a couple of servers and is now becoming more widespread: FATAL: NoMethodError: undefined method `run_list' for nil:NilClass. We have chef-server 10.18.2 and chef-client 10.20.0
+[2013-02-13 15:08:27 -0500] railsraider: i guess  i need to assign options to params[:options]
+[2013-02-13 15:08:44 -0500] cwj: must commute
+[2013-02-13 15:08:45 -0500] flzz: jinko: json 1.7.7 is breaking it
+[2013-02-13 15:09:06 -0500] flzz: jinnko: rather
+[2013-02-13 15:09:08 -0500] UForgotten: I would love to update my cookbooks, if I knew what to update :(
+[2013-02-13 15:09:39 -0500] jtimberman: railsraider: no because nodejs_servers will be nil in that context.
+[2013-02-13 15:10:01 -0500] flzz: jinnko: just had to setup an internal gem repo myself, do avoid haphazardly updated gems that break everything :\
+[2013-02-13 15:10:07 -0500] jtimberman: railsraider: i don't know what data type your nodejs_servers is - I guessed array due to use of include?
+[2013-02-13 15:10:23 -0500] railsraider: its just array of nodes
+[2013-02-13 15:10:33 -0500] railsraider: from search
+[2013-02-13 15:10:34 -0500] jtimberman: jinnko: You need to uinstall json 1.7.7 and install 1.7.6, or update to chef 11.4.0
+[2013-02-13 15:10:44 -0500] jtimberman: sweet, then an empty array will be good.
+[2013-02-13 15:10:46 -0500] jinnko: flzz: confirmed that json-1.7.7
+[2013-02-13 15:10:51 -0500] jinnko: thnx jtimberman
+[2013-02-13 15:10:52 -0500] jtimberman: for the prototype value in the definition.
+[2013-02-13 15:11:10 -0500] railsraider: i guess i can do :options=>params[:options] on the definition
+[2013-02-13 15:11:22 -0500] railsraider: and in the recipe   options :servers_group => nodejs_servers
+[2013-02-13 15:11:51 -0500] railsraider: and then   if params[:options].include?(node.fqdn)
+[2013-02-13 15:12:35 -0500] helllen: helllo
+[2013-02-13 15:12:47 -0500] helllen: I get this error when I starts chef-server: `require': cannot load such file -- chef/webui_user (LoadError)
+[2013-02-13 15:13:14 -0500] ndemoor: cwj: just tried to move the script to the same cookbook but that didn't help
+[2013-02-13 15:13:17 -0500] UForgotten: gah! these gem dependencies are rediculous.
+[2013-02-13 15:13:41 -0500] UForgotten: I don't understand why gem and chef just can't figure it out.
+[2013-02-13 15:18:56 -0500] jinnko: easy oneliner to resolve the json issue: sudo gem uninstall -I json -v 1.7.7 && sudo gem install json -v 1.7.6
+[2013-02-13 15:19:43 -0500] anoopl: Hi
+[2013-02-13 15:21:09 -0500] anoopl: I get this error on bootstrapping:
+[2013-02-13 15:21:11 -0500] anoopl: ERROR:  While executing gem ... (Gem::DependencyError)
+[2013-02-13 15:21:11 -0500] anoopl: Unable to resolve dependencies: net-ssh-multi requires net-ssh (>= 2.1.4); chef requires net-ssh (~> 2.2.2); net-ssh-gateway requires net-ssh (>= 2.6.5)
+[2013-02-13 15:22:01 -0500] anoopl: howe can I fix the issue
+[2013-02-13 15:22:07 -0500] petecheslock: anoopl: which version of chef?  likely you need to upgrade to 10.20.0 or 11.4.0
+[2013-02-13 15:22:38 -0500] anoopl: chef version 10.16.4
+[2013-02-13 15:23:13 -0500] anoopl: let me try with  --bootstrap-version option
+[2013-02-13 15:23:30 -0500] anoopl: thanks petecheslock:
+[2013-02-13 15:23:54 -0500] UForgotten: I have that same problem
+[2013-02-13 15:24:02 -0500] UForgotten: and it blows up when you install the dependent gems
+[2013-02-13 15:24:10 -0500] UForgotten: even on 10.20.0
+[2013-02-13 15:24:24 -0500] petecheslock: hmm- thought 10.20 solved that net-ssh dep issues
+[2013-02-13 15:24:29 -0500] UForgotten: not for me :(
+[2013-02-13 15:25:11 -0500] flzz: UForgotten: you sure you're not dealing with the json issue in 10.20?
+[2013-02-13 15:25:24 -0500] jtimberman: for chef 10 users, we plan to fix that with 10.22.0 - an RC version is available via gem install chef --pre
+[2013-02-13 15:25:50 -0500] jtimberman: you can also uninstall json v 1.7.7 and install 1.7.6 before installing chef.
+[2013-02-13 15:25:51 -0500] UForgotten: would that fix  [2013-02-13T10:21:53-05:00] FATAL: NoMethodError: undefined method `run_list_for' for #<Hash:0x00000002cf8b70>
+[2013-02-13 15:25:55 -0500] UForgotten: on chef-solo
+[2013-02-13 15:25:57 -0500] jtimberman: UForgotten: yes
+[2013-02-13 15:26:02 -0500] Kzim: Hello can chef solo get data bag with an url like the node.json please ?
+[2013-02-13 15:26:30 -0500] UForgotten: I'll try that
+[2013-02-13 15:26:56 -0500] geekbri: the JSON author probably shouldn't have made a tiny point release a breaking change.  It's hard to blame opscode/chef for that.
+[2013-02-13 15:27:32 -0500] UForgotten: ERROR:  Could not find a valid gem 'chef' (= 10.22.0) in any repository
+[2013-02-13 15:27:41 -0500] UForgotten: I just tried it earlier and it worked? wtf.
+[2013-02-13 15:28:15 -0500] jtimberman: Kzim: not with the data_bag_item recipe DSL method, you need to have the data bags in the data_bag_path (config setting location) first.
+[2013-02-13 15:28:42 -0500] jtimberman: Kzim: but if you have a URL where the data bag content is available as JSON, you can just retrieve that with Ruby and parse with JSON.
+[2013-02-13 15:28:58 -0500] jtimberman: Kzim: e.g., open-uri and JSON.parse.
+[2013-02-13 15:29:15 -0500] jtimberman: geekbri: I totally get the rationale.
+[2013-02-13 15:29:27 -0500] jtimberman: geekbri: "This is a security bug! It should be fixed."
+[2013-02-13 15:29:31 -0500] geekbri: jtimberman: I get it, its an importanat security fix.
+[2013-02-13 15:29:50 -0500] geekbri: jtimberman: I still think that sounds like a higher version bump than a tiny point release though
+[2013-02-13 15:29:57 -0500] UForgotten: ok so apparently 10.20.0.rc0 went primary because I can't get 10.20.0 anymore.
+[2013-02-13 15:30:40 -0500] jtimberman: UForgotten: https://rubygems.org/gems/chef/versions/10.20.0
+[2013-02-13 15:30:42 -0500] jtimberman: geekbri: I definitely agree.
+[2013-02-13 15:31:21 -0500] UForgotten: jtimberman: gem install chef -v 10.20.0  does not work. only 10.20.0.rc0 works
+[2013-02-13 15:33:08 -0500] UForgotten: and now chef complains about net-ssh again.  does anyone have a Gemfile I could use to bundle chef 10.20.0 properly without wrestling all these dependencies?
+[2013-02-13 15:33:46 -0500] robbkidd: UForgotten: gem 'chef', '10.22.0.rc.0'
+[2013-02-13 15:33:51 -0500] robbkidd: *22* not 20
+[2013-02-13 15:34:29 -0500] UForgotten: robbkidd: yes that what I meant
+[2013-02-13 15:34:45 -0500] UForgotten: ERROR:  Could not find a valid gem 'chef' (= 10.22.0) in any repository
+[2013-02-13 15:35:05 -0500] jtimberman: yeah
+[2013-02-13 15:35:05 -0500] robbkidd: UForgotten: That line in my Gemfile gets things working on my chef workstation.
+[2013-02-13 15:35:09 -0500] jtimberman: 10.22.0 isn't released yet
+[2013-02-13 15:35:22 -0500] robbkidd: UForgotten: You need the '.rc.0' bit, too.
+[2013-02-13 15:35:24 -0500] jtimberman: it's coming, we're getting the omnibus packages released.
+[2013-02-13 15:35:36 -0500] UForgotten: robbkidd: It still has net-ssh dependency problems.
+[2013-02-13 15:35:41 -0500] Kzim: jtimberman, thanks a lot for your answer
+[2013-02-13 15:36:00 -0500] robbkidd: UForgotten: That might be from other gems you have in your Gemfile. Berkshelf? Vagrant?
+[2013-02-13 15:36:07 -0500] UForgotten: no, completely empty gemset!
+[2013-02-13 15:36:19 -0500] UForgotten: and no gemfile
+[2013-02-13 15:37:10 -0500] robbkidd: Color me confused.
+[2013-02-13 15:37:25 -0500] UForgotten: that makes two of us.  my lack of ruby skills doesn't help.
+[2013-02-13 15:38:01 -0500] robbkidd: There's also the matter of fixing chef/json on a new chef-managed host.
+[2013-02-13 15:38:15 -0500] UForgotten: yes I follow that part
+[2013-02-13 15:38:18 -0500] robbkidd: OK.
+[2013-02-13 15:38:22 -0500] UForgotten: which is why I asked for a gemfile that covers all the chef dependencies
+[2013-02-13 15:38:29 -0500] UForgotten: that would probably make this easier.
+[2013-02-13 15:38:50 -0500] UForgotten: but earlier when I installed it still blew up when running chef-solo because the dependencies were locked or somesuch.
+[2013-02-13 15:39:02 -0500] robbkidd: UForgotten: Might be easiest to hang tight until 10.22.0 is officially released.
+[2013-02-13 15:39:18 -0500] UForgotten: robbkidd: I can't... I have an entire cluster I need to deploy 2 days ago
+[2013-02-13 15:39:23 -0500] UForgotten: and have been wrestling with it
+[2013-02-13 15:39:39 -0500] UForgotten: just need a fix, and rewriting the cookbooks isn't gonna happen :)
+[2013-02-13 15:39:52 -0500] UForgotten: I am just been unsuccessful in getting chef to install an old version with dependencies intact.
+[2013-02-13 15:39:57 -0500] UForgotten: s/am/have/
+[2013-02-13 15:41:03 -0500] robbkidd: Not a cookbook problem. For nodes, it's about controlling the version of the json gem that gets installed with the chef client. chef 10.20 will install json 1.7.7--which breaks stuff--on a new box.
+[2013-02-13 15:41:17 -0500] robbkidd: How many nodes in this cluster?
+[2013-02-13 15:41:37 -0500] geekbri: UForgotten: i've had success using chef 10.16.6 and manually intalling the following versions of gems before installing chef. net-ssh 2.2.2, net-ssh-gateway 1.1.0 net-ssh-multi 1.1 and json 1.7.6
+[2013-02-13 15:42:13 -0500] UForgotten: geekbri: thats all I needed, a set of working versions, I will try that. thank you.
+[2013-02-13 15:42:29 -0500] geekbri: UForgotten: https://gist.github.com/brianbianco/4945499#file-gistfile1-txt
+[2013-02-13 15:42:44 -0500] geekbri: UForgotten: that's an excerpt from my bootstrap scrxipt
+[2013-02-13 15:42:46 -0500] UForgotten: robbkidd: 6. Yes the issue is either we 1) fix 10.x dependencies or 2) fix cookbooks to work in 11.x.  I have to do option 1 :)
+[2013-02-13 15:43:23 -0500] robbkidd: If you're manually installing gems, you could manually install json 1.7.6 and then let chef 10.20 install.
+[2013-02-13 15:43:42 -0500] UForgotten: robbkidd: nope, there's net-ssh problems as geekbri may have solved
+[2013-02-13 15:44:16 -0500] jtimberman: UForgotten: install json 1.7.6 before installing chef 10.20.0
+[2013-02-13 15:44:18 -0500] robbkidd: OK. I'm not seeing the net-ssh problem with 10.20 on my nodes. Just the JSON problem.
+[2013-02-13 15:44:19 -0500] UForgotten: I think if I had a working gemfile it would be a non-issue. I can probably make one based on this if it owkrs.
+[2013-02-13 15:44:22 -0500] anoopl: how can I use this
+[2013-02-13 15:44:23 -0500] geekbri: UForgotten: Once the json version fix is released in 10.22 you should be able to use 10.22 instaed of 10.16.6
+[2013-02-13 15:44:36 -0500] anoopl: use this as bootstrap file?
+[2013-02-13 15:44:47 -0500] UForgotten: geekbri: got it. going to give it a shot now.
+[2013-02-13 15:46:05 -0500] UForgotten: geekbri: I still get this [2013-02-13T10:45:55-05:00] FATAL: Gem::DependencyError: gem_package[chef] (ad-summos::chef line 1) had an error: Gem::DependencyError: Unable to resolve dependencies: chef requires net-ssh (~> 2.1.3)
+[2013-02-13 15:47:23 -0500] geekbri: UForgotten: what version of chef-client are you installing?  10.16.6 has this as a dep https://github.com/opscode/chef/blob/10.16.6/chef/chef.gemspec#L28
+[2013-02-13 15:47:28 -0500] jtimberman: UForgotten: https://gist.github.com/jtimberman/4945542
+[2013-02-13 15:47:52 -0500] UForgotten: jtimberman: that's apparently not enough, net-ssh is not cooperating
+[2013-02-13 15:48:04 -0500] UForgotten: geekbri: this was using 10.16.6 as you recommended.
+[2013-02-13 15:49:18 -0500] geekbri: UForgotten: Strange, that works for me.
+[2013-02-13 15:49:27 -0500] UForgotten: http://pastebin.com/kUuV923h is what is installed
+[2013-02-13 15:50:08 -0500] UForgotten: I'll try the bundle jtimberman sent on a different machine for s&g
+[2013-02-13 15:50:10 -0500] geekbri: UForgotten: you should uninstall the higher versions that you aren't using.
+[2013-02-13 15:50:19 -0500] geekbri: what jtimberman said should work fine.
+[2013-02-13 15:50:29 -0500] alex____: does anyone know how to install a new zone with only chef server on solaris
+[2013-02-13 15:50:36 -0500] jtimberman: bootstrap template: https://gist.github.com/jtimberman/b2a1deaf748ed2f856d4
+[2013-02-13 15:50:46 -0500] jtimberman: untested, but should work
+[2013-02-13 15:51:31 -0500] alex____: and that will configure everything i need automaticly?
+[2013-02-13 15:52:19 -0500] UForgotten: I'm using chef-solo, does that make a difference? :)
+[2013-02-13 15:52:34 -0500] robbkidd: jtimberman: I was just going to ask you if I could do that. Horrah!
+[2013-02-13 15:52:39 -0500] UForgotten: geekbri: yeah bundling for just json and chef still has the same problem on a different machine
+[2013-02-13 15:52:43 -0500] alex____: and a bootstrap runs on the new zone it self right? so the zone has to be already installed?
+[2013-02-13 15:53:48 -0500] UForgotten: I'm at a loss. there's still something up with net-ssh dependencies.
+[2013-02-13 15:56:36 -0500] UForgotten: geekbri: I literally empty the gemset, install only the json and chef and I get the same problem.  there's something still not happy.
+[2013-02-13 15:58:50 -0500] UForgotten: its almost like chef doesn't believe the dependencies or know how to use them?
+[2013-02-13 16:01:20 -0500] UForgotten: and bundler doesn't like 10.16.6 it says it wants json <= 1.61. but the problem is still net-ssh - and I get that problem mid-chef-run
+[2013-02-13 16:02:46 -0500] robbkidd: jtimberman: I inserted the 'gem install json -v 1.7.6' line into a copy of the ubuntu12.04-gems template (at line 10), but 1.7.7 still got installed.
+[2013-02-13 16:05:00 -0500] geekbri: UForgotten: this is the exact bootstrap script i've been using (without issue)  https://gist.github.com/brianbianco/4945499
+[2013-02-13 16:05:23 -0500] robbkidd: jtimberman: Belay that. Fat fingered --version
+[2013-02-13 16:05:25 -0500] geekbri: UForgotten: I had downgraded it to 10.16.6 because of the JSON issue, but that one had been working with 10.20.0 and 10.18.2 if i remember correctly
+[2013-02-13 16:05:55 -0500] UForgotten: geekbri: if I extract the gem statements from that and run them, it installs, but it has the net-ssh problem mid-run.
+[2013-02-13 16:06:12 -0500] geekbri: Not really sure whats going wrong then
+[2013-02-13 16:06:37 -0500] zts: UForgotten: are you installing any gems during your run?
+[2013-02-13 16:07:09 -0500] UForgotten: zts: not sure.
+[2013-02-13 16:08:12 -0500] UForgotten: ah, I think I see where you're going with this
+[2013-02-13 16:09:35 -0500] robbkidd: "gem 'chef', '10.22.0.rc.0'" in my workstation's Gemfile and following the instructions for a custom bootstrap http://wiki.opscode.com/display/chef/Custom+Knife+Bootstrap+Script to add "gem install --no-ri --no-rdoc json -v 1.7.6" has things working for me at the moment.
+[2013-02-13 16:10:23 -0500] railsraider: i don't understand, why is this not valid syntax http://pastie.org/6152953
+[2013-02-13 16:10:47 -0500] railsraider: creating defnition where i want to pass params as hash
+[2013-02-13 16:13:26 -0500] cwj: railsraider: like i said before, ditch the colon and the hash rocket (=>) assignment
+[2013-02-13 16:13:45 -0500] railsraider: yeah but why, it looks weird
+[2013-02-13 16:13:52 -0500] railsraider: just trying to understand
+[2013-02-13 16:13:55 -0500] cwj: its the same syntax used for other resources
+[2013-02-13 16:14:02 -0500] railsraider: like?
+[2013-02-13 16:14:14 -0500] cwj: look at the template resource inside your definition
+[2013-02-13 16:14:31 -0500] railsraider: ah ok
+[2013-02-13 16:14:33 -0500] railsraider: thanks
+[2013-02-13 16:15:07 -0500] UForgotten: zts: yeah that was it. the error was coming from a gem install and the stack wasn't giving me enough information to determine where but I found it.  Thanks!
+[2013-02-13 16:18:48 -0500] railsraider: cwj:  Chef::Exceptions::ResourceNotFound: resource template[/etc/munin/plugin-conf.d/node_proc] is configured to notify resource service[munin-node] with action restart, but service[munin-node] cannot be found in the resource collection
+[2013-02-13 16:20:11 -0500] matticulous: working on getting a chef client installed on a joyent smart machine that connects to chef 11 open source behind our firewall. omnibus chef client doesn't work (failure due to using 'pkgadd'). one of the joyent bootstrap .erb seems to install the client, but cannot successfully connect (authentication) to my chef server.
+[2013-02-13 16:20:29 -0500] railsraider: do i need to do service[:munin-node] do action => nothing thing?
+[2013-02-13 16:21:33 -0500] matticulous: ideally i would use the omnibus install, which may not necessarily solve the auth problem, but at least is a nice client install. what's the best way that I can help get involved? open a ticket? test? i would like to be a good chef citizen.
+[2013-02-13 16:24:05 -0500] thecox: does anybody know how to update the chef-validator public key with an existing key? I tried updating it through 'knife client edit chef-validator", but the change doesn't stick
+[2013-02-13 16:29:04 -0500] railsraider: nm done
+[2013-02-13 16:34:09 -0500] [-locke-]: can anyone point me to Chef11 HA information?
+[2013-02-13 16:34:45 -0500] [-locke-]: I want to have 2 sites running chef servers
+[2013-02-13 16:35:05 -0500] [-locke-]: i understand postgresql is configured with master master replication
+[2013-02-13 16:35:14 -0500] [-locke-]: and DRBD for filesystem
+[2013-02-13 16:38:33 -0500] tolland: does the script resource, or bash resource persist anywhere ? if there is an error?
+[2013-02-13 16:42:38 -0500] aboudreault: if I do: execute "blabla.sh && touch allo.txt" ...... are they executed in parallel? experiencing a strange issue in my recipe..
+[2013-02-13 16:44:27 -0500] aboudreault: in fact, here's the small part of my recipe that fails: http://pastebin.com/EfiW3htK
+[2013-02-13 16:44:36 -0500] aboudreault: if I remove && touch chef, it works.
+[2013-02-13 16:53:51 -0500] awgross: Is there another issue with net-ssh versions and Chef?  Having trouble installing 10.18.2, getting net-ssh 2.6.5 but chef needs 2.2.2
+[2013-02-13 16:57:03 -0500] awgross: nevermind, looks like its the same issue I just wasnt used to installing via Gem vs Omnibus
+[2013-02-13 16:59:01 -0500] pixie79: any ideas on the following error when trying to start chef-server-webui /usr/lib/ruby/gems/1.8/gems/merb-haml-1.1.3/lib/merb-haml/template.rb:52:in `def_method': undefined method `precompiled_with_ambles' for #<Haml::Engine:0x7faa99cc7090> (NoMethodError)?
+[2013-02-13 17:11:18 -0500] dotslash: I'm trying to create a class that inherits from RemoteFile, but I can't seem to find a way to get RemoteFile into scope in my class. I can do it in the ruby REPL but notwhen I start things up from ChefSolo.
+[2013-02-13 17:11:45 -0500] dotslash: class NexusFile < Chef::Provider::RemoteFile <==== This is what is giving me problems. require 'chef' doesn't seem to work.
+[2013-02-13 17:12:22 -0500] dotslash: But it does work from the repl.  Any ideas?
+[2013-02-13 17:12:56 -0500] dotslash: (And I'm pretty new to Ruby so I'm probably doing something silly.)
+[2013-02-13 17:26:01 -0500] robbkidd: Using the apache2 cookbook, the web_app provider does not appear to be restarted Apache2 after laying down a sites-enabled/my_app.conf file. Either delayed (default) or immediately (when told to).
+[2013-02-13 17:27:13 -0500] robbkidd: I've got a Rails app I'm trying to enable with some steps that come after "deploy" and "web_app" that depend on Apache2 being restarted so the Rails app actually responds to subsequent steps. (e.g. API calls to configure).
+[2013-02-13 17:35:08 -0500] cassianoleal: anyone having this? https://gist.github.com/cassianoleal/4946380
+[2013-02-13 17:35:34 -0500] cassianoleal: this is using this RVM cookbook: http://github.com/fnichol/chef-rvm
+[2013-02-13 17:56:52 -0500] matti: Folks. After installing ErChef using Omnibus package, what should I tweak in configuration? Any advice, any recommendation?
+[2013-02-13 17:56:55 -0500] matti: ;]
+[2013-02-13 17:57:09 -0500] btm: 10.22.0 gems up (fixing json). omnibus packages coming shortly, then announcements
+[2013-02-13 18:05:21 -0500] matti: btm: What is broken in 10.20?
+[2013-02-13 18:12:58 -0500] btm: matti: we had to change some things to deal with breaking changes in JSON 1.7.7
+[2013-02-13 18:13:33 -0500] matti: Right.
+[2013-02-13 18:23:53 -0500] seanhorn: epta: You can use this in any recipe to refer to the cookbooks/versions in a node's run_list https://gist.github.com/sean-horn/4946481
+[2013-02-13 18:29:14 -0500] cpasmoi: Hi
+[2013-02-13 18:29:43 -0500] cpasmoi: I need some help about attributes, chef 0.9 used.
+[2013-02-13 18:29:54 -0500] cpasmoi: I've read "Remember, that attributes passed via JSON file are merged with those stored on node and actually there is no way to override them in that way, however if there is a conflict, attributes from JSON file will win with those stored on node."
+[2013-02-13 18:30:51 -0500] cpasmoi: I want to define in a cookbook one default attribute, and also want this attribute to be overriden if it is set in a JSON role.
+[2013-02-13 18:30:57 -0500] cpasmoi: Is that correct  ?
+[2013-02-13 18:33:09 -0500] dotslash: I am getting uninitialized constant #<Class:0x1059e4318>::Chef::Provider::RemoteFile when I try to use class NexusFile < Chef::Resource::RemoteFile. It works in the irb, but not in a chef cookbook. Any ideas?
+[2013-02-13 18:34:28 -0500] aboudreault: any idea why my     if File.exists?("#{patch_dir}/#{version}.patch") check fails when I execute the first time my recipe. That file is created by a cookbook_file just before.
+[2013-02-13 18:34:38 -0500] aboudreault: running it a second pass is ok
+[2013-02-13 18:35:15 -0500] tolsen: Hello. I recently upgraded knife-ec2 from 0.5.10 to 0.6.2 and chef from 0.10.8 to 11.4.0.  Now knife
+[2013-02-13 18:36:00 -0500] dotslash: aboudreault: Is it actually there at that point? Can you change your cookbook and manually verify that it is running before you call the File.exists? It sounds like it isn't getting created until later.
+[2013-02-13 18:36:06 -0500] chris613: Is anyone using the chef-client cookbook initscript on Redhat/Centos? I'm being bit by this bug: http://tickets.opscode.com/browse/CHEF-3533  just wondering if anyone has found a workaround
+[2013-02-13 18:36:36 -0500] tolsen: oops. pressed enter too early.  now "knife ec2 create server" no longer respects the -x / --ssh-user option.  Any idea what I might be doing wrong?
+[2013-02-13 18:36:46 -0500] aboudreault: dotslash, I thought that the order I define my recipe is the execution order.
+[2013-02-13 18:37:53 -0500] aboudreault: I see the log order match though..
+[2013-02-13 18:39:06 -0500] aboudreault: dotslash, another thing I find strange is that this code is failing: http://pastebin.com/EfiW3htK removing the "&& touch" make it works
+[2013-02-13 18:40:51 -0500] dotslash: aboudreault: Does the user you are running it as have permission to touch chef?
+[2013-02-13 18:41:21 -0500] deed02392: so how do we get an apt_repos add to cause an apt cache update?
+[2013-02-13 18:42:35 -0500] aboudreault: dotslash, yes and it does. but it affects the not_if check somehow. commenting the not_if line also make it work.. strange.
+[2013-02-13 18:42:48 -0500] aboudreault: but current issue is with the cookbook_file call
+[2013-02-13 18:43:40 -0500] tolsen: ahh.. it appears that there's a bug where knife.rb overrides the command line.  I've remove knife[:ssh_user] from knife.rb and am able to specify -x now
+[2013-02-13 18:44:13 -0500] dotslash: aboudreault: Does your script change your working directory?
+[2013-02-13 18:45:46 -0500] dotslash: aboudreault: More specifically, does  #{script_dir}/mapserver-build.sh change your working directory when it is called?
+[2013-02-13 18:46:34 -0500] aboudreault: dotslash, it has to be called where it works.
+[2013-02-13 18:46:49 -0500] aboudreault: dotslash, this is my File.exists code: http://pastebin.com/W0cBa9YX
+[2013-02-13 18:47:15 -0500] aboudreault: placed after the cookbook_file..
+[2013-02-13 18:47:50 -0500] dotslash: aboudreault: I was just asking if something in that script might be changing you to a different directory so when you try to create the chef file you are somewhere else.
+[2013-02-13 18:48:30 -0500] aboudreault: dotslash, no, that script just do  configure/make
+[2013-02-13 18:48:58 -0500] aboudreault: anyway I fixed that issue
+[2013-02-13 18:49:23 -0500] aboudreault: trying to fix the other one now :/
+[2013-02-13 18:51:42 -0500] dotslash: aboudreault: It may not matter, but you might look at the syntax being used for not_if on this page: http://wiki.opscode.com/display/chef/Resources
+[2013-02-13 18:52:20 -0500] aboudreault: will do for sure.
+[2013-02-13 18:52:56 -0500] dotslash: fI am getting uninitialized constant #<Class:0x1059e4318>::Chef::Provider::RemoteFile when I try to use class NexusFile < Chef::Resource::RemoteFile. It works in the irb, but not in a chef cookbook. Any ideas?
+[2013-02-13 18:53:20 -0500] aboudreault: dotslash, though I think it changes nothing.... in my last post.. modifying my if with not_if statement shoudln't work neither, right?
+[2013-02-13 18:54:41 -0500] dotslash: aboudreault: I believe you are correct.
+[2013-02-13 18:58:01 -0500] kaerast: is there a known issue with the directory resource in recent versions of chef-client?  Since upgrading I've got recipes failing to create directories which already exist
+[2013-02-13 18:58:25 -0500] kaerast: to be fair the root user which chef-client runs as doesn't have permissions to modify those directories (they're on nfs)
+[2013-02-13 18:58:54 -0500] kaerast: but that just leads to another question - how to nicely create directories as a non-root user using a directory-like provider
+[2013-02-13 18:59:37 -0500] kaerast: but if the directories already exist then Chef shouldn't be trying to create them should it?
+[2013-02-13 19:02:56 -0500] ranjibd: kaerast, chef is running as root user?
+[2013-02-13 19:03:02 -0500] ranjibd: what error you are getting ?
+[2013-02-13 19:03:45 -0500] kaerast: I should have noted the exact error, but root user does not have permissions to modify the directories defined in a chef recipe so is getting permission-denied errors
+[2013-02-13 19:04:13 -0500] juliancdunn: kaerast: I'm not sure the directory provider has the ability to do that
+[2013-02-13 19:05:31 -0500] kaerast: it'd certainly be useful for us - the ability to have the directory provider create the directory as the owner user
+[2013-02-13 19:05:47 -0500] kaerast: I might take a look at how easy it is to add that in some time soon
+[2013-02-13 19:05:52 -0500] cjbottaro: I upgraded my workstation from 0.10.8 to 10.20.0 but left my Chef server at 0.10.8.  Now "knife node edit" crashes with undefined method 'name' for <#hash>.  Do I need to upgrade my Chef server and are there any issues with just installing 10.20.0 via gem and restarting the processes?
+[2013-02-13 19:05:55 -0500] kaerast: for now I can work around
+[2013-02-13 19:06:02 -0500] juliancdunn: kaerast: well, an NFS server is a special case
+[2013-02-13 19:06:25 -0500] juliancdunn: where the UID and GID of the directory are actually root, but NFS does its crazy root_squash futzery to present it to you as some other user e.g. 'nfsnobody'
+[2013-02-13 19:06:28 -0500] kaerast: sure, but I'd imagine others would be using nfs and thus find this useful
+[2013-02-13 19:06:49 -0500] epta: seanhorn: nice
+[2013-02-13 19:07:01 -0500] epta: seanhorn: there was and error with '+' actually
+[2013-02-13 19:07:54 -0500] epta: I add comment to your gist how I use it
+[2013-02-13 19:08:02 -0500] seanhorn: epta: Worked in 1.9.3 with Chef 11.2.0. idk .
+[2013-02-13 19:09:03 -0500] ranjibd: cjbottaro, this is due to the json gem
+[2013-02-13 19:09:41 -0500] qhartman: I just got bit by the net-ssh thing trying to run up some new nodes. Now I'm trying to bootstrap them with 10.20.0, but when I run chef-client it immeditately bombs with "NoMethodError: undefined method `run_list' for nil:NilClass"
+[2013-02-13 19:09:49 -0500] cjbottaro: ranjibd: Is there a quick workaround I can do on my workstation?
+[2013-02-13 19:10:04 -0500] qhartman: Anyone know the fix?
+[2013-02-13 19:10:33 -0500] ranjibd: cjbottaro, i know theres a ticket.. its a very critical error.  i think the fix is out already ., but let me check again
+[2013-02-13 19:10:58 -0500] cjbottaro: qhartman: Heh, I'm running into the same problem and I upgraded my workstation to 10.20.0 and now I have a different issues (about knife node edit not working).
+[2013-02-13 19:11:26 -0500] ranjibd: cjbottaro, http://tickets.opscode.com/browse/CHEF-3863
+[2013-02-13 19:11:49 -0500] qhartman: cjbottaro, yeah, I'm still running the old version on my workstation, just trying to get _something_ installed on these new nodes I need to get going
+[2013-02-13 19:12:08 -0500] qhartman: oh hey, lookit that....
+[2013-02-13 19:12:42 -0500] cjbottaro: ranjibd: thanks
+[2013-02-13 19:13:19 -0500] ranjibd: cjbottaro, update chef, that should fix it, for 10, you might have to pass the --pre flag
+[2013-02-13 19:13:24 -0500] qhartman: the fix suggested in that ticket seems to have worked for me
+[2013-02-13 19:13:39 -0500] cjbottaro: ranjibd: on my workstation or server?
+[2013-02-13 19:13:49 -0500] cjbottaro: (sorry, haven't read ticket yet, doing it now)
+[2013-02-13 19:14:03 -0500] ranjibd: cjbottaro, workstation
+[2013-02-13 19:18:32 -0500] JoelMcCracken: Is there some way to create cookbooks without the whole directory strucuture? It seems like a bit much
+[2013-02-13 19:18:51 -0500] robbkidd: JoelMcCracken: By hand is how I've been doing it.
+[2013-02-13 19:19:41 -0500] robbkidd: mkdir -p cookbooks/new-cookbook/recipes && touch cookbooks/new-cookbook/recipes/default.rb
+[2013-02-13 19:20:05 -0500] robbkidd: And go from there adding the other bits like templates, files and such as they come up.
+[2013-02-13 19:20:08 -0500] JoelMcCracken: sorry. I mean to say something like a cookbook as a single file
+[2013-02-13 19:20:16 -0500] awgross: JoelMcCracken: we have a base cookbook that we close, default recipe, attributes file, metadata, and Vagrantfile
+[2013-02-13 19:20:21 -0500] ranjibd: JoelMcCracken, chef-apply
+[2013-02-13 19:21:09 -0500] ranjibd: chef-apply will let you run any file, as chef-recipe
+[2013-02-13 19:21:33 -0500] cjbottaro: 10.22.0 is in rubygems and it seemed to have fixed my issue, thanks!
+[2013-02-13 19:21:49 -0500] JoelMcCracken: ah, its a command.
+[2013-02-13 19:22:23 -0500] ranjibd: JoelMcCracken, other wise you have also `knife cookbook create `
+[2013-02-13 19:23:14 -0500] JoelMcCracken: I just find all of the chef infrastrucuture really confusing, and I think more ruby and less directory would help
+[2013-02-13 19:26:16 -0500] jubilo: is there a simple way to pass a parameter to a service when it starts?
+[2013-02-13 19:26:19 -0500] jubilo: i.e:
+[2013-02-13 19:26:19 -0500] jubilo:  service "supervisor" do
+[2013-02-13 19:26:20 -0500] jubilo:     action [:enable, :start]
+[2013-02-13 19:26:20 -0500] jubilo:   end
+[2013-02-13 19:26:34 -0500] jubilo: if I wanted to make it look at a different config file on start, is there a way to do that?
+[2013-02-13 19:27:01 -0500] jubilo: replicating the behavior supervisord -c /path/to/config.conf
+[2013-02-13 19:27:10 -0500] juliancdunn: jubilo: you can customize the start_command in the resource
+[2013-02-13 19:28:55 -0500] robbkidd: berkshelf users, is this change to the berkshelf gem an overly simplistic solution for using it with the shiney new chef 10.22.0? https://github.com/robbkidd/berkshelf/commit/328036e87c6ec9329b058a2d0da9d89dfb393f28
+[2013-02-13 19:30:04 -0500] robbkidd: s/shiney/shiny/
+[2013-02-13 19:30:10 -0500] robbkidd: Long days.
+[2013-02-13 19:31:29 -0500] jubilo: ah, so something like start_command "supervisord -c /path/to/config.conf"
+[2013-02-13 19:31:40 -0500] jubilo: and then action [:enable, :start]
+[2013-02-13 19:35:00 -0500] epta: Is there any xmonad users?
+[2013-02-13 19:37:14 -0500] epta: I create xmonad cookbook, but really afraid that it could not be reused by other peoples
+[2013-02-13 19:37:28 -0500] juliancdunn: jubilo: correct
+[2013-02-13 19:38:53 -0500] hippiehacker: I'm thinking about encrypting to a set of nodes via a search... anyone have thoughts on how to go about the ruby code involved in encrypting to two RSA keys at once? # https://gist.github.com/hh/4947394
+[2013-02-13 19:40:40 -0500] josephholsten: hippiehacker: down that way lies pki and madness
+[2013-02-13 19:48:03 -0500] jubilo: can I define a reload_command?
+[2013-02-13 19:48:10 -0500] jubilo: along the lines of start_command?
+[2013-02-13 19:48:28 -0500] juliancdunn: jubilo: yes. read http://docs.opscode.com/chef/resources.html#service
+[2013-02-13 19:48:38 -0500] josephholsten: ugh.
+[2013-02-13 19:48:58 -0500] josephholsten: is there a non-terrible way to store binary data in a data bag?
+[2013-02-13 19:49:15 -0500] josephholsten: other than base64
+[2013-02-13 19:50:12 -0500] jtimberman: josephholsten: why are you storing binary data in a data bag? can it be stored as a binary file and distributed with cookbook_file? Or, if it's large via another web service for retrival?
+[2013-02-13 19:50:19 -0500] jtimberman: s/web//
+[2013-02-13 19:53:18 -0500] matti: btm: gem install for chef 11 is still pulling v 11.2.0
+[2013-02-13 19:53:34 -0500] matti: btm: ;D
+[2013-02-13 19:53:34 -0500] matti: krzysztof@ubuntu:~/Development/Chef/11.4.0/Gems$ gem install --no-ri --no-rdoc chef -v '= 11.4.0' --install-dir .
+[2013-02-13 19:53:37 -0500] matti: Successfully installed chef-11.2.0
+[2013-02-13 19:54:51 -0500] matti: jtimberman: What would you recommend to tweak after installing Chef 11 server from an Omnibas package?
+[2013-02-13 20:03:39 -0500] btm: Opscode Chef Code Review, join: http://bit.ly/11GXbrc, watch: http://youtu.be/AMf5bXnniZU #opschef
+[2013-02-13 20:05:04 -0500] btm: matti: working for me. O_o
+[2013-02-13 20:06:59 -0500] matti: btm: Woor.
+[2013-02-13 20:07:02 -0500] matti: Woot8
+[2013-02-13 20:07:08 -0500] matti: Let me see.
+[2013-02-13 20:09:01 -0500] btm: matti: http://pastie.org/6155938
+[2013-02-13 20:13:01 -0500] matti: Tried again, and works for 10.22.0.
+[2013-02-13 20:13:16 -0500] matti: And...
+[2013-02-13 20:13:25 -0500] matti: For 11.4.0
+[2013-02-13 20:13:28 -0500] matti: O_o
+[2013-02-13 20:13:37 -0500] matti: You jinxed it!
+[2013-02-13 20:13:39 -0500] matti: ;D
+[2013-02-13 20:14:05 -0500] matti: btm: I guess, old cache somewhere -- not me, since it is just a simple Lucid machine with base image.
+[2013-02-13 20:14:15 -0500] matti: btm: Thanks for having a look ;]
+[2013-02-13 20:16:36 -0500] stevenator: hello, need some help with the execute resource using notifies. I'm am looping an array of X paths and executing a simple mv command for a common files directory to be place into X different directories. If I use notifies to run another resources it doesn't necessarily get queued in the same order as the original loop. Is that intended? If I were to use notifies :immediately would that keep the same order?
+[2013-02-13 20:18:41 -0500] tolland: ohai
+[2013-02-13 20:18:50 -0500] matti: Ohai
+[2013-02-13 20:19:33 -0500] tolland: If i set a service "action enabled, started", and then slightly later in another cookbook notify service restart
+[2013-02-13 20:19:39 -0500] tolland: I get a start and a restart
+[2013-02-13 20:19:48 -0500] tolland: I guess thats expected
+[2013-02-13 20:20:24 -0500] tolland: because that is what  asked for, but is there some way to splay them, or do I have to wrap service?
+[2013-02-13 20:29:47 -0500] cpasmoi: I'd like to overrid an attribute set in the cookbook, by a value in the json role. How can I do so ?
+[2013-02-13 20:32:21 -0500] qhartman: So I noticed today while working around the ssh-gateway
+[2013-02-13 20:32:46 -0500] qhartman: and json problems that if I re-run abootstrap on a box it tries to update chef, even if I specify the version to install
+[2013-02-13 20:33:36 -0500] qhartman: is there a way to suppress that behavior? when I have 10.20 installed and I re-bootstrap, it goes to 11.x, even though I told it to do 10.20 specifically
+[2013-02-13 20:33:46 -0500] qhartman: not seeing anything in my knife docs that sounds right
+[2013-02-13 20:38:22 -0500] iverson0881: did some something break on hosted chef?
+[2013-02-13 20:38:40 -0500] iverson0881: im now getting that crazy class not found error now but coming from hosted chef
+[2013-02-13 20:39:01 -0500] paulmooring: iverson0881  that's client side
+[2013-02-13 20:39:09 -0500] paulmooring: downgrade your json gem to 1.7.6
+[2013-02-13 20:39:15 -0500] iverson0881: already tried that
+[2013-02-13 20:39:19 -0500] iverson0881: even tried 10.22.0
+[2013-02-13 20:39:29 -0500] iverson0881: and even tried 11.4.0
+[2013-02-13 20:39:58 -0500] iverson0881: HTTP Request Returned 500 Internal Server Error: Unsupported `json_class` type 'Symbol'
+[2013-02-13 20:40:00 -0500] matti: So, is it still broken?
+[2013-02-13 20:40:29 -0500] iverson0881: ERROR: Server returned error for https://api.opscode.com/organizations/applovincorp/environments/ROA-Applovin/cookbook_versions<removed> retrying 2/5 in 8s
+[2013-02-13 20:41:06 -0500] iverson0881: :(
+[2013-02-13 20:42:41 -0500] jin: Hey all, does anyone know if there's a way to see the whole list of recipes that will be executed in a run? When I say "whole list", I mean, recipes that will be run via include_recipe as well.
+[2013-02-13 20:43:55 -0500] mattt: anyone know if chef's embedded ruby is always bundled w/ ipaddress gem ?
+[2013-02-13 20:46:15 -0500] rava: having some trouble with search syntax against data bags
+[2013-02-13 20:46:29 -0500] cpasmoi: no one can help me with this attribute problem ? I thought role attributes overrides cookbooks ones
+[2013-02-13 20:46:30 -0500] matti: mattt: The one from Omnibus package?
+[2013-02-13 20:47:02 -0500] rava: a user db with a groups attribute that's a list should return with a call to search(:users, "groups:users") i'm thinking, but I can't get return data
+[2013-02-13 20:47:07 -0500] matti: cpasmoi: That should work.
+[2013-02-13 20:47:31 -0500] rava: i try using the chef webui to search the db with groups:users for input, and also get no return data
+[2013-02-13 20:47:38 -0500] mattt: matti: yep, i i need it to convert IP prefixlen to netmask
+[2013-02-13 20:47:48 -0500] matti: mattt: One second.
+[2013-02-13 20:47:51 -0500] rava: a knife show against a db item in that db shows the attribute though
+[2013-02-13 20:48:39 -0500] matti: mattt: Looks like it bundles ipaddress 0.8.0
+[2013-02-13 20:48:54 -0500] matti: mattt: Its a runtime dependency, anyway.
+[2013-02-13 20:49:02 -0500] cpasmoi: well, I've read http://wiki.opscode.com/display/chef/Attributes ; used a set[:tomcat][:log_ttl]  = "8760" in my cookbook/attributes/default.rb and a  "tomcat": { "log_ttl": "1440" } attribute in the JSON role
+[2013-02-13 20:49:13 -0500] mattt: matti: so think it's safe to rely on that?  would hate for it to get yanked and my cookbook breaks :P
+[2013-02-13 20:49:14 -0500] cpasmoi: I still see "8760" in my template :x
+[2013-02-13 20:50:35 -0500] desktophero: new to chef ... trying V11 out on RHEL5. Here's a noob question: all of the defaults for TCP listeners are going to localhost. Within chef, is there a 'best way' to configure the chef server to listen on non-localhost IPs?
+[2013-02-13 20:50:36 -0500] rava: cpasmoi: what's the template block look like? if the attribute is right in couchdb and in the node attributes after the merge happens, there's something funky in your template syntax likely
+[2013-02-13 20:51:04 -0500] rava: cpasmoi: if you run shef -z on the host, and inspect the node attributes, is it set to the value you're expecting?
+[2013-02-13 20:51:37 -0500] cpasmoi: I'm using a hosted chef, so I can see the web UI and the value is wrong (8760)
+[2013-02-13 20:51:48 -0500] cpasmoi: I'll paste template block
+[2013-02-13 20:53:05 -0500] cpasmoi: rava, http://paste.debian.net/233942/
+[2013-02-13 20:54:02 -0500] threetee: desktophero: for me, a vanilla installation of chef server 11 on CentOS 6.3 sets up TCP/80 and TCP/443 to listen on 0.0.0.0
+[2013-02-13 20:55:07 -0500] threetee: desktophero: are you talking about the internal chef services, like postgres, unicorn and such?
+[2013-02-13 20:55:43 -0500] desktophero: that's what I was expecting... all of the listeners are only listening on localhost. I've updated default.rb, server.rb, and in one page there was note of a chef-server.rb. All have been updated, I've run reconfigure, and I've gone as far as rebooting - no loot so far
+[2013-02-13 20:55:53 -0500] desktophero: webui
+[2013-02-13 20:56:43 -0500] desktophero: webui on port 9462 only on localhost; API port 8000 only on localhost
+[2013-02-13 20:57:24 -0500] desktophero: I have a chef-client all set but the API port on the server is refusing the connection ... only responding to localhost
+[2013-02-13 20:59:44 -0500] rava: is there a different search syntax for search attributes that are lists?
+[2013-02-13 20:59:54 -0500] rava: of data bag items?
+[2013-02-13 21:00:16 -0500] matticulous: having issues using knife ssh with chef 11. i am passing -a ipaddress, but getting an error "FATAL: 1 node found, but does not have the required attribute to establish the connection." did the syntax to get the attribute change? my apologies if this is already covered. i just didn't come across it in the release notes/breaking changes stuff.
+[2013-02-13 21:02:08 -0500] threetee: desktophero: chef 11 web/api services are provided by nginx in front of the backend servicesdid you adjust the nginx config to use the alternate ports, or did you use another mechanism?
+[2013-02-13 21:02:37 -0500] matti: mattt: If you can control your environment, then probably yes.
+[2013-02-13 21:02:48 -0500] desktophero: ah ... let me verify
+[2013-02-13 21:03:00 -0500] matti: crucially: ;p
+[2013-02-13 21:03:31 -0500] threetee: desktophero: /var/opt/chef-server/nginx/etc/nginx.conf is the default location for the nginx config
+[2013-02-13 21:04:22 -0500] threetee: desktophero: my nginx config out of the box is configured to listen on any interface on TCP/80 and TCP/443
+[2013-02-13 21:05:37 -0500] jtimberman: you should modify the /etc/chef-server/chef-server.rb instead of the configuration files directly thoguh
+[2013-02-13 21:05:58 -0500] cpasmoi: maybe I should use override_attributes
+[2013-02-13 21:06:30 -0500] btm: Opscode Cookbook Code Review, join: http://bit.ly/12MmrMa, watch: http://youtu.be/-KAsYr-8CAI #opschef
+[2013-02-13 21:06:36 -0500] crucially: ?
+[2013-02-13 21:06:57 -0500] threetee: jtimberman: thanks, I wasn't sure what the correct way to configure the server is
+[2013-02-13 21:06:58 -0500] desktophero: you guys have given me a great breadcrumb ... I was looking at it from a chef 10 perspective (still, very new to that as well). Thanks! going to check my stuff :)
+[2013-02-13 21:07:48 -0500] desktophero: jtimberman: that's the file I've been using to make my modifications - /etc/chef-server/chef-server.rb
+[2013-02-13 21:09:30 -0500] tolland: can i group immediate notifies? I mean
+[2013-02-13 21:09:50 -0500] matticulous: can anyone point me in the direction to troubleshoot knife ssh issues?
+[2013-02-13 21:10:06 -0500] tolland: I want to replace 2 files, that normally would immediately notify, but on the first run are going to cause 2 restarts
+[2013-02-13 21:11:00 -0500] tolland: ok ruby block seems better
+[2013-02-13 21:11:26 -0500] Joelk: I'm using an rvm recipe to install an older version of ruby then chef uses, how can I make sure to use that version in my recipe? Just do a script call and tell rvm to use the older version? Is there a saner way?
+[2013-02-13 21:12:32 -0500] cpasmoi: ok nasa I had to put the attribute in the override_attributes": JSON role
+[2013-02-13 21:27:48 -0500] seanhorn: epta: Thanks for the update in the gist. That's how I did it at first too.
+[2013-02-13 21:30:32 -0500] r3vamp: dumb question...is there a way to copy a local directory in chef?
+[2013-02-13 21:32:33 -0500] epta: Is there any sous-chef users?
+[2013-02-13 21:32:40 -0500] epta: https://github.com/michaelklishin/sous-chef
+[2013-02-13 21:35:27 -0500] epta: Seems like it is nothing but vagrant-file for debugging travis cookbooks
+[2013-02-13 21:35:31 -0500] matticulous: attribute locations or syntax change? as an example, typing 'knife search 'name:n00104' -a ipaddress' returns and empty ipaddress field. am i no longer referencing this correctly?
+[2013-02-13 21:39:52 -0500] matticulous: is there someplace else that I should be asking these types of questions? i'm sorry if these are really elementary.
+[2013-02-13 21:41:52 -0500] cpasmoi: I never use knife, sorry
+[2013-02-13 21:42:21 -0500] cpasmoi: and i'm going to sleep
+[2013-02-13 21:45:02 -0500] matticulous: cpasmoi: thank you for the response nonetheless
+[2013-02-13 21:48:28 -0500] qhartman: matticulous, knife searching can be a little obtuse. The example you gave will never work, you need to specify "node"
+[2013-02-13 21:48:40 -0500] qhartman: knife search node 'name:noda-name'
+[2013-02-13 21:49:18 -0500] qhartman: generally if you search for a specific attribute and it returns nothing, you did not specify the attribute correctly
+[2013-02-13 21:49:56 -0500] matticulous: qhartman: so if i repeat the same test with 'knife search node 'name:n00104' -a ipaddress, i still get output suggesting an empty ip address.
+[2013-02-13 21:50:11 -0500] qhartman: if you do "knife search node 'name:node-name' -l" it will return everything, and you can usually find the attributes you need by scanning that list, then you will know what to look for
+[2013-02-13 21:52:33 -0500] qhartman: when I search for that, it returns correctly
+[2013-02-13 21:52:45 -0500] qhartman: with -l, does it return a bunch of info?
+[2013-02-13 21:52:59 -0500] qhartman: has this node had a successful chef-client run on it?
+[2013-02-13 21:53:08 -0500] hackeron: quick question - if I have a blank hard drive connected via a usb - is there an easy/automated method to partition it, install ubuntu server and chef-client? -- Right now I have some messy/fragile shell scripts that use fdisk and then debootstrap.
+[2013-02-13 21:53:30 -0500] matticulous: qhartman: it does. same as if i do a 'knife node show 'n00104'
+[2013-02-13 21:53:54 -0500] matticulous: the ipaddress is listed in the output. it just appears to be nested under 'automatic:'
+[2013-02-13 21:54:04 -0500] solvip: Sorry for repeating myself, I asked yesterday or the day before about checking for package existance.  Essentially, what I'm trying to accomplish is something like the following: https://gist.github.com/solvip/c07e032ff7858aa53932
+[2013-02-13 21:54:27 -0500] matticulous: i don't remember having to do anything special with chef 10 with regard to referencing the ipaddress attr
+[2013-02-13 21:54:27 -0500] matticulous: \
+[2013-02-13 21:54:39 -0500] qhartman: hackeron, I don't know of anything that is easy or automatic. Sounds like you have a pretty uncommon setup
+[2013-02-13 21:54:52 -0500] solvip: the part that I'm interested in is the remote_directory not_if statement.  That fails with 'undefined method: windows_feature..'
+[2013-02-13 21:55:01 -0500] matticulous: it has not had a successful chef run. that's what i was originally trying to do using knife ssh, but can't connect
+[2013-02-13 21:55:05 -0500] qhartman: matticulous, oh, you're on chef 11? Then I will be of little help, I haven't dove into that pool yet
+[2013-02-13 21:55:22 -0500] josephholsten: is there a cookbook dsl for writing/updating a databag?
+[2013-02-13 21:55:35 -0500] josephholsten: docs isn't showing anything obvious
+[2013-02-13 21:55:36 -0500] matticulous: qhartman: i am. thanks for trying to help nonetheless.
+[2013-02-13 21:55:41 -0500] qhartman: matticulous, I would try logging in manually and running chef-client by hand, that might provide some insight
+[2013-02-13 21:55:54 -0500] matticulous: i did that too, but came up with some other errors
+[2013-02-13 21:56:05 -0500] hackeron: qhartman: heh, this is my current script: http://pastie.org/6157544 -- I need to install ubuntu on something like 20 hard drives and then put them into little mini PCs - I guess this is uncommon :)
+[2013-02-13 21:57:11 -0500] matticulous: i ended up getting 'FATAL: NoMethodError: undefined method `run_list' for nil:NilClass' when trying to do the chef-client run locally
+[2013-02-13 21:57:22 -0500] qhartman: hackeron, I would just netinst them, that would probably be cleaner. Then you can bootstrap chef on them after
+[2013-02-13 21:57:30 -0500] kallistec: qhartman: btw in chef 11 knife search is much less whiny
+[2013-02-13 21:57:51 -0500] qhartman: matticulous, oh! you are running into a new bug. Downgrade your json gem to version 1.7.6
+[2013-02-13 21:57:52 -0500] kallistec: for example, `knife search SOME_ROLE` magically works
+[2013-02-13 21:58:33 -0500] hackeron: qhartman: that would be painfullly slow - we get an order for say 10 systems, I need to install them, preferably simultaneously, on 10 separate drives and send them off in the post. I never even put the drives in the servers, that happens later :)
+[2013-02-13 21:58:58 -0500] qhartman: hackeron, ooooohhh, in that case, you, I think you're in custom solution land
+[2013-02-13 21:59:40 -0500] josephholsten: anyone got ideas on how to modify a data bag from a recipe?
+[2013-02-13 21:59:53 -0500] qhartman: matticulous, http://tickets.opscode.com/browse/CHEF-3863
+[2013-02-13 22:00:06 -0500] matticulous: qhartman: thanks! is there a proper way to do that? sure enough if i do a gem list i show 'json (1.7.7, 1.5.4)'
+[2013-02-13 22:00:13 -0500] hackeron: qhartman: well, like vagrant and heroku and others can spin up ubuntu servers in seconds - my scenario is rather than doing it in a virtual machine, I want to install ubuntu onto a blank hard drive connected via usb. Didn't think that would be that unique
+[2013-02-13 22:01:09 -0500] qhartman: hackeron, since you're not doing it in a VM, it becomes a different beast, and something not a lot of people are doing. It might be easier to do it once, image the drive, and then re-apply the image to the others
+[2013-02-13 22:01:10 -0500] kallistec: qhartman: matticulous that stuff is fixed in the latest 10.x and 11.x btw
+[2013-02-13 22:01:38 -0500] matticulous: kallistec: the client version?
+[2013-02-13 22:01:47 -0500] qhartman: kallistec, Something newer than 10.20 has been released? Happened in the last couple hours then
+[2013-02-13 22:02:04 -0500] hackeron: qhartman: every manufacturer has a slightly different capacity and also we have different sizes, so it's not a great solution to try to create an image for every possible hard drive size
+[2013-02-13 22:02:10 -0500] btm: qhartman: 11.4.0 and 10.22.0 are available via rubygems and omnibus packages.
+[2013-02-13 22:02:24 -0500] btm: which add support for json=1.7.7
+[2013-02-13 22:02:54 -0500] hackeron: qhartman: I guess I will stick with my fragile shell script, heh -- need to improve the partitioning though
+[2013-02-13 22:03:03 -0500] qhartman: hackeron, ah, I had the impression they were all the same. So we return to my previous answer, you're in custom solution land. I would jsut work on making your solution more robust
+[2013-02-13 22:03:58 -0500] hackeron: qhartman: heh - I don't suppose you know of a ruby DSL for partitioning hard drives? - fdisk is rather painful to work with
+[2013-02-13 22:04:12 -0500] qhartman: hackeron, you might want to ask around in #ubuntu or #ubuntu-server and see if nayone in there has skinned this cat
+[2013-02-13 22:04:27 -0500] hackeron: qhartman: ok, thanks :)
+[2013-02-13 22:07:08 -0500] matticulous: thank you to all who helped! the update of the chef gem did the trick on both counts. took care of my knife ssh issues as well as the chef client issue
+[2013-02-13 22:08:34 -0500] qhartman: np matticulous
+[2013-02-13 22:08:42 -0500] desktophero: whomever added the cleanse option to chef-server-ctl ... I owe a beer
+[2013-02-13 22:11:49 -0500] Joelk: thoughts on how to call rvm from a reciple to switch to a different version of ruby then the version bundled with chef?
+[2013-02-13 22:13:45 -0500] tomdzk: Joelk: https://github.com/fnichol/chef-rvm ?
+[2013-02-13 22:14:38 -0500] Joel: tomdzk: that's what I'm installing rvm with, yes, the problem is I then need to do a bundle install into a version of ruby installed in rvm.
+[2013-02-13 22:14:53 -0500] Joel: tomdzk: bundle install is trying to install into the version of ruby that comes bundled with chef
+[2013-02-13 22:15:35 -0500] tomdzk: Joel: you can either use the global_gems/user_global_gems/gems attributes (see the doc) or call bundler with rvm_shell
+[2013-02-13 22:16:25 -0500] tomdzk: e.g. rvm_shell "..." do code "bundle install --quiet --local" end
+[2013-02-13 22:16:26 -0500] Joel: yeah, no point in listing them out twice, I'll take a peak at rvm_shell
+[2013-02-13 22:16:46 -0500] tomdzk: which assumes you have bundler in one of the gems lists
+[2013-02-13 22:17:14 -0500] rava: is there a different search syntax for searching attributes whose values are lists?
+[2013-02-13 22:19:13 -0500] rb1980: Hi all, I am trying to get a recipe to remove another from the run_list and I am pulling my hair out trying to figure out why it's not working.
+[2013-02-13 22:19:27 -0500] rb1980: In "recipe_a" I have:
+[2013-02-13 22:19:28 -0500] rb1980: ruby_block "remove_recipe_b" do
+[2013-02-13 22:19:28 -0500] rb1980:   block do
+[2013-02-13 22:19:28 -0500] rb1980:     node.run_list.remove("recipe[cookbook::recipe_b]")
+[2013-02-13 22:19:28 -0500] rb1980:   end
+[2013-02-13 22:19:29 -0500] rb1980:   action :create
+[2013-02-13 22:19:29 -0500] rb1980: end
+[2013-02-13 22:19:29 -0500] rb1980: recipe_a appears before recipe_b in the expanded run_list.
+[2013-02-13 22:19:30 -0500] rb1980: When I run chef-client, I see:
+[2013-02-13 22:19:30 -0500] rb1980: INFO: Processing ruby_block[remove_recipe_b] action create
+[2013-02-13 22:19:31 -0500] rb1980: but then recipe_b still runs.
+[2013-02-13 22:19:40 -0500] rava: rb1980: pastebin or gist please
+[2013-02-13 22:19:45 -0500] Joel: tomdzk: I sure do.
+[2013-02-13 22:19:49 -0500] rb1980: yeah, sorry newbie
+[2013-02-13 22:19:50 -0500] Joel: tomdzk: this looks perfect, thanks.
+[2013-02-13 22:21:50 -0500] rb1980: recipe_b is part of a role... does that have anything to do with it?
+[2013-02-13 22:22:46 -0500] desktophero: finally ... chef client is talking with the server ... sorry for spam, just thrilled to have it working
+[2013-02-13 22:24:32 -0500] rava: why is it the shef binary embedded in the omnibus install is ignoring my -S flag and still trying to run against localhost for commands?
+[2013-02-13 22:27:42 -0500] rava: so the answer to all my woes earlier is to rebuild the index
+[2013-02-13 22:28:10 -0500] rava: does chef keep seperate indexes per environment?
+[2013-02-13 22:46:13 -0500] jin: FYI, i found a way to get the list of recipes called via include_recipe: node.run_state[:seen_recipes]
+[2013-02-13 22:48:48 -0500] aboudreault: I'm not sure to understand.....can anyone explain me the following behavior: http://pastebin.com/fJQi9016
+[2013-02-13 22:49:30 -0500] aboudreault: I would add that the file I check has been placed by cookbook_file before in the recipe.
+[2013-02-13 22:49:31 -0500] ranjibd: jin, that will enlist all recipes that have been evaluated by now
+[2013-02-13 22:50:00 -0500] ranjibd: in chef 10.x, in chef 11 , you have to do run_context.loaded_recipe?(<name>)
+[2013-02-13 22:51:05 -0500] ranjibd: aboudreault, they are same, the only_if guard does the exact thing
+[2013-02-13 22:51:14 -0500] ranjibd: but its more readable
+[2013-02-13 22:52:48 -0500] aboudreault: ranjibd, so how do you explain my comments?
+[2013-02-13 22:52:54 -0500] ranjibd: aboudreault, the first version may not work as chef defines a resource /provider class named "File", which is different than the stdlib File class, so to be safe you would use ::File to ensure you are using the standard library's file class
+[2013-02-13 22:53:04 -0500] ranjibd: ^^
+[2013-02-13 22:53:27 -0500] aboudreault: ha.. let me try that.
+[2013-02-13 22:53:28 -0500] ranjibd: add a `::`
+[2013-02-13 22:56:18 -0500] aboudreault: ranjibd, no luck, same thing with:     if ::File.exists?("#{patch_dir}/#{version}.patch")
+[2013-02-13 22:59:36 -0500] aboudreault: I will use the other method...... but I can't sleep if I don't understand that :/
+[2013-02-13 23:00:44 -0500] ranjibd: aboudreault, move the patch file path to a variable, and log it before the resource
+[2013-02-13 23:01:16 -0500] ranjibd: patch_file =::File.expand_path("#{patch_dir}/#{version}.patch")
+[2013-02-13 23:01:57 -0500] ranjibd: Chef::Log.info("File: #{path_file} ; Exists? : #{::File.exists?(patch_file)}")
+[2013-02-13 23:02:43 -0500] ranjibd: if even that does not work, then fire up shef/chef-shell -z and debug. but +1 on not sleeping without understanding whats going on
+[2013-02-13 23:04:39 -0500] gabemc: Hey, I would like a pull request merged with opscode-cookbooks/chef-server. Is this the right place to ask?
+[2013-02-13 23:05:07 -0500] martinisoft: gabemc: did you file a ticket?
+[2013-02-13 23:05:13 -0500] martinisoft: and fill out a CLA
+[2013-02-13 23:05:53 -0500] gabemc: Did the CLA.
+[2013-02-13 23:05:57 -0500] gabemc: Ticket: http://tickets.opscode.com/browse/CHEF-3876
+[2013-02-13 23:06:06 -0500] ranjibd: gabemc, http://wiki.opscode.com/display/chef/How+to+Contribute
+[2013-02-13 23:06:16 -0500] gabemc: Pull request: https://github.com/opscode-cookbooks/chef-server/pull/22/files
+[2013-02-13 23:06:26 -0500] martinisoft: what ranjibd said :)
+[2013-02-13 23:07:02 -0500] ranjibd: gabemc, once you sign the CLA, wait for some time (1 day) till opscode folks will enable you as dev in tickets.opscode.com (JIRA)
+[2013-02-13 23:07:09 -0500] gabemc: Sigh.
+[2013-02-13 23:07:19 -0500] gabemc: Ok.
+[2013-02-13 23:07:25 -0500] ranjibd: gabemc, then you can change the status of the ticket to "Fix provided"
+[2013-02-13 23:08:15 -0500] ranjibd: gabemc, then in next wednes day , come to google hangout, during the code reviews, bug btm and jtimberman, and get it merged (if all is well)
+[2013-02-13 23:09:19 -0500] gabemc: Ok. It's a bad bug. Breaks the chef-server install for Chef 11.
+[2013-02-13 23:14:48 -0500] aboudreault: ranjibd, http://pastebin.com/qSwFmTJB
+[2013-02-13 23:15:47 -0500] ranjibd: aboudreault, the file is not created before, its created by the earlier resource
+[2013-02-13 23:16:36 -0500] aboudreault: yes, so it should work
+[2013-02-13 23:16:49 -0500] aboudreault: we see my cookbook_file log just before
+[2013-02-13 23:16:55 -0500] ranjibd: the if statement is evaluated in compile phase, (and the file is not present at that time)
+[2013-02-13 23:17:35 -0500] aboudreault: ranjibd, the string are evaluated at compile phase too?
+[2013-02-13 23:17:37 -0500] ranjibd: while the not_if is evaluated in execution phase ,and the file was present at that time, as the earlier resource just created it
+[2013-02-13 23:17:41 -0500] ranjibd: no
+[2013-02-13 23:17:54 -0500] ranjibd: not_if is evaluated at execution time
+[2013-02-13 23:18:44 -0500] aboudreault: ruby is weird... then how can I write my  if and be sure is is executed during execution time?
+[2013-02-13 23:18:51 -0500] ranjibd: you can verify this by moving the log statement inside the not_if block
+[2013-02-13 23:19:51 -0500] ranjibd: aboudreault, no dude, its not ruby, its how chef works, it takes the entire recipe, constructs a list of resources (this is called compile phase), and everything outside resource blocks get evaluated , if/for etc
+[2013-02-13 23:20:08 -0500] aboudreault: haaa. I see ok..
+[2013-02-13 23:20:20 -0500] doomviking: anatomy of a chef run
+[2013-02-13 23:20:25 -0500] aboudreault: wow, I was very afraid :P thanks for clarifying.
+[2013-02-13 23:20:30 -0500] ranjibd: in the next phase (execution phase) the compiled list of resource is executed in order (and all ruby foo is invoked)
+[2013-02-13 23:20:51 -0500] ranjibd: doomviking, there was a bot, (bawt) with links to all those wiki pages..
+[2013-02-13 23:21:11 -0500] aboudreault: ranjibd, ok, now I understand better.
+[2013-02-13 23:21:15 -0500] ranjibd: fujin, bawt is coming back ? or permanently fired?
+[2013-02-13 23:21:19 -0500] aboudreault: thanks a lot for your help.
+[2013-02-13 23:21:20 -0500] doomviking: maybe I'm the bot
+[2013-02-13 23:26:09 -0500] kallan: Hello! What is the recommended way to upgrade a node's omnibus installation of Chef? A college of mine mentioned that there might be a recipe somewhere that upgrades the Chef gem to a newer version?
+[2013-02-13 23:28:08 -0500] ranjibd: kallan, /opt/chef/embedded/bin/gem install chef -v 'version you want'
+[2013-02-13 23:28:34 -0500] ranjibd: kallan, use it with knife ssh , this should work
+[2013-02-13 23:29:44 -0500] kallan: ranjibd, sure that'd work just fine. I was left with the impression that there was a way to automate it using a recipe. Was thinking maybe one might already exist?
+[2013-02-13 23:30:16 -0500] doomviking: I would think that that might be dangerous
+[2013-02-13 23:30:31 -0500] doomviking: chef upgrading chef
+[2013-02-13 23:31:34 -0500] rava: so meta
+[2013-02-13 23:32:54 -0500] btm: Chef Client 11.4.0 + 10.22.0 are out, fix issues with JSON 1.7.7: http://www.opscode.com/blog/2013/02/13/chef-client-11-4-0-10-22-0-released/
+[2013-02-13 23:33:28 -0500] doomviking: heh
+[2013-02-13 23:35:14 -0500] kallan: thats true
+[2013-02-13 23:35:23 -0500] ranjibd: kallan, you can do it if you want, chef_gem "chef" {"version"=> "10.22.0"}, but it will be trippy
+[2013-02-13 23:35:31 -0500] kallan: yeah
+[2013-02-13 23:36:55 -0500] kallan: I'm not sure of all the alternatives, but any sort of scenario where you'd need to cluster SSH to a bunch of nodes that may be on different versions of Chef and /opt/chef/embedded/bin/gem install chef -v 'version I want' feels bad too
+[2013-02-13 23:37:11 -0500] kallan: Someone made me think that this has been done in a recipe before, but perhaps it hasn't and is worth thinking about a bit.
+[2013-02-13 23:41:26 -0500] kderr: Have any of you seen this "erlexec: HOME must be set" when trying to install chef-server 11 with the chef-server cookbook that's in the opscode github?
+[2013-02-13 23:44:24 -0500] desktophero:  - another noob question: I've got a basic recipe setup to install dstat through bootstrap to a chef-client - works great and uber basic. I'm not seeing where I can define that to be reinstalled if not currently installed, based on some interval without executing bootstrap again
+[2013-02-13 23:51:06 -0500] desktophero:  ok ... had to type the question "out loud" ... think I have it
+[2013-02-13 23:51:34 -0500] jinb: exit
+[2013-02-13 23:51:35 -0500] jinb: exit
+[2013-02-13 23:55:24 -0500] kallan: ranjibd: doomviking: found what I was referring to. I think this cookbook attempts to automate the "omnibus installation upgrade" idea. https://github.com/hw-cookbooks/omnibus_updater
+[2013-02-13 23:55:31 -0500] alexbst: http://blog.trull.org/2013/02/moving-from-native-ruby-chef-to-omnibus.html <- may be of interest to someone
+[2013-02-13 23:55:52 -0500] alexbst: ranjibd or kallan heh.
+[2013-02-13 23:57:58 -0500] ranjibd: nice!

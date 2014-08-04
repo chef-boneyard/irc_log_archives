@@ -1,0 +1,566 @@
+[2014-02-20 00:53:08 -0500] coderanger: That + hash identifiers does seem like an excellent combo
+[2014-02-20 00:53:16 -0500] spheromak: especially if there is tooling for env <-> env promotions and/or  server<->server
+[2014-02-20 00:53:34 -0500] kallistec: coderanger: right, that's basically one way to think of the core concept, is that we're adding a run_list to your berksfile which becomes an expanded run list in your berksfile.lock, and then you just send your berksfile.lock to chef server
+[2014-02-20 00:54:10 -0500] spheromak: kallistec: long as the berks.lock is the end-all be-all. And also would like to be able to ignore the local cache shit in berks.
+[2014-02-20 00:54:48 -0500] coderanger: kallistec: A+ would buy again
+[2014-02-20 00:54:50 -0500] spheromak: i have been toying iwth some run-list + manifest tooling for our infra / promotions
+[2014-02-20 00:55:12 -0500] spheromak: kallistec: so this is basically getting the solver out of server ?
+[2014-02-20 00:55:18 -0500] kallistec: spheromak: yeah, chef-client won't ever see a role or an environment, so you'll have pre-compiled your attributes also
+[2014-02-20 00:55:19 -0500] spheromak: is this likely in 12
+[2014-02-20 00:55:51 -0500] kallistec: spheromak: yeah, we're gonna be building it alongside, and I think the first versions will do some ugly things to make it work on existing APIs
+[2014-02-20 00:56:24 -0500] spheromak: so versions become meaningless
+[2014-02-20 00:56:29 -0500] spheromak: or near so
+[2014-02-20 00:57:03 -0500] kallistec: spheromak: no, they're totally important on the input side, when you're pulling in cookbooks from the outside world
+[2014-02-20 00:57:10 -0500] spheromak: sure
+[2014-02-20 00:57:10 -0500] coderanger: spheromak: Versions still matter for any cookbook that is depended on by others
+[2014-02-20 00:57:37 -0500] coderanger: kallistec: Even internally we have dependencies
+[2014-02-20 00:57:59 -0500] kallistec: spheromak: and outside world might include the current cookbooks api becoming an internal community site kind of thing
+[2014-02-20 00:58:15 -0500] coderanger: so semver there still matters for the default case, with hash ids being an override during development
+[2014-02-20 00:59:10 -0500] kallistec: coderanger: that would be up to your team. If you all want to agree that a cookbook is good and gets version number 1.2.3 before you put it in prod, then you can
+[2014-02-20 00:59:30 -0500] kallistec: but the cookbooks that go to chef-client are all locked to identifiers
+[2014-02-20 00:59:50 -0500] spheromak: kallistec: what happnes if someone fasttracks/shortcircuits ?
+[2014-02-20 01:00:07 -0500] kallistec: OTOH, the identifier can just be a string so maybe we'll let you use "1.2.3" as the identifier
+[2014-02-20 01:00:12 -0500] coderanger: kallistec: Hmm, what is a cookbook says I depend on foo ~> 1.0 and I want to develop 2.0
+[2014-02-20 01:00:14 -0500] spheromak: could cause some pain to reconcile whats deployed and what you think is deployed
+[2014-02-20 01:00:16 -0500] kallistec: spheromak: what do you  mean?
+[2014-02-20 01:00:46 -0500] spheromak: if  humans use numbers and nodes use hashes.  I guess its the server / policy enforcing
+[2014-02-20 01:00:46 -0500] coderanger: kallistec: during dev I would be using a hash id and forcing the version of foo in my policy
+[2014-02-20 01:01:03 -0500] coderanger: kallistec: And then eventually I finish it and go back to semver
+[2014-02-20 01:01:08 -0500] kallistec: spheromak: you get to see the output of the "compiler" before you push anything
+[2014-02-20 01:01:09 -0500] spheromak: kallistec: im just working through things I know happen, and the problems I see with my current chef/CD workflows
+[2014-02-20 01:01:43 -0500] spheromak: kallistec: for me it's how dose this work in our pipeline, how does it help what does it change, what are the issues.
+[2014-02-20 01:01:46 -0500] kallistec: spheromak: also, part of the UI here is tracking useful metadata for humans
+[2014-02-20 01:02:08 -0500] spheromak: seems to me like it would help heaps for the current pain, getting a set of cooks known to integrate out to nodes on a per-run_list basis.
+[2014-02-20 01:02:14 -0500] coderanger: kallistec: My biggest workflow problem right now is that at any given time there might be two things in development to become foo-2.0, so until release I need to disambiguate them
+[2014-02-20 01:02:38 -0500] coderanger: kallistec: Thats something chef-server currently just can't handle :-(
+[2014-02-20 01:02:39 -0500] spheromak: and shifts our thinking out of the single cook realm into the run_list real for solving dep trees and pushing changes
+[2014-02-20 01:03:46 -0500] kallistec: spheromak: the policy document includes the run list. in the DSL version, you could have roles and stuff, but the "lockfile" version is fully expanded
+[2014-02-20 01:03:54 -0500] spheromak: yea
+[2014-02-20 01:03:57 -0500] spheromak: this is good
+[2014-02-20 01:04:01 -0500] kallistec: https://github.com/danielsdeleo/chef-workflow2-prototype/blob/master/docs/policy-document-format.rb is a swag of what it could look like
+[2014-02-20 01:04:01 -0500] spheromak: really good
+[2014-02-20 01:04:16 -0500] spheromak: i've looked at it before, just not with you here to discuss ;)
+[2014-02-20 01:07:41 -0500] kallistec: coderanger: the hash-based identifiers will allow you to use two different foo-2.0 cookbooks at the same time. When you declare it done and you want to use it as "THE 2.0", if you want to make it available internally you can upload it to the old api, and then anyone in your org with "foo ~> 2.0" can fetch it from there, or you just share it interally with git or whatever
+[2014-02-20 01:08:26 -0500] coderanger: Right, the issue is that if thats in the middle of a dependency chain, need to figure out how to map things between hash IDs and semver within depsolver
+[2014-02-20 01:09:08 -0500] kallistec: coderanger: the hash IDs are a step after the depsolver
+[2014-02-20 01:09:22 -0500] coderanger: Cookbook bar says "I depend on foo ~> 1.0", I want to make that dependency satisfied by foo 0xDEADBEEF
+[2014-02-20 01:10:01 -0500] kallistec: coderanger: you probably just pull it from local disk or git branch, like with bundler
+[2014-02-20 01:10:21 -0500] coderanger: right, but that means that info has to feed into depsolver
+[2014-02-20 01:10:30 -0500] kallistec: and at that time, you talk about the cookbook in semver terms
+[2014-02-20 01:12:59 -0500] coderanger: Hmm, how would the policy compiler know which to translate to hash IDs then?
+[2014-02-20 01:13:42 -0500] kallistec: so you say in your future-berksfile-thing that you want foo to be fetched from disk/git and at ~>2.0. That all goes into the depsolver and fetcher machine, which then caches any "remote" items needed to satisfy your declared deps
+[2014-02-20 01:14:23 -0500] kallistec: from there you have the functional equivalent of having all required cookbooks at the right versions in a single dir
+[2014-02-20 01:14:48 -0500] coderanger: Okay, so that would mean chef is taking the job of berkshelf too wrt cookbook fetching and all that?
+[2014-02-20 01:14:52 -0500] kallistec: then you compute the hashes of them
+[2014-02-20 01:15:14 -0500] kallistec: We're gonna work with the berks team on it
+[2014-02-20 01:15:36 -0500] coderanger: Okay, so either merging or some protocol-y thing locally :)
+[2014-02-20 01:19:24 -0500] kallistec: coderanger: it's kinda like if you use berks now, and you berks install --path final-set-of-cookbooks/ and then compute the hashes of all the cookbooks in there
+[2014-02-20 01:19:37 -0500] kallistec: I'm sure there will be optimizations
+[2014-02-20 01:19:43 -0500] coderanger: Yeah, starting to see the workflow
+[2014-02-20 01:20:04 -0500] coderanger: Basically the tl;dr is uploaded cookbooks are content-addressable
+[2014-02-20 01:20:17 -0500] kallistec: except the tool will do the "berks install --path" part and the "generate the hashes" part in one step
+[2014-02-20 01:20:20 -0500] coderanger: and you bind each node to a policy saying which to run
+[2014-02-20 01:20:29 -0500] kallistec: exactly
+[2014-02-20 01:21:06 -0500] coderanger: Got it :)
+[2014-02-20 01:21:17 -0500] spheromak: generating a recreatable 'artifact' i guess that represents the attribs/role/cooks for that run_list  ?
+[2014-02-20 01:21:34 -0500] spheromak: something we can push around
+[2014-02-20 01:21:58 -0500] coderanger: spheromak: This is basically what envs should have been :)
+[2014-02-20 01:22:06 -0500] spheromak: coderanger: yea
+[2014-02-20 01:22:18 -0500] coderanger: same idea but with a gemfile/lock split which is currently lacking
+[2014-02-20 01:22:18 -0500] kallistec: spheromak: that and the upfront depsolving so you don't get unknown cookbook solutions magically happening because of a change elsewhere
+[2014-02-20 01:22:27 -0500] spheromak: well envs were needed at the time, but the attrib explosion isn't tenable
+[2014-02-20 01:22:46 -0500] spheromak: kallistec: yea I've actually just switched to a chef-server and solver on server for all of this
+[2014-02-20 01:23:21 -0500] spheromak: bypassing berks altogether, and using a chef-server for api endpoint, solving a run_list  for the 'integration' jobs.
+[2014-02-20 01:23:22 -0500] coderanger: spheromak: We're about to do the opposite because of all this :-(
+[2014-02-20 01:23:43 -0500] spheromak: and promoting that set of cooks + manifest as a versioned tarball in nexus
+[2014-02-20 01:24:11 -0500] spheromak: this is the work i have to do _currently_ to get reproducable infra
+[2014-02-20 01:24:19 -0500] kallistec: ugh
+[2014-02-20 01:25:02 -0500] spheromak: berks is awesome for a single cook/dev cycle. but not for when you start to consider how you ensure things work across infra. Our issue is also a number of discrete chef-servers/envs I guess too. but this is working for now.
+[2014-02-20 01:25:34 -0500] spheromak: I assume there is some sauce that Riot uses, that they don't have public. Also seems like it is oriented to solo.
+[2014-02-20 01:26:30 -0500] spheromak: coderanger: oposite ? get away from server altogether
+[2014-02-20 01:26:52 -0500] coderanger: spheromak: Yeah, I'm playing with berkshelf+solo to basically recreate this same flow
+[2014-02-20 01:27:10 -0500] spheromak: coderanger: unfort the openstack cooks are quite tied to chef-server atm.  Tho my work with etcd has created a replacement for the search needs.  We have considered moving away from server altogether.
+[2014-02-20 01:28:13 -0500] spheromak: I think this workflow2 stuff is good, but what does the server do here then. just RBAC+artifact repo ?
+[2014-02-20 01:28:21 -0500] coderanger: spheromak: Yes
+[2014-02-20 01:28:30 -0500] coderanger: Already all I used chef-server as is an artifact repo
+[2014-02-20 01:28:32 -0500] spheromak: basically what it is for me now anyhow
+[2014-02-20 01:28:36 -0500] spheromak: coderanger: same
+[2014-02-20 01:29:58 -0500] spheromak: it's getting rid of all server asumptions upstream that poses problematic. for moving to client-zero or solo
+[2014-02-20 01:30:04 -0500] spheromak: i guess client-zero would work ok.
+[2014-02-20 01:30:26 -0500] spheromak: then I gota build out cook distribution and node classification
+[2014-02-20 01:31:20 -0500] coderanger: eh, no difference between the two for me at this point
+[2014-02-20 01:32:10 -0500] spheromak: kallistec: i like this stuff. it would def solve some pain for me. Just concerneed its gonna be a while till we see it.
+[2014-02-20 01:39:04 -0500] kallistec: spheromak: it's the #1 priority for my team, but there's definitely a lot to do. Can't say much about the timeline beyond that :\
+[2014-02-20 01:39:21 -0500] spheromak: kallistec: understood
+[2014-02-20 01:40:46 -0500] spheromak: kallistec: by no means am i trying to be unapreciative, just gotta get my job done in the meantime :)
+[2014-02-20 01:48:19 -0500] kallistec: spheromak: that's what I'd do in your situation :)
+[2014-02-20 02:09:26 -0500] coderanger: kallistec: I told my boss about your plan, his response was "Can we fly him down here to just work on it until it is done?"
+[2014-02-20 02:11:47 -0500] spheromak: coderanger: lol rite
+[2014-02-20 03:09:51 -0500] viglesias: howdy anybody have experience with motherbrain
+[2014-02-20 03:10:15 -0500] viglesias: ive got it provision nodes against eucalyptus and its logging in
+[2014-02-20 03:10:44 -0500] viglesias: but then but its failing at: Failure: {"error":["Invalid signature for user or client 'admin'"]}
+[2014-02-20 03:11:05 -0500] viglesias: more of the log: http://www.fpaste.org/78799/13928657/
+[2014-02-20 03:14:12 -0500] juliancdunn: it just came out yesterday! :-)
+[2014-02-20 03:14:50 -0500] viglesias: so far so good, i like the idea quite a bit
+[2014-02-20 03:15:00 -0500] viglesias: i tried to do something similar with ironfan but failed miserably
+[2014-02-20 03:15:37 -0500] viglesias: i already do something like this using jenkins
+[2014-02-20 03:15:42 -0500] viglesias: but its not very clean
+[2014-02-20 03:23:07 -0500] coderanger: viglesias: You are probably better off asking in #berkshelf since only Riot people have experience with it
+[2014-02-20 03:25:05 -0500] viglesias: coderanger: thank you!
+[2014-02-20 05:40:05 -0500] brucelee_: coderanger: yout here? :P
+[2014-02-20 07:08:02 -0500] coderanger: brucelee: yarp, whats up
+[2014-02-20 11:26:24 -0500] StFS_: Hi. We're getting chef up and running and one thing that's causing some problems is java. We start the process off with installing oracle java which works fine. But at some point, later in the process, gcj gets installed and set as the default java to use which is terrible. We're not seeing where this is actually coming from, is there any way to monitor
+[2014-02-20 11:26:24 -0500] StFS_: something as specific as this?
+[2014-02-20 11:27:56 -0500] StFS_: we suspect that it's tomcat that's causing this... maybe because the Oracle java is not set up via the package system (yum) but Tomcat is, then we think that maybe the tomcat package is pulling some java RPM in with it but I'm unable to see if this is actually the case
+[2014-02-20 11:35:13 -0500] flaccid: StFS_: its a good idea to refer the cookbook etc. you are using
+[2014-02-20 11:38:53 -0500] abhishek: Hi
+[2014-02-20 11:39:12 -0500] abhishek: ERROR: cannot verify www.opscode.com's certificate, issued by /C=US/O=DigiCert Inc/CN=DigiCert Secure Server CA:
+[2014-02-20 11:39:17 -0500] abhishek: Getting this error
+[2014-02-20 11:39:28 -0500] abhishek: installed Open Source Chef on Ubuntu 12.04
+[2014-02-20 11:39:44 -0500] flaccid: abhishek: is the package, ca-certificates installed?
+[2014-02-20 11:39:56 -0500] abhishek: Yes
+[2014-02-20 11:40:25 -0500] abhishek: apt-get install ca-certificates Reading package lists... Done Building dependency tree        Reading state information... Done ca-certificates is already the newest version. 0 upgraded, 0 newly installed, 0 to remove and 12 not upgraded.
+[2014-02-20 11:40:28 -0500] flaccid: abhishek: how do you get that error and from what?
+[2014-02-20 11:40:53 -0500] abhishek: I was trying to use knife ec2 create server
+[2014-02-20 11:41:30 -0500] flaccid: so the problem is on your workstation?
+[2014-02-20 11:41:50 -0500] abhishek: flaccid:I am on standalone server
+[2014-02-20 11:42:06 -0500] flaccid: abhishek: you are running knife on the server itself?
+[2014-02-20 11:42:09 -0500] abhishek: yes
+[2014-02-20 11:42:42 -0500] abhishek: To connect to www.opscode.com insecurely, use `--no-check-certificate'.
+[2014-02-20 11:42:50 -0500] abhishek: this is what they say in error
+[2014-02-20 11:42:56 -0500] abhishek: how can I do that?
+[2014-02-20 11:43:28 -0500] flaccid: weird http://packages.ubuntu.com/precise/all/ca-certificates/filelist digitcert is in there
+[2014-02-20 11:44:22 -0500] flaccid: i don't know if knife will pass on --no-check-certificate to curl or what not but you can try it
+[2014-02-20 11:44:38 -0500] abhishek: they use wget
+[2014-02-20 11:44:48 -0500] flaccid: oh right yeah sure
+[2014-02-20 11:45:10 -0500] abhishek: wget https://www.opscode.com/chef/install.sh
+[2014-02-20 11:45:25 -0500] abhishek: how to pass --no-check-certificate
+[2014-02-20 11:45:30 -0500] abhishek: to wget
+[2014-02-20 11:46:03 -0500] flaccid: wget --no-check-certificate https://www.opscode.com/chef/install.sh
+[2014-02-20 11:47:09 -0500] abhishek: Yes thats true but this commands run via knife on client machine while bootstrapping
+[2014-02-20 11:47:59 -0500] flaccid: yeah so like i said, i don't know if the option is passed on, seems not
+[2014-02-20 11:48:35 -0500] abhishek: any workaround?
+[2014-02-20 11:49:03 -0500] flaccid: don't know, but maybe someone else can help better
+[2014-02-20 12:01:28 -0500] abhishek: any body here to help
+[2014-02-20 12:02:36 -0500] flaccid: 564, just not sure how many can help atm :(
+[2014-02-20 12:42:27 -0500] sdfsdf_: hi
+[2014-02-20 12:42:46 -0500] sdfsdf_: I have a question regarding the database cookbook
+[2014-02-20 12:43:35 -0500] sdfsdf_: It seems that my query won't get executed although chef reports they have been executed
+[2014-02-20 12:44:02 -0500] sdfsdf_: The SQL files are correct, I've tested them manually again and again
+[2014-02-20 12:54:35 -0500] phutch1ns: Hey, i'm trying to compile erchef nightly and getting errors regarding crypto... Anyone seen this? Simply downgrade the crypto libs?
+[2014-02-20 12:54:40 -0500] phutch1ns: src/mini_s3.erl:496: crypto:sha_mac/2 is deprecated and will be removed in in a future release; use crypto:hmac/3
+[2014-02-20 12:54:56 -0500] phutch1ns: And warnings are being treated as errors so it won't compile even with the warnings...
+[2014-02-20 13:05:30 -0500] flaccid: phutch1ns: maybe post a comment on http://www.getchef.com/blog/2012/08/27/introducing-erchef/
+[2014-02-20 13:40:37 -0500] abhishek: Hi team
+[2014-02-20 13:40:51 -0500] abhishek: ERROR: cannot verify www.opscode.com's certificate, issued by /C=US/O=DigiCert Inc/CN=DigiCert Secure Server CA:
+[2014-02-20 13:41:04 -0500] abhishek: Getting this error while doing knife ec2 create
+[2014-02-20 13:41:07 -0500] abhishek: any idea
+[2014-02-20 13:41:10 -0500] abhishek: what error itis
+[2014-02-20 13:57:47 -0500] tscanausa1: is there a way to delay a notify but only until the end of a recipe?
+[2014-02-20 14:02:05 -0500] railsraider: Hi, how do i install a gem from github using chef?
+[2014-02-20 14:02:12 -0500] railsraider: is there a provider?
+[2014-02-20 14:11:08 -0500] ptrf: railsraider: http://stackoverflow.com/questions/19367458/installing-a-ruby-gem-from-a-github-repository-using-chef - no good answers though
+[2014-02-20 14:11:08 -0500] ptrf: I'd be on the lookout for providers
+[2014-02-20 14:11:09 -0500] ptrf: Chef::Provider::Package::Rubygems <- default for the chef handler
+[2014-02-20 14:11:09 -0500] ptrf: otherwise you need to find a cookbook with that LWRP
+[2014-02-20 14:11:30 -0500] railsraider_: i saw that
+[2014-02-20 14:23:01 -0500] matti_: Folks, how does this even work?
+[2014-02-20 14:23:02 -0500] matti_: https://github.com/elasticsearch/cookbook-elasticsearch/blob/master/recipes/default.rb#L52
+[2014-02-20 14:24:55 -0500] zaargy: matti_: lol
+[2014-02-20 14:25:45 -0500] matti_: Jesus fuck.
+[2014-02-20 14:28:42 -0500] StFS_: ok so silly question here: when reading about that other config management tool the first thing you see is that the syntax is declarative and you have to be careful about explicitly declaring dependencies to ensure the correct execution order of things.
+[2014-02-20 14:28:56 -0500] StFS_: so the question is: is chef procedural?
+[2014-02-20 14:29:32 -0500] StFS_: can I be sure that things are executed in the order I put them in my recipes?
+[2014-02-20 14:32:02 -0500] flaccid: StFS_: no, http://docs.opscode.com/essentials_nodes_chef_run.html
+[2014-02-20 14:33:00 -0500] matti: Eh
+[2014-02-20 14:33:12 -0500] StFS_: not even within recipes?
+[2014-02-20 14:36:32 -0500] flaccid: StFS_: recipes are compiled
+[2014-02-20 14:36:41 -0500] flaccid: it depends what is in your recipe
+[2014-02-20 14:54:33 -0500] jbell05: Hi
+[2014-02-20 14:54:42 -0500] jbell05: Anyone there to answer a question?
+[2014-02-20 14:54:56 -0500] flaccid: jbell05: 582
+[2014-02-20 14:55:06 -0500] jbell05: Lovely. That's the perfect answer!
+[2014-02-20 14:56:16 -0500] n1ko_: if you dont need recipes, dont use them
+[2014-02-20 14:56:18 -0500] jbell05: So it seems (?) that recipes are the only way to go because I can't embed ruby in the JSON of a role...
+[2014-02-20 14:56:20 -0500] flaccid: you will always use recipes unless the cookbook is just a 'lib'
+[2014-02-20 14:56:22 -0500] n1ko_: if you need them, use them
+[2014-02-20 14:56:45 -0500] n1ko_: s/recipes/roles/
+[2014-02-20 14:56:47 -0500] jbell05: The recipes are setting defaults for the server to configure itself... I guess the better question is: can I embed Ruby statements into the JSON of a role?
+[2014-02-20 14:56:57 -0500] jbell05: Ah.
+[2014-02-20 14:56:59 -0500] flaccid: i have no idea why you would want to do that
+[2014-02-20 14:57:10 -0500] jbell05: Because I want the server to set a default var based on its own IP...
+[2014-02-20 14:57:15 -0500] jbell05: like this:
+[2014-02-20 14:58:15 -0500] jbell05: somevar = "192.168.#{node['ipaddress'].split('.')[2]}.50"
+[2014-02-20 14:58:36 -0500] jbell05: So we'd steal the third octet from the node's IP and insert that into a config via a variable.
+[2014-02-20 14:58:40 -0500] n1ko_: why?
+[2014-02-20 14:58:50 -0500] n1ko_: i mean, whats the ip for?
+[2014-02-20 14:58:52 -0500] flaccid: sounds stupid
+[2014-02-20 14:58:57 -0500] n1ko_: if its a node handled by chef you can use search
+[2014-02-20 14:59:23 -0500] jbell05: But I still can't embed that into a JSON -- short answer, I need to use a recipe?
+[2014-02-20 14:59:50 -0500] flaccid: no you need to learn how to chef and in particular configure default node attributes in a cookbook
+[2014-02-20 15:00:09 -0500] jbell05: As far as why, there are groups of servers on similar networks... These servers point to a local resource that conforms to an IP address layout
+[2014-02-20 15:00:31 -0500] jbell05: Okay.  That's what I'm doing -- setting the defaults from the recipe.
+[2014-02-20 15:00:32 -0500] jbell05: Thanks.
+[2014-02-20 15:00:47 -0500] flaccid: sounds like you need to learn search and tags
+[2014-02-20 15:00:58 -0500] jbell05: I'm using search for databags already...
+[2014-02-20 15:01:01 -0500] jbell05: You can search nodes?
+[2014-02-20 15:01:21 -0500] flaccid: its in the docs
+[2014-02-20 15:01:30 -0500] jbell05: K. I'll find it. ^_^
+[2014-02-20 15:01:33 -0500] jbell05: thx again
+[2014-02-20 15:44:04 -0500] zeroXten: is it possible to "use" the api from within a recipe?
+[2014-02-20 15:52:25 -0500] broconne1: anyone run foodcritic from bundler?  I seem to be unable to pass any options to foodcritic when I do that?  This also makes it error out when I try to run it inside of Rake.
+[2014-02-20 15:54:24 -0500] DeVVaN_: broconne1: i have the same problem :/
+[2014-02-20 15:56:38 -0500] broconne1: I see it here:  https://github.com/acrmp/foodcritic/issues/117
+[2014-02-20 15:56:51 -0500] broconne1: but it implies going to version 1.3.0 or higher of bundler fixes it
+[2014-02-20 15:56:56 -0500] broconne1: but I am on like 1. 6.3
+[2014-02-20 16:00:59 -0500] broconne: DeVVaN_: Was it ever working for you?  wondering if this is a regression?
+[2014-02-20 16:01:07 -0500] broconne: no combo of single or double quotes helps me either
+[2014-02-20 16:02:11 -0500] DeVVaN_: broconne: it was working, but then i reinstalled my rigg and has not got it working after that
+[2014-02-20 16:02:52 -0500] DeVVaN_: i'm fairly new to the whole chef/ruby thingi so i'm somewat at a loss as to what went wrong :S
+[2014-02-20 16:04:01 -0500] DeVVaN_: first i thought it was a zsh-related error, but it don't work in bash either
+[2014-02-20 16:04:54 -0500] broconne: I can run it fine from the command line, just not inside of rake and not on the command line with "bundle exec" in front of it.
+[2014-02-20 16:08:17 -0500] broconne: I echo the exact command I am asking rake to run, and then run it outside of rake it works fine
+[2014-02-20 16:08:19 -0500] broconne: odd
+[2014-02-20 16:10:51 -0500] DeVVaN_: wat ver of ruby and rake are you running?
+[2014-02-20 16:11:44 -0500] DeVVaN_: gawh, my spelling sucks at this time of the day. time to go home from work soon
+[2014-02-20 16:12:33 -0500] broconne: 1.9.3 on the ruby and 10.1.0 on the rake
+[2014-02-20 16:14:17 -0500] dwebb: hi all, hopefully a quick question.  When you see an within an attribute file default[attributething] = %{sometext}      what does the %{} do?
+[2014-02-20 16:14:38 -0500] DeVVaN_: rake 10.1.1 and ruby 1.9.3p484 here
+[2014-02-20 16:14:59 -0500] j^2: dwebb: yep it should
+[2014-02-20 16:15:41 -0500] dwebb: j^2, ?
+[2014-02-20 16:15:58 -0500] DeVVaN_: j^2: ha asked what the %{} does ;)
+[2014-02-20 16:16:12 -0500] j^2: ohhhh
+[2014-02-20 16:16:27 -0500] broconne: dwebb:  http://en.wikibooks.org/wiki/Ruby_Programming/Syntax/Literals#The_.25_Notation
+[2014-02-20 16:16:50 -0500] DeVVaN_: dwebb: %w{ .. } is a Ruby array of words
+[2014-02-20 16:17:47 -0500] dwebb: ah perfect, thank you.   I was staring at it willing it to explain itself and nothing was coming forth.
+[2014-02-20 16:17:51 -0500] DeVVaN_: but %{} is not array
+[2014-02-20 16:18:11 -0500] DeVVaN_: dwebb: check the link broconne pasted
+[2014-02-20 16:18:49 -0500] dwebb: yep, I read it.  Thanks for the link.  the one downside of having a project named "chef" is sometimes it makes googling a pain in the ass
+[2014-02-20 16:19:20 -0500] j^2: dwebb: that googling is a right of passage that we all have crossed at some point ;)
+[2014-02-20 16:19:24 -0500] DeVVaN_: dwebb: yeah, i know, try googeling for chef and cobbler ;)
+[2014-02-20 16:19:59 -0500] frick_: I love that they decided on Berkshelf instead of Bookshelf.
+[2014-02-20 16:20:00 -0500] broconne: the only way to find things is to put opscode in front of all your searches
+[2014-02-20 16:20:01 -0500] DeVVaN_: oh, ment knife cobbler ;)
+[2014-02-20 16:20:17 -0500] broconne: with the rename of the company.. who knows how long that will last
+[2014-02-20 16:20:23 -0500] DeVVaN_: broconne: ^^
+[2014-02-20 16:21:47 -0500] DeVVaN_: anybody having problem with the sysctl cookbook? it drops a json in the sysctl.d/50-chef-attributes-params.conf when i try using it by setting attributes
+[2014-02-20 16:29:16 -0500] kreisys: Hey, what's the best way to test multiple converges?
+[2014-02-20 16:57:17 -0500] dylannorthrup: anyone have a suggestion for a good vsftpd cookbook? http://community.opscode.com/cookbooks/vsftpd is version 0.0.1 and not updated for 3+ years.
+[2014-02-20 17:01:06 -0500] anthroprose: anyone around that could help with a ChefServer debug? I've found some sort of re-occuring issue in ChefServer 11.0.10 and ChefClient 11.10.x (0/2)... The first node save works, but none after do...  All of a sudden NginX starts timing out for some reason and I get a Ruby Socket ERROR: end of file reached
+[2014-02-20 17:01:29 -0500] cwj: dylannorthrup: maybe https://github.com/optiflows-cookbooks/vsftpd ? i havent tried it
+[2014-02-20 17:03:07 -0500] dylannorthrup: cwj: will check it out. seems it is at least updated which is good :-)
+[2014-02-20 17:21:01 -0500] kbarry: anyone have a link for a good primer for lwrp or even lwrps for windows?
+[2014-02-20 17:28:00 -0500] cwj: kbarry: http://dougireton.com/blog/2012/12/31/creating-an-lwrp/
+[2014-02-20 17:31:38 -0500] davidordave: Question regarding the jenkins cookbook: when I specify a version of the package to install it works on rhel, but only the latest package is available on ubuntu. Anyone know if there is a way around this?
+[2014-02-20 17:33:33 -0500] MattStratton: got a silly minitest question
+[2014-02-20 17:34:16 -0500] MattStratton123: Is there a way...using minitest handler, that I could create a folder of standard "regression" tests that we would make a part of all cookbooks?
+[2014-02-20 17:34:37 -0500] anthroprose: davidordave: epel? the recipe takes remote = "#{node[:jenkins][:mirror]}/latest/redhat/jenkins.rpm" which means you could change the jenkins mirror attr
+[2014-02-20 17:34:41 -0500] MattStratton123: I guess they could be defined as being tied to the "default"
+[2014-02-20 17:36:11 -0500] davidordave: @anthroprose, the jenkins repo gets added correctly on red hat, but on debian systems the repo only points to the latest version. I will look into setting the mirror. Thanks :)
+[2014-02-20 17:38:41 -0500] kbarry: cwj: Thanks for the link.
+[2014-02-20 17:39:31 -0500] cwj: kbarry: no problem, hth
+[2014-02-20 18:31:37 -0500] dgarstang3: Anyone ever use condition logic based on node.roles.include?("some_role") ?
+[2014-02-20 18:55:52 -0500] shlant: anyone know how if this should work? or a better way? https://gist.github.com/MrMMorris/552cdcd5f93b82f15591
+[2014-02-20 18:56:09 -0500] shlant: if else with template variables
+[2014-02-20 18:56:41 -0500] dgarstang3: I looked but it's way past my ruby abilities. :)
+[2014-02-20 18:57:12 -0500] anthroprose: shlant: you could do an inline ternary for each one and set to nil
+[2014-02-20 18:57:20 -0500] anthroprose: but then you just maybe move the logic to the template...
+[2014-02-20 18:58:21 -0500] anthroprose: or use [:file][:knw_db_passwd] which will default to nil if the reference does not exist
+[2014-02-20 19:05:54 -0500] shlant: anthroprose: it seems that either way, conditionals or not, the first file iteration works, but the rest just have blank for variable
+[2014-02-20 19:06:40 -0500] shlant: which I thought if the data bag item didn't exist for that iteration, it would just move on to the next variable, but it seems to just give up and have all of them blank
+[2014-02-20 19:15:29 -0500] anthroprose: shlant: not sure honestly, but maybe try leveraging node/role/environment attributes instead of config files for what you are doing?
+[2014-02-20 19:15:57 -0500] anthroprose: chef has internals for managing defaults & merging at different layers
+[2014-02-20 19:16:29 -0500] anthroprose: like, I use my environments to set S3 buckets depending on prod/staging/dev etc...
+[2014-02-20 19:16:40 -0500] anthroprose: you can set a default in the cookbook, and then over-ride anywhere you want
+[2014-02-20 19:17:15 -0500] shlant: anthroprose: yea I was thinking of doing that as a back up plan
+[2014-02-20 19:17:35 -0500] shlant: I jsut wnated to try and do it without create additional env/roles just for this one instance
+[2014-02-20 19:18:25 -0500] shlant: but I think there might be cases where all the files will need to be there regardless of env...
+[2014-02-20 19:18:49 -0500] anthroprose: ah, maybe make 1 role, and use "override_attributes" : {} to just stomp on things
+[2014-02-20 19:23:53 -0500] dgarstang3: Anyone ever use condition logic based on node.roles.include?("some_role") ?
+[2014-02-20 19:24:34 -0500] EricL: I cna't figure out how to upgrade nginx from 1.4.2 to 1.4.5. I have a role that sets node['nginx']['version'] and I'm using the nginx cookbook by opscode and compiling from source.
+[2014-02-20 19:24:57 -0500] EricL: I change the version to 1.4.5 and nothing happens even after uploadingn the role to chef.
+[2014-02-20 19:25:18 -0500] EricL: The chef-client still says 1.4.2.
+[2014-02-20 19:26:18 -0500] shlant: anthroprose: I had copy/pasted the variable wrong into the other templates.durrrr
+[2014-02-20 19:41:35 -0500] vluther: If a cookbook of mine has a minor typo, is it safe to just fix the typo, push to github/tag and then run berks update/upload ? or do i need to change version #s?
+[2014-02-20 19:47:47 -0500] kbarry: appcmd.exe set site "Default Web Site" /serverAutoStart:false What would be the equivelent with the iis cookbook?
+[2014-02-20 19:49:39 -0500] stormerider: vluther: always bump version #s if you want to ensure your nodes run the new code
+[2014-02-20 19:50:11 -0500] vluther: stormerider: yep, just found that out the "hard way". luckily it wasn't so bad
+[2014-02-20 19:50:53 -0500] kbarry: There is an equivelent for set config,
+[2014-02-20 19:50:57 -0500] kbarry: but what about set site?
+[2014-02-20 20:02:56 -0500] davidcollom: any one able to resolve this: Permission denied. You do not have permission to list the clients in this organization hosted chef on my primary account I kind of deleted the username-validator client
+[2014-02-20 20:14:40 -0500] btm: knife plugin code review: join: bit.ly/1ffTyyH watch: bit.ly/1ffTyyG
+[2014-02-20 20:24:51 -0500] mark___: Hi All, Can anyone help me with this error? It's pretty annoying and wasn't a problem a couple weeks ago
+[2014-02-20 20:25:04 -0500] mark___: [2014-02-20T20:06:07+00:00] INFO: Report handlers complete Chef Client finished, 3/24 resources updated in 15.001581658 seconds [2014-02-20T20:06:09+00:00] INFO: Sending resource update report (run-id: d77f35e6-7c63-47ae-8952-e037060a0a21) [2014-02-20T20:06:16+00:00] INFO: HTTP Request Returned 413 Request Entity Too Large:  [2014-02-20T20:06:16+00:00] ERROR: Failed to post reporting data to server (HTTP 413)
+[2014-02-20 20:26:43 -0500] mark___: This is the part of the chef-client run at the end where the client is meant to send the data back to hosted chef, but cannot. Therefore my servers runlist etc are not populated automatically and therefore searching for a node with a  role that hasn't been assigned fails and everything will obviously break down from there
+[2014-02-20 20:33:41 -0500] geggam: so... knife data bag from file... i get no output and no data bag
+[2014-02-20 20:33:55 -0500] geggam: how do i break it so it tells me wtf im doing wrong
+[2014-02-20 20:38:12 -0500] blueben: popular channel
+[2014-02-20 20:38:55 -0500] Scrivener: Lots of people, little talk.
+[2014-02-20 20:39:34 -0500] blueben: oh a freenode technical channel? unheard of
+[2014-02-20 20:39:39 -0500] blueben: s/oh/on/
+[2014-02-20 20:43:06 -0500] blueben: Are there any tool recommendations for copying information between chef organizations? The obvious being cookbooks, data bags, and the like
+[2014-02-20 20:53:42 -0500] tball___: @blueben we use https://github.com/mdxp/knife-backup - is that what you're looking for?
+[2014-02-20 20:53:57 -0500] Majost: Is there anyway to get context around a change which has an "OC-XXXXX" issue associated with it?
+[2014-02-20 20:54:22 -0500] Majost: Specifically, OC-10380
+[2014-02-20 20:54:50 -0500] blueben: tball___: that looks very promising, thank you
+[2014-02-20 20:58:57 -0500] EricL_: Is the chef-redis cookbook not being maintained anymore?
+[2014-02-20 21:07:07 -0500] jtimberman: Majost: that's an internal ticket #
+[2014-02-20 21:07:11 -0500] jtimberman: (OC-10380)
+[2014-02-20 21:07:24 -0500] dysinger: pardon my dumb: what happened to include_attribute?
+[2014-02-20 21:07:29 -0500] jtimberman: it's associated with the public ticket so we have something tracked for our internal eng teams
+[2014-02-20 21:07:57 -0500] jtimberman: dysinger: it's still there..
+[2014-02-20 21:09:22 -0500] Majost: jtimberman: Do you know what the public ticket is by any chance? The commit message for the related cset only references the OC issue
+[2014-02-20 21:12:16 -0500] jtimberman: Majost: oh - https://tickets.opscode.com/browse/CHEF-1260
+[2014-02-20 21:14:18 -0500] Majost: hrm...
+[2014-02-20 21:14:29 -0500] Majost: thanks
+[2014-02-20 21:15:48 -0500] dysinger: jtimberman: really? I get an exception. Am I doing it wrong?  "No resource or method named `include_attribute' for `Chef::Recipe "master"'"
+[2014-02-20 21:16:29 -0500] dysinger: jtimberman: going off these notes http://docs.opscode.com/essentials_cookbook_attribute_files.html & using chef 11.10.2
+[2014-02-20 21:19:20 -0500] Guest2174: Hi, I'm trying to figure out how to use the opscode chef-client recipe, specifically how to only enable up to version 11.6 of chef-client?
+[2014-02-20 21:24:39 -0500] dgarstang3: Anyone got an example of how to override a resource like a template and pass variables?
+[2014-02-20 21:30:15 -0500] pabst^: Has anyone seen this error occur in client runs? Chef::Exceptions::ContentLengthMismatch
+[2014-02-20 21:32:44 -0500] btm: pabst^: proxy or firewall chewing up your packets?
+[2014-02-20 21:33:24 -0500] jtimberman: dysinger: sorry had to step away. it's not a recipe dsl method, it's in the attributes file context.
+[2014-02-20 21:33:24 -0500] jtimberman: Guest2174: that's not really the purview of the chef-client cookbook. you can a) specify a "bootstrap" version with knife bootstrap (i don't remember the option offhand, knife bootstrap --help will say) or b) use heavywater's omnibus updater cookbook and specify the version you want deployed everywhere.
+[2014-02-20 21:34:34 -0500] btm: Guest2174: http://ckbk.it/omnibus_updater
+[2014-02-20 21:35:40 -0500] pabst^: btm: unfortunately no
+[2014-02-20 21:35:50 -0500] chris613: Any food critic users? I'm wondering if there is some pragma type comment I can add to my source to supress a foodcritic warning, or if --tags from the command line is really the only way
+[2014-02-20 21:36:32 -0500] pabst^: Response body length 2198 does not match HTTP Content-Length header 206. is the error message that comes with the exception, obviously the lengths change.
+[2014-02-20 21:43:55 -0500] dysinger: jtimberman: thanks
+[2014-02-20 21:47:04 -0500] shlant1: can someone explain to me the purpose of a cookbook like "curl"?
+[2014-02-20 21:47:12 -0500] shlant1: if it just installs a package
+[2014-02-20 21:47:17 -0500] shlant1: not even dependancies
+[2014-02-20 21:47:39 -0500] doomviking: is there really such a thing
+[2014-02-20 21:48:08 -0500] doomviking: huh
+[2014-02-20 21:48:48 -0500] doomviking: guess they never heard of the package resource
+[2014-02-20 22:03:42 -0500] coderanger: EricL_: There is no "you guys" in that I don't represent ChefInc
+[2014-02-20 22:03:48 -0500] coderanger: coalbe: Thats what we do
+[2014-02-20 22:04:12 -0500] EricL_: coderanger: I meant you guys in the sense of "the people that know a lot about Chef best practices"
+[2014-02-20 22:06:00 -0500] coderanger: EricL_: Pretty much, roles are very troubling for minimal gains
+[2014-02-20 22:06:01 -0500] coalbe: coderanger: thanks for the confirm! do you have any resources or writings that explain it in some depth?
+[2014-02-20 22:06:13 -0500] coderanger: and what little they offer over cookbooks can mostly be fixed
+[2014-02-20 22:06:15 -0500] geggam: um really ?
+[2014-02-20 22:06:16 -0500] tspencer: I've never understood why one would be against using roles.  They are so useful in our environment.
+[2014-02-20 22:06:35 -0500] geggam: i find roles to be extremely powerful and useful in simplifying everything
+[2014-02-20 22:07:11 -0500] shlant1: it's not that USING roles is not recommended
+[2014-02-20 22:07:12 -0500] geggam: if u eliminate roles ill have go to puppet
+[2014-02-20 22:07:22 -0500] geggam: :)
+[2014-02-20 22:07:22 -0500] shlant1: just not using them for how they are decribed
+[2014-02-20 22:07:23 -0500] shlant1: ie traditional run lists w/ recipes
+[2014-02-20 22:07:24 -0500] anthroprose: coderanger: so a base cookbook to set attributes across all other cookbooks used instead of a role? do you still version pin with environments?
+[2014-02-20 22:07:27 -0500] coderanger: tspencer: Short version, roles aren't versioned
+[2014-02-20 22:07:45 -0500] coderanger: anthroprose: We don't version pin at all unless its something external that refuses to follow semver
+[2014-02-20 22:07:57 -0500] shlant1: coderanger: you should clarify what you mean. Roles are still used, but only for specifying wrapper cookbooks
+[2014-02-20 22:08:01 -0500] coderanger: Just set your dependencies correctly and let depsolver do its thing
+[2014-02-20 22:08:02 -0500] kbarry: getting this: Cannot find a resource for iis_config on windows version when trying to use iis
+[2014-02-20 22:08:04 -0500] anthroprose: really? I get daily version conflicts
+[2014-02-20 22:08:09 -0500] anthroprose: especially with this new yum cookbook
+[2014-02-20 22:08:14 -0500] kbarry: iis_config (its supposed to be part of the iis cookbook)
+[2014-02-20 22:08:17 -0500] coderanger: anthroprose: Then fix those cookbooks :)
+[2014-02-20 22:08:36 -0500] coderanger: shlant1: Rather than roles, we just have well defined cookbooks that depend on each other
+[2014-02-20 22:08:39 -0500] anthroprose: so you pin deps in the metadata of the base cookbook?
+[2014-02-20 22:08:51 -0500] kbarry: This is my first time to use an lwrp, Do I need to have my recipes that utelize an lwrp in the cookbook that defines the lwrp?
+[2014-02-20 22:08:52 -0500] anthroprose: er just define
+[2014-02-20 22:08:53 -0500] coderanger: anthroprose: Pin generally implies == constraints
+[2014-02-20 22:08:59 -0500] coderanger: anthroprose: We just set ~>x.0
+[2014-02-20 22:09:04 -0500] EricL_: We mix cookbooks and roles for maximum benefit.
+[2014-02-20 22:09:07 -0500] coderanger: and let depsolver + semver do the rest
+[2014-02-20 22:09:16 -0500] anthroprose: ahhh ok, so keep within
+[2014-02-20 22:09:22 -0500] doomviking: yeah I use roles. it works.
+[2014-02-20 22:09:23 -0500] anthroprose: semantic namespacing
+[2014-02-20 22:09:27 -0500] coderanger: kbarry: Make sure the cookbook you are using it in has 'depends "iis" in its metadata.rb
+[2014-02-20 22:09:34 -0500] tspencer: I see.  I guess that explains it.  We do versioning of stuff like that (when we care) in git.
+[2014-02-20 22:09:46 -0500] geggam: i tend to organize roles like this... base.colo.east.web.dev and use recipe deps for application
+[2014-02-20 22:10:06 -0500] geggam: this allows me to create a stable system with the roles and vary the application stacks with recipes
+[2014-02-20 22:10:18 -0500] kbarry: coderanger: thanks, lemme try that
+[2014-02-20 22:10:39 -0500] geggam: never cross application and system streams
+[2014-02-20 22:10:48 -0500] anthroprose: geggan: issue coderanger brought up, is you cant version the roles, so if someone eupdates one, you have no idea
+[2014-02-20 22:10:55 -0500] anthroprose: and cannot refer to the older one
+[2014-02-20 22:11:00 -0500] coderanger: Indeed
+[2014-02-20 22:11:07 -0500] geggam: um.. no one else updates roles... devs have their own chef
+[2014-02-20 22:11:11 -0500] anthroprose: which at dev scale makes perfect sense
+[2014-02-20 22:11:16 -0500] geggam: prod is change controlled
+[2014-02-20 22:11:18 -0500] coderanger: geggam: We do the same thing, just have cookbooks named those things :)
+[2014-02-20 22:11:37 -0500] coderanger: geggam: Semantically speaking they are still roles, just using cookbooks to do it
+[2014-02-20 22:11:47 -0500] geggam: i see ... makes sense coderanger
+[2014-02-20 22:12:01 -0500] geggam: we control with change management the roles
+[2014-02-20 22:12:13 -0500] geggam: once created no one touchy
+[2014-02-20 22:12:17 -0500] anthroprose: coderanger: lots of this talk recently it seems is single devs moving towards more enterprisey methadologies.... with the revamping of CI strategies & all the confusion....
+[2014-02-20 22:12:21 -0500] coderanger: geggam: That works if you have a very strong single point of control
+[2014-02-20 22:12:34 -0500] chris613: coderanger: that's what we've decided to do as well - use cookbooks for roles.
+[2014-02-20 22:12:39 -0500] geggam: im 6'3 and 230lbs... want me in your cube angry ? :)
+[2014-02-20 22:13:07 -0500] anthroprose: I'm 5'8 and 124 ;) I enforce with software quality gates
+[2014-02-20 22:13:42 -0500] coderanger: geggam: I don't want feature teams to have to talk to me ever for any reason
+[2014-02-20 22:13:48 -0500] geggam: software quality ? what is that mythological beast you speak of ?
+[2014-02-20 22:13:53 -0500] coderanger: (I want them to feel they can use me as a resource, but they shouldn't _have to_)
+[2014-02-20 22:14:30 -0500] geggam: the roles are for the system management... recipes manage the application
+[2014-02-20 22:14:48 -0500] geggam: we do let app roles in but they change lots
+[2014-02-20 22:15:01 -0500] geggam: git controls that
+[2014-02-20 22:15:03 -0500] coderanger: geggam: once you move to slinging application containers around, there isn't a clear distinction between those two anymore :)
+[2014-02-20 22:15:24 -0500] coderanger: An app is a VM is a server is an ephemeral container
+[2014-02-20 22:16:08 -0500] geggam: i like to keep my recipes fast light and non production impacting... if you put too much logic to control things in the recipe the config management starts taking the place of other management processes
+[2014-02-20 22:16:14 -0500] geggam: and its an abuse of config management
+[2014-02-20 22:16:28 -0500] Guest2174: OK, thanks the Omnibus_updater loosk like a better fit to what i am trying to do, but as I read the docs, it should downgrade the version if the override is specified in the role.  I created a Vagrant file with that specified and the omnibus_updated seems to be happy with the defeult 11.10 it installed insted of downgrading to 11.6 as I asked.
+[2014-02-20 22:16:53 -0500] anthroprose: coderanger: https://tickets.opscode.com/browse/CHEF-5059 I can seem to kill any new install of chefserver with reproducability, but it dosnt affect hostedchef....
+[2014-02-20 22:17:12 -0500] shawn_sher: coderanger: So you're saying replace a role with a cookbook/recipe that contains that same run list info?
+[2014-02-20 22:17:20 -0500] coderanger: shawn_sher: Yep
+[2014-02-20 22:17:28 -0500] anthroprose: mostly curious about debug avenues more than anything to add detail to the ticket
+[2014-02-20 22:17:28 -0500] mattupstate: with chefspec, i'd like to test that when a node attribute is set to false that things DONT happencan I'm not seeing an example of an assertion like "expect(chef_run).not_to render_file('/etc/config')"
+[2014-02-20 22:17:46 -0500] mattupstate: any one got some insight?
+[2014-02-20 22:18:14 -0500] shawn_sher: So make a cookbook called roles with recipes corresponding to your roles and you could throw away roles.
+[2014-02-20 22:18:25 -0500] geggam: :)
+[2014-02-20 22:18:26 -0500] coderanger: anthroprose: You could try disabling a bunch of plugins in ohai to reduce the side of node data
+[2014-02-20 22:19:15 -0500] anthroprose: coderanger: i can even do it with a single cookbook in the runlist
+[2014-02-20 22:19:19 -0500] anthroprose: so maybe its ohai eh?
+[2014-02-20 22:19:42 -0500] coderanger: anthroprose: Might be that ohai is generating too much data
+[2014-02-20 22:20:07 -0500] gleam: yeah, if you have the dpkg ohai plugin..
+[2014-02-20 22:20:13 -0500] anthroprose: cool, thats way better than I had to go on before, many thanks.... I adjusted nginx's timeouts & client_body sizes... but to no avail
+[2014-02-20 22:20:29 -0500] kbarry: coderanger:  Cannot find a resource for iis_config on windows version 6.3.9600
+[2014-02-20 22:20:38 -0500] kbarry: thats the error i am getting.
+[2014-02-20 22:21:11 -0500] coderanger: kbarry: Do you see that the iis cookbook is loading at the top of the chef-client output?
+[2014-02-20 22:21:18 -0500] shawn_sher: What we are trying to work out now, is how to consolidate our 300+ environments into like 4 without introducing race conditions with "knife environment from file <env_file)"
+[2014-02-20 22:22:07 -0500] shawn_sher: well, 150+ environemnts
+[2014-02-20 22:22:26 -0500] kbarry: coderanger:  [2014-02-20T17:19:20-05:00] INFO: Loading cookbooks [chef_handler, powershell, webserver, windows]
+[2014-02-20 22:22:35 -0500] kbarry: does look like it.
+[2014-02-20 22:22:52 -0500] coderanger: kbarry: No, you should see iis in there
+[2014-02-20 22:23:02 -0500] kbarry: after changing the metadata, do I need to do somethin special on the chef server to "make it so"?
+[2014-02-20 22:23:04 -0500] coderanger: kbarry: After you updated your metadata.rb did you reupload?
+[2014-02-20 22:24:38 -0500] kbarry: maybe ;) I am repeating the process now, just incase i forgot to.
+[2014-02-20 22:25:03 -0500] kbarry: Ahh, i reuploaded iis, but not the cookbook with the dependency,
+[2014-02-20 22:25:05 -0500] kbarry: wait
+[2014-02-20 22:25:07 -0500] kbarry: new error,
+[2014-02-20 22:25:08 -0500] kbarry: stanyby
+[2014-02-20 22:25:53 -0500] anthroprose: coderanger: are the ohai data size limitations product related i.e. hosted/privatechef vs. opensource?
+[2014-02-20 22:26:57 -0500] JeanMertz: Is there a way to force a LWRP's name? (ie, not have the cookbook name be prepended?)
+[2014-02-20 22:28:00 -0500] coderanger: anthroprose: No, just config related
+[2014-02-20 22:28:21 -0500] coderanger: JeanMertz: No, but you can just not write an LWRP
+[2014-02-20 22:29:45 -0500] coderanger: JeanMertz: writing real classes ftw
+[2014-02-20 22:30:56 -0500] JeanMertz: coderanger possible, I just like the syntactic sugar the lwrp provides
+[2014-02-20 22:31:04 -0500] coderanger: JeanMertz: You can still use all that
+[2014-02-20 22:31:06 -0500] kbarry: to what degree does the iis cookbook have idempotency.
+[2014-02-20 22:31:23 -0500] coderanger: JeanMertz: Let me grab you an example, sec
+[2014-02-20 22:31:28 -0500] coderanger: kbarry: No clue :)
+[2014-02-20 22:31:33 -0500] JeanMertz: awesome, thanks
+[2014-02-20 22:31:40 -0500] coderanger: kbarry: You don't actually need to run the cookbook though, just load it
+[2014-02-20 22:32:32 -0500] kbarry: yeah, i didnt run the cookbook, i added depends "iis" to the metadata of the cookbook housing the recipe that contained the reference to the iis lwrp.
+[2014-02-20 22:32:40 -0500] kbarry: it worked the first time,
+[2014-02-20 22:32:52 -0500] coderanger: JeanMertz: https://github.com/balanced-cookbooks/jenkins/blob/master/libraries/jenkins_config.rb
+[2014-02-20 22:33:00 -0500] coderanger: JeanMertz: That shows how to use Poise for this
+[2014-02-20 22:33:01 -0500] kbarry: but I wanted to see about the idempotency, and tried running chef-client again
+[2014-02-20 22:33:16 -0500] kbarry: but am getting an error saying essentially "you can't do that twice"
+[2014-02-20 22:33:36 -0500] coderanger: kbarry: Sorry, I've never used that cookbook so I can speak to it specifically :-(
+[2014-02-20 22:34:19 -0500] kbarry: Anyone with some insight into the iis cookbook?
+[2014-02-20 22:35:30 -0500] coderanger: kbarry: Might have better luck on the ML, windows is still a relatively small niche
+[2014-02-20 22:35:42 -0500] kbarry: ML?
+[2014-02-20 22:36:44 -0500] coderanger: mailing list
+[2014-02-20 22:36:47 -0500] kbarry: ohh, thanks.
+[2014-02-20 22:39:59 -0500] shawn_sher: coderanger: Thanks for that code example. I really prefer to just write normal classes. I like using tools like reek and rubocop, and it's easier for them to grok pure ruby
+[2014-02-20 22:40:21 -0500] coderanger: shawn_sher: Come to chefconf, I'm giving a whole talk on how to use Poise to write better cookbooks
+[2014-02-20 22:40:55 -0500] coderanger: https://github.com/balanced-cookbooks/balanced-user/blob/master/libraries/balanced_user.rb is an even simpler example of a Poised cookbook
+[2014-02-20 22:41:36 -0500] shawn_sher: Ah that's what Poise is.  I saw you mention it yesterday.
+[2014-02-20 22:42:36 -0500] coderanger: shawn_sher: Among other things, in general Poise is the brand name for "coderanger's stuff to make chef better"
+[2014-02-20 22:42:55 -0500] coderanger: but the specific cookbook named "poise" is a set of helpers to write reusable resources
+[2014-02-20 22:44:03 -0500] shawn_sher: There is someone squatting the www.poise.com name already unfortunately
+[2014-02-20 22:44:20 -0500] coderanger: Heh, I figured there wouldn't be too much overlap :)
+[2014-02-20 22:44:37 -0500] anthroprose: i thought thats what .io was for ;)
+[2014-02-20 22:44:44 -0500] coderanger: anthroprose: poise.io is mine :)
+[2014-02-20 22:44:48 -0500] anthroprose: heh
+[2014-02-20 22:44:49 -0500] shawn_sher: not judging by the summary from my search
+[2014-02-20 22:44:50 -0500] anthroprose: exactly
+[2014-02-20 22:47:14 -0500] shawn_sher: I've been using libraries more lately and making LWRP code just use the library classes. I'm happy to see I'm not the only one who would rather write regular ruby
+[2014-02-20 22:47:46 -0500] coderanger: shawn_sher: It is the only way to write reusable component AFAICT
+[2014-02-20 22:50:44 -0500] jakekdodd_: has anybody experienced `knife ec2 server create` hanging up after the Private IP Adress has been printed in the terminal? I've confirmed that it properly creates an EC2 instance, but hangs up at this point
+[2014-02-20 22:51:15 -0500] coderanger: jakekdodd_: Is it reachable on the public IP and can you SSH in?
+[2014-02-20 22:52:16 -0500] jakekdodd_: Yes to both
+[2014-02-20 22:52:58 -0500] coderanger: Hmm, thats all I got then
+[2014-02-20 22:53:15 -0500] jakekdodd_: Security groups are configured properly too. Ports 22, 443, and 80 are open, so that's not the source of the problem either
+[2014-02-20 22:54:17 -0500] tej: I'm trying to build the omnibus-chef-server package on rhel 6.5 for power (ppc64 arch) and getting this error: Expected process to exit with [0], but received ''
+[2014-02-20 22:54:18 -0500] tej: ---- Begin output of /opt/chef-server/embedded/bin/bundle install --path=/opt/chef-server/embedded/service/gem ----
+[2014-02-20 22:54:18 -0500] tej: STDOUT:
+[2014-02-20 22:54:19 -0500] tej: STDERR: /opt/chef-server/embedded/lib/ruby/1.9.1/openssl/ssl-internal.rb:31: [BUG] Segmentation fault
+[2014-02-20 22:54:20 -0500] tej: ruby 1.9.3p484 (2013-11-22 revision 43786) [powerpc64-linux]
+[2014-02-20 22:54:20 -0500] tej: -- Control frame information -----------------------------------------------
+[2014-02-20 22:54:22 -0500] tej: c:0033 p:---- s:0108 b:0108 l:000107 d:000107 CFUNC  :set_default_paths
+[2014-02-20 22:54:46 -0500] anthroprose: coderanger: i dont have any additional ohai plugins installed... would a run_list with just something like yum be a decent test for 'low ohai data'?
+[2014-02-20 22:55:09 -0500] coderanger: anthroprose: No, you would need to hack up your config to disable plugins
+[2014-02-20 22:55:31 -0500] coderanger: anthroprose: See https://wiki.opscode.com/display/chef/Disabling+Ohai+Plugins
+[2014-02-20 22:57:43 -0500] anthroprose: whoa.... umm yeah, aix, windows, solaris,etc... being loaded
+[2014-02-20 22:58:44 -0500] coderanger: anthroprose: Normally those do nothing :)
+[2014-02-20 22:58:51 -0500] coderanger: passwd is a big one, and network
+[2014-02-20 22:59:08 -0500] coderanger: Just disable a bunch and see if that helps :)
+[2014-02-20 23:01:10 -0500] anthroprose: would disabling passwd have any affect on the user cookbook?
+[2014-02-20 23:01:49 -0500] coderanger: anthroprose: Probably not
+[2014-02-20 23:01:53 -0500] coderanger: almost nothing uses that data
+[2014-02-20 23:02:58 -0500] anthroprose: yeah, I've in large not paid much attention to it unless a specific cookbook required it, and I use my own metadata for reporting
+[2014-02-20 23:03:16 -0500] anthroprose: I do use the ec2 output tho... especially for knife ssh
+[2014-02-20 23:04:26 -0500] coderanger: yeah, but this is just for testing :)
+[2014-02-20 23:04:46 -0500] coderanger: If this fixes it, it means you have too much node data and either need to bump the body size in nginx or fix your code
+[2014-02-20 23:05:46 -0500] anthroprose: coderanger: so I've previously adjusted the nginx body size, but maybe only in the https, not in the workers?
+[2014-02-20 23:06:21 -0500] coderanger: Not sure what else might break, but I wouldn't be surprised :)
+[2014-02-20 23:10:16 -0500] anthroprose: coderanger: client.rb has Ohai::Config[:disabled_plugins] = ["aix", "darwin", "windows", "solaris2", "openbsd", "netbsd", "rackspace", "perl", "linode", "groovy", "eucalyptus", "passwd", "network", "azure", "hpux"].... server saw: 10.1.0.30 - - [20/Feb/2014:23:08:12 +0000]  "PUT //nodes/ip-10-1-1-17 HTTP/1.1" 408 "60.060" 0 "-" "Chef Client/11.8.2 (ruby-1.9.3-p484; ohai-6.20.0; x86_64-linux; +http://opscode.com)" "-" "-" "-" "11.8.2
+[2014-02-20 23:15:37 -0500] anthroprose: so the ticket I filed had a content length of 32915, removing all the ohai data brought it down to 26894
+[2014-02-20 23:16:26 -0500] dgarstang3: if I have a wrapper cookbook, bc-apt, how do I tell the wrapped coobook (apt)... will this work? "notifies :run, 'execute[apt::apt-get update]'"
+[2014-02-20 23:17:12 -0500] coderanger: anthroprose: What are you storing so much of?
+[2014-02-20 23:17:23 -0500] coderanger: anthroprose: 25kb is still a lot
+[2014-02-20 23:17:53 -0500] anthroprose: honestly, I have no clue
+[2014-02-20 23:17:57 -0500] coderanger: dgarstang3: No, resources are not scoped to a cookbook, just a flat namespace
+[2014-02-20 23:18:05 -0500] anthroprose: I am not personally setting that much in node attributes
+[2014-02-20 23:18:21 -0500] anthroprose: however I did have alot of pip packages, which f'n trigger an update every time they run
+[2014-02-20 23:18:31 -0500] anthroprose: which means even on a 100% idempotent run, I still see 50 updates resources
+[2014-02-20 23:19:33 -0500] anthroprose: like, the node data that I set, is pretty much some public keys, log locations, some things like numbers of workers/processes, and then a list of pips required
+[2014-02-20 23:19:35 -0500] dgarstang3: coderanger: Ok, in that case, with notifies :run, 'execute[apt-get update]' i'm getting a funky error "Chef::Exceptions::ResourceNotFound: resource template[/etc/apt/sources.list] is configured to notify resource execute[apt-get update] with action run, but execute[apt-get update] cannot be found in the resource collection. template[/etc/apt/sources.list] is defined in
+[2014-02-20 23:19:37 -0500] dgarstang3: /tmp/vagrant-chef-1/chef-solo-1/cookbooks/bc-apt/recipes/sources.rb:15:in `from_file'"
+[2014-02-20 23:19:49 -0500] dgarstang3: yuck
+[2014-02-20 23:19:54 -0500] grayhemp: Hi
+[2014-02-20 23:20:02 -0500] grayhemp: Where can I find Chef 6 docs?
+[2014-02-20 23:20:10 -0500] coderanger: grayhemp: Do you mean Ohai 6?
+[2014-02-20 23:20:22 -0500] anthroprose: waybackwhen.com?
+[2014-02-20 23:20:23 -0500] anthroprose: hehe
+[2014-02-20 23:21:03 -0500] coderanger: dgarstang3: And where is that resource supposed to be defined?
+[2014-02-20 23:21:08 -0500] anthroprose: coderanger: so I am just plain slamming too much data into the node save (for whatever reason)
+[2014-02-20 23:21:19 -0500] anthroprose: its just so weird that it will work on the first one, but never after
+[2014-02-20 23:21:23 -0500] coderanger: anthroprose: Eh, thats not crazy high, but still high
+[2014-02-20 23:21:34 -0500] dgarstang3: coderanger: in the apt cookbook I believe.
+[2014-02-20 23:21:45 -0500] dgarstang3: coderanger: wrapped by my bc-apt
+[2014-02-20 23:21:56 -0500] anthroprose: coderanger: for what I am doing, its gotta be something stupid, or a bug/something in a downstream cookbook
+[2014-02-20 23:21:57 -0500] coderanger: dgarstang3: And do you see the resource registering in the chef-client output?
+[2014-02-20 23:22:25 -0500] dgarstang3: coderanger: no, it fails pretty much straight away
+[2014-02-20 23:22:40 -0500] therealtimsmith: anyone ever see duplicate key errors in the postgresql logs when trying to upload a ton of cookbooks: ERROR:  duplicate key value violates unique constraint "checksums_pkey"
+[2014-02-20 23:22:41 -0500] therealtimsmith: ?
+[2014-02-20 23:23:12 -0500] grayhemp: coderanger: well, I need to consult with something to know which resources are available on v6
+[2014-02-20 23:24:25 -0500] coderanger: grayhemp: There is no such thing as Chef v6
+[2014-02-20 23:24:33 -0500] coderanger: The current version is 11.10.4
+[2014-02-20 23:24:53 -0500] coderanger: Chef 0.6 was a thing, that was released >4 years ago,
+[2014-02-20 23:25:34 -0500] coderanger: Not sure any docs for it still survive since at the time the docs were a wiki and so were updated over time
+[2014-02-20 23:25:44 -0500] grayhemp: coderanger: sorry, I meant 0.6 of course
+[2014-02-20 23:25:51 -0500] coderanger: I'm not actually sure the wiki even existed back then come to think of it
+[2014-02-20 23:25:52 -0500] JayF: Where can I find the changelog from 11.10.2 -> 11.10.4?
+[2014-02-20 23:26:00 -0500] coderanger: grayhemp: Why are you using 0.6?
+[2014-02-20 23:26:11 -0500] coderanger: JayF: ChefInc blog, just two small fixes
+[2014-02-20 23:26:24 -0500] coderanger: JayF: application cookbook was b0rked by 11.10.2
+[2014-02-20 23:26:36 -0500] grayhemp: coderanger: unfortunately, we hung on it :(
+[2014-02-20 23:26:43 -0500] JayF: coderanger: do you have a link to it? googling failed multiple times
+[2014-02-20 23:28:18 -0500] JayF: found it http://www.getchef.com/blog/2014/02/20/chef-client-patch-release-11-10-4/
+[2014-02-20 23:28:39 -0500] coderanger: grayhemp: Erm, I think your only hope is to read the code
+[2014-02-20 23:28:49 -0500] coderanger: grayhemp: The final 0.6.2 release was in April of 2009
+[2014-02-20 23:29:06 -0500] coderanger: So thats nearly 5 years ago
+[2014-02-20 23:29:39 -0500] grayhemp: coderanger: yeah, that's what I came to too - read the code
+[2014-02-20 23:29:55 -0500] grayhemp: coderanger: Thanks anyway
+[2014-02-20 23:29:57 -0500] coderanger: grayhemp: You could try the wayback machine on wiki.opscode.com
+[2014-02-20 23:30:14 -0500] coderanger: but its a long shot
+[2014-02-20 23:30:31 -0500] grayhemp: ok, I see
+[2014-02-20 23:32:46 -0500] jharley: Howdy; OHAI-389 (the stale hostname/fqdn issue) is making my life tricky.. is lazy evaluation or shadow attributes (node['my_hostname']) the most common approach when you can't trust ohai for the first convergence of a node?
+[2014-02-20 23:36:46 -0500] anthroprose: coderanger: so I just did a run using {"run_list":["recipe[yum]"]} with a node post size of 8008, same issue
+[2014-02-20 23:36:55 -0500] [ROOT]XxNeoLiTHi: hi all, does anyone know if traffic the comes/goes from the chef server pushy ports are encrypted or not?
+[2014-02-20 23:37:04 -0500] coderanger: anthroprose: Okay, so probably not related to that
+[2014-02-20 23:37:38 -0500] anthroprose: coderanger: i didnt necessarily think so because the first save always works (after a chef server reinstall), but no other save after that does
+[2014-02-20 23:37:40 -0500] coderanger: [ROOT]XxNeoLiTHi: Pushy is ChefInc proprietary right now, so only they can answer
+[2014-02-20 23:37:59 -0500] coderanger: anthroprose: If you just use an API client to get a node's data and then save it again, does it work?
+[2014-02-20 23:38:23 -0500] anthroprose: blerg, never tried that, lemme try pychef real quick
+[2014-02-20 23:39:47 -0500] [ROOT]XxNeoLiTHi: coderanger: is that ask them as in they dont like the irc comm answering on the proprietary stuff, or dont know since its proprietary and better to ask them?
+[2014-02-20 23:40:06 -0500] coderanger: [ROOT]XxNeoLiTHi: There are just not always ChefInc people watching IRC
+[2014-02-20 23:40:15 -0500] coderanger: schisamo ssd7 ^^
+[2014-02-20 23:40:19 -0500] [ROOT]XxNeoLiTHi: k
+[2014-02-20 23:43:11 -0500] coderanger: [ROOT]XxNeoLiTHi: I think, when I last saw the code about a year ago, it was doing HMAC but not encryption
+[2014-02-20 23:43:28 -0500] coderanger: but as I said, that was a while ago and it wasn't my project so :)
+[2014-02-20 23:56:15 -0500] awc737__: Failed to download 'precise64-lamp' from git: 'git@github.com:awc737/precise64-lamp-cookbook.git' with branch: 'master' at ref: '2eeb26c05ed5bc59f132aab0cfcd78bab6ceb957'
+[2014-02-20 23:56:15 -0500] awc737__: Cookbook 'precise64-lamp' not found in any of the default locations ?

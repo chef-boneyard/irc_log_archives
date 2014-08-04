@@ -1,0 +1,847 @@
+[2012-10-04 00:13:21 -0400] xmltok: how do people capture if a chef run fails? I am knife bootstrapping a node with a broken cookbook but it continues to exit 0
+[2012-10-04 00:15:23 -0400] erikh: -l debug will usually tell you a lot more than you need to know
+[2012-10-04 00:18:35 -0400] ptrstr: xmltok: we use airbrake and a chef handler
+[2012-10-04 00:19:54 -0400] xmltok: that looks like a neat tool
+[2012-10-04 00:20:01 -0400] xmltok: i need something to catch failures in automated testing
+[2012-10-04 00:20:24 -0400] xmltok: basically my jenkins is going to provision nodes and install full chef, i need to know if the chef cookbooks failed, i may have to grep the output which suck
+[2012-10-04 00:21:38 -0400] concertman: Hey guys, I'm running into a problem with one of my OS X servers that is bound to our company OD server. On those machines when we run chef-client for the first time it brings our chef server to a crawl.  We found out that Ohai is grabbing all the OD users. In a company of over 30K users this creates a huge file that brings the system down.  Is there a good way to avoid this?
+[2012-10-04 00:22:43 -0400] xmltok: https://gist.github.com/2903891 its hard to believe that this isnt in the knife code by now
+[2012-10-04 00:23:23 -0400] tpot: yeah
+[2012-10-04 00:24:03 -0400] tpot: that would be handy
+[2012-10-04 00:24:51 -0400] tpot: chef 10.14 now seems to return a non-zero return code when you run Chef::Knife::Bootstrap.run
+[2012-10-04 00:24:57 -0400] tpot: from memory it didn't even use to do that
+[2012-10-04 00:26:00 -0400] ptrstr: concertman: disable the ohai password plugin
+[2012-10-04 00:27:02 -0400] concertman: ptrstr ah cool.  Thanks, I'll give that a try.
+[2012-10-04 00:54:54 -0400] vluther: if i want to add a custom key/value attribute to a node, what's the best way to do that?
+[2012-10-04 00:57:01 -0400] tpot: what do you mean by custom?
+[2012-10-04 01:00:07 -0400] vluther: tpot: i think i found it http://wiki.opscode.com/display/chef/Attributes
+[2012-10-04 01:00:24 -0400] tpot: heh
+[2012-10-04 01:00:29 -0400] vluther: but basically, i want to say this node belongs to this custom cluster of ours
+[2012-10-04 01:00:48 -0400] tpot: OK you probably want to create a role, say Cluster-Member
+[2012-10-04 01:00:52 -0400] vluther: and based on that, it'll configure nginx and some stuff
+[2012-10-04 01:01:02 -0400] tpot: and put the list of cluster IPs or whatever in that
+[2012-10-04 01:01:12 -0400] vluther: if we have 50 clusters, make 50 roles?
+[2012-10-04 01:01:26 -0400] tpot: so it depends on what you want to do
+[2012-10-04 01:01:32 -0400] tpot: 50 roles is probably overkill
+[2012-10-04 01:01:46 -0400] tpot: i would recommend browsing through the community cookbooks on github
+[2012-10-04 01:01:52 -0400] vluther: the customization i want is basically one line in the nginx.conf file
+[2012-10-04 01:01:57 -0400] yfeldblum: vluther, setting a node custom attribute is fine
+[2012-10-04 01:02:35 -0400] vluther: so if the cluster name is: milkyway, i want the line in nginx.conf to say include /path/to/milkyway/;
+[2012-10-04 01:02:54 -0400] vluther: the role for all the nodes is webserver
+[2012-10-04 01:02:56 -0400] yfeldblum: vluther, if you already have a node and you need to edit it, you can use `knife node edit NAME` in the shell
+[2012-10-04 01:03:00 -0400] vluther: so nginx will configured as it needs to
+[2012-10-04 01:04:05 -0400] vluther: yfeldblum: aahh so just add a json entry there gotcha
+[2012-10-04 01:04:13 -0400] yfeldblum: vluther, when bootstrapping new nodes, you can pass these custom attributes with the -j argument, which is a single JSON string so you will need to quote the whole thing for the CLI: knife CLOUD server create -j '{"some_key": "some_value"}'
+[2012-10-04 01:04:22 -0400] vluther: what about for new nodes that i haven't provisioned yet? can i do that on bootstrap?
+[2012-10-04 01:04:29 -0400] vluther: hah you read my mind
+[2012-10-04 01:04:39 -0400] yfeldblum: vluther, indeed ^-^
+[2012-10-04 01:04:47 -0400] tpot: ok i was on the wrong track (-:
+[2012-10-04 01:05:20 -0400] vluther: tpot: we all learn something here :)
+[2012-10-04 01:05:45 -0400] yfeldblum: tpot, roles are an alternative way to do it but they add more baggage so maybe they're too heavy for this particular case, because in this particular case there's only one tiny thing that needs to vary
+[2012-10-04 01:06:33 -0400] vluther: yfeldblum: so then in the .erb for the nginx.conf i'd just do include /path/to/<%= @node[:clustername] %>/*.conf;
+[2012-10-04 01:06:37 -0400] yfeldblum: tpot, you could still use roles though and from one point of view it might even be a better approach, but that depends on the details of the team managing the whole infrastructure
+[2012-10-04 01:07:37 -0400] vluther: tpot: in this case a role would've been overkill, because it's something we'd need to keep adding for just one setting, and then if we needed to make changes to the global webserver role, i'd have to figure out how to cascade them down
+[2012-10-04 01:08:00 -0400] yfeldblum: vluther, yes, you could, but i consider it best practice to pass `variables :include_path => "/path/to/" + node["clustername"]` to the template resource in the recipe, and then to write `include <%= @include_path %>` in the template
+[2012-10-04 01:08:51 -0400] yfeldblum: vluther, i don't like allowing template ERB files to access @node directly; much better practice to just give the template ERB files just exactly the data they need to do the job and no more
+[2012-10-04 01:09:09 -0400] yfeldblum: vluther, but that's another subject entirely
+[2012-10-04 01:09:25 -0400] vluther: yfeldblum: hmm got an example recipe i can see along with a template? i need to eat , or wife will divorce me
+[2012-10-04 01:09:30 -0400] vluther: but i wanna see how to do this
+[2012-10-04 01:09:49 -0400] flaccid_: variables in the template resource are good
+[2012-10-04 01:12:04 -0400] yfeldblum: vluther, http://pastie.org/private/qlmuzgoykmgan8vfkgkqw
+[2012-10-04 01:12:38 -0400] yfeldblum: vluther, pretty sure i missed a ; in the nginx config example, but you get the idea
+[2012-10-04 01:13:11 -0400] yfeldblum: vluther, the ERB files should be dumb, and the recipe should be smart
+[2012-10-04 01:15:20 -0400] yfeldblum: vluther, long names are fine if they explain the intention of the variable or what the variable is used for
+[2012-10-04 02:44:45 -0400] pcn__: ohai chefs
+[2012-10-04 02:45:13 -0400] pcn__: Is it possible to cause a template to always be rendered on each run with chef-solo?
+[2012-10-04 02:45:46 -0400] pcn__: Actually, that's not really the problem I've got.
+[2012-10-04 02:46:21 -0400] pcn__: The real problem I've got is that I'd like to be able to re-generate a config file if there would be a difference between the existing template, and the template that would be rendered
+[2012-10-04 02:48:33 -0400] pcn__: I'd like to be able to change a config file and have chef-solo use that to cascade changes
+[2012-10-04 02:57:18 -0400] yfeldblum: does the precise64 vagrant base box really need to be 300+MB?
+[2012-10-04 02:58:53 -0400] leifmadsen: yfeldblum: in test-kitchen I presume?
+[2012-10-04 02:59:04 -0400] yfeldblum: pcn__, chef-solo will always compute, each and every run, what the content of the up-to-date file should be based on reading the template ERB file and evaluating it in the context of the variables you assign in the template resource in the recipe ... and if what the content should be is different from what exists on disk, chef will overwrite it with what the content should be
+[2012-10-04 02:59:13 -0400] yfeldblum: leifmadsen, no
+[2012-10-04 02:59:25 -0400] leifmadsen: sorry, I just saw the scrollback
+[2012-10-04 03:00:13 -0400] yfeldblum: leifmadsen, tests are for people who drive on the right side of the road (left side in the UK), who pay their taxes, and who only take on as much debt as they can pay back
+[2012-10-04 03:00:23 -0400] leifmadsen: :D
+[2012-10-04 03:00:28 -0400] leifmadsen: I only do half of those things!
+[2012-10-04 03:00:32 -0400] leifmadsen: and usually drunk
+[2012-10-04 03:00:36 -0400] pcn__: yfeldblum: thanks for the clarification.  My impression from the past was that it did a checksum on the existing file vs. the checksum that was saved from the last run
+[2012-10-04 03:00:51 -0400] yfeldblum: pcn__, well yes, in fact, that's what it does
+[2012-10-04 03:00:52 -0400] leifmadsen: (for those who might be offended, I would never drive drunk)
+[2012-10-04 03:01:07 -0400] yfeldblum: pcn__, but the effect is the same
+[2012-10-04 03:01:27 -0400] yfeldblum: leifmadsen, that was a list of three items; how can you do exactly half of them?
+[2012-10-04 03:01:33 -0400] leifmadsen: yfeldblum: very carefully
+[2012-10-04 03:01:56 -0400] leifmadsen: I could also drive on the centre line of the road
+[2012-10-04 03:03:03 -0400] pcn__: yfeldblum: in the scenario I described, if node data has changed then the file doesn't get re-created, in the scenario you describe the template is re-evaluated and compared each time.  Can you clarify what should actually be happening here?
+[2012-10-04 03:03:23 -0400] pcn__: yfeldblum: specifically if node data that would get passed to the template resource changes
+[2012-10-04 03:04:08 -0400] yfeldblum: pcn__, the checksum is taken of the compiled file, that is, the content that you would get after evaluating the ERB in the context of the assigned variables
+[2012-10-04 03:04:39 -0400] yfeldblum: pcn__, so the checksums thing is just an implementation detail, and it works as if it really compares the full result to the existing file
+[2012-10-04 03:05:19 -0400] pcn__: yfeldblum: OK, thanks.  My experience in the past was that the variables could be changed, but if the file on disk didn't change, then the resource wouldn't re-create the file.
+[2012-10-04 03:05:36 -0400] yfeldblum: pcn__, well, your experience must be wrong :P
+[2012-10-04 03:06:38 -0400] yfeldblum: pcn__, if chef evaluates the template and comes up with what the file's content should be, and the file's content isn't that, then chef will rewrite the file
+[2012-10-04 03:07:16 -0400] pcn__: yfeldblum: I see the process you're describing in chef/lib/chef/provider/template.rb, thanks for clarifying that
+[2012-10-04 03:07:38 -0400] yfeldblum: pcn__, not a problem
+[2012-10-04 03:08:02 -0400] pcn__: yfeldblum: I'll test to see why I was expecting this behavior
+[2012-10-04 03:57:20 -0400] Mad-d: When I register for hosted chef with ops code, I didn't receive an email with knife config, user config and auth details instead just got user details to login
+[2012-10-04 03:57:29 -0400] Mad-d: Am I missing anything here ?
+[2012-10-04 03:57:45 -0400] yfeldblum: you can log in and get those other things
+[2012-10-04 03:58:43 -0400] Mad-d: I don't see those when I login
+[2012-10-04 03:59:02 -0400] mattupstate: manage.opscode.com
+[2012-10-04 03:59:19 -0400] mattupstate: you can get your config from the organizations area
+[2012-10-04 03:59:28 -0400] mattupstate: and you can get your private key on your community profile page
+[2012-10-04 04:00:58 -0400] Mad-d: Am checking as u say ! Please pardon me if I am late in responding
+[2012-10-04 04:02:57 -0400] Mad-d: Ok, I see generate knife config and generate validation key links under organization :)
+[2012-10-04 04:03:16 -0400] Mad-d: Do I need to worry about anything else ?
+[2012-10-04 04:11:01 -0400] jtimberman: Mad-d: your user key, you'll need to generate that too. click on your username at the top of the management console
+[2012-10-04 06:02:47 -0400] freezey: leaving puppet and coming over to the dark side
+[2012-10-04 06:16:33 -0400] ty_: I'm seeing more light on this side...
+[2012-10-04 06:30:10 -0400] freezey: yeah as do i
+[2012-10-04 06:42:20 -0400] BryanWB_: ohai chefs!
+[2012-10-04 06:48:08 -0400] miah: hi
+[2012-10-04 06:48:42 -0400] BryanWB_: miah: hello!
+[2012-10-04 06:48:48 -0400] miah: hows things BryanWB_ ?
+[2012-10-04 06:49:06 -0400] BryanWB_: bz, super nervous about my preso at devopsdays rome
+[2012-10-04 06:49:21 -0400] miah: i'm sure you'll do fine
+[2012-10-04 06:49:38 -0400] miah: and nervousness is normal =)
+[2012-10-04 06:49:41 -0400] miah: also. break a leg.
+[2012-10-04 06:49:46 -0400] miah: isn't that what they say? =)
+[2012-10-04 07:05:18 -0400] CJNE: when changing the home directory for a user, in this case exim, ubuntu complains about the user being logged in (exim is running), how should i avoid this error? I don't want to shut down the service every time chef-client runs...
+[2012-10-04 07:06:39 -0400] CJNE: FATAL: Chef::Exceptions::Exec: user[exim] (exim::default line 52) had an error: Chef::Exceptions::Exec: usermod -d '/var/mail/exim' exim returned 8, expected 0
+[2012-10-04 09:13:36 -0400] Yann2: hello! The documentation for knife role edit ROLE specifies "-F format" - but doesnt say what formats are available. I m trying the following but it doesnt work: knife role edit base -F DSL
+[2012-10-04 10:19:29 -0400] erthad: hi all
+[2012-10-04 10:20:00 -0400] erthad: does chef works only with RabbitMQ or does it support other MQ-brokers (like ActiveMQ) ?
+[2012-10-04 10:20:34 -0400] erthad: s/chef/chef server/
+[2012-10-04 10:23:08 -0400] hiall: Curious if there are any chef books you guys recommend for getting started
+[2012-10-04 10:47:28 -0400] nacer: BryanWB_:  are you there ?
+[2012-10-04 10:47:42 -0400] nacer: BryanWB_: does ark.url can be a local file ?
+[2012-10-04 10:48:41 -0400] nacer: BryanWB_: i'am making some chef-solo installer
+[2012-10-04 10:48:48 -0400] nacer: BryanWB_: for my apps
+[2012-10-04 10:51:45 -0400] nacer: BryanWB_: if i put my jdk in /var/cache/chef/jdk-7.2.tar.gz i can bypass the download step of ark ?
+[2012-10-04 10:56:20 -0400] maxmanders: I've accidentally deleted a chef client using knife client delete that has previously been provishioned... I'm guessing I'll need to remove the client key and manually add the validator key before I next run chef-client on that node?
+[2012-10-04 10:57:22 -0400] nacer: maxmanders: save your node data before
+[2012-10-04 10:57:50 -0400] nacer: maxmanders: i mean the node json data on the chef server
+[2012-10-04 10:58:47 -0400] maxmanders: nacer: cool - will do
+[2012-10-04 11:00:04 -0400] BryanWB_: nacer: hey dude, i never got qaround to adding support for that :(
+[2012-10-04 11:00:42 -0400] nacer: BryanWB_: do you remember if putting the file needed in chef_cache can bypass the download step ?
+[2012-10-04 11:01:02 -0400] BryanWB_: it might
+[2012-10-04 11:02:32 -0400] tolland: hi
+[2012-10-04 11:03:07 -0400] tolland: is there a plugin that does something along the lines of makes sure that at least one node exists with a particular role in an environment?
+[2012-10-04 11:05:09 -0400] tolland: I had a bash script that did a pool-manager years ago, that was similar to MMM for mysql, and moved around apache vhosts to the least loaded box, but its about 10 years old
+[2012-10-04 11:09:15 -0400] nacer: BryanWB_: it work
+[2012-10-04 11:09:22 -0400] nacer: :)
+[2012-10-04 11:09:46 -0400] benner: is there any good cookbook or method to add EPEL repository?
+[2012-10-04 11:09:57 -0400] nacer: it can be a good way to implement the ark from local_file way
+[2012-10-04 11:11:33 -0400] BryanWB_: yum::epel iirc  benner
+[2012-10-04 11:14:42 -0400] nacer: BryanWB_: if ark.cookbook_file - > cookbook_file -> "jdk.bin" -> in chef cache
+[2012-10-04 11:24:47 -0400] gyre007: can I mixin a library into Chef LWRP ?
+[2012-10-04 11:24:53 -0400] gyre007: or require a gem in LWRP ?
+[2012-10-04 11:33:32 -0400] CJNE: is it possible to get the user id for a user resource that has previously been created by chef (without an explicit user id set)?
+[2012-10-04 11:43:55 -0400] anentropic: can anyone help with the right incantation to add the ubuntu precise multiverse repo via the opscode apt_repository lwrp?
+[2012-10-04 11:50:07 -0400] Yann2: is there a way to install chef-server so that the API listens only on one interface instead of 0.0.0.0?
+[2012-10-04 11:50:58 -0400] maruq: anentropic: I haven't confirmed, but I think it'd be like: https://gist.github.com/b07ecb98073289d31a4d
+[2012-10-04 11:51:37 -0400] maruq: anentropic: assumes the node itself is on precise, otherwise replace the distribution line accordingly
+[2012-10-04 11:52:29 -0400] anentropic: thanks maruq, is the uri correct? in my souces.list they look like http://gb.archive.ubuntu.com/ubuntu/
+[2012-10-04 11:52:45 -0400] anentropic: I get the idea now though
+[2012-10-04 11:53:43 -0400] maruq: anentropic: not sure, I was using ec2 nodes as reference (they use ec2 based apt servers). packages.ubuntu.com is the main web repo though
+[2012-10-04 11:54:30 -0400] anentropic: maruq cool thanks, I shall proceed empirically
+[2012-10-04 11:54:44 -0400] maruq: anentropic: no worries. good luck
+[2012-10-04 12:04:57 -0400] zts: CJNE: try node['etc']['passwd'][username]['uid']
+[2012-10-04 12:05:45 -0400] zts: CJNE: though I'm not sure if that will work for users created in the same chef run - you might need to do something else
+[2012-10-04 12:08:49 -0400] workmad3: zts: it should be fine as long as the node attributes have been set
+[2012-10-04 12:09:08 -0400] workmad3: zts: it's just querying and persistence that don't work at that point
+[2012-10-04 12:09:20 -0400] ranjibd: zts, u can get it inside a ruby_block using the ruby Etc stdlib
+[2012-10-04 12:11:17 -0400] zts: workmad3: hmm, I'm not sure I understand.  Point is that if you create a user in a run (using the User resource), ohai will need to be provoked to re-read the password file after the resource is converged - otherwise, node.etc.passwd will not contain the new user
+[2012-10-04 12:11:25 -0400] zts: workmad3: I'm not sure whether that happens implictly
+[2012-10-04 12:11:47 -0400] zts: ranjibd: good point, depends on how what you want to do with the value once you have it, I guess!
+[2012-10-04 12:11:59 -0400] ranjibd: yeah
+[2012-10-04 12:28:42 -0400] zeroXten: is it possible for chef server to execute commands during a client's run?
+[2012-10-04 12:51:52 -0400] zined: ohai! ;-)
+[2012-10-04 12:52:13 -0400] zined: has anyone experienced the "node" cookbook to recompile node.js over and over on every single chef-client run?
+[2012-10-04 12:52:19 -0400] zined: seems so to me
+[2012-10-04 13:07:06 -0400] tolland: zeroXten: you can use the execute or script resouce to wrap a shell command;
+[2012-10-04 13:07:08 -0400] tolland: http://wiki.opscode.com/display/chef/Resources#Resources-Script
+[2012-10-04 13:08:56 -0400] williamherry: apache cookbook will fail if my node have a older version of httpd installed, is this a bug? should I report it?
+[2012-10-04 13:20:45 -0400] geekbri: What happens if chef-client is run while there is already an instance of chef-client running?
+[2012-10-04 13:20:52 -0400] geekbri: Does it know not to trample on itself?
+[2012-10-04 13:22:41 -0400] tolland: williamherry: because the apache2 cookbooks is pretty simplistic and based on debian packaging
+[2012-10-04 13:23:02 -0400] tolland: i generally find at least some customization is in order, so that it works with your existing mix
+[2012-10-04 13:23:54 -0400] williamherry: tolland: is is based on debian package, but it works fine, only fail if have older httpd installed
+[2012-10-04 13:24:20 -0400] meineerde: geekbri: no, it will trample. but if you run chef as a service, you can trigger a new run by sending it a USR1 signal.
+[2012-10-04 13:24:26 -0400] meineerde: geekbri: see http://wiki.opscode.com/display/chef/Chef+Client#ChefClient-Youcantriggerarunonthedaemonizedclient
+[2012-10-04 13:24:36 -0400] williamherry: I can explain to you why it fail if you like
+[2012-10-04 13:24:41 -0400] mhoran: Hello. We're using the PGDG repository to intall Postgres on our servers.  A week ago they pushed PG 9.1.6, but we need to stay at 9.1.5 for the time being. I've set up our recipe to install specific versions, but sometimes it seems other versions (the newer one) get installed.
+[2012-10-04 13:24:45 -0400] tolland: yeah, one generally fails because the other has a lock on the rpm db
+[2012-10-04 13:26:22 -0400] williamherry: tolland: no, it fail because /etc/httpd/conf.d/README file
+[2012-10-04 13:26:55 -0400] tolland: williamherry: sorry, i meant that if 2 chef-clients run together
+[2012-10-04 13:27:11 -0400] tolland: its common to see one fail on yum errors
+[2012-10-04 13:27:26 -0400] williamherry: tolland: oops :=)
+[2012-10-04 13:27:30 -0400] tolland: if you are using a proper os of course
+[2012-10-04 13:28:49 -0400] tolland: williamherry: so the package install fails?
+[2012-10-04 13:29:12 -0400] tolland: because there is something there already?
+[2012-10-04 13:31:46 -0400] williamherry: apache use :install action so it will do nothing if one version already installed, there are one resource to delete that README file cause it is useless when use debian style of apache, if not delete that, apache restart will fail. it successfully delete that file
+[2012-10-04 13:32:27 -0400] williamherry: but install mod_ssl will cause newly version of httpd be installed, and that README file show up again, and restrt apache fail
+[2012-10-04 13:34:37 -0400] williamherry: I am guessing the create of apache cookbook use :install instance of :upgrade is that the admin don't want install newly version of apache if one available
+[2012-10-04 13:34:47 -0400] geekbri: meineerde: thanks.
+[2012-10-04 13:34:55 -0400] mhoran: Is there a way to force yum installation to use certain dependencies? I can manually install each individual package, but it seems when other versions of those packages are installed, it just gets confused and starts upgrading all the packages instead of installing the ones requested.
+[2012-10-04 13:42:14 -0400] zeroXten: is there any documentation on using libraries in resoureces/providers? E.g. if the provider needs creds and you don't want to have to use attributes each time
+[2012-10-04 13:45:17 -0400] zeroXten: nevermind, should use default i guess
+[2012-10-04 13:50:17 -0400] j-v-e: 'morning everyone
+[2012-10-04 13:50:34 -0400] j-v-e: is there a way to have knife output a role in the Ruby DSL format ? http://wiki.opscode.com/display/chef/Roles#Roles-TheRubyDSL
+[2012-10-04 13:50:44 -0400] j-v-e: knife role show <role_name> -F ??
+[2012-10-04 13:53:42 -0400] ashb: j-v-e: not that i've ever discovered
+[2012-10-04 13:54:40 -0400] paulmooring: j-v-e: no there's only summary, text, pretty print, json and yaml
+[2012-10-04 13:57:11 -0400] j-v-e: I should probably use json then
+[2012-10-04 13:59:07 -0400] nev7n: hi, a noob question on chef if I may
+[2012-10-04 13:59:18 -0400] nev7n: I'm following the guide here: http://wiki.opscode.com/display/chef/Build+a+LAMP+Stack and have hit an error
+[2012-10-04 13:59:58 -0400] nev7n: I'm getting "cannot load such file -- mysql"
+[2012-10-04 14:01:17 -0400] nev7n: I'll stick a fuller log on pastebin, one sec
+[2012-10-04 14:02:18 -0400] paulmooring: nev7n: I'll take a look at your log when you post it, but I think that guide is out of date.  The application cookbook received a pretty major overhaul not long ago as did the database cookbook
+[2012-10-04 14:02:51 -0400] nev7n: http://nopaste.info/c0db9f9cce.html
+[2012-10-04 14:02:55 -0400] j-v-e: paulmooring, ashb: do you know if there is a way to have multiple roles in the same file and upload them via knife ? Or should a file contain one role only ?
+[2012-10-04 14:03:16 -0400] dwhsix: nev7n: yeah, what paulmooring said is right I spent a bunch of time yesterday wrestling with this
+[2012-10-04 14:03:44 -0400] paulmooring: j-v-e: I've honestly never tried, but for purposes of revision control it's recommended to do one file per item (role, node, ect.)
+[2012-10-04 14:03:51 -0400] nev7n: ah OK - sounds like I need to read up on the application and database cookbook
+[2012-10-04 14:04:48 -0400] dwhsix: nev7n: I'm not completely sure what was fully necc'y and what asn't (hopefully I'll find the time to write it up somewhere)
+[2012-10-04 14:05:08 -0400] paulmooring: nev7n: there is now an application_php cookbook that pulls in application
+[2012-10-04 14:05:16 -0400] paulmooring: you might start by looking there
+[2012-10-04 14:05:20 -0400] dwhsix: but I have recipe[build-essential] before the mysql::server and mysql::ruby recipes in my run_list
+[2012-10-04 14:05:57 -0400] dwhsix: and have default['build_essential']['compiletime'] = true in my role file (could be elsewhere)
+[2012-10-04 14:06:24 -0400] nev7n: paulmooring, OK thanks - I'll take a look at that
+[2012-10-04 14:06:58 -0400] dwhsix: anyone using passenger_apache2?  it's attributes refer to languages[:ruby][:gems_dir] and that seems to not be set for me (it's nil)
+[2012-10-04 14:07:09 -0400] dwhsix: default[:passenger][:root_path]   = "#{languages[:ruby][:gems_dir]}/gems/passenger-#{passenger[:version]}"
+[2012-10-04 14:08:34 -0400] jtimberman: j-v-e: the ruby dsls for roles, environments etc are there for convenience
+[2012-10-04 14:08:48 -0400] jtimberman: because some people like editing ruby more than javascript/json directly :)
+[2012-10-04 14:09:04 -0400] dwhsix: ah, maybe it's this: http://tickets.opscode.com/browse/OHAI-368
+[2012-10-04 14:09:20 -0400] dwhsix: which ends with the helpful comment "I haven't found a satisfying workaround yet."
+[2012-10-04 14:09:59 -0400] paulmooring: dwhsix: I think the popular opinion there is you need a system ruby installed instead of using omnibus ruby for other applications
+[2012-10-04 14:10:21 -0400] dwhsix: paulmooring: which I think I have, since I'm running a rails app
+[2012-10-04 14:10:54 -0400] paulmooring: dwhsix: That bug you linked is for people w/o a system ruby
+[2012-10-04 14:11:26 -0400] dwhsix: dang it maybe I don't
+[2012-10-04 14:11:36 -0400] dwhsix: what's the recommend way to have a system ruby installed?
+[2012-10-04 14:11:42 -0400] paulmooring: dwhsix: you can run 'ohai |grep ruby' directly and see what ohai finds
+[2012-10-04 14:12:24 -0400] paulmooring: dwhsix: I don't know that there's a recommended way, most distress are still on 1.8.7 if you're cool with that you can use your pkg manager
+[2012-10-04 14:12:31 -0400] paulmooring: otherwise source install is the way to go
+[2012-10-04 14:12:47 -0400] paulmooring: http://community.opscode.com/cookbooks/ruby
+[2012-10-04 14:13:03 -0400] paulmooring: There's  cookbook that can handle the details
+[2012-10-04 14:13:06 -0400] dwhsix: ah, there is a cookbook let me try that
+[2012-10-04 14:13:07 -0400] jtimberman: dwhsix: set the passenger root_path attribute in a role
+[2012-10-04 14:13:08 -0400] dwhsix: thx
+[2012-10-04 14:13:41 -0400] dwhsix: jtimberman: thx - but I think I need to resolve the underlying ruby issue paulmooring 's talking about
+[2012-10-04 14:13:46 -0400] dwhsix: at least, do that first
+[2012-10-04 14:13:48 -0400] jtimberman: maybe.
+[2012-10-04 14:14:08 -0400] paulmooring: that cookbook was written by jtimberman so it's quality must be high too ;)
+[2012-10-04 14:14:10 -0400] dwhsix: ohai's teling me system ruby's 1.8.7, I need 1.9
+[2012-10-04 14:14:15 -0400] dwhsix: paulmooring: +1
+[2012-10-04 14:14:22 -0400] jtimberman: across the board, cookbooks' attributes files are there to set sane defaults so you don't get nilClass errors :
+[2012-10-04 14:14:25 -0400] jtimberman: :)
+[2012-10-04 14:14:58 -0400] jtimberman: they're the lowest priority, so very easy to override elsewhere if you don't like the setting or if it doesn't work for your use case.
+[2012-10-04 14:15:48 -0400] jtimberman: dwhsix: yup, unfortunately ruby 1.8.7 is still the default version on most major platforms (rhel/centos, ubuntu, debian)
+[2012-10-04 14:16:02 -0400] dwhsix: yeah. pain in the $%&*&^%$#$%^
+[2012-10-04 14:16:38 -0400] jtimberman: I agree.
+[2012-10-04 14:17:43 -0400] jtimberman: If you're on ubuntu or debian though, you can install the ruby1.9.1-full package, and on debian 6+, ubuntu 11.10 (maybe .04), it will use update-alternatives to set the default 'ruby' to that
+[2012-10-04 14:17:46 -0400] dwhsix: so w/ ruby package, I just put recipe[ruby::1.9.1] in my run_list to get the most current?
+[2012-10-04 14:17:58 -0400] dwhsix: sorry: ruby cookbook
+[2012-10-04 14:18:21 -0400] jtimberman: using my ruby cookbook? yeah i think so... i haven't used it in a very long time :-|
+[2012-10-04 14:18:40 -0400] dwhsix: oh noes
+[2012-10-04 14:18:51 -0400] dwhsix: ok, hopefully this doesn't chew up my day ;-)
+[2012-10-04 14:19:10 -0400] dwhsix: is there a better way to do it?
+[2012-10-04 14:19:32 -0400] dwhsix: better=quick=easy=no-brainer=just-give-me-ruby-1.9.3?
+[2012-10-04 14:22:13 -0400] cwj: i use a bootstrap script like this one https://gist.github.com/2493780 to ensure ruby is installed to my liking
+[2012-10-04 14:22:42 -0400] dwhsix: cwj: thx
+[2012-10-04 14:23:48 -0400] cwj: just updated it to mirror what i am actually using right now
+[2012-10-04 14:24:19 -0400] cwj: anyway, hope it helps
+[2012-10-04 14:24:21 -0400] gondoi: when are data bags loaded up in the chef run?
+[2012-10-04 14:24:35 -0400] gondoi: I am wondering if I can do an encrypted data bag load in an attributes file
+[2012-10-04 14:25:12 -0400] zts: gondoi: data bags are only loaded on demand, and I don't believe you can do that from within an attributes file
+[2012-10-04 14:25:14 -0400] dwhsix: cwj: thx hoping I can go with jtimberman's ruby cookbook
+[2012-10-04 14:25:24 -0400] dwhsix: trying now
+[2012-10-04 14:25:31 -0400] zts: gondoi: typically you'd do that in a recipe - is that not working out for you?
+[2012-10-04 14:26:08 -0400] gondoi: yes the recipe works find, but we are trying to do something like . look in the data bag first, then overrides, then a default string
+[2012-10-04 14:27:00 -0400] cwj: dwhsix: are you hoping to change the version of ruby chef runs under, or just make a particular version of ruby available to another application?
+[2012-10-04 14:27:21 -0400] cwj: (its been my experience that the ruby cookbook handles the latter and not the former)
+[2012-10-04 14:27:24 -0400] dwhsix: cwj: the latter
+[2012-10-04 14:27:26 -0400] dwhsix: -whew-
+[2012-10-04 14:27:38 -0400] dwhsix: chef can do whatever it wants, as far as I'm concerned
+[2012-10-04 14:27:38 -0400] cwj: cool
+[2012-10-04 14:27:47 -0400] dwhsix: just need ruby 1.9.3 for my rails app
+[2012-10-04 14:27:58 -0400] cwj: think you should be good then
+[2012-10-04 14:27:59 -0400] dwhsix: hoping the ruby::1.9 recipe will do that...
+[2012-10-04 14:28:10 -0400] dwhsix: or should I use ruby::1.9.1?
+[2012-10-04 14:29:05 -0400] cwj: this could be relevant to your interests as well http://community.opscode.com/cookbooks/rbenv
+[2012-10-04 14:30:29 -0400] dwhsix: maybe let me see what happens w/ the ruby cookbook
+[2012-10-04 14:30:34 -0400] cwj: the thing about installing ruby from packages is that apt-get install ruby1.9.1-full gets you a ruby which is actually 1.9.3p0 on the latest ubuntu
+[2012-10-04 14:30:59 -0400] cwj: so if you need a very particular ruby, using something like rbenv to build exactly what you want might be a good fit
+[2012-10-04 14:31:31 -0400] dwhsix: no, I'm fine w/ the latest from packages - e.g. 1.9.3p0 as you say
+[2012-10-04 14:32:00 -0400] dwhsix: and the ruby::1.9 recipe failed, I think bacsue the ruby1.9 pacakeg seems to be deprecated.  let me try ruby::1.9.1 recipe instead
+[2012-10-04 14:35:32 -0400] knuckolls: ohai chefs, i'm investigating the application cookbook as a replacement for some older cap cruft. are people happy with the application lwrps? any gotchas? does it make the deployment process more cumbersome on the application developers? etc etc
+[2012-10-04 14:36:46 -0400] gyre007: I am dealiing with a tricky problem...we are installing nginx from som Ubuntu's PPA...the trick is that the installation of the package starts the nginx automatically - we don't want to start it before it's fully configured....is there any way aroud it in Chef ? I tried to call action stop with the immediately flag but that doesnt seem to prevent it mm
+[2012-10-04 14:39:43 -0400] cwj: well since the package is starting the service as part of its post-install scripts, i dont think you'll have much luck preventing it
+[2012-10-04 14:39:56 -0400] cwj: you could use an execute resource to do 'killall nginx' or similar
+[2012-10-04 14:40:07 -0400] cwj: but then you need to guard against doing that on a machine that is already set up
+[2012-10-04 14:40:33 -0400] knuckolls: grye007: just set up your config and put a restart immediately on your template
+[2012-10-04 14:40:40 -0400] knuckolls: so any time the config changes, it reloads the config
+[2012-10-04 14:40:44 -0400] cwj: yerp
+[2012-10-04 14:41:10 -0400] cwj: but if you have a lengthly application deploy then nginx will be serving "It works!" for a while
+[2012-10-04 14:42:04 -0400] knuckolls: if you wanna get fancy and worry about that, just put the install and intial start/stop first-run one time logic inside of if statements
+[2012-10-04 14:42:15 -0400] knuckolls: and touch some file when you're done so they never run again
+[2012-10-04 14:42:21 -0400] knuckolls: if you wanna get fancy
+[2012-10-04 14:44:01 -0400] CJNE: zts: thanks (a little late), good to know, i resorted to setting an explicit uid using an attribute which worked out fine for this case
+[2012-10-04 14:47:46 -0400] CJNE: starting to get the hang of this now, after the initial confusion i finally start to appreciate the flexibility :)
+[2012-10-04 16:01:01 -0400] Urocyon: Is there a good article out there on how to adapt a distribution specific cookbook to support your distribution as well?  Best practices on distribution checking, setting package names, etc.?
+[2012-10-04 16:07:17 -0400] gmiranda23: is anyone familiar with the windows service resource?  i'm seeing errors where i think the windows service manager is exiting when it thinks it's done shutting down a service (not when the service is actually down), so chef moves on to do things that require my service being down and they bomb out.  i could write in some ruby to check the service and wait.  but i'm hoping there's a more elegant way (and don't say that's by not using windows :-P )
+[2012-10-04 16:10:30 -0400] paulmooring: gmiranda23: so the service does stop eventually, but Chef doesn't wait?
+[2012-10-04 16:11:09 -0400] gmiranda23: yep
+[2012-10-04 16:11:54 -0400] gmiranda23: if i sleep 5 between the service stop and my next step, it's fine.  but there has to be a better way.
+[2012-10-04 16:12:24 -0400] paulmooring: it you get a debug log do you see: "stopping service using the given stop_command"
+[2012-10-04 16:12:57 -0400] gmiranda23: yes.  it runs a stop.  and it eventually stops.  but not before chef proceeds.
+[2012-10-04 16:13:33 -0400] gmiranda23: well let me check the log exactly.  it may not say "using given stop_command".
+[2012-10-04 16:14:19 -0400] paulmooring: gmiranda23: it shouldn't unless you're feeding it a stop_command in the resource definition
+[2012-10-04 16:16:35 -0400] Urocyon: answering my own question:  FC024 is a good start on adding a new platform:  http://acrmp.github.com/foodcritic/#FC024
+[2012-10-04 16:17:04 -0400] jtimberman: Urocyon: i suggest using node[:platform_family] though
+[2012-10-04 16:17:25 -0400] jtimberman: e.g., when "rhel"
+[2012-10-04 16:18:08 -0400] Urocyon: jtimberman: got a good example of a cookbook that does it well?
+[2012-10-04 16:18:35 -0400] c_t: apache2 cookbook does it, I believe
+[2012-10-04 16:18:59 -0400] jtimberman: c_t: i don't think it does consistently
+[2012-10-04 16:19:00 -0400] c_t: but I could be misremembering
+[2012-10-04 16:19:51 -0400] Urocyon: 1.1.12 did it with platform, not platform_family.
+[2012-10-04 16:20:19 -0400] jtimberman: Urocyon: bluepill, daemontools, and zsh cookbooks use it
+[2012-10-04 16:20:44 -0400] Urocyon: I see it in build-essential and mysql as well.
+[2012-10-04 16:20:52 -0400] c_t: looking through my cookbooks, there's a lot of node[:platform] action, not platform_family yet
+[2012-10-04 16:21:14 -0400] c_t: iirc platform_family was only added sort of recently though
+[2012-10-04 16:22:07 -0400] Urocyon: in ohai 0.6.12
+[2012-10-04 16:22:32 -0400] jtimberman: "recently"
+[2012-10-04 16:22:54 -0400] jtimberman: since the omnibus installers were officially released, the version of ohai has been sufficient to support it.
+[2012-10-04 16:23:22 -0400] paulmooring: gmiranda23: If you don't pass a stop_command, this is specifically what should happen: https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/service/windows.rb#L78
+[2012-10-04 16:23:27 -0400] jtimberman: because not everyone updates ohai on their systems along with chef (unless they're using omnibus package), we haven't done a lot to update cookbooks to use platform_family
+[2012-10-04 16:24:01 -0400] gmiranda23: paulmooring: i'm not sending a particular stop command.  but i do see: "processing service[customservicename] stop"  "[customservicename] running:true"  "[customservicename] stopped"
+[2012-10-04 16:24:25 -0400] paulmooring: it calls to Win32::Service.status until it gets back STOPPED, so if the service has "optimized" to return stop while it's still cleaning up there's not much Chef can do
+[2012-10-04 16:24:46 -0400] paulmooring: note that this is like running `sc queryex $service_name`
+[2012-10-04 16:25:16 -0400] gmiranda23: could be.  i suppose to be sure i can run sc queryex right after to see what comes back.
+[2012-10-04 16:25:51 -0400] paulmooring: gmiranda23: that's probably the best way, if it spits back stopped immediately it's probably the service that's busted rather than Chef
+[2012-10-04 16:26:38 -0400] gmiranda23: paulmooring: yup yup.  thanks for the tip!
+[2012-10-04 16:29:57 -0400] fauncybillups: I'd like to use chef in conjunction with EC2 autoscaling.. ideally I'd like to have an base AMI with chef (and my ccookbooks) installed that will determine what type of node it is upon boot and use chef solo to run the appropriate cookbooks.. is there a recommended way to make chef aware of what type of node it is?
+[2012-10-04 16:31:33 -0400] gmiranda23: paulmooring: investigation into the environment reveals that this service is a liar and it's well known here that said service is busted. :-)
+[2012-10-04 16:32:30 -0400] paulmooring: well good to know although I assume that's not the ideal outcome for you.
+[2012-10-04 16:32:59 -0400] Urocyon: performing my first test-kitchen run.
+[2012-10-04 16:34:30 -0400] Urocyon: my buzz is just a little harshed as I wait for the vagrant boxes to download.
+[2012-10-04 16:34:53 -0400] paulmooring: Urocyon: The first run takes a while
+[2012-10-04 16:35:21 -0400] Urocyon: time to go listen to food fight or something.
+[2012-10-04 16:35:22 -0400] gmiranda23: paulmooring: yeah, but at least i know how to deal with that :-)
+[2012-10-04 16:36:19 -0400] Urocyon: fauncybillups: are you using cloud formation?
+[2012-10-04 16:36:49 -0400] fauncybillups: Urocyon: no, ideally we could do this in a way that is provider agnostic
+[2012-10-04 16:37:52 -0400] dwhsix: fauncybillups: fwiw we do exactly that, w/ cloudformation
+[2012-10-04 16:37:56 -0400] fauncybillups: Urocyon: we have a EC2/data center hybrid at the moment.. it'd be ideal if we had one way of managing deployment (totally reasonable if we have to write our own code to solve this)
+[2012-10-04 16:38:24 -0400] dwhsix: not fully provider-agnostic, but the incremental effort of cloudformation isn't bad (creating a template)
+[2012-10-04 16:38:49 -0400] dwhsix: mixing non-cloudformation-managed resources and cf-managed resources has been a little bit of a pain, though...
+[2012-10-04 16:38:50 -0400] Urocyon: fauncybillups: i expect node role assignment will need to be a part of whatever provisioner you end up using.
+[2012-10-04 16:39:19 -0400] dwhsix: what he said we specify the node role in userdata supplied to the instance at boot
+[2012-10-04 16:39:24 -0400] dwhsix: node role(s)
+[2012-10-04 16:39:33 -0400] Urocyon: fauncybillups, are you working with a particular distribution?
+[2012-10-04 16:39:42 -0400] fauncybillups: Urocyon: centos
+[2012-10-04 16:40:39 -0400] Urocyon: In my private cloud/data center I'm currently provisioning rhel systems with cobbler.
+[2012-10-04 16:41:39 -0400] fauncybillups: interesting.. I know one of our ops guys has been pushing for kickstart.. is cobbler an alternative/competitor to kickstart?
+[2012-10-04 16:41:41 -0400] Urocyon: If I were using chef-solo I might add the chef-solo run into my kickstart templates.
+[2012-10-04 16:41:53 -0400] Urocyon: Not sure how to match that up with ec2 though.
+[2012-10-04 16:42:27 -0400] fauncybillups: I was thinking we could use kickstart (or maybe cobbler) for low level things like pxe booting, etc.. then use chef to manage os/system level bootstrapping, and then use rpms for our app code
+[2012-10-04 16:42:52 -0400] Urocyon: fauncybillups: cobbler is a provisioning tool.  It integrates with dhcp for net boots and such.   It can also generate appropriate kickstarts from templates.
+[2012-10-04 16:43:14 -0400] fauncybillups: interesting..
+[2012-10-04 16:43:16 -0400] Urocyon: fauncybillups: again, I don't know how to match it up with ec2, but you might not have to.
+[2012-10-04 16:43:33 -0400] fauncybillups: ..thanks for the help guys, I'll do a bit of digging on cloud formation
+[2012-10-04 16:44:28 -0400] Urocyon: fauncybillups: I might use kickstart to generate appropriate ami, then have those ec2 systems check some other system for what role it should have when it boots.
+[2012-10-04 16:44:47 -0400] Urocyon: fauncybillups: yeah, cloud formation is probably the best approach here.
+[2012-10-04 16:46:00 -0400] Urocyon: fauncybillups: as openstack matures, we may end up with some better options that wouldn't tie you as closely to ec2.
+[2012-10-04 16:47:58 -0400] Urocyon: And. test kitchen failed!  Yay!
+[2012-10-04 16:55:16 -0400] spox: ls
+[2012-10-04 16:57:56 -0400] Urocyon: so, having run kitchen test, there is a virtual box still running.  Normally this is something I would kill off with vagrant destroy, or maybe make some changes and then reprovision with vagrant provision   Is there a test-kitchen command equivalent, or do I just cd up to the .kitchen directory and destroy it there?
+[2012-10-04 16:58:14 -0400] spox: Urocyon: --teardown
+[2012-10-04 16:59:33 -0400] Urocyon: I suppose kitchen help would have been a good thing to try.
+[2012-10-04 16:59:56 -0400] spox: Urocyon: it's okay, i asked the same thing when i found the vm hanging around :)
+[2012-10-04 17:01:45 -0400] jtimberman: kitchen destroy :)
+[2012-10-04 17:01:53 -0400] jtimberman: will destroy all the vms
+[2012-10-04 17:02:11 -0400] jtimberman: it is non-obvious how to interact with the vagrant boxes though.
+[2012-10-04 17:02:58 -0400] leifmadsen: kitchen ssh?
+[2012-10-04 17:04:25 -0400] leifmadsen: jtimberman: have you run into an error with spec tests when doing a mode test and the mode on the file doesn't match that deployed by the cookbook?
+[2012-10-04 17:04:33 -0400] leifmadsen: (yes it's true, I might be fishing)
+[2012-10-04 17:05:11 -0400] jtimberman: leifmadsen: not all the vagrant commands are mapped to kitchen, and i don't know whether that is really expected or necessary, as we might feasibly implement other runners besides vagrant.
+[2012-10-04 17:05:25 -0400] jtimberman: leifmadsen: i generally don't test the mode of resulting files
+[2012-10-04 17:05:42 -0400] jtimberman: leifmadsen: i trust that chef will do the thing i told it to in the recipe, and make the permissions as I set them.
+[2012-10-04 17:06:04 -0400] jtimberman: the more valuable test to me is checking whether a particular binary i want is executable.
+[2012-10-04 17:06:08 -0400] leifmadsen: gotcha -- I suppose I test them to make sure what I was expecting wasn't modified at some point :)
+[2012-10-04 17:06:39 -0400] jtimberman: https://github.com/opscode-cookbooks/zsh/blob/master/files/default/tests/minitest/default_test.rb#L41-43
+[2012-10-04 17:06:53 -0400] leifmadsen: or I suppose to make sure when running other cookbooks in conjunction that one doesn't modify the values another cookbook might expect
+[2012-10-04 17:07:00 -0400] leifmadsen: I find that to be a useful test
+[2012-10-04 17:07:00 -0400] jtimberman: https://github.com/opscode-cookbooks/zsh/blob/master/files/default/tests/minitest/support/helpers.rb#L9-18
+[2012-10-04 17:07:36 -0400] jtimberman: also, i'm pretty sure i want to put minitest stuff in the test/kitchen/cookbooks/thing_im_testing_test cookbook rather than in the cookboko itself.
+[2012-10-04 17:07:46 -0400] jtimberman: like fujin did with bluepill
+[2012-10-04 17:08:30 -0400] leifmadsen: hmmm, I think I prefer them being in the cookbook themselves since they are already run based on the recipe in the cookbook being run
+[2012-10-04 17:08:43 -0400] leifmadsen: I guess I like a tight package :D
+[2012-10-04 17:12:00 -0400] Pushnell: anyone know a good node attribute to check (from a recipe) to determine whether or not this server is deployed into ec2?
+[2012-10-04 17:13:59 -0400] jtimberman: Pushnell: node['ec2'] will exist only on ec2.
+[2012-10-04 17:14:10 -0400] jtimberman: (unless someone set that for some strange reason on the node)
+[2012-10-04 17:15:33 -0400] ptrstr: jtimberman: it _may_ exist on ec2 ;)
+[2012-10-04 17:15:43 -0400] ptrstr: unless you use ohai hints
+[2012-10-04 17:17:52 -0400] Pushnell: jtimberman: thanks
+[2012-10-04 17:24:57 -0400] dwhsix: jtimberman: reach way back, in yuor ruby cookbook what form is the version for node[:languages][:ruby][:default_version] ?
+[2012-10-04 17:25:11 -0400] dwhsix: "1.9.1"?
+[2012-10-04 17:25:15 -0400] dwhsix: "1.9.3p0"?
+[2012-10-04 17:26:59 -0400] dwhsix: guessing "1.9.1" and will try that
+[2012-10-04 17:45:25 -0400] monvillalon: how can i check if a template exists on the server.  I want to use a template if it exists and if not use a fallback.
+[2012-10-04 17:48:20 -0400] JasonF: monvillalon: maybe run the template resource in a begin rescue end block
+[2012-10-04 17:48:38 -0400] JasonF: monvillalon: and rescue whatever exception chef throws for template not found, and in the rescue block instead us the fallback?
+[2012-10-04 17:48:54 -0400] monvillalon: JasonF: begin rescue is ruby or chef specific
+[2012-10-04 17:49:08 -0400] monvillalon: monvillalon: JasonF?
+[2012-10-04 17:49:26 -0400] tknerr: ohai chefs!
+[2012-10-04 17:49:26 -0400] JasonF: it's a ruby construct.
+[2012-10-04 17:49:41 -0400] JasonF: all chef recipes are ruby
+[2012-10-04 17:51:35 -0400] monvillalon: JasonF: :) I know, I'm new to ruby, I recognize it now as a try/catch, thanks a lot for the idea I'm trying it out now
+[2012-10-04 17:52:08 -0400] JasonF: I think in ruby, you don't even need the begin? Just the rescue? I always put it there though.
+[2012-10-04 17:59:26 -0400] nvictor: hey all
+[2012-10-04 18:01:23 -0400] nvictor: is it possible chef-client revert a source tree to a previous state ?
+[2012-10-04 18:11:54 -0400] Urocyon: so. if I use platform_family, is there a good place to assert that we need ohai >= 0.6.12?
+[2012-10-04 18:12:34 -0400] Urocyon: or for that matter is there a way to say in a cookbook that you need a certain version of ruby or of chef?
+[2012-10-04 18:15:56 -0400] gregp76: Ohai
+[2012-10-04 18:16:41 -0400] gregp76: If anyone is using nagios cookbook (which is extremely awesome) - how do you deal with one off nodes that don't run chef (loadbalancers, firewalls etc.)?
+[2012-10-04 18:24:23 -0400] gregp76: monitoringsuck
+[2012-10-04 18:24:28 -0400] gregp76: oops
+[2012-10-04 18:24:30 -0400] gregp76: :)
+[2012-10-04 18:26:31 -0400] markp_: anyone ever try serializing a chef object in a databag?  is it possible?
+[2012-10-04 18:27:01 -0400] Twirrim: gregp76: I've been using check_mk and some custom recipes to handle the monitoring of non-chef devices.  It's had to be hard coded into the main.mk file for those machines
+[2012-10-04 18:28:20 -0400] gregp76: Twirrim: i'll check the check_mk - looks interesting
+[2012-10-04 18:28:21 -0400] gchristensen: is there a way to get an export of all the attributes on a server?
+[2012-10-04 18:29:03 -0400] gregp76: i plan to add another data bag to have the one off nodes there
+[2012-10-04 18:29:22 -0400] gregp76: and process it same way as the host groups and services
+[2012-10-04 18:29:54 -0400] spox: gchristensen: do you mean all the attributes saved for a given node?
+[2012-10-04 18:30:12 -0400] gchristensen: yeah
+[2012-10-04 18:30:24 -0400] spox: knife node show name.of.node -F json
+[2012-10-04 18:30:37 -0400] gchristensen: thank you
+[2012-10-04 18:30:40 -0400] spox: sure
+[2012-10-04 18:32:03 -0400] markp_: is it possible to serialize a chef object in a databag?
+[2012-10-04 18:39:30 -0400] ohlol: so. anyone know why chef is unable to resolve the "ipaddress" attribute? https://gist.github.com/a723ec05f4a38f098d58
+[2012-10-04 18:39:40 -0400] ohlol: works in ohai
+[2012-10-04 18:40:51 -0400] cheeseplus: ohlol: node['ipaddress']
+[2012-10-04 18:41:04 -0400] ohlol: hm
+[2012-10-04 18:41:14 -0400] ohlol: this is straight from the recipe
+[2012-10-04 18:41:16 -0400] ohlol: did that change?
+[2012-10-04 18:42:27 -0400] cheeseplus: ohlol: not familiar with the cookbook but it looks like "ipaddress" is being used as just a regular ol Ruby variable
+[2012-10-04 18:42:34 -0400] cheeseplus: from that gist
+[2012-10-04 18:42:41 -0400] ohlol: yeah
+[2012-10-04 18:44:06 -0400] cheeseplus: so either it has to be cast from something (whether it be a static value or node['ipaddress']) or it's just not going to work
+[2012-10-04 18:45:05 -0400] ohlol: https://github.com/opscode-cookbooks/djbdns/blob/master/attributes/default.rb
+[2012-10-04 18:45:56 -0400] ohlol: if jtimberman authored it i assume it should work as written?
+[2012-10-04 18:46:00 -0400] ohlol: (and it does, but not always)
+[2012-10-04 18:46:57 -0400] ohlol: fwiw i did try node["ipaddress"] and got the same result
+[2012-10-04 18:49:34 -0400] cheeseplus: ohlol: did you try with single quotes?
+[2012-10-04 18:50:31 -0400] ohlol: double allows interpolation
+[2012-10-04 18:50:35 -0400] ohlol: single doens't
+[2012-10-04 18:50:39 -0400] ohlol: it shouldn't matter otherwise
+[2012-10-04 18:51:06 -0400] erikh: ^
+[2012-10-04 18:52:06 -0400] spox: node.ipaddress
+[2012-10-04 18:52:11 -0400] spox: might as well go for the trifecta
+[2012-10-04 18:52:24 -0400] erikh: ...
+[2012-10-04 18:54:11 -0400] ohlol: this feels like a bug to me
+[2012-10-04 18:55:00 -0400] cheeseplus: ohlol: I'm not seeing how it currently functions with that line in there
+[2012-10-04 18:56:42 -0400] erikh: locals in attributes are resolved to ohai data
+[2012-10-04 18:56:57 -0400] erikh: was on the phone, sorry
+[2012-10-04 18:57:06 -0400] erikh: ohai is reporting the ip address on the target machine?
+[2012-10-04 18:57:10 -0400] ohlol: :)
+[2012-10-04 18:57:11 -0400] ohlol: ya
+[2012-10-04 18:57:18 -0400] erikh: ok, yeah, that's weird.
+[2012-10-04 18:57:20 -0400] miah: i'm personally a fan of method chaining attributes than using all sorts of crazy [ '
+[2012-10-04 18:57:28 -0400] ohlol: https://gist.github.com/3e79633f9f625d39f286
+[2012-10-04 18:57:37 -0400] ohlol: running 10.14.4 too
+[2012-10-04 18:57:52 -0400] miah: and always use ' rather than " unless you're doing string interpolation
+[2012-10-04 18:58:00 -0400] ohlol: miah: sure
+[2012-10-04 18:58:15 -0400] erikh: ohlol: what error are you getting that indicates ipaddress isn't being resolved?
+[2012-10-04 18:58:27 -0400] ohlol: https://gist.github.com/a723ec05f4a38f098d58
+[2012-10-04 18:58:35 -0400] erikh: (just trying to vet everything, pardon the pedantry)
+[2012-10-04 18:58:37 -0400] ohlol: also happened with domain
+[2012-10-04 18:59:55 -0400] ohlol: hm
+[2012-10-04 19:00:14 -0400] ohlol: just ran manually and it didn't happen
+[2012-10-04 19:00:33 -0400] erikh: hmmmm
+[2012-10-04 19:00:44 -0400] erikh: what environment did you run it in before? knife bootstrap? knife ssh?
+[2012-10-04 19:01:06 -0400] ohlol: the log output is from chef-client daemon managed via runit
+[2012-10-04 19:01:11 -0400] miah: node.default.djbdns.public_dnscache_allowed_networks = node.ipaddress.split('.')[0,2].join('.')
+[2012-10-04 19:01:15 -0400] miah: is how i would set your attribute
+[2012-10-04 19:01:20 -0400] erikh: it shouldn't matter here
+[2012-10-04 19:01:22 -0400] ohlol: manual run was just "chef-client" in shell
+[2012-10-04 19:01:26 -0400] erikh: yeah
+[2012-10-04 19:01:44 -0400] miah: i'm not sure why your wrapping it in []'s on line 33 in your gist
+[2012-10-04 19:02:04 -0400] ohlol: that's from the cookbook that was installed
+[2012-10-04 19:02:07 -0400] erikh: again, this really isn't the problem
+[2012-10-04 19:02:19 -0400] ohlol: cf https://github.com/opscode-cookbooks/djbdns/commit/a8c70c0513ed0fb78bb3e5bf43172b8dda26c53f
+[2012-10-04 19:02:20 -0400] ohlol: yeah
+[2012-10-04 19:02:41 -0400] erikh: hmmmmmm
+[2012-10-04 19:02:50 -0400] erikh: do you have another machine that's still broken?
+[2012-10-04 19:03:05 -0400] erikh: if so, knife node edit <nodename> -a for me and see if the ohai data is filled out?
+[2012-10-04 19:03:07 -0400] ohlol: probably, this is the second host i've noticed it on
+[2012-10-04 19:03:13 -0400] ohlol: k lemme see
+[2012-10-04 19:03:38 -0400] erikh: I've had this happen in the past, but I don't honestly remember what caused it.
+[2012-10-04 19:05:03 -0400] ohlol: ok so this host with the log i gisted had another unsuccessful run at 19:01 utc, i ran manually at 18:59
+[2012-10-04 19:05:07 -0400] ohlol: so i think i can use it, sec
+[2012-10-04 19:05:13 -0400] erikh: ok
+[2012-10-04 19:05:38 -0400] pbollenbeck: Hi all - I'm struggling with using ruby 1.9.3 (installed with ruby_installer cookbook) for my application_ruby recipe on a vagrant. application sets the path to opt/vagrant_ruby - anyone knows how to change this?
+[2012-10-04 19:07:18 -0400] ohlol: erikh: https://gist.github.com/862f80aa2608ea42e96f with context
+[2012-10-04 19:07:49 -0400] ohlol: i just did knife node show -l -Fj tho, should be the same?
+[2012-10-04 19:08:18 -0400] erikh: yeah, shouldn't be any different.
+[2012-10-04 19:09:00 -0400] erikh: hm. well, I'm officially stumped, sorry.
+[2012-10-04 19:09:06 -0400] ohlol: heh
+[2012-10-04 19:09:10 -0400] ohlol: bug?
+[2012-10-04 19:09:24 -0400] erikh: probably, but figuring out how to reporting it will probably be harder than the fix :)
+[2012-10-04 19:09:25 -0400] miah: https://gist.github.com/3835725
+[2012-10-04 19:09:26 -0400] miah: =)
+[2012-10-04 19:09:29 -0400] ohlol: since it seems to work from command line, it smells of an environment issue to me
+[2012-10-04 19:09:45 -0400] erikh: default is a part of the DSL in attributes files
+[2012-10-04 19:09:59 -0400] erikh: I literally never use 'node.default' and can't recall having this problem.
+[2012-10-04 19:10:10 -0400] miah: ya
+[2012-10-04 19:10:12 -0400] erikh: ohlol: yeah, but what is the big thing
+[2012-10-04 19:10:31 -0400] erikh: as I'm sure you know it could be anything from your ruby configuration to proper tty support
+[2012-10-04 19:10:37 -0400] ohlol: yeah
+[2012-10-04 19:10:58 -0400] miah: dsl's drive me crazy
+[2012-10-04 19:11:27 -0400] erikh: default and set_unless are really handy if you use them right.
+[2012-10-04 19:11:30 -0400] erikh: anyhow, need to bail for a bit.
+[2012-10-04 19:11:35 -0400] erikh: best of luck.
+[2012-10-04 19:11:36 -0400] ohlol: thx for the help erikh
+[2012-10-04 19:13:42 -0400] miah: oh this commit is from 2 years ago
+[2012-10-04 19:18:01 -0400] upgrayedd^: im having problems with a source install using my old (working) instructions
+[2012-10-04 19:18:18 -0400] upgrayedd^: sorry- scratch install, not everything is from source
+[2012-10-04 19:18:23 -0400] miah: what i find most strange about referencing 'domain' or 'ipaddress' singularly is that it doesn't know what youre referencing. the attributes file doesn't define 'ipaddress' or 'domain
+[2012-10-04 19:18:34 -0400] erikh: sure it does
+[2012-10-04 19:18:34 -0400] miah: so node['foo'] (or node.foo) fixes it..
+[2012-10-04 19:18:36 -0400] miah: https://gist.github.com/3835792
+[2012-10-04 19:18:39 -0400] erikh: it defines a call called method_missing
+[2012-10-04 19:18:43 -0400] miah: ah
+[2012-10-04 19:18:53 -0400] upgrayedd^: eventmachine-0.12.10 fails to build native extensions when doing gem install chef-server
+[2012-10-04 19:18:59 -0400] miah: i need to look at the attributes code still
+[2012-10-04 19:18:59 -0400] erikh: anyhow, really gotta bail. not enough red bull to get this horse's legs moving today it seems.
+[2012-10-04 19:19:04 -0400] miah: lols ok
+[2012-10-04 19:19:24 -0400] miah: i generally make sure things work in shef and then they work in chef =)
+[2012-10-04 19:19:52 -0400] tknerr: has anyone ever encountered "ArgumentError: Attribute to_ary is not defined!" when working with node objects?
+[2012-10-04 19:20:15 -0400] miah: ah ya. i see method_missing now. i dont think i've read this code in a while.
+[2012-10-04 19:20:30 -0400] miah: tknerr: to_a
+[2012-10-04 19:20:57 -0400] miah: i think to_ary is somebody taking some creative liberties
+[2012-10-04 19:21:10 -0400] tknerr: miah: interesting
+[2012-10-04 19:21:28 -0400] tknerr: miah: might this be a bug in Chef 10.12.0?
+[2012-10-04 19:21:36 -0400] miah: where are you seeing this?
+[2012-10-04 19:21:50 -0400] tknerr: I'm doing a search like this:
+[2012-10-04 19:21:52 -0400] tknerr: nodes = search(:node, "hostname:[* TO *] AND chef_environment:#{node.chef_environment}")
+[2012-10-04 19:21:58 -0400] tknerr: then it happens on
+[2012-10-04 19:22:02 -0400] tknerr: puts nodes
+[2012-10-04 19:22:07 -0400] tknerr: nodes.flatten!
+[2012-10-04 19:22:16 -0400] tknerr: puts nodes[0]
+[2012-10-04 19:22:18 -0400] tknerr: etc...
+[2012-10-04 19:23:00 -0400] tknerr: I suspect there might be something weird stored inside the node object, but I have no clue how I should go forward debugging it...
+[2012-10-04 19:23:11 -0400] miah: use shef
+[2012-10-04 19:24:50 -0400] yfeldblum: tknerr, ruby internally calls to_ary in certain places (you typically shouldn't need to use to_ary yourself) such as the cases you listed
+[2012-10-04 19:24:52 -0400] tknerr: miah: good idea. haven't used it so far but will try it now
+[2012-10-04 19:25:08 -0400] tknerr: yfeldblum: yeah, I didn't call it myself
+[2012-10-04 19:25:31 -0400] yfeldblum: tknerr, you can't really puts a node and you can't deeply-flatten nodes, but you can puts `node.to_hash` if you like and you can use `nodes.flatten!(1)` if you like
+[2012-10-04 19:25:38 -0400] tknerr: yfeldblum: but it crashes when it gets called during nodes.flatten! for exampel
+[2012-10-04 19:26:08 -0400] tknerr: yfeldblum: oh, thanks, didn't know that
+[2012-10-04 19:26:21 -0400] yfeldblum: tknerr, also i can't imagine why you would need to flatten an array where you know exactly that every element in the array will be a Chef::Node instance and not a subarray ...
+[2012-10-04 19:27:01 -0400] tknerr: yfeldblum: is that something that might changed between 0.10.0 and 10.12.0?
+[2012-10-04 19:27:39 -0400] yfeldblum: tknerr, what is it you think might have changed?
+[2012-10-04 19:27:51 -0400] tknerr: yfeldblum: good point. I'm struggling with a recipe a colleague has written and just try to get it converge. It seems that I'm using a newer Chef version than he did
+[2012-10-04 19:28:38 -0400] tknerr: yfeldblum: the fact that you can not call node.flatten! specifically
+[2012-10-04 19:28:39 -0400] yfeldblum: tknerr, well, a solid starting point would be that the ruby code is correct and uses the ruby stdlib in the expected way :D
+[2012-10-04 19:33:55 -0400] tknerr: yfeldblum: hehe, yes :-) I have no clue what this node.flatten! should be good for in this place. My assumption was that it must have worked previously, but maybe this piece of code was broken from the beginning...
+[2012-10-04 19:35:04 -0400] yfeldblum: tknerr, if the code is flattening an array which is already known to be flat (because #search without a block returns a possibly-empty array) then the code is probably broken ...
+[2012-10-04 19:35:40 -0400] yfeldblum: tknerr, similarly, if the code is converting strings into strings and multiplying numbers by two only to divide them again by two
+[2012-10-04 19:40:29 -0400] tknerr: yfeldblum, miah: thanks for your suggestions
+[2012-10-04 19:41:11 -0400] tknerr: yfeldblum: not calling nodes.flatten! and nodes.to_s finally solved the issue
+[2012-10-04 19:41:57 -0400] tknerr: yfeldblum: no clue why this code was in there, not sure if it ever worked...
+[2012-10-04 19:44:11 -0400] tknerr: yfeldblum: but also good to know that you can use `node.to_hash`, didn't know about that
+[2012-10-04 20:03:12 -0400] jtoy: can someone point me to a good comparison of chef solos vs chef server?
+[2012-10-04 20:05:24 -0400] miah: chef-solo = no search, or environments
+[2012-10-04 20:07:19 -0400] sunil__: question about the python cookbook..if I want to install separate virtualenvs for few different  apps, do I make a separate cookbook for my apps, in which it calls virtualenv to be created? or I must define my virtualenv requirements as part of the python cookbook?
+[2012-10-04 20:13:01 -0400] mattray: jtoy: chef-solo is typically for a single-box installation, fire and forget
+[2012-10-04 20:13:08 -0400] mattray: we use it to install the chef-server
+[2012-10-04 20:21:57 -0400] jtoy: mattray: if its just missing search, that doesn't seem to mean for a single box installation
+[2012-10-04 20:23:26 -0400] mattray: jtoy: well there's no lookup of other machines, so if you push the configuration to individual boxes to set up services before you launch them, that works, but scales poorly
+[2012-10-04 20:23:49 -0400] jtoy: mattray: i don't really know, I'm just learning chef now and trying to figure out what to start with, I'm reading through all the docs now
+[2012-10-04 20:24:17 -0400] jtoy: mattray: so I should start with server if I am using it to manage a small cluster?
+[2012-10-04 20:24:30 -0400] mattray: jtoy: start with a free account on Hosted Chef
+[2012-10-04 20:24:36 -0400] cheeseplus: ^^
+[2012-10-04 20:24:47 -0400] mattray: then you get a server and don't have to monkey with setting it up
+[2012-10-04 20:25:04 -0400] mattray: learn Chef, then decide if you want to run a server or not
+[2012-10-04 20:25:18 -0400] yfeldblum: jtoy, with chef-solo, you input all the data as a JSON file and run it; you can later change the data making a new JSON file and rerun it; and then chef will look at the data and look at the recipes and configure the system
+[2012-10-04 20:26:23 -0400] yfeldblum: jtoy, with chef-client, the data is in a central database which the recipes running on each server can actually fetch records from or search in, so you can have a single central configuration database instead of having multiple JSON files one for each server
+[2012-10-04 20:27:14 -0400] jtoy: yfeldblum: storing the data in json seems fine as i can put those files into git, that doesn't seem like a big deal
+[2012-10-04 20:33:30 -0400] jtoy: yfeldblum: its data as in recipes that rarely change for configuring a server? correct?
+[2012-10-04 20:33:46 -0400] jtoy: that seems like the perfect thing to put into git
+[2012-10-04 20:33:53 -0400] jtoy: its not actual data like application data
+[2012-10-04 20:34:05 -0400] yfeldblum: jtoy, part of the goal with chef-solo is actually to minimize the amount of data you actually need to specify in the JSON file by means of writing the right cookbooks that either have the right defaults or compute the right derived values so you don't have to specify everything in the JSON file
+[2012-10-04 20:34:13 -0400] yfeldblum: jtoy server configuration data
+[2012-10-04 20:34:30 -0400] yfeldblum: jtoy such as "the database server's IP address is abc.def.ghi.jkl"
+[2012-10-04 20:34:49 -0400] jtoy: yfeldblum:  perfect, i don't want to save things like that in json, the less the better
+[2012-10-04 20:35:21 -0400] Drewzar: Don't you also lose ohai data with chef-solo?
+[2012-10-04 20:35:39 -0400] hoover_damm: no
+[2012-10-04 20:35:49 -0400] upgrayedd^: has this eventmachine dependency problem really existed for like 2 years?
+[2012-10-04 20:35:50 -0400] hoover_damm: Drewzar, chef-solo or client both use ohai
+[2012-10-04 20:35:59 -0400] upgrayedd^: why didn't i run into it last time i gem installed chef-server?
+[2012-10-04 20:36:41 -0400] yfeldblum: jtoy well somehow you need to get that IP address into chef-solo, and the simple way is by sticking it in the JSON file, but my point is maybe you need to specify the IP address, but if the database server is listening on the default port, maybe you don't need to specify the port too because your recipe also knows what the default port is and just uses the default port if a port isn't specified in the JSON data
+[2012-10-04 20:37:44 -0400] yfeldblum: upgrayedd^, does eventmachine have docs on the packages you need to have installed before building eventmachine?
+[2012-10-04 20:40:38 -0400] upgrayedd^: it's not a package dep problem, the native extensions in eventmachine throw build errors relating to the use of the compile flag -Werror=format-security
+[2012-10-04 20:41:03 -0400] upgrayedd^: i have the fix https://github.com/eventmachine/eventmachine/commit/9473a1b181ed1997e3156d960b2bb2783f508191
+[2012-10-04 20:41:06 -0400] hoover_damm: thin is likely pullin gin a new version of eventmachine
+[2012-10-04 20:41:10 -0400] upgrayedd^: i don't know how to translate that into a working gem install chef-server though
+[2012-10-04 20:41:14 -0400] hoover_damm: pulling in*
+[2012-10-04 20:42:15 -0400] hoover_damm: upgrayedd^, you can build the gem yourself, the author can release a new version... but once you install eventmachine the dependency should be fine
+[2012-10-04 20:43:09 -0400] upgrayedd^: hoover: i've been trying- right now i'm stuck
+[2012-10-04 20:43:21 -0400] upgrayedd^: i 'gem build eventmachine.gemspec'
+[2012-10-04 20:43:23 -0400] upgrayedd^: and it says success
+[2012-10-04 20:44:21 -0400] upgrayedd^: then i gem install the .gem and it gives me the native extensions errors
+[2012-10-04 20:45:16 -0400] upgrayedd^: oh .. i see, it builds the native extensions after the gem gets unpacked.  so i have to figure out how to get the modifications into the gem i guess
+[2012-10-04 20:52:07 -0400] dopacki: hi. is there an automatic attribute that would allow me to reference the chef server IP from inside a recipe?
+[2012-10-04 21:06:01 -0400] jtimberman: dopacki: Chef::Config[:chef_server_url] will return the full URL of the configured Chef server.
+[2012-10-04 21:07:44 -0400] dopacki: nice! thanks!
+[2012-10-04 21:11:33 -0400] tknerr: hmmm - how can I upload data bags to a Chef Server?
+[2012-10-04 21:12:07 -0400] mattray: tknerr: knife data bag create yourbag
+[2012-10-04 21:12:07 -0400] tknerr: I'm struggling with the `knife data bag from file` syntax...
+[2012-10-04 21:12:22 -0400] mattray: tknerr: knife data bag from file yourbag item.json
+[2012-10-04 21:12:39 -0400] tknerr: @mattray: ah, I remember, need to create the databag first
+[2012-10-04 21:13:01 -0400] tknerr: @mattray: is there a bulk create for all databags?
+[2012-10-04 21:13:47 -0400] JasonF: tknerr: for i in databagname1 databagname2; do knife data bag create $i; done ?
+[2012-10-04 21:14:34 -0400] mattray: tknerr: you create the data bag, then you add the items
+[2012-10-04 21:14:38 -0400] tknerr: JasonF: thanks, that works. `knife databag create -a` does not
+[2012-10-04 21:14:58 -0400] JasonF: tknerr: s/databag/data bag/
+[2012-10-04 21:15:04 -0400] JasonF: tknerr: That's what always gets me...
+[2012-10-04 21:15:04 -0400] tknerr: @mattray: thanks, works now!
+[2012-10-04 21:15:25 -0400] tknerr: JasonF: hehe, just hit it 5 minutes before you :-)
+[2012-10-04 21:20:15 -0400] xmltok: whats the right way to run update-rc.d <service> disable with chef, use service "<service"> do action [:disable] ?
+[2012-10-04 21:25:14 -0400] cheeseplus: xmltok: service("svcname") { action [:stop,:disable] }
+[2012-10-04 21:25:22 -0400] ohlol: is node.chef_environment not available in attributes ?
+[2012-10-04 21:25:26 -0400] cheeseplus: assuming you want to stop it if it's running
+[2012-10-04 21:26:09 -0400] xmltok: its actually 'ondemand' and i dont want it to run at all, the thing messes up the cpu speeds
+[2012-10-04 21:28:02 -0400] xmltok: ill probably ahve to iterate over the cpu0-N files in /sys/devices/system/cpu/ and fix the setting
+[2012-10-04 21:32:54 -0400] skopii_: Hello, I am trying to create a ruby block that creates a LWRP but I am doing something wrong (see: http://dpaste.org/OGkBw/)
+[2012-10-04 21:33:30 -0400] skopii_: the LWRP only suports a single action, :run
+[2012-10-04 21:34:05 -0400] freezey: on the chef-webui and server.log i am seeing Mixlib::Authentication::MissingAuthenticationHeader: missing required authentication header
+[2012-10-04 21:35:41 -0400] skopii_: should I just add a nothing action to the RbenvScript resource?
+[2012-10-04 21:42:22 -0400] xmltok: is there a way to echo into a /sys file or should i just shell out?
+[2012-10-04 21:44:30 -0400] cheeseplus: xmltok: if it's sysctl stuff you can use conf files
+[2012-10-04 21:44:46 -0400] cheeseplus: and a template
+[2012-10-04 21:45:17 -0400] cheeseplus: as an alternative option, not as a necessarily better one
+[2012-10-04 21:45:47 -0400] ohlol: miah https://gist.github.com/e97723ff1f0177cc0be0 check that out :-\ it's something deeper unfortunately
+[2012-10-04 21:49:33 -0400] xmltok: i will try the template
+[2012-10-04 21:50:16 -0400] cheeseplus: xmltok: there is https://github.com/gensen/chef-sysctl
+[2012-10-04 21:54:11 -0400] Rohan_: hey guys.....I'm running into an issue with the chef ark cookbook
+[2012-10-04 21:54:22 -0400] Rohan_: here's what my recipe looks like...
+[2012-10-04 21:54:22 -0400] aslan: so if i have chef server 10.14.2 what should i do to get 10.14.4?
+[2012-10-04 21:54:31 -0400] Rohan_: ark "java" do
+[2012-10-04 21:54:41 -0400] Rohan_: url "something"
+[2012-10-04 21:54:51 -0400] Rohan_: version "1.6.0_35"         path "/ask/home/builder/software"         checksum "45556fee70e6038de2977079ff7f6e85275ab7288563b5fd33086ce346ca64e3"         owner "builder"         action :put end
+[2012-10-04 21:55:13 -0400] Rohan_: and the error says
+[2012-10-04 21:55:17 -0400] Rohan_: TypeError --------- can't convert Fixnum into String
+[2012-10-04 21:55:36 -0400] c_t: !
+[2012-10-04 21:55:38 -0400] c_t: Gloria!
+[2012-10-04 21:55:45 -0400] Rohan_: Cookbook Trace: --------------- /var/chef/cache/cookbooks/ark/libraries/provider_ark.rb:170:in `action_set_owner' /var/chef/cache/cookbooks/ark/libraries/provider_ark.rb:137:in `action_put'
+[2012-10-04 21:55:49 -0400] Rohan_: any ideas?
+[2012-10-04 21:56:29 -0400] c_t: I have a neurologist appointment at UW!
+[2012-10-04 21:56:48 -0400] c_t: Rohan_: Is that with -l debug?
+[2012-10-04 21:57:11 -0400] Rohan_: lemme turn that on....
+[2012-10-04 21:57:36 -0400] c_t: that ought to shed some more light on the subject
+[2012-10-04 21:57:49 -0400] Rohan_: here's what i get with -l debug c_t
+[2012-10-04 21:57:51 -0400] Rohan_: [2012-10-04T14:57:31-07:00] FATAL: TypeError: ark[java] (jenkins::software line 5) had an error: TypeError: can't convert Fixnum into String
+[2012-10-04 21:58:12 -0400] Rohan_: the recipe works great on my scientific linux machines
+[2012-10-04 21:58:20 -0400] Rohan_: it's failing on one particular CentOS machine
+[2012-10-04 21:58:36 -0400] c_t: oh geez
+[2012-10-04 21:59:10 -0400] Rohan_: and line 5 in the recipe is where I start to define the ark cookbook
+[2012-10-04 21:59:59 -0400] Rohan_: it looks like this recipe fails when trying to change ownership of the package
+[2012-10-04 22:00:01 -0400] stormerider: does the builder user exist on that box?
+[2012-10-04 22:00:01 -0400] Rohan_:         action_set_owner new_resource.path
+[2012-10-04 22:00:10 -0400] Rohan_: it does stormerider
+[2012-10-04 22:00:37 -0400] c_t: can you tell what, exactly, it's trying to convert to a string?
+[2012-10-04 22:00:49 -0400] c_t: (throwing out the obvious there)
+[2012-10-04 22:03:21 -0400] Rohan_: c_t line 5 of the recipe says
+[2012-10-04 22:03:23 -0400] Rohan_: ark "java" do
+[2012-10-04 22:04:02 -0400] Rohan_: and all the other attributes in the recipe are already strings
+[2012-10-04 22:08:18 -0400] Rohan_: c_t -- ahh...so the error seems to be in /usr/local/lib/ruby/1.8/fileutils.rb:987
+[2012-10-04 22:08:37 -0400] Rohan_:     def fu_get_gid(group)   #:nodoc:       return nil unless group       if /\A\d+\z/ =~ group       then group.to_i       else Etc.getgrnam(group).gid       end     end
+[2012-10-04 22:08:49 -0400] Rohan_: in the 'if' block
+[2012-10-04 22:13:35 -0400] Rohan_: any ideas c_t?
+[2012-10-04 22:18:17 -0400] c_t: hmm
+[2012-10-04 22:18:33 -0400] c_t: out of curiousity, what version of ruby are your other servers running?
+[2012-10-04 22:20:52 -0400] Rohan_: c_t :)
+[2012-10-04 22:21:00 -0400] Rohan_: I was just in the process of upgrading ruby on this machine
+[2012-10-04 22:21:10 -0400] Rohan_: looks like all other servers are running ruby 1.9.1
+[2012-10-04 22:21:22 -0400] Rohan_: the problematic server is running ruby 1.8.7
+[2012-10-04 22:21:29 -0400] Rohan_: I'll have an update in a few
+[2012-10-04 22:21:59 -0400] Rohan_: crap...ruby 1.9.1 does not understand --with-openssl-dir
+[2012-10-04 22:22:06 -0400] Rohan_: configure: WARNING: unrecognized options: --with-openssl-dir
+[2012-10-04 22:22:55 -0400] erikh: ruby 1.9.1 was an experimental release
+[2012-10-04 22:23:29 -0400] Rohan_: yea...trying with the latest stable 1.9.3 now and still getting the same warning
+[2012-10-04 22:39:22 -0400] Rohan_: erikh -- FYI ruby-1.9.1 uses the --with-opt-dir option
+[2012-10-04 22:39:35 -0400] Rohan_: scratch that...ruby 1.9.3
+[2012-10-04 22:39:44 -0400] Rohan_: c_t -- upgrading the version of ruby resolved the issue
+[2012-10-04 22:39:48 -0400] Rohan_: thanks guys
+[2012-10-04 23:03:30 -0400] fujin: ohlol:
+[2012-10-04 23:03:37 -0400] fujin: ohlol: what platform are you seeing the ipaddress attribute missing?
+[2012-10-04 23:03:41 -0400] fujin: ohlol: does your system have an interface with a default route?
+[2012-10-04 23:04:04 -0400] fujin: ohlol: think there are two bugs there, unrelated.. tryign to repro the template chef_environment nil thing now.
+[2012-10-04 23:04:05 -0400] ohlol: fujin: lucid64 and yep have default route
+[2012-10-04 23:04:09 -0400] JasonF: fujin: does node.ipaddress always return the IP of the interface with the default route?
+[2012-10-04 23:04:16 -0400] ohlol: its not just ipaddress tho, same thing happened with node.domain yesterday
+[2012-10-04 23:04:24 -0400] JasonF: fujin: actually, if there's a good doc about exactly how node.ipaddress is calculated, that'd be awesome
+[2012-10-04 23:04:31 -0400] fujin: JasonF: use the code
+[2012-10-04 23:04:41 -0400] ohlol: isn't it an automatic attr resolved from ohai
+[2012-10-04 23:04:44 -0400] fujin: yes
+[2012-10-04 23:04:47 -0400] ohlol: ;P
+[2012-10-04 23:05:02 -0400] fujin: https://github.com/opscode/ohai/tree/master/lib/ohai/plugins/linux/network.rb
+[2012-10-04 23:05:05 -0400] flaccid: run ohai, it will show you all the stuff
+[2012-10-04 23:05:16 -0400] flaccid: node['domain'] won't be set if there is no domainname
+[2012-10-04 23:05:21 -0400] fujin: JasonF: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/network.rb#L256
+[2012-10-04 23:05:47 -0400] ohlol: flaccid there is, and it worked running chef-client manually
+[2012-10-04 23:05:56 -0400] JasonF: ty
+[2012-10-04 23:06:10 -0400] flaccid: check the code to see how its made
+[2012-10-04 23:06:11 -0400] fujin: JasonF: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/network.rb#L307 specifically is where the default route is resolved to ipaddress for linux
+[2012-10-04 23:06:13 -0400] jtimberman: node['ipaddress'] is the IPV4 of the interface that has the default route.
+[2012-10-04 23:06:26 -0400] jtimberman: if your system doesn't have a default route, it won't have node['ipaddress']
+[2012-10-04 23:06:32 -0400] ohlol: both ipaddress and domain are used from the opscode djbdns cookbook
+[2012-10-04 23:06:33 -0400] JasonF: Ah. I wish that behavior was configurable.
+[2012-10-04 23:06:35 -0400] fujin: ohlol: how were you running chef-client when it failed?
+[2012-10-04 23:06:39 -0400] jtimberman: ohlol: ohai
+[2012-10-04 23:06:44 -0400] JasonF: Oh well :). I know to avoid node.ipaddress now
+[2012-10-04 23:06:45 -0400] ohlol: fujin: # chef-client
+[2012-10-04 23:07:05 -0400] ohlol: err
+[2012-10-04 23:07:06 -0400] flaccid: if you change teh domain in a chef run, its not going to update it in that run (known bug)
+[2012-10-04 23:07:07 -0400] ohlol: sorry
+[2012-10-04 23:07:08 -0400] ohlol: from runit
+[2012-10-04 23:07:20 -0400] ohlol: flaccid, that's no tthe issue
+[2012-10-04 23:07:29 -0400] flaccid: good luck working it out then
+[2012-10-04 23:07:34 -0400] ohlol: flaccid: https://gist.github.com/a723ec05f4a38f098d58
+[2012-10-04 23:07:41 -0400] ohlol: same for domain
+[2012-10-04 23:08:02 -0400] fujin: lol -- the default route with the lowest metric *will* be the ipaddress unbounded connections are presented from. configure *that*.
+[2012-10-04 23:08:34 -0400] fujin: that's fucked.
+[2012-10-04 23:08:42 -0400] fujin: ohlol: what's output of 'ohai network' on that boxen
+[2012-10-04 23:08:57 -0400] jtimberman: ohlol: you can also use the actual IP if you know what it is ahead of time, in a role.
+[2012-10-04 23:09:17 -0400] ohlol: jtimberman: the exception occurs from your djbdns cookbook ;)
+[2012-10-04 23:09:21 -0400] jtimberman: ohlol: i know
+[2012-10-04 23:09:27 -0400] ohlol: ok :P
+[2012-10-04 23:09:29 -0400] flaccid: the hostname plugin only does the hostname,fqdn, not sure where node['domain'] comes from https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/hostname.rb
+[2012-10-04 23:09:41 -0400] miah: supsup
+[2012-10-04 23:09:47 -0400] flaccid: but `domainname` or `hostname --domain` should do the trick :)
+[2012-10-04 23:09:58 -0400] fujin: flaccid: the generic hostname plugin takes care of it
+[2012-10-04 23:10:03 -0400] jtimberman: ohlol: also, i htink one of my very own djbdns servers had this happen
+[2012-10-04 23:10:04 -0400] ohlol: pm'ed you fujin
+[2012-10-04 23:10:17 -0400] flaccid: fujin: where is the code for that?
+[2012-10-04 23:10:25 -0400] JasonF: ohlol: we had problems with node[:ipaddress] as well. So instead of using that, we use this: node[:network][:interfaces][:eth0][:addresses].select { |address, data| data["family"] == "inet" }[0][0] }
+[2012-10-04 23:10:40 -0400] Mithrandir: boo, no ipv6 support
+[2012-10-04 23:10:42 -0400] ohlol: hope you don't have nodes with bonded interfaces JasonF :P
+[2012-10-04 23:10:45 -0400] JasonF: ohlol: since we want the ipaddress off eth0 always
+[2012-10-04 23:10:50 -0400] fujin: flaccid: up a dir
+[2012-10-04 23:10:57 -0400] fujin: flaccid: plugins/hostname.rb
+[2012-10-04 23:11:03 -0400] fujin: ohlol: i think you are actually hitting a bug
+[2012-10-04 23:11:16 -0400] fujin: ohlol: it looks like it's figuring out the correct default interface, just failing miserably at pulling the ipaddress off it
+[2012-10-04 23:11:24 -0400] ohlol: ohai?
+[2012-10-04 23:11:29 -0400] fujin: ya
+[2012-10-04 23:11:32 -0400] ohlol: interesting
+[2012-10-04 23:12:00 -0400] joewilliams: network ifaces in ohai have been a longstanding battle
+[2012-10-04 23:12:08 -0400] flaccid: fujin: ah thanks, it chops it from the fqdn. i guess that is accurate
+[2012-10-04 23:12:29 -0400] fujin: ohlol: this block isn't firing: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/network.rb#L305
+[2012-10-04 23:12:41 -0400] fujin: ohlol: but you are getting these ones: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/network.rb#L320
+[2012-10-04 23:13:15 -0400] ohlol: wonder if it's b/c the interface is bonded
+[2012-10-04 23:13:16 -0400] fujin: hmm
+[2012-10-04 23:13:41 -0400] fujin: I know there was some trouble with bonding the last time this was refactored
+[2012-10-04 23:13:46 -0400] fujin: but I don't recall the specifics
+[2012-10-04 23:13:47 -0400] flaccid: fujin: i'll buy you a beer if you fix http://tickets.opscode.com/browse/OHAI-389 :)
+[2012-10-04 23:13:55 -0400] jtimberman: ohlol: sorry if i missed it, but did you post whether 'ohai ipaddress' has a value?
+[2012-10-04 23:14:07 -0400] jtimberman: also, curious
+[2012-10-04 23:14:09 -0400] fujin: jtimberman: he sent a private gist -- ohlol can you send to jtimberman ?
+[2012-10-04 23:14:19 -0400] ohlol: ya sec
+[2012-10-04 23:14:29 -0400] jtimberman: i just changed ipaddress to node['ipaddress'] on the system i saw the error on the ipaddress split in the attributes and it worked
+[2012-10-04 23:14:48 -0400] fujin: ohlol: fwiw, I'm using a br0 bond interface on my workstation and 'ohai network' doesn't work at all. lol
+[2012-10-04 23:14:55 -0400] ohlol: hah
+[2012-10-04 23:14:56 -0400] miah: https://gist.github.com/3837063
+[2012-10-04 23:15:00 -0400] miah: wow wtf is up with that?
+[2012-10-04 23:16:38 -0400] fujin: hmm, I have both 'ip' and 'ifconfig', but 'ohai network' no work.. maybe there are some bugs there re: parsing/formatting ?
+[2012-10-04 23:16:44 -0400] fujin: chances are my workstation has incompatible versions of ip or ifconfig
+[2012-10-04 23:17:00 -0400] fujin: or the configuration ohai is trying to parse from the output doesn't match the 'known good' to identify a bond interface? I dunno
+[2012-10-04 23:17:09 -0400] fujin: maybe bond completey fucks ohai. lmao
+[2012-10-04 23:21:22 -0400] fujin: anyone? :p
+[2012-10-04 23:21:45 -0400] ohlol: fujin did my output from ohai network look right?
+[2012-10-04 23:22:21 -0400] fujin: y
+[2012-10-04 23:22:22 -0400] fujin: think i found bug
+[2012-10-04 23:22:34 -0400] fujin: ohlol: jtimberman : https://gist.github.com/9d820cee0955bba794ce
+[2012-10-04 23:23:06 -0400] fujin: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/linux/network.rb#L172
+[2012-10-04 23:23:57 -0400] fujin: bugbugbug
+[2012-10-04 23:24:31 -0400] ohlol: whups
+[2012-10-04 23:24:33 -0400] ohlol: no tmp_int
+[2012-10-04 23:25:02 -0400] fujin: ohlol: can you put ohai -l debug output on your gist too?
+[2012-10-04 23:25:07 -0400] ohlol: yea
+[2012-10-04 23:25:08 -0400] fujin: re: network plugin executin output, anyway?
+[2012-10-04 23:27:38 -0400] ohlol: fujin: sent
+[2012-10-04 23:28:18 -0400] segv: this is irrtating, so having some troubles with an encrypted databag
+[2012-10-04 23:28:51 -0400] segv: two servers, same data bag, one can print the contents of the data bag, the other cannot, same config other than host name, same encrypted_data_bag_secret,
+[2012-10-04 23:29:32 -0400] segv: When I test it from (shef -z) it shows the encrypted databag object, and see sthe 'nth-license-key' variable with encrypted contents
+[2012-10-04 23:29:59 -0400] fujin: segv: same version of ruby, libyaml, psych/syck, etc?
+[2012-10-04 23:30:02 -0400] segv: yeah
+[2012-10-04 23:30:09 -0400] segv: 100% identical systems
+[2012-10-04 23:30:28 -0400] segv: well 99.9% (making up for hostname ipa ddress changes etc.)
+[2012-10-04 23:30:50 -0400] ohlol: segv: you can't decrypt in shef on both hosts?
+[2012-10-04 23:30:55 -0400] segv: one prints one doesn't, does the encrypteddatabagitem squelch about decrypt issues?
+[2012-10-04 23:30:57 -0400] segv: ohlol, nope
+[2012-10-04 23:31:02 -0400] segv: just the "working" one
+[2012-10-04 23:31:16 -0400] ohlol: newline in encrypted_data_bag_secret ? lol
+[2012-10-04 23:31:22 -0400] ohlol: idk
+[2012-10-04 23:31:37 -0400] segv: diff'd the files
+[2012-10-04 23:31:40 -0400] segv: same size and all
+[2012-10-04 23:31:43 -0400] segv: it's driving me up a wall
+[2012-10-04 23:32:31 -0400] fujin: ohlol: looks like I can't reproduce your issue :( It's something else on my workstation..
+[2012-10-04 23:32:41 -0400] fujin: ohlol: output from your ohai run looks good :\ network plugin isn't crashing
+[2012-10-04 23:33:06 -0400] segv: the fubar part is it's only one part of this recipe
+[2012-10-04 23:33:13 -0400] ohlol: fujin: damn
+[2012-10-04 23:33:13 -0400] segv: and this specific data bag, it can read from the others
+[2012-10-04 23:33:15 -0400] segv: but not this one
+[2012-10-04 23:34:56 -0400] fujin: ohlol: that's fucked that it gets default_interface and default_gateway but doesn't set ipaddress.
+[2012-10-04 23:35:01 -0400] fujin: somtehing about this makes me incredibly furious
+[2012-10-04 23:35:40 -0400] segv: I just think it's ignoring the encrypted_data_bag_key
+[2012-10-04 23:36:04 -0400] fujin: segv: not even trying to decrypt the value by the sounds of things?
+[2012-10-04 23:37:32 -0400] segv: fujin, yep
+[2012-10-04 23:37:50 -0400] segv: it loads upt he @enc_hash=data_bag_item[.......]
+[2012-10-04 23:37:59 -0400] segv: which i can see in shef
+[2012-10-04 23:38:12 -0400] segv: then puts lic_key['nthlicense']
+[2012-10-04 23:38:14 -0400] segv: => nil
+[2012-10-04 23:41:39 -0400] fujin: segv: we took to wrapping some of this stuff for 'last mile' databag attributes: https://github.com/hw-cookbooks/bag_config/blob/master/libraries/bag_config.rb#L52-88
+[2012-10-04 23:41:48 -0400] fujin: code may be relevant for testing out your bug.
+[2012-10-04 23:42:14 -0400] segv: sweet, thanks!
+[2012-10-04 23:42:19 -0400] segv: I'll take a look at that section
+[2012-10-04 23:44:25 -0400] segv: fujin, wouldn't it throw a debug message about it being able to descrypt it?
+[2012-10-04 23:45:17 -0400] fujin: segv: it looks like would raise during load_secret
+[2012-10-04 23:45:22 -0400] segv: yeah
+[2012-10-04 23:45:30 -0400] fujin: segv: it doesn't really do any in depth checking
+[2012-10-04 23:45:33 -0400] segv: has the rescue => e
+[2012-10-04 23:45:36 -0400] fujin: segv: just asserts that it is not zero length
+[2012-10-04 23:45:55 -0400] fujin: segv: oh, you're talking about our HW code
+[2012-10-04 23:46:19 -0400] fujin: segv: yes, our code does show a debug message there if it fails to load either an unencrypted or encrypted data bag
+[2012-10-04 23:46:19 -0400] segv: fujin, ah, yours is external
+[2012-10-04 23:46:27 -0400] fujin: segv: yes, sorry. I thought that was clear
+[2012-10-04 23:46:36 -0400] segv: i was looking at the code not the URL haha
+[2012-10-04 23:46:37 -0400] fujin: segv: you can specifically use the two API calls there to reproduce from Shef
+[2012-10-04 23:46:50 -0400] fujin: segv:  secret = Chef::EncryptedDataBagItem.load_secret(secret)
+[2012-10-04 23:46:54 -0400] segv: yeah
+[2012-10-04 23:46:57 -0400] fujin: Chef::EncryptedDataBagItem.load(..)
+[2012-10-04 23:47:22 -0400] segv: ls
+[2012-10-04 23:47:23 -0400] segv: ls
+[2012-10-04 23:47:25 -0400] segv: ack
+[2012-10-04 23:47:52 -0400] fujin: :p
+[2012-10-04 23:48:58 -0400] segv: oh and this just gets more interesting haha
+[2012-10-04 23:49:32 -0400] segv: just *this* peticular item from that data bag (which is encrypted itself) is failing
+[2012-10-04 23:49:41 -0400] segv: the other item that is also encrypted is not
+[2012-10-04 23:49:47 -0400] segv: must be fubar
+[2012-10-04 23:51:32 -0400] fujin: segv: what created the item?
+[2012-10-04 23:51:41 -0400] fujin: segv: tis could be that syck/psych/libyaml bullshit I was talking about
+[2012-10-04 23:51:48 -0400] segv: ah
+[2012-10-04 23:51:55 -0400] segv: i created it using a json file
+[2012-10-04 23:52:04 -0400] segv: then from filed it
+[2012-10-04 23:52:10 -0400] fujin: There's some bug whereby the ruby interpreter that creates the data bag item during encryption
+[2012-10-04 23:52:17 -0400] fujin: encodes some platform-specific YAML
+[2012-10-04 23:52:22 -0400] fujin: (syck, psych, ..)
+[2012-10-04 23:52:30 -0400] fujin: depending on wherever you ran knife data bag from file --secret-file foobar
+[2012-10-04 23:52:45 -0400] fujin: let me find the bug
+[2012-10-04 23:53:00 -0400] segv: k
+[2012-10-04 23:53:07 -0400] fujin: segv: http://tickets.opscode.com/browse/CHEF-3393
+[2012-10-04 23:53:30 -0400] fujin: http://tickets.opscode.com/browse/CHEF-3138 is related
+[2012-10-04 23:53:36 -0400] fujin: http://tickets.opscode.com/browse/CHEF-3392
+[2012-10-04 23:53:47 -0400] segv: danke
+[2012-10-04 23:54:38 -0400] segv: I think you have possibly pinpointed it
+[2012-10-04 23:54:47 -0400] segv: going to test from another machine to confirm

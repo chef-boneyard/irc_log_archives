@@ -1,0 +1,975 @@
+[2014-04-22 00:16:35 -0400] snelly: Does anybody know a way to force a recipe to run very early in the convergence phase?   I have a recipe that sets attributes that many other recipes depend on but for some reason, it's not being run early
+[2014-04-22 00:20:44 -0400] bricker`LA: Is it possible to force-reinstall something without changing the cookbook contents? For example, I have a cookbook which specified in a provider to install ruby, and now I've realized I need to compile it with the readline library, so how would I reinstall ruby after installing the readling package?
+[2014-04-22 00:26:18 -0400] coderanger: snelly: include_recipe_now from the now cookbook is an option
+[2014-04-22 00:26:30 -0400] coderanger: snelly: But the better solution is to move your attr sets in to attribute files
+[2014-04-22 00:26:46 -0400] coderanger: bricker`LA: Make a new server
+[2014-04-22 00:27:21 -0400] bricker`LA: coderanger: is that really the preferred option? make a whole new VM just to recompile ruby?
+[2014-04-22 00:27:49 -0400] snelly: thanks coderanger
+[2014-04-22 00:28:04 -0400] snelly: I will see about setting these in attribute files instead
+[2014-04-22 00:28:25 -0400] bricker`LA: coderanger: I'm worried that switching the public IPs would cause downtime
+[2014-04-22 00:28:25 -0400] coderanger: bricker`LA: Or just delete the old, bad ruby so chef will recompile it
+[2014-04-22 00:28:27 -0400] snelly: they are set programatically but I don't see any reason they /must/ be set within a recipe (as opposed to an attributes file)
+[2014-04-22 00:28:46 -0400] coderanger: bricker`LA: You need to describe it as a convergent process though
+[2014-04-22 00:29:07 -0400] bricker`LA: coderanger: what do you mean by that?
+[2014-04-22 00:29:12 -0400] coderanger: bricker`LA: Which part
+[2014-04-22 00:29:46 -0400] bricker`LA: coderanger: "you need to describe it as a convergent process"
+[2014-04-22 00:33:45 -0400] coderanger: bricker`LA: You need to give Chef some state to converge to, if that state is "ruby is installed" then you are boned
+[2014-04-22 00:34:01 -0400] coderanger: bricker`LA: If you fix your state to be "ruby is installed and linked correctly" then it will just fix itself
+[2014-04-22 00:34:59 -0400] bricker`LA: coderanger: interesting.
+[2014-04-22 00:36:13 -0400] bricker`LA: coderanger: so you're saying that within the provider block I should add some sort of condition to check that it's installed properly? Is it common to have a "run this block" attribute on the node, then do something like `only_if { node.default.install_ruby == true }` ?
+[2014-04-22 00:37:18 -0400] coderanger: bricker`LA: I would imagine it would be something like not_if { ::File.exists?('/usr/bin/ruby') && shell_out!('ldd /usr/bin/ruby | grep readline') }
+[2014-04-22 00:40:28 -0400] bricker`LA: coderanger: Ideally I would want to have of a way (in this example) to reinstall ruby when I discover that something is missing, without having to upgrade the cookbook.
+[2014-04-22 00:41:12 -0400] bricker`LA: coderanger: anyways, that's what test/dev servers are for, luckily in this case this is just a staging server so I can play around with it
+[2014-04-22 00:44:07 -0400] coderanger: bricker`LA: Sure, you just need to write code to test for "discover that something is missing"
+[2014-04-22 00:44:40 -0400] coderanger: bricker`LA: And if you want to do it without cookbook changes in the future for some reason (I wouldn't) you need to drive that from something that isn't the recipe code like node attrs)
+[2014-04-22 00:45:54 -0400] bricker`LA: coderanger: I guess I'm still getting used to the idea that cookbooks will be updated frequently and sometimes with temporary changes? I develop many ruby gems and in my mind cookbooks are nearly the same, but I guess I should stop trying to compare them.
+[2014-04-22 00:46:26 -0400] tempname: In the past I have used ironfan to manage and provision multiple nodes at once. It looks like ironfan and ironfan-homebase are a bit out of date. Does anyone know of anything similar to ironfan that can give me the same benefits?
+[2014-04-22 00:46:43 -0400] coderanger: bricker`LA: They are pretty similar, any time you want to deploy changed code you have to release your gem :)
+[2014-04-22 00:46:58 -0400] coderanger: tempname: cloudformation, heat, chef-metal, rightscale
+[2014-04-22 00:47:44 -0400] bricker`LA: coderanger: indeed, but many cookbooks (such as the "package" cookbook) have things like `action :uninstall`, which I guess you would add, deploy, run chef-client, and then remove from the cookbook?
+[2014-04-22 00:48:03 -0400] coderanger: bricker`LA: Not familiar with that cookbook
+[2014-04-22 00:48:48 -0400] coderanger: bricker`LA: Do you mean the package resource? Resources are the building blocks used to create cookbooks
+[2014-04-22 00:49:12 -0400] bricker`LA: coderanger: yes, that's what I meant
+[2014-04-22 00:49:56 -0400] bricker`LA: coderanger: so if I had a cookbook which used it, and then I decided I wanted to uninstall a certain package on a node, I wouldn't leave `action :remove` in that cookbook forever
+[2014-04-22 00:50:06 -0400] coderanger: bricker`LA: Yes, thats not an uncommon pattern, you can also just leave it, kind of like DB migrations in a webapp
+[2014-04-22 00:50:15 -0400] bricker`LA: coderanger: indeed
+[2014-04-22 00:50:18 -0400] bricker`LA: coderanger: thanks for your help
+[2014-04-22 00:50:37 -0400] coderanger: bricker`LA: Up to you when you want to clean that stuff up, state specificity vs. longer runtime, etc :)
+[2014-04-22 00:50:47 -0400] bricker`LA: :D
+[2014-04-22 00:50:52 -0400] tempname: coderanger do you have a suggestion on which one is better?
+[2014-04-22 00:51:08 -0400] coderanger: tempname: Where do you run your servers
+[2014-04-22 00:51:31 -0400] tempname: ec2 - cloudformation is not the best option
+[2014-04-22 00:52:15 -0400] coderanger: tempname: Its the only option I know of that isn't either even more fragile than cfn or manual/nonconvergent
+[2014-04-22 00:52:29 -0400] coderanger: tempname: If you want something super manual, you can look at spiceweasel
+[2014-04-22 00:52:41 -0400] coderanger: tempname: and chef-metal is nice but super bleeding edge alpha
+[2014-04-22 00:54:00 -0400] tempname: Would prefer ironfan, but they are so unresponsive to questions and like you said chef-metal is to bleeding edge right now
+[2014-04-22 00:54:54 -0400] coderanger: tempname: ironfan is closest to spiceweasel in design
+[2014-04-22 00:55:01 -0400] coderanger: but yeah, pretty sure ironfan itself is dead
+[2014-04-22 00:56:32 -0400] tempname: do you happen to know if spiceweasel will provision nodes concurrently?
+[2014-04-22 00:57:45 -0400] coderanger: I don't think so, it just shells out to knife ec2 sequentially
+[2014-04-22 00:57:56 -0400] tempname: that is what I thought
+[2014-04-22 01:00:08 -0400] bean__: Once metal has some parallelism I could be convinced that its the "right way" to do it though.
+[2014-04-22 01:05:02 -0400] juliancdunn: ironfan was acquired by Computer Sciences Corporation, so I'd count them out :-(
+[2014-04-22 01:07:16 -0400] coderanger: There is still ~1 commit a week
+[2014-04-22 01:07:23 -0400] coderanger: so I guess someone is trying to keep it alive
+[2014-04-22 01:07:31 -0400] coderanger: Another option is just fork ironfan and fix it
+[2014-04-22 01:25:13 -0400] juliancdunn: someone should update the /topic since we're on 11.12.2 now
+[2014-04-22 01:26:13 -0400] coderanger: juliancdunn: Added you to channel perms
+[2014-04-22 01:31:16 -0400] juliancdunn: hey, thanks! :)
+[2014-04-22 02:00:33 -0400] jidar: hmmm, so test kitchen is going to run through a whole install everytime you test
+[2014-04-22 02:00:54 -0400] jidar: that's... slow
+[2014-04-22 02:02:41 -0400] coderanger: jidar: Install of what
+[2014-04-22 02:06:46 -0400] elejia: anyone know if /attributes/ can follow the same sort of hierarchy as the /files/myhost-host/filename idea?
+[2014-04-22 02:07:13 -0400] elejia: or a way to work a similar behaviour?
+[2014-04-22 02:10:19 -0400] coderanger: elejia: Sure, just implement it yourself
+[2014-04-22 02:10:53 -0400] coderanger: elejia: node['foo'][node['fqdn']] || node['foo'][node['platform']] || node['foo']['default']
+[2014-04-22 02:11:27 -0400] elejia: coderanger: that was my first idea, here's what I'm worried about:
+[2014-04-22 02:16:09 -0400] coderanger: elejia: If you sent another message, it didn't get through
+[2014-04-22 02:16:21 -0400] elejia: coderanger: If I have a thing where i've got 'server-a' and 'server-b' as my fqdns, and I need to set node['appsetting'][[node['fqdn']] = "false" (as a simple example), how can i differentiate the two in attributes, if i need it to be 'true' on 'server-a' and 'false on 'server-b'
+[2014-04-22 02:16:40 -0400] elejia: coderanger: typing slowly :)
+[2014-04-22 02:17:16 -0400] coderanger: elejia: "false" is fine since that string is true-y
+[2014-04-22 02:17:32 -0400] coderanger: elejia: If you need actual true/false boolean values you would need to somewhat more annoying looking code
+[2014-04-22 02:18:08 -0400] coderanger: elejia: perhaps [node['foo'][node['fqdn']], node['foo'][node['platform']], node['foo']['default']].find {|x| !x.nil? }
+[2014-04-22 02:19:16 -0400] elejia: coderanger: so the attribute will only be set based on the fqdn, I get that.
+[2014-04-22 02:20:18 -0400] elejia: coderanger: if I need to set (in the attributes) that 'server-a' is "string-a" and 'server-b' is "string-b", when I tried that, both attributes ended up on both servers
+[2014-04-22 02:20:33 -0400] elejia: coderanger: you see what I mean?
+[2014-04-22 02:20:42 -0400] coderanger: elejia: Yes, thats how it would work
+[2014-04-22 02:21:06 -0400] coderanger: elejia: This is not generally a good way to do things :)
+[2014-04-22 02:21:23 -0400] elejia: coderanger: so I'm trying to get away from that, because I'm dealing with a set of legacy servers (about 300ish) and I don't want to have 300 attributes on each server lol
+[2014-04-22 02:21:33 -0400] elejia: coderanger: oh god, i know. i know...
+[2014-04-22 02:21:51 -0400] coderanger: elejia: Attributes are cheap, I wouldn't worry
+[2014-04-22 02:22:28 -0400] elejia: coderanger: fair enough. it's gross, and i hate it.
+[2014-04-22 02:23:17 -0400] elejia: codranger: i was hoping there may have been a way to do attribute 'heirarchy' from a recipe standpoint (much like the file/ bla-host/ idea) but I kinda hate that idea too
+[2014-04-22 02:23:21 -0400] coderanger: elejia: Any reason you can't use the normal node/role/env merge system?
+[2014-04-22 02:24:02 -0400] elejia: coderanger: long story - 100+ apps, 1000+ nodes, not able to use the whole stack, etc etc.
+[2014-04-22 02:24:22 -0400] elejia: coderanger: integrating into 15 years of doing things in a less than ideal way :)
+[2014-04-22 02:25:33 -0400] coderanger: elejia: Sure, but you can still just set attributes on each node manually
+[2014-04-22 02:25:45 -0400] coderanger: grab your favorite Chef API client lib and write a little script
+[2014-04-22 02:25:46 -0400] elejia: coderanger: thanks for the info and advice, much appreciated :)
+[2014-04-22 02:26:33 -0400] elejia: Good Idea
+[2014-04-22 04:21:58 -0400] eramas: hello, is anyone here familiar with the (new) powershell_script provider that replaced the powershell cookbook?
+[2014-04-22 04:22:57 -0400] eramas: I'm having issues stopping my chef run with powershell_script, whereas before with the powershell provider (in the powershell cookbook) any exception or return code other than 0 would interupt my chef run and propagate the exception.
+[2014-04-22 06:22:52 -0400] roadze_: hi there, test-kitchen question, someone knows how to set the name of the vm using cloudstack driver ?
+[2014-04-22 07:01:24 -0400] _pingu: cookbooks/my-cookbook/attributes/default.rb contains: node.default["company"] = "XY"    than i start chef-shell -s -c chef-config.rb -j nodes/vm1.json   how can i print out the attribute now? attributes_mode and then node["company"] says : =>nil
+[2014-04-22 08:03:10 -0400] _pingu: did: gem install knife-solo without errors under windows, but got the following error, when i run the new command: http://pastebin.com/WdVEeay1
+[2014-04-22 08:51:21 -0400] nacx: hi!
+[2014-04-22 08:51:43 -0400] nacx: is it possible to "notify" only whan some concrete action happens to a resource?
+[2014-04-22 08:52:06 -0400] nacx: I have a recipe that stops a service, then changes several templates (used by that service)
+[2014-04-22 08:52:11 -0400] nacx: and then starts it again
+[2014-04-22 08:52:29 -0400] nacx: and I want another resource to be executed after that "start" happens
+[2014-04-22 08:53:09 -0400] nacx: if I just subscribe to the service, it is triggered before the start, as when stopping the service, the status changes and the notification is triggered and enqueued
+[2014-04-22 08:53:26 -0400] nacx: is there any way I can notify the resource when the service starts, but *not* when the service is stopped?
+[2014-04-22 08:54:11 -0400] nacx: or how can I configure such a thing? :)
+[2014-04-22 08:56:28 -0400] subraminion: http://docs.opscode.com/chef/resources.html#notifications This should help you nacx
+[2014-04-22 08:57:10 -0400] subraminion: check the part that says "Notify multiple resources"
+[2014-04-22 08:57:51 -0400] subraminion: below that there are many examples. You can select as per your need
+[2014-04-22 08:58:03 -0400] nacx: i saw that, but I only want to notify one resource
+[2014-04-22 08:58:09 -0400] nacx: to illustrate a bit more:
+[2014-04-22 08:59:11 -0400] nacx: I have a resource defined:  service "tomcat" do action :nothing end
+[2014-04-22 08:59:49 -0400] nacx: some recipes stop it, which a service "tomcat" do action :stop end
+[2014-04-22 09:00:04 -0400] nacx: and I have a resource, that I use to wait until a concrete webapp is up
+[2014-04-22 09:00:26 -0400] nacx: say: custom_resource "foo" do   subscribes :action, "service[tomcat]" end
+[2014-04-22 09:00:36 -0400] _pingu: cookbooks/my-cookbook/attributes/default.rb contains: node.default["company"] = "XY"    than i start chef-shell -s -c chef-config.rb -j nodes/vm1.json   how can i print out the attribute now? attributes_mode and then node["company"] says : =>nil
+[2014-04-22 09:00:45 -0400] nacx: the problem is that the "stop" action triggers the notification as the status of the "tomcat" service changes
+[2014-04-22 09:01:04 -0400] nacx: and the "wait for webapp" resource is enqueued before the "service start" one
+[2014-04-22 09:01:26 -0400] subraminion: do you have the exact code commited to git? It would be some mercy for my eyes to read :)
+[2014-04-22 09:01:33 -0400] nacx: is there any way I can subscribe to the resource *only* when it is started, and *ignore* (or whatever) the
+[2014-04-22 09:01:43 -0400] nacx: let me put it in a pastie subraminion
+[2014-04-22 09:01:55 -0400] subraminion: yea better
+[2014-04-22 09:05:30 -0400] subraminion: brb
+[2014-04-22 09:05:53 -0400] nacx: subraminion, http://pastie.org/9099913
+[2014-04-22 09:06:17 -0400] nacx: this is the relevant code
+[2014-04-22 09:06:32 -0400] nacx: but the "wait_for_webapp" resource is enqueued *before* the service is restarted
+[2014-04-22 09:06:42 -0400] nacx: as the "stop/upgrade" actions trigger the notification
+[2014-04-22 09:07:04 -0400] subraminion: Try notifying for :run instead of restart
+[2014-04-22 09:08:08 -0400] nacx: but :run is not an action of the "service" resource
+[2014-04-22 09:18:47 -0400] subraminion: nacx why don't you write two different blocks for stopping and starting the service.. And then put the 'notify' only for start?
+[2014-04-22 09:21:00 -0400] subraminion: somethin like http://paste2.org/YxfVEsDc
+[2014-04-22 09:21:01 -0400] nacx: because I have 3 different config files
+[2014-04-22 09:21:06 -0400] nacx: I want to notify the restart
+[2014-04-22 09:21:46 -0400] nacx: I'm thinking now, that I could have something like:
+[2014-04-22 09:21:53 -0400] subraminion: restart will include the event for stop too
+[2014-04-22 09:23:04 -0400] nacx: http://pastie.org/9099963
+[2014-04-22 09:23:08 -0400] nacx: could this do the trick
+[2014-04-22 09:23:28 -0400] nacx: and call the wait for webapps resource only when it is restarted?
+[2014-04-22 09:23:57 -0400] nacx: I want the service restarted if any of the config files changes, and then wait until that concrete webapp is up
+[2014-04-22 09:24:11 -0400] nacx: (but only trigger the "wait" if the service is starting, not if it is stopping
+[2014-04-22 09:27:05 -0400] workmad3: nacx: ' notifies :restart, "service[tomcat]", :immediately'
+[2014-04-22 09:27:39 -0400] workmad3: nacx: if you wanted your desired behaviour from the first pastie
+[2014-04-22 09:28:03 -0400] nacx: workmad3, my first pastie is just an abbreviation, sorry about that
+[2014-04-22 09:28:08 -0400] nacx: there are 3 config files
+[2014-04-22 09:28:12 -0400] nacx: that could notify the restart
+[2014-04-22 09:28:23 -0400] nacx: if I put the :immediately to all three templates
+[2014-04-22 09:28:28 -0400] nacx: will the service be restarted 3 times?
+[2014-04-22 09:28:50 -0400] workmad3: nacx: ah, yes it would... this is why abbreviating causes issues ;)
+[2014-04-22 09:29:33 -0400] nacx: http://pastie.org/9099973 <-- this is more close to what I have
+[2014-04-22 09:30:06 -0400] subraminion: nacx then following should help you better.
+[2014-04-22 09:31:20 -0400] subraminion: Put the restart code in a execute block first. I mean don't use it as a resource like you do now. Then use the event ':run' triggered from that execute block.. Restart will not be a needed resource in this case.
+[2014-04-22 09:32:26 -0400] workmad3: nacx: or you could do something sneaky and code-like... like this: https://gist.github.com/workmad3/f7cf9d67501caebbf798
+[2014-04-22 09:32:32 -0400] nacx: hmm, the idea behind that is to have the restart defined "differently"
+[2014-04-22 09:32:38 -0400] nacx: so the wait does not have to subscribe to the service
+[2014-04-22 09:32:43 -0400] nacx: but just to that concrete action?
+[2014-04-22 09:33:05 -0400] workmad3: nacx: if you were to go down that route though, I'd suggest wrapping your config up into a custom resource provider
+[2014-04-22 09:33:23 -0400] subraminion: Yes, the idea is to keep the restart thing different
+[2014-04-22 09:33:47 -0400] subraminion: put it in to execute code and then use :run notifier instead
+[2014-04-22 09:36:05 -0400] workmad3: nacx: just updated that gist so it would work in a recipe (i.e. account for compile/converge differences)
+[2014-04-22 09:40:28 -0400] nacx: cool, will try both :)
+[2014-04-22 09:41:24 -0400] subraminion: :)
+[2014-04-22 09:42:11 -0400] nacx: workmad3, If I encapsulate the ruby block in a custom resource
+[2014-04-22 09:42:18 -0400] nacx: will something like the following work?
+[2014-04-22 09:42:20 -0400] nacx: http://pastie.org/9099988
+[2014-04-22 09:42:30 -0400] nacx: (just don't want to include the templates in the LWRP)
+[2014-04-22 09:42:44 -0400] workmad3: nacx: yeah, that should work
+[2014-04-22 09:43:11 -0400] nacx: cool, will give botha pproaches a try. you've been great help!
+[2014-04-22 09:43:15 -0400] workmad3: nacx: you wouldn't need to wrap stuff in the ruby_block or that check to see if the templates were updated in that case
+[2014-04-22 09:43:52 -0400] workmad3: nacx: your LWRP would just need to trigger the tomcat restart and wait
+[2014-04-22 09:44:21 -0400] nacx: yes.
+[2014-04-22 09:44:30 -0400] nacx: in the end it is pretty much the same than the "execute thing"
+[2014-04-22 09:44:38 -0400] workmad3: nacx: yeah, was just about to say that :)
+[2014-04-22 09:44:40 -0400] nacx: notify/subscribe to a different thing than the service[tomcat]
+[2014-04-22 09:44:59 -0400] workmad3: nacx: except you have a slightly more descriptive resource in place telling you what is happening
+[2014-04-22 09:45:32 -0400] workmad3: nacx: and only one level of notification rather than cascading the notifications through an essentially 'useless' resource
+[2014-04-22 09:46:45 -0400] nacx: I see. thx again!
+[2014-04-22 09:47:48 -0400] workmad3: nacx: as another thought, you could also do something like this: http://pastie.org/9100001
+[2014-04-22 09:48:22 -0400] workmad3: nacx: i.e. name the stub service you set up for restarting tomcat differently, so you can trigger actions on that and get desired behaviour
+[2014-04-22 09:48:38 -0400] nacx: aaaah, clever! :) like this one
+[2014-04-22 09:49:05 -0400] nacx: it is clear and easy to implement :=
+[2014-04-22 09:49:56 -0400] workmad3: it's similar to how the apt cookbook sets things up, iirc... that has an 'internal' execute block for running apt-get update if it hasn't run in the last day, and exposes another execute resource to trigger :run on if you need to force an update more frequently (such as if you've just added a new apt repository) :)
+[2014-04-22 09:51:32 -0400] workmad3:  /wi2
+[2014-04-22 09:51:34 -0400] workmad3: oops
+[2014-04-22 09:52:15 -0400] attila: hi
+[2014-04-22 09:54:05 -0400] nacx: testing it right now :)
+[2014-04-22 09:55:18 -0400] attilagyorffy: hi
+[2014-04-22 09:55:28 -0400] attilagyorffy: i am having some trouble authenticating with the chef server
+[2014-04-22 09:55:33 -0400] attilagyorffy: googling does not seem to hel
+[2014-04-22 09:55:35 -0400] attilagyorffy: *help
+[2014-04-22 09:55:44 -0400] attilagyorffy: Response:  Invalid signature for user or client
+[2014-04-22 09:55:48 -0400] attilagyorffy: when doing a knife status
+[2014-04-22 09:56:11 -0400] attilagyorffy: i have downloaded the client_key
+[2014-04-22 09:56:23 -0400] attilagyorffy: is there anybody who could help perhaps?
+[2014-04-22 10:04:10 -0400] subraminion: Are you using the hosted chef server?
+[2014-04-22 10:07:45 -0400] nacx: workmad3, subraminion the name thing worked like a charm, thx!
+[2014-04-22 10:07:58 -0400] workmad3: nacx: :)
+[2014-04-22 10:08:07 -0400] nacx: it's great to find a simple solution after several days trying ugly stuff :)
+[2014-04-22 10:08:15 -0400] subraminion: nacx :) glad to see you happy
+[2014-04-22 10:08:39 -0400] workmad3: nacx: that's the way things tend to happen... you try out several ugly things exploring the problem and potential solutions
+[2014-04-22 10:17:21 -0400] ghghz: Hi, I have the same issue at the moment like this: http://pastebin.ca/raw/2533664
+[2014-04-22 10:17:40 -0400] ghghz: But I have Ohai::Config[:disabled_plugins] = ["passwd"] already in knife.rb
+[2014-04-22 10:18:11 -0400] ghghz: Some servers bypass this using disabled_plugins, but some not
+[2014-04-22 10:29:53 -0400] attilagyorffy: subraminion: yes i am
+[2014-04-22 10:32:24 -0400] subraminion: Make sure you follow the steps below then:
+[2014-04-22 10:32:54 -0400] subraminion: http://paste2.org/UtUMIzUF
+[2014-04-22 10:36:10 -0400] attilagyorffy: now thats pretty goo but now what?
+[2014-04-22 10:36:51 -0400] attilagyorffy: knife status
+[2014-04-22 10:36:55 -0400] attilagyorffy: returns nothing
+[2014-04-22 10:37:04 -0400] attilagyorffy: am i right assuming that it has authenticated correctly?
+[2014-04-22 10:41:47 -0400] subraminion: you are trying to setup your workstation on what?
+[2014-04-22 10:42:12 -0400] attilagyorffy: i am trying to set up knife to authenticate with the hosted chef server so that i can bootstrap a node
+[2014-04-22 10:45:10 -0400] subraminion: attilagyorffy not sure of the steps you are following but login to your hosted chef console and go here
+[2014-04-22 10:45:11 -0400] subraminion: https://manage.opscode.com/organizations/jagat/getting_started
+[2014-04-22 10:45:28 -0400] subraminion: This is what you have to do exactly
+[2014-04-22 10:46:14 -0400] subraminion: here "jagat" is my organization name. So select yours
+[2014-04-22 10:46:43 -0400] subraminion: or simply go to Administration>>Select your organization>>Starter kit
+[2014-04-22 10:48:42 -0400] attilagyorffy: i have downloaded the starter kit already
+[2014-04-22 10:48:50 -0400] attilagyorffy: then ran knife status within it
+[2014-04-22 10:48:53 -0400] attilagyorffy: it has no output
+[2014-04-22 10:49:08 -0400] attilagyorffy: so again: can i assume this means it has authenticated successfully?
+[2014-04-22 10:49:40 -0400] zts: attilagyorffy: try "knife client list"
+[2014-04-22 10:49:58 -0400] zts: attilagyorffy: I think it's right for "knife status" to return nothing if you haven't bootstrapped any nodes yet, but I'm not certain
+[2014-04-22 10:49:59 -0400] attilagyorffy: oh rite
+[2014-04-22 10:50:02 -0400] subraminion: knife client list should give you some output there.
+[2014-04-22 10:50:18 -0400] attilagyorffy: yup it worked!
+[2014-04-22 10:50:21 -0400] attilagyorffy: thank you chaps
+[2014-04-22 10:50:28 -0400] subraminion: great
+[2014-04-22 11:17:12 -0400] _pingu: cookbooks/my-cookbook/attributes/default.rb contains: node.default["company"] = "XY"    than i start chef-shell -s -c chef-config.rb -j nodes/vm1.json   how can i print out the attribute now? attributes_mode and then node["company"] says : =>nil
+[2014-04-22 11:27:27 -0400] double_p: ehm, what's recipe lingo for "not only_if" (e.g. file does not exist for resource link). unless_if?
+[2014-04-22 11:27:44 -0400] workmad3: double_p: not_if
+[2014-04-22 11:28:02 -0400] double_p: *fp* thanks..
+[2014-04-22 11:28:08 -0400] workmad3: np ;)
+[2014-04-22 11:29:11 -0400] double_p: weekend was too long :)
+[2014-04-22 11:29:29 -0400] workmad3: double_p: yeah... if anything, it should have been 'only_unless' ;)
+[2014-04-22 11:29:35 -0400] double_p: yep :)
+[2014-04-22 11:30:09 -0400] double_p: jboss cookbook "fails" in terms of init script relies on jboss-admin.sh, but that was renamed recently..
+[2014-04-22 11:39:21 -0400] cassianoleal: "unless" would probably be enough
+[2014-04-22 11:39:41 -0400] cassianoleal: also better than "not_if" IMO although one could be an alias
+[2014-04-22 11:41:47 -0400] double_p: unless more_coffee ;)
+[2014-04-22 12:16:44 -0400] kjw_: anyone experiencing connection issues with api.opscode.com?
+[2014-04-22 13:51:13 -0400] gaetanos: Hi, is any way to retrieve an older version of a Data Bag on the chef server?
+[2014-04-22 13:51:39 -0400] workmad3: gaetanos: I don't think so
+[2014-04-22 13:51:58 -0400] zts: data bags aren't versioned, so no
+[2014-04-22 13:52:02 -0400] gaetanos: so there is no change log history
+[2014-04-22 13:52:36 -0400] gaetanos: i ll expand my problem
+[2014-04-22 13:53:34 -0400] gaetanos: i was modifying the data bag and i clicked restore from repository and I lost the latest version of my databag..
+[2014-04-22 13:54:15 -0400] gaetanos: unfortunatelly the latest bersion wasn t in source controll :(
+[2014-04-22 13:54:52 -0400] huddy__: Question: Anyone got a good suggestion for a bit of central, fast, cheap storage? Mainly for a central datastore for vmware. Ideally I want it to be atleast as fast as writing/reading from a single standard local hdd. also is iscsi the best way of doing it? I only really need a minimum 1TB usable space.
+[2014-04-22 13:55:20 -0400] zts: gaetanos: Out of interest, where is "restore from repository"?
+[2014-04-22 13:56:23 -0400] zts: gaetanos: but anyway, the Chef server only has the current version - you could look in Chef's cache directory on some of your nodes, if they haven't updated yet, and they may have an old copy.  However, I'm not sure data bags are actually cached on the client, so maybe not
+[2014-04-22 13:56:30 -0400] gaetanos: when you edit a databag item thertre is ano option "load from source"
+[2014-04-22 13:57:31 -0400] workmad3: gaetanos: the only source of version control for databags is your source control... if the version you need isn't in said source control and you throw it away, then you're gonna need to rebuild it manually...
+[2014-04-22 13:58:53 -0400] zts: gaetanos: are you using Private Chef server?
+[2014-04-22 14:00:23 -0400] gaetanos: yes
+[2014-04-22 14:03:10 -0400] gaetanos: the cache directory doesn t have the databag
+[2014-04-22 14:03:35 -0400] gaetanos: I m managing the Databag using vault, do you know if vault stores previous versions?
+[2014-04-22 14:22:56 -0400] huddy__: Anyone done vlans on freenas? I've two vlans, once NIC and I'd like to have an interface in both vlans. I'm not entirely sure how to go about it in freenas, my switch port is already tagged etc. I've got interface: em0, which has my current ip address on and is accessable in vlan1 (default). I've added a vlan (called vlan3 etc, with parent interface being
+[2014-04-22 14:22:57 -0400] huddy__: em0) into vlans tab, but what next? Do i need to add an interface and use vlan3 and configure it like that? I'm not really sure. I think that's the way but would like some confirmation :)
+[2014-04-22 14:24:06 -0400] jbellone: Looking for someone with some sweet, sweet omnibus experience. I seem to be running into an issue where dependencies are not being executed in appropriate order. :)
+[2014-04-22 14:27:46 -0400] gazarsgo: omnibus is what describes the bootstrapping of a chef-server install right ?
+[2014-04-22 14:29:45 -0400] bixu: the chef-client cookbook now seems to by default support ssl verification: https://github.com/opscode-cookbooks/chef-client/blob/master/attributes/default.rb#L142
+[2014-04-22 14:30:27 -0400] bixu: however, i'm not seeing that configuration option being set in client.rb on my nodes - am i missing something?  it works on smartos hosts but not on ubuntu hosts...
+[2014-04-22 14:37:52 -0400] vegardx: Can I only lock what cookbook version that is being used with environments?
+[2014-04-22 14:38:08 -0400] vegardx: I'm having a hard time finding any documentation on that on roles.
+[2014-04-22 14:38:20 -0400] vegardx: I can override what recipes are used, but not what version of it.
+[2014-04-22 14:38:22 -0400] bixu: vegardx: I think it's only for environments.
+[2014-04-22 14:38:30 -0400] vegardx: Darn it.
+[2014-04-22 14:39:03 -0400] bixu: what are you trying to do?
+[2014-04-22 14:39:49 -0400] gchristensen: vegardx: this is why the role-cookbook and environment-cookbook patterns are a thing
+[2014-04-22 14:39:56 -0400] vegardx: I have a lot of legacy stuff that I want to keep running, but are about to deploy a second generation of all cookbooks. Some of them will likely break older versions which already have things running on them.
+[2014-04-22 14:40:06 -0400] vegardx: gchristensen: huh?
+[2014-04-22 14:40:29 -0400] gchristensen: instead of using roles and environments, people will frequently create cookbooks called role-<foo> and environment-<bar>
+[2014-04-22 14:40:42 -0400] gchristensen: and then you get proper pinnig
+[2014-04-22 14:40:49 -0400] vegardx: Aha, makes more sense.
+[2014-04-22 14:41:08 -0400] vegardx: Well, I wish they'd implement it properly, but that is a nice workaround.
+[2014-04-22 14:41:10 -0400] gchristensen: and you could still use roles, and just assign the one role cookbook, and use environment and assign the one environment cookbook
+[2014-04-22 14:56:41 -0400] zts: vegardx: sorry, I'm confused - are you saying you want to put something into your role to specify which version of a cookbook a recipe comes from?  Or that you want to version your roles?
+[2014-04-22 15:00:15 -0400] vegardx: zts: A certain version of a cookbook in a role.
+[2014-04-22 15:00:24 -0400] double_p: this glassfish cookbook is too much for my beginners brain :P
+[2014-04-22 15:00:37 -0400] vegardx: But a better way to do it arose.
+[2014-04-22 15:01:05 -0400] zts: vegardx: okay, FYI (since I only learned this recently), you can specify a cookbook version in the run list: http://docs.opscode.com/essentials_cookbook_versions.html#run-lists
+[2014-04-22 15:01:32 -0400] zts: vegardx: it is considerably less flexible than the version constraints elsewhere (you can only specify an exact version), but it can be handy sometimes
+[2014-04-22 15:03:13 -0400] vegardx: Yeah - I think setting up environments and using that properly is better.
+[2014-04-22 15:03:39 -0400] vegardx: it's just a little headache inducing trying to map out how it'll end up.
+[2014-04-22 15:06:33 -0400] mondo: I have a cookbook that consists of a definition that calls a template, but when I call this definition from another cookbook, it tries to locate the template in the calling cookbook.  How do I specify that the template is stored in the cookbook with the definition
+[2014-04-22 15:08:20 -0400] zts: mondo: the template resource has a parameter called "cookbook" - set that to the name of the cookbook containing the definition
+[2014-04-22 15:08:45 -0400] mondo: zts: awesome thanks, I'll take a look at that
+[2014-04-22 15:26:53 -0400] jackcviers: With vagrant-vmware-fusion plugin installed and licensed, in test-kitchen, kitchen init fails with the following: https://gist.github.com/jackcviers/d36ef2baa6cabd0b5bd2
+[2014-04-22 15:27:13 -0400] jackcviers: It fails to load the plugins, complaining about faraday.
+[2014-04-22 15:27:24 -0400] jackcviers: How might I fix this problem?
+[2014-04-22 15:35:02 -0400] j^2: jackcviers: any chance you are using tinder for campfire?
+[2014-04-22 15:36:51 -0400] jackcviers: j^2: no.
+[2014-04-22 15:37:02 -0400] j^2: ah ok, i had some issues with faraday and tinder
+[2014-04-22 15:37:37 -0400] jackcviers: Yeah, this is just that the vagrant doesn't boot up. It is essentially an empty box.
+[2014-04-22 15:43:50 -0400] j^2: i missed the gist/pastie, can you link me again?
+[2014-04-22 15:45:18 -0400] jackcviers: j^2: https://gist.github.com/jackcviers/d36ef2baa6cabd0b5bd2
+[2014-04-22 15:45:27 -0400] j^2: thanks, taking a loko
+[2014-04-22 15:47:16 -0400] j^2: wow, that one is new
+[2014-04-22 15:47:38 -0400] j^2: so you're attempting to use osx inside vmware_fusion with vagrant?
+[2014-04-22 15:47:48 -0400] j^2: and using kitchen ontop of it?
+[2014-04-22 15:48:25 -0400] j^2: jackcviers: you saw this right? https://github.com/berkshelf/berkshelf/issues/855
+[2014-04-22 15:48:37 -0400] j^2: that's berkshelf but could help resolving it
+[2014-04-22 15:48:45 -0400] jackcviers: j^2: It is known to work in vmware.
+[2014-04-22 15:48:52 -0400] j^2: https://github.com/mitchellh/vagrant/issues/3128
+[2014-04-22 15:48:55 -0400] j^2: that too
+[2014-04-22 15:49:01 -0400] bean: ohai jackcviers
+[2014-04-22 15:49:06 -0400] jackcviers: But yes, I'm developing workstation setups
+[2014-04-22 15:50:18 -0400] jackcviers: j^2: I'll try locking in berkshelf @ 2.0.13
+[2014-04-22 15:50:32 -0400] j^2: yeah, it's a start sorry, i wish i could be more help
+[2014-04-22 15:51:26 -0400] Neozonz: how do i put the path from node[:apache][dir] into apache_dir?
+[2014-04-22 15:51:27 -0400] jackcviers: j^2: https://github.com/mitchellh/vagrant/issues/3128#issuecomment-37319789
+[2014-04-22 15:51:31 -0400] Neozonz: apache_dir = "#{node[:apache][dir]}"    << is this correct
+[2014-04-22 15:51:37 -0400] j^2: yep
+[2014-04-22 15:51:43 -0400] jackcviers: Not a terribly helpful answer, that.
+[2014-04-22 15:51:52 -0400] j^2: that's mitchellh for you ;)
+[2014-04-22 15:52:19 -0400] jackcviers: Yeah, I haven't dealt much with him.
+[2014-04-22 15:52:36 -0400] jackcviers: bean: what about ohai?
+[2014-04-22 15:52:55 -0400] bean: just saying hi, jackcviers. :) check your PMs.
+[2014-04-22 15:53:32 -0400] sparky: Neozonz:  foodcritic would like complain about unnecessary string interpolation.  I think you should be able to just do:   apache_dir = node[:apache][dir]
+[2014-04-22 15:53:41 -0400] sparky: like=likely
+[2014-04-22 15:53:51 -0400] Neozonz: cool, i was thinking so
+[2014-04-22 15:53:53 -0400] Neozonz: thanks
+[2014-04-22 16:00:36 -0400] jbellone: It looks like omnibus dependencies are not executed in order?
+[2014-04-22 16:01:02 -0400] cassianoleal: sparky, Meozonz: you seem to be missing a colon before "dir"? node[:apache][:dir]
+[2014-04-22 16:01:12 -0400] cassianoleal: sorry, Neozonz
+[2014-04-22 16:02:00 -0400] Neozonz: bah
+[2014-04-22 16:02:01 -0400] Neozonz: thanks
+[2014-04-22 16:03:11 -0400] cassianoleal: :)
+[2014-04-22 16:20:36 -0400] user9999: Hello :)
+[2014-04-22 16:20:43 -0400] jackcviers: ok, so no dice on locking in berkshelf
+[2014-04-22 16:21:09 -0400] user9999: I am having an escaping problem within chef and have no idea how to prevent a string of beeing escaped
+[2014-04-22 16:21:34 -0400] user9999: I have an attribute such as default[abc] = 'bla//bla//bla'
+[2014-04-22 16:21:54 -0400] user9999: When I use it later in a recipe it is espaced to bla\/\/.... how do I prevent that?
+[2014-04-22 16:23:13 -0400] cassianoleal: user9999: it's likely that it's escaped in the log output only
+[2014-04-22 16:24:09 -0400] user9999: I doubt it. It is a jdbc connection string.
+[2014-04-22 16:24:27 -0400] user9999: And if it would not be escaped the connection would work
+[2014-04-22 16:25:31 -0400] user9999: And other strings in the output are not escaped :-/
+[2014-04-22 16:25:53 -0400] cassianoleal: user9999: how is the attribute used? in a config file?
+[2014-04-22 16:26:34 -0400] user9999: @cassianoleal it is used in a recipe
+[2014-04-22 16:26:59 -0400] cassianoleal: user9999: yeah, they always are, otherwise they're useless. :)
+[2014-04-22 16:27:04 -0400] cassianoleal: user9999: how, though?
+[2014-04-22 16:27:39 -0400] user9999: hang on I have to copy it somewhere
+[2014-04-22 16:29:12 -0400] user9999: @cassianoleal here is the execute part of the recipe: http://nopaste.info/b9f0e2d9d1.html
+[2014-04-22 16:29:51 -0400] user9999: And the attribute definition: default['db']['connectionString'] = 'jdbc:mysql://localhost:3306/myDB'
+[2014-04-22 16:30:12 -0400] cassianoleal: yeah... could you paste the chef output of the error?
+[2014-04-22 16:30:45 -0400] user9999: yep
+[2014-04-22 16:33:31 -0400] user9999: Here it is: http://nopaste.info/0307596ffa.html :)
+[2014-04-22 16:33:55 -0400] bean: looks like it can't connect to your mysql instance, to me.
+[2014-04-22 16:34:10 -0400] user9999: yeah, because the connection string is wrong
+[2014-04-22 16:34:31 -0400] bean: so set the attribute to what it's supposed to be? :)
+[2014-04-22 16:35:07 -0400] cassianoleal: user9999: try substituting the double quotes in the --url, --driver and --changeLogFile for single quotes
+[2014-04-22 16:35:38 -0400] cassianoleal: the double quotes in those are actually closing the string, printing the attributes somehow and then reopening I gues.. :-/
+[2014-04-22 16:35:43 -0400] cassianoleal: *guess
+[2014-04-22 16:36:24 -0400] user9999: What do you mean?
+[2014-04-22 16:36:26 -0400] cassianoleal: it shouldn't even work at all with those
+[2014-04-22 16:36:44 -0400] cassianoleal: well, you have command "bla bla bla="#{attribute}"bla bla"
+[2014-04-22 16:36:45 -0400] user9999: command '.... "..."...'
+[2014-04-22 16:37:07 -0400] cassianoleal: that won't work because the variables will be printed literally
+[2014-04-22 16:37:24 -0400] cassianoleal: more like command "bla bla bla='#{attribute}' bla bla"
+[2014-04-22 16:37:44 -0400] cassianoleal: or escape the double quotes
+[2014-04-22 16:37:48 -0400] bean: ^
+[2014-04-22 16:37:59 -0400] cassianoleal: command "bla bla=\"#{attribute}\" bla bla"
+[2014-04-22 16:38:28 -0400] user9999: ok. I'll try. :)
+[2014-04-22 16:38:30 -0400] user9999: Thank you
+[2014-04-22 16:38:46 -0400] cassianoleal: hope it works! :)
+[2014-04-22 16:38:55 -0400] user9999: Me too :)
+[2014-04-22 16:43:28 -0400] workmad3: user9999: you can also use %Q{} to quote strings that contain " and need interpolation... so 'command %Q{bla bla bla="#{attribute}"bla bla}'
+[2014-04-22 16:45:06 -0400] workmad3: user9999: with %Q, you can also replace the {} with any symbol to open/close it... %Q!string!, %Q@string@, etc... so you frequently use %Q to avoid escapes entirely (although the most common things to use are {}, (), [] or !!)
+[2014-04-22 16:45:54 -0400] user9999: Ok. I keep that in mind
+[2014-04-22 16:46:33 -0400] cassianoleal: workmad3: I believe you meant "command %Q{bla bla bla="#{attribute}" bla bla}", right? I mean the double quotes wrapping the whole thing instead single ones.
+[2014-04-22 16:47:34 -0400] user9999: So putting everything in '' as mentioned @cassianoleal did not work
+[2014-04-22 16:47:46 -0400] workmad3: cassianoleal: no, I was only using the '' to demarcate ruby code in IRC :)
+[2014-04-22 16:48:27 -0400] cassianoleal: workmad3: ah, right! sorry, it seems like it's time to leave the computer already! :P
+[2014-04-22 16:48:27 -0400] workmad3: command %Q{bla bla bla="#{attribute}"bla bla} <-- that directly in ruby code
+[2014-04-22 16:50:18 -0400] workmad3: cassianoleal: btw, it 'works' (doesn't raise an error) currently because the first " in the command is followed immediately by a #... so comments out the rest of the line :)
+[2014-04-22 16:51:03 -0400] workmad3: user9999: command %Q{java -jar liquibase-core-3.1.1.jar --username=#{node[:db][:user]} --password=#{node[:db][:pass]} --url="#{node[:db][:connectionString]}" --driver="com.mysql.jdbc.Driver" --classpath=mysql-connector-java-5.1.29.jar:changelogs --changeLogFile="changelogs/db/changelogs/master.xml" update} <-- try that for your 'command' line
+[2014-04-22 16:52:50 -0400] gaetanos: can anyone help me with chef-vault?
+[2014-04-22 16:52:57 -0400] cassianoleal: user9999: have you tried copying the command from the error output and running on the console? it actually looks like there's a problem with the parameters: "Possibly the wrong driver for the given database URL"
+[2014-04-22 16:53:13 -0400] cassianoleal: the command would be:
+[2014-04-22 16:53:14 -0400] cassianoleal: cd /vagrant/archive/db && java -jar liquibase-core-3.1.1.jar --username=user --password=password --url="jdbc:mysql://localhost:3306/myDB" --driver="com.mysql.jdbc.Driver" --classpath=mysql-connector-java-5.1.29.jar:changelogs --changeLogFile="changelogs/db/changelogs/master.xml" update
+[2014-04-22 16:53:17 -0400] user9999: no the database url and everything from that command sworks perfectly
+[2014-04-22 16:53:52 -0400] bean: gaetanos: what do you need help with? jtimberman has a pretty good post about chef-vault here: http://jtimberman.housepub.org/blog/2013/09/10/managing-secrets-with-chef-vault/
+[2014-04-22 16:54:04 -0400] user9999: Yes, I tried that already. That is why  I assumed an escaping issue :)
+[2014-04-22 16:54:15 -0400] gaetanos: yes i was reading the post but doesn t have an answer to my question
+[2014-04-22 16:54:23 -0400] cassianoleal: I see...
+[2014-04-22 16:54:25 -0400] bean: gaetanos: then ask your question :)
+[2014-04-22 16:54:27 -0400] workmad3: cassianoleal: I'd use cwd "/vagrant/archive/db" in the execute rather than a cd in the command :)
+[2014-04-22 16:54:55 -0400] cassianoleal: workmad3: me too, but that would be mostly an idiomatic preference
+[2014-04-22 16:55:01 -0400] cassianoleal: shouldn't affect the outcome really
+[2014-04-22 16:55:19 -0400] workmad3: cassianoleal: true
+[2014-04-22 16:55:45 -0400] gaetanos: I've created an encryoted data bag add added some passwords and i can see in chef-server that 2 items have been created
+[2014-04-22 16:56:10 -0400] cassianoleal: well, I'll be leaving now... good luck user9999
+[2014-04-22 16:56:17 -0400] gaetanos: one has _keys appended at the end and it seems to me that contains the key for the nodes to authenticate and decrypt the passwords
+[2014-04-22 16:57:02 -0400] gaetanos: my question is is any way to remove the nodes from the _keys item using knife?
+[2014-04-22 16:57:09 -0400] user9999: cya and thanks
+[2014-04-22 16:57:19 -0400] user9999: Yeah I already changed to cwd /vagrant/..../db
+[2014-04-22 16:59:55 -0400] user9999: @workmad3 you saved my day :)
+[2014-04-22 16:59:57 -0400] user9999: It worked
+[2014-04-22 17:00:00 -0400] user9999: Thank you very much
+[2014-04-22 17:03:42 -0400] jmickle: hey guys
+[2014-04-22 17:03:56 -0400] jmickle: how does everyone manage datacenter inventory and provisioning?
+[2014-04-22 17:06:52 -0400] double_p: jmickle: i would say: everyone(!) does it a bit differently ;-)
+[2014-04-22 17:07:11 -0400] jmickle: solutions?
+[2014-04-22 17:07:28 -0400] jbz: jmickle: we're currently in the middle of trying to figure out what works for us, it's a serious PITA esp. with iron/virtual/cloud providers mixed
+[2014-04-22 17:07:35 -0400] jmickle: yeah
+[2014-04-22 17:07:45 -0400] jmickle: ive got multi vendor equipment
+[2014-04-22 17:07:53 -0400] jmickle: and will be using openstack
+[2014-04-22 17:07:58 -0400] jbz: yep us too, different vendors, different ages, etc.
+[2014-04-22 17:08:15 -0400] jmickle: once you get into the openstack the management there is super easy
+[2014-04-22 17:08:24 -0400] jmickle: but how do you keep track of the rest of the infrastructure
+[2014-04-22 17:08:30 -0400] double_p: we provision "per node" via chef (whodathunkit) but the service enabling is still to be decided on 'noah' or consul.io or whatever
+[2014-04-22 17:08:45 -0400] jbz: Yeahthere are various things that work well for particular layers; crossing the layers is the bear
+[2014-04-22 17:08:48 -0400] double_p: mixed with cloudstack/bare/xenserver
+[2014-04-22 17:09:13 -0400] jmickle: yeah but im talking about
+[2014-04-22 17:09:16 -0400] jmickle: server comes out of a box
+[2014-04-22 17:09:21 -0400] jmickle: goes into rack
+[2014-04-22 17:09:29 -0400] jmickle: gets entered into some system
+[2014-04-22 17:09:54 -0400] jmickle: where we can keep track of it
+[2014-04-22 17:09:56 -0400] jmickle: etc
+[2014-04-22 17:09:56 -0400] jbz: jmickle: if you're mostly concerned with the iron layer, Device42 is pretty full-featuredthe issue is getting it integrated into your workflow enough to take its records as gospel
+[2014-04-22 17:10:10 -0400] jbz: it handles physical inventory/asset mgmt, host management, IP range management
+[2014-04-22 17:10:12 -0400] double_p: well, chef_metal to hit the front the other day.. and then there was r-whatever from puppet-world
+[2014-04-22 17:10:50 -0400] double_p: jbz: device42? fun-eh name.. some readup url?
+[2014-04-22 17:11:12 -0400] jbz: device42.com
+[2014-04-22 17:11:16 -0400] jbz: $$$-ware
+[2014-04-22 17:11:18 -0400] jmickle: yeah but not everything can be a chef managed device
+[2014-04-22 17:11:19 -0400] jbz: but not too dear
+[2014-04-22 17:11:24 -0400] jmickle: take storage units for example
+[2014-04-22 17:11:25 -0400] double_p: jbz: mhmm
+[2014-04-22 17:11:46 -0400] jmickle: device42 has too much gui crap
+[2014-04-22 17:11:47 -0400] jmickle: haha
+[2014-04-22 17:11:51 -0400] jbz: heh
+[2014-04-22 17:11:52 -0400] jmickle: i dont need all that i just need to know what i have
+[2014-04-22 17:11:56 -0400] jbz: so
+[2014-04-22 17:11:58 -0400] double_p: jmickle: yep.. that's why i want to eval consul.io .. yet another piece, but somewhere the 'magic' has to happen
+[2014-04-22 17:12:10 -0400] jbz: yeah, that's one reason I think it's not integrating well with us.
+[2014-04-22 17:12:11 -0400] jmickle: i fear im going to have to write something
+[2014-04-22 17:12:12 -0400] jmickle: :-/
+[2014-04-22 17:12:26 -0400] double_p: NIH syndrome? :)
+[2014-04-22 17:12:33 -0400] jbz: racktables just has no good way to programatically utilize it
+[2014-04-22 17:12:49 -0400] jmickle: i mean literally i just need something that has basic info and then possibly grab info from it to set up a kickstart file
+[2014-04-22 17:13:11 -0400] double_p: i've like 27k LOC of ksh93 doing a shitload of magic -- and we need to get rid of it :)
+[2014-04-22 17:13:56 -0400] Maks3w: juliancdunn: ping
+[2014-04-22 17:15:03 -0400] bean: its 0 fun
+[2014-04-22 17:15:31 -0400] jmickle: NIH syndrom?
+[2014-04-22 17:15:40 -0400] jmickle: bean yeah im trying to avoide spreadsheets
+[2014-04-22 17:15:44 -0400] double_p: oh right.. add some perl excel handling shitz
+[2014-04-22 17:15:50 -0400] jmickle: haha
+[2014-04-22 17:15:53 -0400] bean: jmickle: "Not Invented Here"
+[2014-04-22 17:15:54 -0400] double_p: (sigh)
+[2014-04-22 17:15:55 -0400] jmickle: 5k + servers
+[2014-04-22 17:16:00 -0400] jmickle: oh ha
+[2014-04-22 17:16:43 -0400] double_p: no, we developed that "thingy" back in 1998 ongoing.. it can do insane stuff. but the upcoming hipsters dont grok ksh ;)
+[2014-04-22 17:16:48 -0400] jmickle: 5k+ servers doesnt fair well in spreadsheets
+[2014-04-22 17:17:30 -0400] double_p: excel limit is 64k or so?
+[2014-04-22 17:17:36 -0400] double_p: 32k signed? :D
+[2014-04-22 17:17:56 -0400] gchristensen: yeah, excel actually handles lots of rows pretty well
+[2014-04-22 17:18:15 -0400] jmickle: haha
+[2014-04-22 17:19:10 -0400] double_p: point in case is.. if you come to "at your fingertips" you've to address transitory things.. "service not yet up"
+[2014-04-22 17:20:04 -0400] jmickle: right now we have this legacy crapy software
+[2014-04-22 17:20:06 -0400] jmickle: called nventory
+[2014-04-22 17:20:09 -0400] jmickle: that i want to trash
+[2014-04-22 17:20:22 -0400] jmickle: i have to admit it does some of what im looking for
+[2014-04-22 17:20:27 -0400] jmickle: but its just terrible
+[2014-04-22 17:20:35 -0400] double_p: jmickle: inhouse or external?
+[2014-04-22 17:20:43 -0400] jmickle: started inhouse
+[2014-04-22 17:20:47 -0400] jmickle: then the guy open sourced it
+[2014-04-22 17:20:50 -0400] jmickle: but never kept up the project
+[2014-04-22 17:21:08 -0400] double_p: right...
+[2014-04-22 17:21:11 -0400] jmickle: but he basically used chef-solo
+[2014-04-22 17:21:15 -0400] jmickle: and rebranded it as etch
+[2014-04-22 17:21:33 -0400] double_p: wait, it's chef yet you call it legacy? :)
+[2014-04-22 17:21:43 -0400] jmickle: i mean its chef 7.x
+[2014-04-22 17:21:52 -0400] jmickle: but it doesnt run chef
+[2014-04-22 17:23:15 -0400] double_p: dunno.. timeframe? didnt "see" chef before 6m ago
+[2014-04-22 17:27:55 -0400] gaetanos: how do I remove clients in Encryoted data bag  using chef-vault?
+[2014-04-22 17:34:13 -0400] someara: double_p 7.x would have been 4-5 years ago
+[2014-04-22 17:35:49 -0400] double_p: someara: i'm doing provisioning in whatever way since.. uhm. 2000? i've to adapt.. the NIH just doesnt work and we migrated 90% of it to chef now. just the "full service enabling" is lacking for now
+[2014-04-22 17:37:15 -0400] shlant: anyone know if it's possible to only update chef-server-webui and not the whole chef-server?
+[2014-04-22 17:37:30 -0400] jmickle: hmm
+[2014-04-22 17:37:50 -0400] jmickle: someara: this is a sucky situation
+[2014-04-22 17:37:51 -0400] jmickle: lol
+[2014-04-22 17:38:07 -0400] kbarry: Alright,
+[2014-04-22 17:38:23 -0400] kbarry: Were trying to get things "in sync" (were just rolling out chef over here :)
+[2014-04-22 17:38:39 -0400] someara: jmickle I'd suggest you make friends with chefspec ;)
+[2014-04-22 17:38:54 -0400] jmickle: someara: do tell
+[2014-04-22 17:39:08 -0400] kbarry: We are wondering what reprocussions one might see from a command being run that searched out repo recursively, and incremends the version section inside every metadata file.
+[2014-04-22 17:39:59 -0400] someara: jmickle https://github.com/sethvargo/chefspec/tree/master/examples
+[2014-04-22 17:40:14 -0400] kbarry: We recognize there will be problems with community cookbooks,
+[2014-04-22 17:40:24 -0400] bxraabe: kbarry: dependency issues might be a problem
+[2014-04-22 17:41:43 -0400] jmickle: someara: im not following
+[2014-04-22 17:42:10 -0400] someara: i groked your situation as having to move an 0.7.x codebase to modern chef?
+[2014-04-22 17:42:58 -0400] someara: maybe I'm misunderstanding your sticky situation
+[2014-04-22 17:43:06 -0400] jmickle: oh no
+[2014-04-22 17:43:17 -0400] jmickle: im talking about i need a inventory management system
+[2014-04-22 17:43:20 -0400] jmickle: for a datacenter
+[2014-04-22 17:43:24 -0400] someara: aaah
+[2014-04-22 17:43:33 -0400] jmickle: we have this crapy solution currently
+[2014-04-22 17:43:37 -0400] jmickle: that tries to use chef solo 7
+[2014-04-22 17:43:42 -0400] jmickle: all of it im goign to trash
+[2014-04-22 17:43:44 -0400] jmickle: and rebuild
+[2014-04-22 17:43:45 -0400] jmickle: lol
+[2014-04-22 17:43:50 -0400] someara: nuke it from orbit
+[2014-04-22 17:43:53 -0400] jmickle: yeah
+[2014-04-22 17:43:54 -0400] jmickle: thats the plan
+[2014-04-22 17:46:13 -0400] someara: but also use chefspec while you build the new one ;)
+[2014-04-22 17:49:36 -0400] jmickle: yeah for sure
+[2014-04-22 17:49:43 -0400] jmickle: but i need some sort of DCIM solution
+[2014-04-22 17:55:55 -0400] heathsnow_: Has anyone used the :config option of the iis_pool resource?  Documentation is lacking.  Is it just calling 'appcmd set apppool' ?  No example on the wiki of using the :config option :S
+[2014-04-22 17:59:50 -0400] bean: heathsnow_: it seems taht config is an action, not an attribute, yes?
+[2014-04-22 18:00:25 -0400] heathsnow_: bean: yes
+[2014-04-22 18:00:26 -0400] double_p: if life "sucks". HUMPPA is always out there
+[2014-04-22 18:00:29 -0400] double_p: ECHAN
+[2014-04-22 18:00:56 -0400] bean: heathsnow_: https://github.com/opscode-cookbooks/iis/blob/master/providers/pool.rb#L42 seems to be the providder
+[2014-04-22 18:01:23 -0400] bean: provider*
+[2014-04-22 18:01:36 -0400] bean: so you can tell what its doing based on that.
+[2014-04-22 18:03:22 -0400] heathsnow_: bean: sweet, thx for the link
+[2014-04-22 18:03:26 -0400] bean: np
+[2014-04-22 18:07:22 -0400] lindenle: Hi guys. Looking at berks and not completely clear where to locate the cookbooks that define a grouping or resources from the berksfile. Also not sure how to use it with chef solo. Is there an end to end example of a new cookbook creation with berks and then use with chef-solo?
+[2014-04-22 18:07:57 -0400] lindenle: For instance if i look at the solo examples they all have a solo.json that says which recipes to include. Where is this stored in the berks way.
+[2014-04-22 18:09:36 -0400] bxraabe: I may be mistaken, but for Berks and solo I think you would need to bundle or vendor your cookbooks. I've never used solo and berks outside of a vagrant/kitchen run
+[2014-04-22 18:12:11 -0400] vt102: I'm working on an LWRP, getting TypeError "can't convert nil into Array
+[2014-04-22 18:14:21 -0400] CPS: vt102: 'puts' is ruby's way of printing things. you could use the chef log resource as well. you can use gist.github.com to paste output to ask about
+[2014-04-22 18:15:25 -0400] vt102: CPS: it seems like the error is how it's getting resolved and passed in the recipe...I can't just throw a puts in the recipe, can I?
+[2014-04-22 18:15:37 -0400] CPS: you can
+[2014-04-22 18:15:45 -0400] bxraabe: lindenle: it looks like you can run a berks package to get an archive of cookbooks to pass to chef solo, then your solo.json could use each of the cookbooks in the Berksfile as items in the run_list
+[2014-04-22 18:15:57 -0400] CPS: it's not recommended as a logging/debugging tool, but it will work
+[2014-04-22 18:16:09 -0400] lindenle: bxraabe: i think im just overall a bit confused. This is my first foray into chef...we are using AWS so I chose it but I want to organise it well with berks and make sure . Can you send me the link?
+[2014-04-22 18:16:40 -0400] bxraabe: Sure, I was just looking at the berkshelf website: http://berkshelf.com/
+[2014-04-22 18:16:59 -0400] bxraabe: specifically at the "PACKAGING COOKBOOKS" section
+[2014-04-22 18:18:16 -0400] bxraabe: lindenle: have you used a json file to pass configuration to a chef run before?
+[2014-04-22 18:18:41 -0400] lindenle: bxraabe: yeah in chef 101...somehow I am not synthesizing what i learned :(
+[2014-04-22 18:20:25 -0400] bxraabe: lindenle: you can see an example here in the Attributes section: http://docs.opscode.com/chef_solo.html
+[2014-04-22 18:21:09 -0400] helllen: helllo. I am seeing this warning: 2014-04-15_21:03:09.79281 [2014-04-15T21:03:09+00:00] WARN: [DEPRECATION] Plugin at /etc/chef/ohai_plugins/redBorder.rb is a version 6 plugin. Version 6 plugins will not be supported in future releases of Ohai. Please upgrade your plugin to version 7 plugin syntax. For more information visit here: docs.opscode.com/ohai_custom.html
+[2014-04-22 18:21:22 -0400] helllen: what is the syntax of ohai version 7 ?
+[2014-04-22 18:30:28 -0400] mc_fail: hi guys, does it possible to use a encryption for some node params?
+[2014-04-22 18:31:05 -0400] mc_fail: pardon, i have meant attributes
+[2014-04-22 18:48:32 -0400] coderanger: mc_fail: No
+[2014-04-22 18:48:45 -0400] coderanger: mc_fail: I mean you could just do it manually, but don't
+[2014-04-22 18:48:54 -0400] coderanger: mc_fail: Check out chef-vault for something similar though
+[2014-04-22 19:12:51 -0400] vt102: I could use some help debugging https://gist.github.com/vt102/11190410 , "TypeError: can't convert nil into Array"  I'm assuming it's the attribute :pool defined on line 190.
+[2014-04-22 19:13:11 -0400] vt102: In the Compiled Resource on line 148, that sure looks like an Array to me.  What am I missing?
+[2014-04-22 19:16:13 -0400] atomic-penguin: trying to use `secure_password` in openssl CB, it fails on method include (per CB README)
+[2014-04-22 19:16:24 -0400] coderanger: vt102: https://github.com/hw-cookbooks/haproxy/blob/master/providers/lb.rb#L15
+[2014-04-22 19:17:38 -0400] coderanger: vt102: What version of the haproxy cookbook are you using?
+[2014-04-22 19:18:07 -0400] coderanger: vt102: The trace shows 1.6.3, but that doesn't appear to be a released version
+[2014-04-22 19:18:12 -0400] vt102: coderanger: the latest from the git repo
+[2014-04-22 19:19:56 -0400] coderanger: vt102: I would double check what version you think you have, and see if params has a default value set
+[2014-04-22 19:20:42 -0400] vt102: coderanger: I've pushed using the cookbook okay.  This is trying to wrap it into an LWRP.  I don't think it's the haproxy cookbook but my stuff.
+[2014-04-22 19:21:26 -0400] coderanger: vt102: The traceback disagrees with you
+[2014-04-22 19:21:47 -0400] vt102: line 66-69?
+[2014-04-22 19:22:45 -0400] coderanger: vt102: Yep
+[2014-04-22 19:22:55 -0400] coderanger: new_resource.params is likely nil
+[2014-04-22 19:23:01 -0400] coderanger: when it should be []
+[2014-04-22 19:23:46 -0400] vt102: I'm not trying to present myself as an expert, I barely know WTF I'm doing.  But, I have been able to use that directly just fine.  My thought was it was how I was passing arguments-- I'm trying to send an array, and it was showing up as nil inside the haproxy recipe.
+[2014-04-22 19:24:06 -0400] atomic-penguin: https://gist.github.com/atomic-penguin/11191104
+[2014-04-22 19:24:59 -0400] vt102: coderange: https://gist.github.com/vt102/11191234 shows a wrapper I used it with, and that worked fine.
+[2014-04-22 19:25:44 -0400] coderanger: Just debug why that value is set incorrectly and you should be all set
+[2014-04-22 19:27:12 -0400] vt102: coderanger: I don't know how to approach that, any pointers?  I am able to debug inside my provider where I can print log statement, etc...  But this is failing before I get that access.
+[2014-04-22 19:27:27 -0400] bxraabe: vt102: it looks like this is the nil array it is complaining about: https://github.com/hw-cookbooks/haproxy/blob/master/resources/lb.rb#L19
+[2014-04-22 19:29:17 -0400] coderanger: vt102: Crack open the haproxy cookbook and check the value of new_resource.params at that point
+[2014-04-22 19:29:59 -0400] wdilly: folks, getting a lot of http 401 errors, "The request failed because your clock has drifted by more than 15 minutes" is there a way I can bypass this restriction, i dont really want to bake NTP into my emi
+[2014-04-22 19:30:10 -0400] vt102: coderanger: Okay, I can do that.
+[2014-04-22 19:30:16 -0400] vt102: coderanger: thanks.
+[2014-04-22 19:30:30 -0400] coderanger: wdilly: No
+[2014-04-22 19:30:50 -0400] coderanger: wdilly: The Chef authentication system uses timestamps to reduce the risk of replay attacks
+[2014-04-22 19:31:14 -0400] wdilly: coderanger, any idea why these errors are cropping up all of a sudden?
+[2014-04-22 19:31:28 -0400] wdilly: ntp seems okay on my chef server
+[2014-04-22 19:31:28 -0400] coderanger: wdilly: If you don't use ntpd, then its probably because your clocks are out of sync
+[2014-04-22 19:37:07 -0400] mliang2: hi, i'm running private chef.  Is there a way to create an organization via CLI/API instead of the webui?
+[2014-04-22 19:39:15 -0400] bean: wdilly: check the time stamp on your client and your chef server
+[2014-04-22 19:39:18 -0400] bean: see if they match
+[2014-04-22 19:39:20 -0400] bean: i'd bet they don't
+[2014-04-22 19:39:34 -0400] bean: I'd call it a "best practice" to run ntpd, anyways.
+[2014-04-22 19:40:06 -0400] wdilly: bean  i do on my chef-server but ironically use chef to set it up on clients
+[2014-04-22 19:40:52 -0400] wdilly: bean, never used to be an issue, somehow im getting lots of new errors relating to this, just goint to bounch ntpd on the server and see if it helps
+[2014-04-22 19:41:06 -0400] coderanger: mliang2: Contact Opscode, they can give you info on the API
+[2014-04-22 19:41:14 -0400] coderanger: mliang2: Its a bit hacky, but you can do it
+[2014-04-22 19:41:17 -0400] bean: s/Opscode/Chef/g ;)
+[2014-04-22 19:41:47 -0400] coderanger: bean: I still call it opscode because its unambiguous where "chef" is not
+[2014-04-22 19:42:03 -0400] bean: Don't blame you, plus opscode is easier to search for.
+[2014-04-22 19:42:10 -0400] mliang2: is it possible to inject our own validoator pem, user, and user key via api as well?  we're basically running the server in aws and want automate teh setup
+[2014-04-22 19:42:30 -0400] coderanger: mliang2: Yes, thats all just the normal user/client API
+[2014-04-22 19:42:45 -0400] mliang2: cool, thx, I'll contact our support person at opscode
+[2014-04-22 19:44:07 -0400] sarkis: any good chef books yet?
+[2014-04-22 19:44:17 -0400] sarkis: i saw theres one by packt chef cookbook
+[2014-04-22 19:44:37 -0400] sarkis: was hoping for something "the berkshelf way" in the form of a pdf or book
+[2014-04-22 19:44:55 -0400] bean: I wouldn't recommend learning chef using a book.
+[2014-04-22 19:45:08 -0400] sarkis: it was just something to read on my long plane ride home :)
+[2014-04-22 19:45:40 -0400] coderanger: sarkis: http://www.manning.com/aivaliotis/ is on early access soon
+[2014-04-22 19:46:01 -0400] coderanger: thats the only intro-level book I know of
+[2014-04-22 19:46:15 -0400] sarkis: nice thanks coderanger
+[2014-04-22 19:46:52 -0400] sarkis: i guess i can just work locally on the plane with my vagrant boxes
+[2014-04-22 19:47:17 -0400] mannyt: sarkis if you are willing to do a little legwork this book has a decent beginner intro to chef http://shop.oreilly.com/product/0636920030973.do
+[2014-04-22 19:47:19 -0400] coderanger: sarkis: You might want to grab polipo and get its cached filled before you leave
+[2014-04-22 19:47:27 -0400] mannyt: you may have to look up some filler info
+[2014-04-22 19:47:40 -0400] coderanger: mannyt: Really not sure I would call that intro level
+[2014-04-22 19:49:04 -0400] sarkis: im coming from advanced puppet
+[2014-04-22 19:49:21 -0400] sarkis: so i mostly have a grasp on the intro chef in the past month of using it
+[2014-04-22 19:49:51 -0400] FireBeyond: does chef-client compile all recipes, or only those being called by the current role?
+[2014-04-22 19:50:11 -0400] coderanger: sarkis: "the berkshelf way" has evolved quickly enough that no book really covers it well anyway
+[2014-04-22 19:50:37 -0400] coderanger: sarkis: Best bet is to fly to Seattle and bribe reset with some nice whiskey or similar
+[2014-04-22 19:50:38 -0400] bean: FireBeyond: it'll compile all of the recipes in the run list. Most people don't recommend using Roles these days.
+[2014-04-22 19:50:47 -0400] bean: Reset loves his whiskey.
+[2014-04-22 19:51:12 -0400] coderanger: FireBeyond: Only recipes that get invoked are run, they can be invoked either via the expanded run list or include_recipe
+[2014-04-22 19:51:38 -0400] FireBeyond: Gotcha
+[2014-04-22 19:53:15 -0400] sarkis: coderanger: lol
+[2014-04-22 20:04:11 -0400] holms: hi there, anybody got problem with berkshelf and mongodb cookbook? http://pastebin.com/DyvKzFi0
+[2014-04-22 20:13:10 -0400] sarkis: holms: is that your own app? msgapp?
+[2014-04-22 20:13:32 -0400] sarkis: can you paste your Berksfile (of the application cookbook) and the metadata.rb
+[2014-04-22 20:15:29 -0400] holms: sarkis: yeah
+[2014-04-22 20:15:36 -0400] holms: one sec
+[2014-04-22 20:18:16 -0400] holms: sarkis: https://github.com/berkshelf/berkshelf/issues/1149
+[2014-04-22 20:19:19 -0400] jtimberman: holms: what you're seeing is that the dep selector library is finding the latest version that meets the entire solved dependency graph of your cookbooks.
+[2014-04-22 20:19:57 -0400] holms: this is actually second time is happening
+[2014-04-22 20:20:00 -0400] holms: first time it was with nginx version
+[2014-04-22 20:20:13 -0400] holms: and author of berkshelf said it's chef-server problem
+[2014-04-22 20:20:16 -0400] holms: i really doubt about that
+[2014-04-22 20:20:57 -0400] jtimberman: holms: the 0.15.2 version of the mongodb cookbook depends on yum >= 3, it's probable that there's another cookbook that has a constraint on yum < 3, and 0.13.7 may not have the constraint on the yum cokobook version.
+[2014-04-22 20:21:06 -0400] holms: only dependency i create is in metadata.rb :) removing it works, setting to specific version which is from here (http://community.opscode.com/cookbooks/mongodb ) - fails. without setting version - it gets old version
+[2014-04-22 20:21:17 -0400] holms: hmz
+[2014-04-22 20:21:46 -0400] jtimberman: gecode is solving this in the best possible way given the constraints in the graph. gecode is *really* good at that (berkshelf uses gecode as the constraint/graph solver through the dep-selector library)
+[2014-04-22 20:21:53 -0400] jtimberman: (in berkshelf 3)
+[2014-04-22 20:22:02 -0400] holms: im using berkshelf 3
+[2014-04-22 20:22:14 -0400] jtimberman: what is your metadata for msgapp?
+[2014-04-22 20:22:16 -0400] holms: gonna check who using old yum
+[2014-04-22 20:23:12 -0400] holms: http://pastebin.com/raw.php?i=K4PSXA5q
+[2014-04-22 20:23:18 -0400] jtimberman: i see there was this commit for 0.15.1, locking the constraint to yum < 3 https://github.com/edelight/chef-mongodb/commit/8c49220b46788e4d85e92b3b905a914b3ea693dd
+[2014-04-22 20:25:04 -0400] jtimberman: nginx 2.6.2 depend on yum-epel ~> 0.3.
+[2014-04-22 20:25:11 -0400] holms: oh that's how it is
+[2014-04-22 20:25:41 -0400] jtimberman: and yum-epel depends on yum ~> 3.0
+[2014-04-22 20:26:05 -0400] holms: thanks for figuring it out
+[2014-04-22 20:26:10 -0400] holms: gonna complain to them then
+[2014-04-22 20:26:21 -0400] jtimberman: unfortunately we don't have meaningful messages coming from berkshelf and the underlying solver library, but it *IS* better than it was (where it wouldn't even fail to solve, just try to resolve forever)
+[2014-04-22 20:26:57 -0400] jtimberman: mongodb needs to be updated to use yum ~> 3.
+[2014-04-22 20:27:03 -0400] jtimberman: whatever that may mean.
+[2014-04-22 20:27:26 -0400] sarkis: any reason to use knife-solo? seems the only plus is databags?
+[2014-04-22 20:27:35 -0400] sarkis: for chef solo
+[2014-04-22 20:28:34 -0400] jtimberman: holms: you can probably put in your berksfile: cookbook "mongodb", "~> 0.16.0", :git => "git://github.com/edelight/chef-mongodb", :tag => "0.16.0"
+[2014-04-22 20:28:39 -0400] jtimberman: and it'll get the right thing
+[2014-04-22 20:28:41 -0400] sarkis: i guess its nice to have prepare and cook
+[2014-04-22 20:28:45 -0400] mannyt: coderanger the first few chapters of that book walk through chef-apply up through a full cookbook.  While the topic can get advanced I really wish I had those few chapters when I first started with Chef
+[2014-04-22 20:28:59 -0400] jtimberman: and maybe poke the maintainer to see if they'll release 0.16.0 to the community site :)
+[2014-04-22 20:29:07 -0400] sarkis: mannyt: which book is that now?
+[2014-04-22 20:29:14 -0400] mannyt: but yea overall its not necessarily a beginner book
+[2014-04-22 20:29:17 -0400] jtimberman: sarkis: i'd consider switching to use chef-client with --local-mode :)
+[2014-04-22 20:29:19 -0400] sarkis: oreilly?
+[2014-04-22 20:29:22 -0400] mannyt: sarkis the one I linked to before
+[2014-04-22 20:29:24 -0400] jtimberman: but that's probably quite a leap
+[2014-04-22 20:29:33 -0400] mannyt: yea oreilly, the testing infrastructure one
+[2014-04-22 20:29:54 -0400] sarkis: jtimberman: hmm interesting, ill look into that.. right now im focused on using the "berkshelf way" properly
+[2014-04-22 20:30:09 -0400] sarkis: i came onto the team and we were using a hot mess of berkshelf way but still using roles
+[2014-04-22 20:30:24 -0400] sarkis: almost there in getting rid of roles :)
+[2014-04-22 20:30:25 -0400] jtimberman: O'Reilly has two more Chef books coming later this year, I think they're both in "preview" mode where you can opt into electronic copies that get periodic updates from the authors.
+[2014-04-22 20:30:27 -0400] mannyt: The book coderanger mentioned looked good and seemed to go further into cookbook development than the testing one did
+[2014-04-22 20:30:35 -0400] holms: hmz
+[2014-04-22 20:30:44 -0400] robawt: mannyt: which book?
+[2014-04-22 20:30:47 -0400] holms: jtimberman: seems to be it solved in latest version? https://github.com/edelight/chef-mongodb/blob/master/metadata.rb
+[2014-04-22 20:30:54 -0400] sarkis: jtimberman: thanks checking htat out
+[2014-04-22 20:31:00 -0400] holms: so all i need is to poke for update
+[2014-04-22 20:31:27 -0400] mannyt: yea jtimberman I am looking forward to "Customizing Chef"
+[2014-04-22 20:31:33 -0400] jtimberman: holms: right, so, releasing 0.16.0 to the community site would solve this for you, or you can put the cookbook w/ git line i wrote earlier :)
+[2014-04-22 20:31:48 -0400] jtimberman: mannyt: yar. jon is awesome. he did a great talk at ChefConf last week (video should be available soon)
+[2014-04-22 20:31:52 -0400] holms: jtimberman: would be nice to put this in metadata.rb
+[2014-04-22 20:32:00 -0400] holms: although I couldn't find how to do this
+[2014-04-22 20:32:47 -0400] jtimberman: holms: that's the thing, that's what berkshelf is really good at.
+[2014-04-22 20:32:54 -0400] jtimberman: getting the dependencies you have.
+[2014-04-22 20:32:54 -0400] mannyt: jtimberman yea I was at his talk, he knocked it out of the park.  I have been itching to do more with handlers
+[2014-04-22 20:33:01 -0400] jtimberman: :D!
+[2014-04-22 20:33:08 -0400] maplebed: Reading http://docs.opscode.com/essentials_cookbook_libraries.html I see how to get a function to be available to a recipe. Any suggestion on making it available within a template?
+[2014-04-22 20:33:15 -0400] mannyt: robawt: its the book that coderanger mentioned before http://www.manning.com/aivaliotis/
+[2014-04-22 20:33:34 -0400] holms: jtimberman: I can't ship my cookbook with berksfile can't I? this gonna be used by other dev
+[2014-04-22 20:33:57 -0400] spheromak: maplebed: define them in Chef::Resource::Template::Mything
+[2014-04-22 20:34:08 -0400] holms: i mean chef-msgapp working out of the box would be nice
+[2014-04-22 20:34:10 -0400] robawt: cool thanks mannyt
+[2014-04-22 20:34:22 -0400] maplebed: spheromak: Ah! thanks. I was missing the resource part.
+[2014-04-22 20:34:29 -0400] spheromak: maplebed: its good(tm) to namespace out your methods, and not pollute the Chef namespaces
+[2014-04-22 20:34:57 -0400] jtimberman: spheromak: honeybadger loves polluting chef namespaces.
+[2014-04-22 20:35:41 -0400] spheromak: jtimberman: cough stackforge cooks
+[2014-04-22 20:36:21 -0400] maplebed: spheromak: I'm mostly just trying to learn how it works. For entirely internal stuff, I'm tempted to pollute though... That probably makes me a Bad Person(tm).
+[2014-04-22 20:36:35 -0400] jtimberman: holms: sure you can
+[2014-04-22 20:37:27 -0400] holms: jtimberman: any example cookbook on this?
+[2014-04-22 20:37:34 -0400] spheromak: holms: absolutely, just be wary of using paths that are local to your workstation :)
+[2014-04-22 20:39:37 -0400] jtimberman: holms: i don't have a public example offhand. I know we have interanl cookbooks tho :)
+[2014-04-22 20:41:13 -0400] spheromak: holms: what are you looking for example cookbook with berksfile ?
+[2014-04-22 20:42:01 -0400] holms: spheromak: a cookbook where git url's would be specified as dependency
+[2014-04-22 20:42:22 -0400] holms: cause this cookbook will be just added with git url, latter on , with no additional fuss preferebly
+[2014-04-22 20:43:59 -0400] spheromak: holms: https://github.com/stackforge/cookbook-openstack-compute/blob/master/Berksfile
+[2014-04-22 20:44:17 -0400] jtimberman: spheromak: get thee gone, ruby 1.9 hash syntax.
+[2014-04-22 20:44:34 -0400] spheromak: jtimberman: talk to mattray ;)
+[2014-04-22 20:44:45 -0400] jtimberman: spheromak: ORLY.
+[2014-04-22 20:44:51 -0400] spheromak: jtimberman: thats just rubocop
+[2014-04-22 20:44:56 -0400] spheromak: stackforge stuff is all rubo'd out
+[2014-04-22 20:45:12 -0400] spheromak: and rubo prefers 1.9 syntax by default (so do i actually)
+[2014-04-22 20:45:36 -0400] jtimberman: yeah fuck that :) https://github.com/jtimberman/private-skeleton-cookbook/blob/master/.rubocop.yml#L17-L18
+[2014-04-22 20:45:44 -0400] spheromak: :)
+[2014-04-22 20:45:44 -0400] jtimberman: hash rockets for life
+[2014-04-22 20:45:48 -0400] mattray: my preference is to pick a standard and we didn't have one
+[2014-04-22 20:46:00 -0400] spheromak: mattray: i prefer consistancy either way for sure
+[2014-04-22 20:46:02 -0400] holms: spheromak: oh nice, and this Berksfile will be executed automatically by berkshelf?
+[2014-04-22 20:46:13 -0400] holms: when including this cookbook from site-cookbooks or git url?
+[2014-04-22 20:46:22 -0400] spheromak: holms: berks doesn't recurse
+[2014-04-22 20:46:29 -0400] jtimberman: i don't like breaking the ability for people who realy want to use ruby 1.8.7 (for WHATEVER reason) because reasons.
+[2014-04-22 20:46:53 -0400] mattray: jtimberman: fair enough. We explicitly require 1.9.x with the OpenStack stuff
+[2014-04-22 20:46:56 -0400] spheromak: holms: your talking transient deps. this is why the berks api server exists, and before that why i ran my own chef-server as an api
+[2014-04-22 20:47:05 -0400] c_t: might become easier to break 1.8.7 support when debian finally stops shipping it as the default ruby
+[2014-04-22 20:47:12 -0400] bxraabe: plus there's something slightly satisfying about the hash rocket syntax
+[2014-04-22 20:47:19 -0400] spheromak: jtimberman: yea it was decided to not support < 1.9 on openstack cooks
+[2014-04-22 20:47:21 -0400] mattray: jtimberman: one of the gems was requiring 1.9.x
+[2014-04-22 20:47:39 -0400] someara: 1.8.7 is more than just hash rockets
+[2014-04-22 20:47:40 -0400] spheromak: jtimberman: you're in the bikeshedding mood today with that tweet and this => convo :D
+[2014-04-22 20:47:45 -0400] holms: spheromak: not sure I understand you. who will execute that Berksfile in your cookbook?
+[2014-04-22 20:47:53 -0400] jtimberman: c_t: https://bugs.launchpad.net/ubuntu/+source/ruby2.0/+bug/1310292
+[2014-04-22 20:47:54 -0400] spheromak: someara: yea its more pain than that :D
+[2014-04-22 20:48:13 -0400] jtimberman: don't get me wrong.
+[2014-04-22 20:48:13 -0400] spheromak: c_t: redhat has to stop shipping it as well
+[2014-04-22 20:48:22 -0400] jtimberman: ruby 1.9+ is the way to go.
+[2014-04-22 20:48:33 -0400] jtimberman: but if your code would otherwise work in ruby 1.8
+[2014-04-22 20:48:42 -0400] spheromak: holms: berkshelf will not recurse Berksfiles
+[2014-04-22 20:48:53 -0400] jtimberman: but you switch your hashes to non-hash rockets, you broke everyone using 1.8 for no tangible improvement
+[2014-04-22 20:48:56 -0400] c_t: spheromak: ah, of course
+[2014-04-22 20:48:57 -0400] holms: spheromak: so you doing this manually
+[2014-04-22 20:49:10 -0400] c_t: but I don't track red hat terribly closely
+[2014-04-22 20:50:28 -0400] spheromak: holms: in my workfow we controll all sources of cooks and they run through CI -> golden chef server which we use for our only berks source (moving ot berks3/api infront of that).
+[2014-04-22 20:51:18 -0400] c_t: jtimberman: for various weird but not without total sense reasons, a lot of our servers are stuck on squeeze
+[2014-04-22 20:51:19 -0400] spheromak: c_t: re: rhel least they don't break shit on "LTS" releases (generally) :D
+[2014-04-22 20:51:34 -0400] c_t: so I'm used to seeing 1.8.7 pop up in weird places
+[2014-04-22 20:52:12 -0400] spheromak: jtimberman:  code prettieness is more than enough reason
+[2014-04-22 20:52:30 -0400] c_t: spheromak: I generally use debian for my linux needs, so I avoid some of that
+[2014-04-22 20:52:32 -0400] zanshin: Since Berkshelf 3.0.1 deprecates the site directive in Berksfile, and since I'm not ready to redo all my cookbooks, is there a way to have both Berkshelf 2.x and 3.x install on the same workstation? OR is that asking for a bag of hurt?
+[2014-04-22 20:52:49 -0400] c_t: of course, the opposite problem can creep in after the debian release in question has fossilized a bit
+[2014-04-22 20:52:58 -0400] coderanger: zanshin: Sure, just use bundler
+[2014-04-22 20:52:59 -0400] bluepojo_: You can have both installed, but only one will take precedence on the path
+[2014-04-22 20:53:08 -0400] spheromak: zanshin: i started usiong a docker for chefdk (ships with berks 3) to handle this
+[2014-04-22 20:53:29 -0400] bluepojo_: but yeah, bundler could solve that
+[2014-04-22 20:53:31 -0400] coderanger: zanshin: Though installing berks 3 as a gem means compiling gecode yourself so it takes a little while
+[2014-04-22 20:53:37 -0400] spheromak: coderanger: getting berks3 with solve using gecode compiled via bundle/gems is "fun"
+[2014-04-22 20:53:40 -0400] bluepojo_: you can use BUNDLE_GEMFILE=path/to/Gemfile
+[2014-04-22 20:53:41 -0400] zanshin: bundler and RVM gemsets are probably the best short-term solution for me. Does docker work on OS X yet?
+[2014-04-22 20:53:48 -0400] coderanger: spheromak: Its not that bad :)
+[2014-04-22 20:53:50 -0400] bluepojo_: boot2docker works great
+[2014-04-22 20:53:58 -0400] bluepojo_: which is technically a VM
+[2014-04-22 20:54:01 -0400] spheromak: dvm boot2docker
+[2014-04-22 20:54:01 -0400] bluepojo_: but it feels native
+[2014-04-22 20:54:15 -0400] spheromak: dvm makes it dead simple to setup
+[2014-04-22 20:54:34 -0400] sarkis: what does the site directive do? other than set a default place to look for cookbooks?
+[2014-04-22 20:54:41 -0400] sarkis: or at least thats what i thought it id
+[2014-04-22 20:54:42 -0400] spheromak: sarkis: thats it
+[2014-04-22 20:55:23 -0400] sarkis: so now its deprecated... does it look somewhere by default/?
+[2014-04-22 20:55:32 -0400] bluepojo_: source "https://api.berkshelf.com" replaces site :opscode
+[2014-04-22 20:55:37 -0400] bluepojo_: directly
+[2014-04-22 20:55:39 -0400] sarkis: i see
+[2014-04-22 20:56:22 -0400] spheromak: basically if you were using site or chef_api in berks 2 you should be setting those up in your own berks api server and using it as a source in berks 3
+[2014-04-22 20:56:44 -0400] jtimberman: coderanger: it should install the dep_selector-libgecode w/ the vendored gecode so no compiling required.
+[2014-04-22 20:58:30 -0400] coderanger: jtimberman: The lib is vendored, but you still need to compile it
+[2014-04-22 20:58:36 -0400] coderanger: jtimberman: which takes ~30m on my MBA
+[2014-04-22 20:59:17 -0400] jtimberman: would a brew installed gecode work?
+[2014-04-22 20:59:22 -0400] coderanger: Nope
+[2014-04-22 20:59:44 -0400] jtimberman: welp, i didn't do any such compilation when i installed berkshelf 3.0.0.rc.1 before chefconf, and everything worked fine.
+[2014-04-22 20:59:56 -0400] jtimberman: it took a minute to install because the vendored gem had to be downloaded.
+[2014-04-22 21:00:35 -0400] coderanger: huh, maybe its just some weird thing in my ruby setup
+[2014-04-22 21:01:10 -0400] spheromak: jtimberman: it blew up on me
+[2014-04-22 21:01:15 -0400] spheromak: trying to compile gecode
+[2014-04-22 21:01:30 -0400] spheromak: this was on sunday I think
+[2014-04-22 21:01:53 -0400] jtimberman: i'm using chefdk now
+[2014-04-22 21:02:02 -0400] jtimberman: along with chruby, is delightful :)
+[2014-04-22 21:03:24 -0400] c_t: dumb chef question that was on my mind
+[2014-04-22 21:04:05 -0400] sarkis: spheromak: but if i was just using opscode then i'm fine right?
+[2014-04-22 21:04:13 -0400] sarkis: only if i had setup my own site
+[2014-04-22 21:04:14 -0400] c_t: are there any cases where someone would WANT to remove the version number from a cookbook?
+[2014-04-22 21:04:54 -0400] c_t: or set an empty array for a cookbook attribute array (like depencies or something) and expect the empty array to be there later?
+[2014-04-22 21:05:02 -0400] spheromak: sarkis: yea its if you have internal deps you want to keep internal
+[2014-04-22 21:05:10 -0400] spheromak: then you would be running your own api server
+[2014-04-22 21:05:24 -0400] spheromak: or if you want to make sure that transitive deps are locked in a specific way
+[2014-04-22 21:05:42 -0400] spheromak: even then its not completely reliable, but better than not doing it.
+[2014-04-22 21:15:33 -0400] moted: jtimberman: chefdk seems to only have a couple commands.  Am I supposed to add /opt/chefdk/bin to my PATH to use the embedded executables?  Im sorta confused on how Im supposed to use it..
+[2014-04-22 21:16:35 -0400] jtimberman: moted: the commands that are in /opt/chefdk/bin are set up using the 'appbundler' approach, to limit the versions of the various dependent gems, to make load times faster.
+[2014-04-22 21:18:24 -0400] jtimberman: moted: we also link things in /usr/bin for the package installation
+[2014-04-22 21:18:53 -0400] jtimberman: e.g. https://gist.github.com/jtimberman/54a6cefd96a731439acb
+[2014-04-22 21:18:57 -0400] moted: jtimberman: that makes more sense
+[2014-04-22 21:19:14 -0400] moted: jtimberman: Im still using rvm so the shims of the installed gems are found first
+[2014-04-22 21:19:30 -0400] moted: jtimberman: seems like it might be time to finally ditch that and use chruby
+[2014-04-22 21:19:43 -0400] moted: jtimberman: s/rvm/rbenv/
+[2014-04-22 21:25:36 -0400] rayrod20_: anyone recommend an approach for keeping track of AWS keys?
+[2014-04-22 21:26:08 -0400] rayrod20_: like other than a spreadsheet
+[2014-04-22 21:29:05 -0400] stormerider: rayrod20_: keepass?
+[2014-04-22 21:31:13 -0400] coderanger: rayrod20_: What kind of keys?
+[2014-04-22 21:31:44 -0400] senthilr: keep ass ?
+[2014-04-22 21:31:49 -0400] senthilr: :)
+[2014-04-22 21:32:09 -0400] dark_dr4g0n: hi all
+[2014-04-22 21:32:21 -0400] senthilr: I am assuming the secret API keys
+[2014-04-22 21:32:33 -0400] senthilr: spreadsheet seems to work just fine
+[2014-04-22 21:32:48 -0400] senthilr: we use it rarely though
+[2014-04-22 21:32:51 -0400] dark_dr4g0n: how can I use test kitchen for cookbook with depends on many private cookbooks? add all of them to berksfile?
+[2014-04-22 21:32:53 -0400] senthilr: we have moved to IAM role based
+[2014-04-22 21:32:56 -0400] senthilr: auth
+[2014-04-22 21:34:00 -0400] coderanger: Yeah, free floating keys should almost always only be mapped 1-to-1 with humans
+[2014-04-22 21:34:01 -0400] rayrod20_: coderanger: just thinking of a better way to keep track of aws access keys.
+[2014-04-22 21:34:19 -0400] coderanger: and they should mange them themselves via their normal password manager (1pass, keepass, lastpass, etc)
+[2014-04-22 21:34:21 -0400] rayrod20_: so just map to well described iam accounts?
+[2014-04-22 21:34:34 -0400] rayrod20_: keys for humans.  iam roles for non-humans.
+[2014-04-22 21:34:35 -0400] coderanger: and use roles for servers
+[2014-04-22 21:34:40 -0400] coderanger: yeah, that
+[2014-04-22 21:34:41 -0400] rayrod20_: makes sense.
+[2014-04-22 21:34:46 -0400] coderanger: IAM roles specifically map to EC2 servers
+[2014-04-22 21:34:51 -0400] rayrod20_: yup
+[2014-04-22 21:35:09 -0400] coderanger: If you need freefloating utility keys (like we have one for travis) just make them an IAM user with no password
+[2014-04-22 21:35:10 -0400] rayrod20_: so basically best way to manage keys is to not create them unless necessary
+[2014-04-22 21:35:20 -0400] rayrod20_: sounds good
+[2014-04-22 21:35:48 -0400] coderanger: if you somehow have a ton of those utility keys and need to track them a little more, red october is built for this
+[2014-04-22 21:35:52 -0400] coderanger: but likely overkill for this situation
+[2014-04-22 21:36:22 -0400] rayrod20_: I want to use that.  I don't care what it does.  I need to run something called "red october".
+[2014-04-22 21:36:24 -0400] rayrod20_: brb...
+[2014-04-22 21:36:35 -0400] rayrod20_: :)
+[2014-04-22 21:37:01 -0400] coderanger: its a cold storage system for secret data
+[2014-04-22 21:37:12 -0400] coderanger: like 1password but for groups of people
+[2014-04-22 21:37:27 -0400] rayrod20_: interesting
+[2014-04-22 21:37:43 -0400] coderanger: Go watch my PyCon talk, I talk about it for a bit :)
+[2014-04-22 21:38:14 -0400] rayrod20_: will do
+[2014-04-22 21:38:24 -0400] rayrod20_: you going to monitorama?
+[2014-04-22 21:39:33 -0400] coderanger: rayrod20_: Yep, speaking there too
+[2014-04-22 21:39:36 -0400] coderanger: rayrod20_: https://speakerdeck.com/coderanger/application-deployment-state-of-the-onion?slide=55
+[2014-04-22 21:39:51 -0400] rayrod20_: awesome.  I'll say hi.
+[2014-04-22 21:41:22 -0400] rayrod20_: coderanger: that's a great deck on tools and tech.  very thorough.
+[2014-04-22 21:41:38 -0400] coderanger: rayrod20_: Also be aware that unless you use the citadel cookbook, using IAM roles with Chef is insecure
+[2014-04-22 21:42:35 -0400] robb_: trying to bootstrap some windows nodes and the chef-client download is failing because of a bad certificate authority -- is there anyway to ignore certificate errors?
+[2014-04-22 21:43:08 -0400] rayrod20_: I'd most likely be setting them via asgard.
+[2014-04-22 21:43:32 -0400] coderanger: robb_: You would need to make a new bootstrap script, but I would reeeeally recommend not ignoring cert errors
+[2014-04-22 21:44:03 -0400] coderanger: rayrod20_: Doesn't matter, due to how Chef and Ohai work, if the server has a role set and chef ever runs on the machine, consider it compromised
+[2014-04-22 21:44:48 -0400] rayrod20_: coderanger: fantastic thanks.
+[2014-04-22 21:45:46 -0400] robb_: coderanger: it's the default bootstrap script, i've never modified it. It used to work, but now fails when trying to download from opscode. I'm guessing opscode's cert is no longer valid or something.
+[2014-04-22 21:46:36 -0400] stormerider: coderanger: im assuming that's because ohai probes the ec2 metadata which provides the key?
+[2014-04-22 21:46:56 -0400] stormerider: and gets saved into the node data?
+[2014-04-22 21:47:06 -0400] coderanger: stormerider: Yep, which is then visible to all other nodes via search
+[2014-04-22 21:47:25 -0400] coderanger: robb_: Can you pastebin the specific error? longshot but maybe knowing the specific server would help
+[2014-04-22 21:47:55 -0400] coderanger: stormerider: I brought this up in my lightning talk and I think Opscode is working on a fix to just make ohai not ingest role data
+[2014-04-22 21:48:14 -0400] stormerider: that sounds like a good thing to blacklist, yeah
+[2014-04-22 21:48:31 -0400] coderanger: stormerider: This is a global problem with a lot of cookbooks though
+[2014-04-22 21:48:55 -0400] robb_: coderanger: sure thing.. http://pastebin.com/8ezppeSf
+[2014-04-22 21:49:32 -0400] coderanger: robb_: Hmm, are you sure your local chef is up to date?
+[2014-04-22 21:49:40 -0400] coderanger: robb_: I don't think opscode.com is being used anymore
+[2014-04-22 21:50:02 -0400] coderanger: robb_: Regardless, the cert on that URL is valid
+[2014-04-22 21:50:18 -0400] coderanger: robb_: What OS is this on? Maybe you don't have DigiCert as a trusted CA?
+[2014-04-22 21:50:35 -0400] robb_: my workstation and server are both ubuntu 12.04
+[2014-04-22 21:50:47 -0400] robb_: i've run updates on my workstation recently, but probably not the server, i'll check that
+[2014-04-22 21:51:05 -0400] robb_: it was bootstraping nodes fine last week and just stopped working
+[2014-04-22 21:52:13 -0400] coderanger: robb_: Hmm, most likely something to do with heartbleed-mandated key rotations, but I'm not familiar enough with the windows boot process to say for sure
+[2014-04-22 21:52:38 -0400] robb_: ok, thanks, at least that's something to google
+[2014-04-22 21:54:23 -0400] coderanger: robb_: Trying to figure out where that wget.vbs even comes from
+[2014-04-22 21:54:56 -0400] mindlace: if a package name changes from one version of ubuntu to the next, how does one "properly" express that?
+[2014-04-22 21:55:02 -0400] coderanger: https://github.com/opscode/knife-windows/blob/0aece756377e9c7127818a064113ccbf818eaca2/lib/chef/knife/core/windows_bootstrap_context.rb#L87-L134
+[2014-04-22 21:55:06 -0400] coderanger: There it is
+[2014-04-22 21:56:05 -0400] coderanger: It doesn't mention anything explicit about keys
+[2014-04-22 21:57:29 -0400] robb_: ahh. you're probably right about heartbleed, opscode's cert works fine on my workstation but pulls up a certificate error in IE on the node i'm trying to bootstrap. I'll make sure its CAs are up to date.
+[2014-04-22 21:58:04 -0400] jbellone: Using an omnibus template with test-kitchen what's the command to generate the package? Just kitchen converge?
+[2014-04-22 22:00:11 -0400] jbellone: It doesn't seem to kick off omnibus build <project
+[2014-04-22 22:15:43 -0400] sarkis: hmm this is strange, i do a berks install on my local machine
+[2014-04-22 22:15:57 -0400] sarkis: Ridley::Errors::MissingNameAttribute The metadata at '/var/folders/m_/y5s4mbzn0ml5fh015x__ytnc0000gn/T/d20140422-65663-1qpqeto' does not contain a 'name' attribute. While Chef does not strictly enforce this requirement, Ridley cannot continue without a valid metadata 'name' entry.
+[2014-04-22 22:16:28 -0400] sarkis: anyone seen this before? i think thats a tmp file? doesn't seem to exist when i try to look for it
+[2014-04-22 22:24:38 -0400] bxraabe: sarkis: that's definitely a temp file. Looks like whatever cookbook it's operating on is missing the name definition in its metadata
+[2014-04-22 22:26:02 -0400] sarkis: i see ill look through the dependencies
+[2014-04-22 22:26:32 -0400] sarkis: i should probably open a ticket for more informative logging :P
+[2014-04-22 22:33:26 -0400] sarkis: how funny its a jtimberman cookbook :P
+[2014-04-22 22:33:32 -0400] sarkis: jtimberman: you around?
+[2014-04-22 22:51:26 -0400] coderanger: mindlace: Whats up?
+[2014-04-22 22:51:57 -0400] mindlace: well, aside from libarchive-cookbook being borked on any ubuntu younger than two years old
+[2014-04-22 22:53:09 -0400] mindlace: which we got around, now it's failing to run. Also unclear on how one should actually get it configured properly
+[2014-04-22 22:53:39 -0400] mindlace: (wrap the cookbook? that's inside the berkshelf-api/cookbook?
+[2014-04-22 22:53:49 -0400] coderanger: mindlace: Ahh, can't help there beyond pointing at my cookbook for berkshelf-api
+[2014-04-22 22:54:04 -0400] coderanger: mindlace: reset and I are still working out if/how to merge the two
+[2014-04-22 22:54:18 -0400] mindlace: which one is yours? this one is making me sad face
+[2014-04-22 22:54:56 -0400] reset: mindlace: the libarchive cookbook just had a PR merged in that fixes the Ubuntu 12 only stuff
+[2014-04-22 22:54:57 -0400] coderanger: mindlace: ckbk.it/berkshelf-api
+[2014-04-22 22:55:12 -0400] mindlace: I know, the guy sitting next to me wrote it :)
+[2014-04-22 22:55:14 -0400] reset: keep in mind this software is free. As in, free for you to submit pull requests to improve it for the OS you want it to run on
+[2014-04-22 22:55:50 -0400] mindlace: at the moment "pair programming" means I submitted an issue and he submitted a PR
+[2014-04-22 22:56:43 -0400] mindlace: speak of the devil.
+[2014-04-22 22:57:45 -0400] mindlace: Ok, so I really don't get what the flow here "should" be - we patched libarchive, then we should fork & rebuild berkshelf-api to have the new libarchive dependency?
+[2014-04-22 22:58:38 -0400] reset: no, I'm releasing a new version of the cookbook which includes the changes
+[2014-04-22 22:58:52 -0400] reset: unless you need it in under 10 minutes
+[2014-04-22 22:58:57 -0400] reset: then you can fork it if you want
+[2014-04-22 22:59:04 -0400] mindlace: well shouldn't (hypothetically) we have tested it before we submitted the pr?
+[2014-04-22 22:59:40 -0400] mindlace: I mean, I appreciate that you're mad responsive, but you're maybe not 100% representative
+[2014-04-22 22:59:55 -0400] reset: I'm testing it before releasing it
+[2014-04-22 23:00:01 -0400] reset: and I don't know what you mean by 100% representative
+[2014-04-22 23:00:38 -0400] mindlace: I'm just trying to understand how we go about working with the universe of cookbooks when we should make build artifacts for any hacks
+[2014-04-22 23:01:06 -0400] reset: we shouldn't make build artifacts for hacks
+[2014-04-22 23:01:11 -0400] reset: what are you saying
+[2014-04-22 23:01:32 -0400] mindlace: It has to do with the transient dependency stuff.
+[2014-04-22 23:01:46 -0400] reset: explain what you are trying to tell me
+[2014-04-22 23:03:07 -0400] mindlace: Ok. So I'm trying to install an app called "berkshelf-api". It turns out there's a bug in the underlying library cookbook. I fix the bug in the underlying cookbook. Now I would like to keep working until such time as a fixed version is released.
+[2014-04-22 23:03:53 -0400] coderanger: mindlace: Are you using chef w/ a server or solo?
+[2014-04-22 23:03:56 -0400] mindlace: server
+[2014-04-22 23:04:06 -0400] mindlace: hosted chef
+[2014-04-22 23:04:11 -0400] reset: you can wait 15 minutes to verify the test and push a new release of it
+[2014-04-22 23:04:13 -0400] coderanger: mindlace:  You would just upload the modified cookbook to your server and go on your merry way
+[2014-04-22 23:04:29 -0400] reset: or you can fork the cookbook, rename it, and then in 30 minutes switch it back when the full release is done
+[2014-04-22 23:04:42 -0400] mindlace: so... don't bump the version number or anything?
+[2014-04-22 23:04:52 -0400] reset: change the name of the cookbook if you're forking it
+[2014-04-22 23:05:02 -0400] reset: do whatever you want with the version number
+[2014-04-22 23:05:06 -0400] coderanger: reset: I don't think mindlace means in this situation, just in general if using this pattern with people that aren't good upstream maintainers
+[2014-04-22 23:05:08 -0400] mindlace: again, reset, you are extremely responsive, but sometimes if I fix a bug it takes days or weeks for the PR to be accepted
+[2014-04-22 23:05:17 -0400] coderanger: reset: You can't change the name if its something other cookbooks depend on
+[2014-04-22 23:05:37 -0400] reset: yep, forking a lower level cookbook would mean forking up the chain
+[2014-04-22 23:05:46 -0400] reset: same as any other software with a deep dependency tree
+[2014-04-22 23:06:01 -0400] reset: that's why I recommend just sitting tight
+[2014-04-22 23:06:08 -0400] coderanger: If its just a short-term fix until the upstream merges, I usually either release is as 99.0.0 and delete it later, or overwrite the current version and make it _really clear_ to my team that they better not touch things
+[2014-04-22 23:06:54 -0400] coderanger: For long-term forking, then yeah, fork the whole chain and reconsider what you are doing with your life
+[2014-04-22 23:07:09 -0400] mindlace: "just wait" is great if it's not a security fix or otherwise mission critical. I'm just trying to learn how to move away from our existing "point at the git repo all over" pattern we used with berkshelf 2.0
+[2014-04-22 23:07:13 -0400] Majost: Going from RVM to chef-dk, I am finding it unclear how to get a cookbook to recognize required gems for stuff like test kitchen drivers. To use chef-dk, is it pretty much required to vendor my cookbooks?
+[2014-04-22 23:07:40 -0400] mindlace: because what we used to do is point at our branch until upstream fixed it
+[2014-04-22 23:09:41 -0400] reset: if that's what your flow was before, you were just waiting for a problem
+[2014-04-22 23:10:03 -0400] reset: you can't leave the cookbook name the same and release your own version into your Chef Server
+[2014-04-22 23:10:13 -0400] reset: I mean, you _CAN_
+[2014-04-22 23:10:24 -0400] coderanger: reset: You can as long as you are aware its a hack :)
+[2014-04-22 23:11:02 -0400] coderanger: mindlace: Basically start thinking about your chef server as a release repository for your cookbooks
+[2014-04-22 23:11:11 -0400] coderanger: mindlace: And treat this as a normal upstream hotfix for a package
+[2014-04-22 23:11:30 -0400] coderanger: whatever you would use for, say, a hotfix in Ruby works just as well
+[2014-04-22 23:13:20 -0400] mindlace: I am trying to think of it that way, i just fell down on step 0) have a berkshelf-api running against your chef server :)
+[2014-04-22 23:14:21 -0400] mindlace: and trying to reason about how to solve problems I used to solve, or more precisely, how to port the batch of what we'd tried to do with berkshelf 2 to the present
+[2014-04-22 23:14:52 -0400] coderanger: mindlace: Berks wouldn't really be involved in this though
+[2014-04-22 23:15:07 -0400] coderanger: mindlace: Its just a single-package (cookbook) patch
+[2014-04-22 23:15:08 -0400] mindlace: which is challenging because we were Doing It Wrong :)
+[2014-04-22 23:15:28 -0400] coderanger: Indeed
+[2014-04-22 23:15:32 -0400] coderanger: Stop doing things wrong
+[2014-04-22 23:15:37 -0400] coderanger: </helpfuladvice>
+[2014-04-22 23:15:53 -0400] doomviking: any day now
+[2014-04-22 23:16:37 -0400] mindlace: Doesn't anybody else work on like 3 cookbooks at once? e.g. a library, a wrapper, and an environment cookbook at the same time?
+[2014-04-22 23:17:22 -0400] mindlace: I just don't get how I do that - i guess i depend upon the environment cookbook to pull in unreleased versions from the other cookbooks?
+[2014-04-22 23:17:41 -0400] coderanger: mindlace: Sure, I just use local path sources
+[2014-04-22 23:18:24 -0400] mindlace: in which cookbook? the terminal/leaf one?
+[2014-04-22 23:18:44 -0400] coderanger: Yeah
+[2014-04-22 23:19:14 -0400] mindlace: hm... and you just make other people playing along use the same paths?
+[2014-04-22 23:20:09 -0400] coderanger: I don't generally have other people working on my cookbooks, but sure
+[2014-04-22 23:21:40 -0400] mindlace: but doesn't the path thing also bork if you have dependency chain A->B->C and B refs A in its medatata.rb ?
+[2014-04-22 23:22:10 -0400] mindlace: it seems like the assumption of the new approach is that All Upstream Dependencies Are Released
+[2014-04-22 23:22:11 -0400] coderanger: No, I just have to specific both in my berksfile while developing
+[2014-04-22 23:22:20 -0400] coderanger: Same as with bundler or pip
+[2014-04-22 23:22:57 -0400] jameson__: question, berks work flow means business logic cookbooks are also in separate repos right?
+[2014-04-22 23:23:40 -0400] mindlace: Thanks for the clarification, coderanger . Now that I think of it our "real" problem was we wanted an upstream cookbook to get its deps from github which is The Wrong Way To Do It.
+[2014-04-22 23:23:47 -0400] coderanger: I defer to reset on that one as my understanding is still nacent
+[2014-04-22 23:24:18 -0400] reset: jameson__: can you clarify "business logic cookbooks" for me?
+[2014-04-22 23:24:52 -0400] mindlace: I'm extremely confused about how to apply the wrapper pattern to berksflow; like, given we're using berkshelf-api as per instructions, how do we set the config properly?
+[2014-04-22 23:24:57 -0400] jameson__: reset: our 'api' server uses nginx, uwsgi, python, and some dependencies
+[2014-04-22 23:25:32 -0400] jameson__: we also have our own 'rabbitmq-cluster' cookbook that uses the rabbitmq cookbook's lwrps
+[2014-04-22 23:26:15 -0400] mindlace: because if I install berkshelf-api as per instructions in the "express install" I get a berkshelf api that doesn't do anything
+[2014-04-22 23:27:22 -0400] reset: mindlace: we can do two things here. You can wait for me to update the cookbook or you can use the operating system that I wrote the initial support for
+[2014-04-22 23:27:29 -0400] mindlace: I make a wrapper cookbook and apply that instead of "recipe[berkshelf-api::default]"
+[2014-04-22 23:27:35 -0400] reset: anytime I spend chatting in here is time I'm not spending updating the cookbook
+[2014-04-22 23:27:53 -0400] mindlace: reset apologies, I just mean "set config to talk to my chef server"
+[2014-04-22 23:28:00 -0400] mindlace: not "work on my os"
+[2014-04-22 23:28:37 -0400] reset: ok, I'll include explicit instructions in the README for how to configure the server. In the mean time I can explain
+[2014-04-22 23:28:55 -0400] reset: there is an attribute called [:berkshelf_api][:config]
+[2014-04-22 23:29:02 -0400] reset: that is a hash which maps to the JSON config
+[2014-04-22 23:29:24 -0400] reset: edit that attribute in your environment file to match what the JSON config should look like
+[2014-04-22 23:30:07 -0400] mindlace: aha! "edit the environment" was the magic thing I needed. That's the pattern you recommend in general for customizing these release-based artifacts? That makes sense, thanks much.
+[2014-04-22 23:30:24 -0400] reset: no prob, that's the one
+[2014-04-22 23:31:06 -0400] mindlace: ok, thanks much for your help, I'll not pester you further.
+[2014-04-22 23:31:20 -0400] reset: jameson__: your 'api' server probably should have it's own environemnt cookbook. If you fork nginx/uwsgi/python, etc, make a wrapper cookbook and put them in their own repo
+[2014-04-22 23:31:30 -0400] reset: mindlace: i'll let you know when the cookbook is released
+[2014-04-22 23:31:43 -0400] mindlace: danke schn
+[2014-04-22 23:36:22 -0400] toneec: Hi everyone, didn't see this anywhere but is there something wrong with the chef API? I keep getting a redirection error
+[2014-04-22 23:36:38 -0400] toneec: ERROR: POST request was redirected from https://api.opscode.com/organizations/xxxxxx/clients to http://api.opscode.com:443/organizations/xxxxxx/clients. Only GET and HEAD support redirects.
+[2014-04-22 23:41:18 -0400] coderanger: toneec: Probably a misconfig on HEC, I would expect it to vanish shortly
+[2014-04-22 23:41:27 -0400] coderanger: jtimberman: ^^
+[2014-04-22 23:43:02 -0400] jameson__: alright so I am doing it right :3
+[2014-04-22 23:44:40 -0400] reset: jameson__: as far as I'm concerned, yep. Haha
+[2014-04-22 23:46:11 -0400] toneec: thanks @coderanger
+[2014-04-22 23:46:22 -0400] jameson__: reset: until we find a better one :D
+[2014-04-22 23:46:31 -0400] reset: ya, so in about 6 months
+[2014-04-22 23:47:08 -0400] jameson__: just in time for summit hahahaha
+[2014-04-22 23:47:24 -0400] coderanger: jameson__: reset and I have to keep our jobs somehow
+[2014-04-22 23:47:28 -0400] coderanger: :D
+[2014-04-22 23:47:32 -0400] reset: ya you just change shit
+[2014-04-22 23:47:36 -0400] reset: re-arrange some chairs
+[2014-04-22 23:47:52 -0400] coderanger: Maybe for the summit I'll tell everyone to start writing recipes in Yaml
+[2014-04-22 23:48:19 -0400] reset: isn't there already a config management tool which is basically yaml over SSH
+[2014-04-22 23:49:12 -0400] coderanger: reset: I'm only ~90% kidding, I do want to get my old dialects patch cleaned up by the summit, and I do have a yaml dialect :)
+[2014-04-22 23:49:34 -0400] coderanger: Reminds me I need to get the puppet dialect working

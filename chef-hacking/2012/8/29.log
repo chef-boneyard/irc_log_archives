@@ -1,0 +1,78 @@
+[2012-08-29 08:28:53 -0400] nico: woot \o/
+[2012-08-29 08:29:16 -0400] nico: now able to create a fully independant chef environment for testing with a single command
+[2012-08-29 17:13:28 -0400] btm: yfeldblum: What causes MRI 1.8 to create a hash in the same order given the same keys? (from twitter)
+[2012-08-29 17:16:57 -0400] yfeldblum: btm, i don't know ... my best guess is that the order happens to be deterministic
+[2012-08-29 17:17:44 -0400] yfeldblum: btm, the same way that seeding a RNG with the same seed and then asking for some random numbers gives the same sequence each time
+[2012-08-29 17:18:12 -0400] btm: yfeldblum: darn. I saw your name on a disucssion that appeared releveant and hoped you could stop me from wasting more time.
+[2012-08-29 17:18:35 -0400] yfeldblum: btm, heh, what discussion was this?
+[2012-08-29 17:18:46 -0400] btm: yfeldblum: btw, I'm /supposed/ to be writing up cookbook load order use cases right now.
+[2012-08-29 17:18:46 -0400] yfeldblum: btm, and what are you trying to accomplish?
+[2012-08-29 17:19:11 -0400] miketheman: btm: easy one. They should load in order. :)
+[2012-08-29 17:19:22 -0400] yfeldblum: miketheman, hard one: which order?
+[2012-08-29 17:19:30 -0400] btm: yfeldblum: http://stackoverflow.com/questions/4452161/do-ruby-1-8-and-1-9-have-the-same-hash-code-for-a-string
+[2012-08-29 17:19:40 -0400] miketheman: yfeldblum: Don't ask em to solve _all_ the problems. :D
+[2012-08-29 17:19:47 -0400] miketheman: me*
+[2012-08-29 17:19:48 -0400] yfeldblum: btm, versions of ruby do not have the same hash codes
+[2012-08-29 17:20:07 -0400] yfeldblum: btm, actually, the latest versions don't have the same hash codes from one process to another
+[2012-08-29 17:21:09 -0400] btm: yfeldblum: from what I can tell on MRI 1.8, hash entries are inserted based on the hash value of the key (not the value of the entry) but I'm not good enough with C to have figured this out already.
+[2012-08-29 17:22:50 -0400] yfeldblum: btm, ruby-1.8 probably just iterates the hash buckets in the order that they are stored in the memory structure, so the order will depend on the number of buckets at any given moment and the hash codes of the keys
+[2012-08-29 17:23:42 -0400] yfeldblum: btm, so if that's true, then if the hash has 11 buckets, it goes from bucket 0 and iterates all the keys in bucket 0, then goes to bucket 1 and iterates the keys in there, etc
+[2012-08-29 17:25:00 -0400] yfeldblum: btm, ruby-1.9 hashes actually keep a bucket array plus, separately, a list of keys in insertion order
+[2012-08-29 17:25:56 -0400] yfeldblum: btm, so the iteration algorithm in ruby-1.8 might be bucket order, while in 1.9 it certainly is insertion order
+[2012-08-29 17:30:44 -0400] yfeldblum: btm, anything else i can help with? if i actually helped with this ...
+[2012-08-29 17:31:11 -0400] btm: yfeldblum: st_table_entry --     st_table_entry *fore, *back;
+[2012-08-29 17:31:51 -0400] btm: yfeldblum: you know of any public cookbooks that extend an LWRP in another public cookbook?
+[2012-08-29 17:32:17 -0400] jtimberman: btm: application*?
+[2012-08-29 17:32:34 -0400] jtimberman: first example that comes to mind
+[2012-08-29 17:32:57 -0400] yfeldblum: btm, a link to the line would be cool: https://github.com/ruby/ruby/tree/v1_8_7_358
+[2012-08-29 17:33:45 -0400] btm: yfeldblum: this is what was added in ruby 1.9 for hash order: https://github.com/ruby/ruby/blob/trunk/st.c#L25
+[2012-08-29 17:33:47 -0400] yfeldblum: btm, i don't know of any; i was helping someone else who wanted to inherit a provider in the application_python cookbook
+[2012-08-29 17:35:54 -0400] yfeldblum: btm, that's the data structure for the doubly-linked list for maintaining the list of entries by insertion order
+[2012-08-29 17:37:25 -0400] btm: yfeldblum: yah.
+[2012-08-29 17:37:32 -0400] btm: yfeldblum: what do you think about this? https://github.com/ruby/ruby/blob/v1_8_7/st.c#L61
+[2012-08-29 17:43:33 -0400] yfeldblum: btm, looks like it's supposed to compute the hash value of the key
+[2012-08-29 17:44:19 -0400] btm: jtimberman: the application cookbooks should be fine because the LWRPs in the child cookbooks depend on the library in the application cookbook, and all the libraries are loaded first.
+[2012-08-29 17:44:31 -0400] yfeldblum: btm, st is a generic hashtable library that is wrapped by ruby's Hash class
+[2012-08-29 17:45:25 -0400] yfeldblum: btm, but it looks like in ruby Hash instances, that ends up calling https://github.com/ruby/ruby/blob/v1_8_7/hash.c#L87-118
+[2012-08-29 17:47:03 -0400] yfeldblum: btm, i'm sure there are other internal uses of st, but they're not exposed outside of ruby - we only get the Hash class that uses st as its underlying implementation
+[2012-08-29 17:47:26 -0400] yfeldblum: btm, and so that's the code that do_hash ends up calling
+[2012-08-29 17:49:08 -0400] yfeldblum: btm, regarding the child cookbook providers ... i call that "luck" (or probably someone realized that's the only way to get it to work :P )
+[2012-08-29 17:52:52 -0400] github-bawt: [chef] lamont-opscode pushed 3 new commits to lcg/10-stable-diff-fix: http://git.io/lFRvZQ
+[2012-08-29 17:52:52 -0400] github-bawt: [chef/lcg/10-stable-diff-fix] add back in diffing against a new file, correctly, while suppressing resource reporting of new diffs - Lamont Granquist
+[2012-08-29 17:52:52 -0400] github-bawt: [chef/lcg/10-stable-diff-fix] fixing is_binary? bugs - Lamont Granquist
+[2012-08-29 17:52:52 -0400] github-bawt: [chef/lcg/10-stable-diff-fix] get the path out of the temptfile object - Lamont Granquist
+[2012-08-29 17:56:47 -0400] github-bawt: [chef] lamont-opscode pushed 3 new commits to RESOURCE-UPDATING: http://git.io/G7WcHg
+[2012-08-29 17:56:47 -0400] github-bawt: [chef/RESOURCE-UPDATING] add back in diffing against a new file, correctly, while suppressing resource reporting of new diffs - Lamont Granquist
+[2012-08-29 17:56:47 -0400] github-bawt: [chef/RESOURCE-UPDATING] fixing is_binary? bugs - Lamont Granquist
+[2012-08-29 17:56:47 -0400] github-bawt: [chef/RESOURCE-UPDATING] get the path out of the temptfile object - Lamont Granquist
+[2012-08-29 18:03:18 -0400] jtimberman: btm: is this the deterministic ordering issue?
+[2012-08-29 18:03:27 -0400] jtimberman: aka ssd7's favorite ticket?
+[2012-08-29 18:16:36 -0400] btm: jtimberman: maybe. once of many. CHEF-2903, CHEF-2628, CHEF-3376 (OC-562)
+[2012-08-29 18:32:40 -0400] yfeldblum: what's OC-562?
+[2012-08-29 18:35:26 -0400] hoover_damm: internal ticket?
+[2012-08-29 18:35:26 -0400] hoover_damm: :)
+[2012-08-29 18:35:33 -0400] hoover_damm: yfeldblum, remember they run two jiras
+[2012-08-29 18:47:44 -0400] yfeldblum: ic
+[2012-08-29 18:56:08 -0400] yfeldblum: btm, if you want a hash with definitely-sorted keys, you can just subclass Hash and override #each
+[2012-08-29 18:56:39 -0400] yfeldblum: btm, class BtmHash < Hash ; def each ; keys.each{|k| yield(k, self[k])} ; end ; end
+[2012-08-29 18:56:51 -0400] yfeldblum: btm, class BtmHash < Hash ; def each ; keys.sort.each{|k| yield(k, self[k])} ; end ; end
+[2012-08-29 19:04:47 -0400] spox: what about just using orderedhash?
+[2012-08-29 19:09:43 -0400] yfeldblum: spox, my example sorts by the keys' native sort order, not by the keys' insertion order into the hash
+[2012-08-29 19:12:26 -0400] spox: yfeldblum: so is it a thing of having a reliable ordering regardless of how it is built?
+[2012-08-29 19:13:44 -0400] yfeldblum: spox, there are times when that's useful (just like there are times when that's either useless, or perhaps useful but not worth the cost to be paid to gain that effect)
+[2012-08-29 19:14:41 -0400] yfeldblum: spox, for example, i think that most serializations to storage or network of a data structure should do that, including json-typed http responses
+[2012-08-29 19:15:10 -0400] yfeldblum: spox, or any json or yaml file added to source control
+[2012-08-29 19:41:21 -0400] btm: yfeldblum: Yeah, OC-* tickets are our sprint tickets for engineering work.
+[2012-08-29 19:41:51 -0400] btm: yfeldblum: I wasn't really worried about making order, I just wanted to understand why the order was what it was.
+[2012-08-29 19:46:48 -0400] yfeldblum: btm, i wonder if there's a stable topological sort out there ...
+[2012-08-29 19:59:39 -0400] lucas___: has anyone ever experienced an issue where it seems like a start process is dying after the chef-client or knife ssh finishes?
+[2012-08-29 19:59:58 -0400] lucas___: elastic search is behaving that way for me
+[2012-08-29 20:00:07 -0400] lucas___: sudo service elastic search start will work if I ssh in directly
+[2012-08-29 20:00:18 -0400] lucas___: but via knife ssh or during bootstrap/chef-client it won't
+[2012-08-29 20:00:19 -0400] lucas___: very strange
+[2012-08-29 20:00:28 -0400] github-bawt: [chef] lamont-opscode pushed 2 new commits to lcg/10-stable-diff-fix: http://git.io/dDtNbQ
+[2012-08-29 20:00:28 -0400] github-bawt: [chef/lcg/10-stable-diff-fix] hang onto the tempfile object to prevent the finalizer from being called - Lamont Granquist
+[2012-08-29 20:00:28 -0400] github-bawt: [chef/lcg/10-stable-diff-fix] add unit tests for the diff generation code - Lamont Granquist
+[2012-08-29 20:00:59 -0400] github-bawt: [chef] lamont-opscode pushed 2 new commits to RESOURCE-UPDATING: http://git.io/Zpeeug
+[2012-08-29 20:00:59 -0400] github-bawt: [chef/RESOURCE-UPDATING] hang onto the tempfile object to prevent the finalizer from being called - Lamont Granquist
+[2012-08-29 20:01:00 -0400] github-bawt: [chef/RESOURCE-UPDATING] add unit tests for the diff generation code - Lamont Granquist

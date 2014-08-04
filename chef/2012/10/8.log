@@ -1,0 +1,606 @@
+[2012-10-08 00:39:28 -0400] z: Is there a decent way to catch exceptions which include_recipe might throw?
+[2012-10-08 00:40:07 -0400] z: Lets say if you were to do include_recipe "node::#{node['hostname']}"?
+[2012-10-08 00:45:38 -0400] flaccid: can the mount resource mount loopback files?
+[2012-10-08 00:49:22 -0400] josephholsten: flaccid: I'm pretty sure I've done that, yeah
+[2012-10-08 00:49:36 -0400] flaccid: ah yeah its the options attribute, cheers josephholsten
+[2012-10-08 00:49:47 -0400] flaccid: options "loop"
+[2012-10-08 00:50:35 -0400] flaccid: sweet as
+[2012-10-08 00:51:23 -0400] z: never mind, got it, you just need to rescue Chef::Exceptions::RecipeNotFound
+[2012-10-08 00:53:11 -0400] z: a la https://gist.github.com/3850163
+[2012-10-08 01:10:30 -0400] flaccid: how do you copy a file in chef? there doesn't seem to be a resource that does it
+[2012-10-08 01:11:23 -0400] z: from dir/file1 to dir2/file1?
+[2012-10-08 01:11:52 -0400] flaccid: yeah and also how should i use and reference files in files/
+[2012-10-08 01:12:26 -0400] z: things in files/ of your Cookbook are - http://wiki.opscode.com/display/chef/Resources#Resources-CookbookFile
+[2012-10-08 01:12:43 -0400] flaccid: oh yeah cookbook file. but there is no 'local file'?
+[2012-10-08 01:12:58 -0400] KarlHungus: remote_file can do this for local files by setting the source to a pathname, iirb
+[2012-10-08 01:13:01 -0400] KarlHungus: iirc*
+[2012-10-08 01:13:11 -0400] z: KarlHungus: yeah I was just thinking that, but wasn't sure
+[2012-10-08 01:14:02 -0400] flaccid: source The source URL
+[2012-10-08 01:14:05 -0400] flaccid: i guess the doc is wrong
+[2012-10-08 01:14:10 -0400] flaccid: unless you specify file:///
+[2012-10-08 01:14:17 -0400] KarlHungus: i believe thats the exact reason using remote_file to sync files from the cookbook's files/ dir was deprecated. it had to move so source could be a local file path
+[2012-10-08 01:14:30 -0400] KarlHungus: but, my memory on this is very fuzzy. let me test real quickw
+[2012-10-08 01:15:06 -0400] z: doesn't work if you just source a path
+[2012-10-08 01:15:11 -0400] z: not tried with file:///
+[2012-10-08 01:15:54 -0400] z: doesn't seem to work
+[2012-10-08 01:16:25 -0400] flaccid: also if i have files/default/transforms/foo.bar do i just ref as  source "transforms/foo.bar" ?
+[2012-10-08 01:16:54 -0400] KarlHungus: hrm. i know i do this somewhere...
+[2012-10-08 01:17:52 -0400] z: KarlHungus: if you Gist something which is 'execute "cp /shit /toilet" do' then I will be forever disappoint
+[2012-10-08 01:19:36 -0400] z: although from a scientific POV then I'd love to know how you *copy* faeces as I thought that'd be a move operation involving a toilet
+[2012-10-08 01:20:13 -0400] KarlHungus: z: lol. it might be even more ghetto
+[2012-10-08 01:21:55 -0400] flaccid: i thought that would of been a move not a copy..
+[2012-10-08 01:22:20 -0400] zts: flaccid: yeah, for cookbook file "transforms/foo.bar" will end up at "files/default/transforms/foo.bar"
+[2012-10-08 01:22:34 -0400] flaccid: zts: sweet as thanks
+[2012-10-08 01:22:40 -0400] KarlHungus: yep. i should be beaten for this
+[2012-10-08 01:23:17 -0400] KarlHungus: file "/tmp/foo" { content ::File.read("/tmp/bar") }
+[2012-10-08 01:23:42 -0400] flaccid: seems like a decent chef limitation really. execute cp seems best
+[2012-10-08 01:24:27 -0400] z: flaccid: well it really depends, if you just 'execute cp' then its gonna run every chef-client convergence
+[2012-10-08 01:24:38 -0400] z: unless you wrap it with a checksum match which notifies
+[2012-10-08 01:24:54 -0400] z: at least doing it the way KarlHungus suggests should *not* result in it being replaced each time
+[2012-10-08 01:25:10 -0400] flaccid: only_if can always be used, but the point here is that a resource doesn't exist
+[2012-10-08 01:25:56 -0400] z: KarlHungus's approach is significantly more elegant than I was expecting actually
+[2012-10-08 01:26:07 -0400] zts: on the other hand, he File source approach will result in it copying it to the cache(?) directory each time (which can be undesirable)
+[2012-10-08 01:26:35 -0400] KarlHungus: you could get all fancy and do action :create_if_missing, then notify :remove, 'file[/tmp/bar]', :immediately
+[2012-10-08 01:26:36 -0400] zts: https://gist.github.com/1185022 <- just found this, from a mailing list post
+[2012-10-08 01:26:53 -0400] KarlHungus: assuming you had file "/tmp/bar" { action :nothing }
+[2012-10-08 01:27:02 -0400] KarlHungus: that would be a one time copy
+[2012-10-08 01:27:21 -0400] zts: ah, although read the thread, as it needs some fixes: http://comments.gmane.org/gmane.comp.sysutils.chef.user/1139
+[2012-10-08 01:28:04 -0400] flaccid: i vote for copy "foo" do; destination "bar"; end :)
+[2012-10-08 01:28:20 -0400] KarlHungus: flaccid: that would be a very easy provider
+[2012-10-08 01:28:25 -0400] flaccid: well actually, it should just be a source attribute under the file resource
+[2012-10-08 01:28:32 -0400] flaccid: the point is its not in chef core
+[2012-10-08 01:28:43 -0400] flaccid: we can make anything we like, e.g. all of the above
+[2012-10-08 01:28:46 -0400] zts: yeah, I wonder why not
+[2012-10-08 01:29:02 -0400] z: flaccid: the solution holoway posted (https://gist.github.com/1185022) would be a fairly easy add to chef-client for Chef 11 timeframe
+[2012-10-08 01:29:14 -0400] z: flaccid: If you want that to happen though you should probably pipe up on the mailing list.
+[2012-10-08 01:30:01 -0400] KarlHungus: flaccid: i'd probably extend the file resource in a library and give it a 'source' attribute and a :copy action if i needed to use that a lot
+[2012-10-08 01:30:33 -0400] z: flaccid: I'd argue that 'copy "foo"' is *way* too generic, and it'd be better to extend the existing File resource so the 'source' attribute comprehends the concept of being given a *local* path
+[2012-10-08 01:30:46 -0400] KarlHungus: z: yay!
+[2012-10-08 01:30:47 -0400] z: where "generic" would be "confusing as shit" :_)
+[2012-10-08 01:31:27 -0400] KarlHungus: the new attr could be "from", not "source" to avoid confusion
+[2012-10-08 01:31:33 -0400] flaccid: z: yep thats what i said :)
+[2012-10-08 01:31:39 -0400] z: KarlHungus: AFAICT there are *no* places where I expect/do copy on a local filesystem
+[2012-10-08 01:33:09 -0400] KarlHungus: copying local files doesn't lend itself well to convergence, so that makes sense
+[2012-10-08 01:33:22 -0400] z: I could see it being ridiculously error prone in a "What if the source doesn't exist or isn't readable?" manner, and also difficult to test, because fundamentally what you have in a test environment will almost never match 100% whats live
+[2012-10-08 01:33:40 -0400] KarlHungus: unless you create the source file itself w/ chef. in which case the copy isn't needed
+[2012-10-08 01:33:42 -0400] z: whereas rendering from templates is .. less prone to LOLWTF
+[2012-10-08 01:33:52 -0400] z: agreed.
+[2012-10-08 01:34:57 -0400] z: I suggest learning to love 'rescue Chef::Exceptions::FileNotFound' if you *really* want to go that route :)
+[2012-10-08 01:36:06 -0400] KarlHungus: i should be hacking on my load_balancer cookbook instead of chatting =) especially if i ever expect to make it clean enough to release
+[2012-10-08 01:36:30 -0400] z: HAproxy?
+[2012-10-08 01:36:44 -0400] KarlHungus: carp, udev, relayd
+[2012-10-08 01:36:50 -0400] KarlHungus: and pfsync
+[2012-10-08 01:36:59 -0400] z: ah yeah for a moment I forgot you were a dirty BSD user ;)
+[2012-10-08 01:37:24 -0400] flaccid: hehe
+[2012-10-08 01:37:38 -0400] KarlHungus: i think it would work fine with ucarp and LVS too
+[2012-10-08 01:37:41 -0400] z: KarlHungus: prod me when you do release it, I have a couple OpenBSD nodes which might benefit in my home lab :-)
+[2012-10-08 01:37:56 -0400] KarlHungus: i just dont have any need to implement that. i'll make it easy to extend
+[2012-10-08 01:42:53 -0400] hoover_damm: carp exists for linux
+[2012-10-08 01:42:56 -0400] hoover_damm: i just never thought about it
+[2012-10-08 06:18:22 -0400] williamherry: how to delete all cookbook?
+[2012-10-08 06:53:17 -0400] zts: williamherry: probably you want this: http://wiki.opscode.com/display/chef/Managing+Cookbooks+With+Knife#ManagingCookbooksWithKnife-bulkdelete
+[2012-10-08 07:01:06 -0400] iroller: Hello. How can I use embedded-ruby installation from omnibus + chef-server installed from gems(I have custom chef-server gems)?
+[2012-10-08 07:03:03 -0400] zts: iroller: I'm sorry, I don't understand your question - what are you trying to do?
+[2012-10-08 07:05:39 -0400] iroller: zts: I'm using chef-0.10.10 server and client installed from gems from my custom repo with custom patches. I want to upgrade to 10.14.4 all my gems by I like the idea of having embedded ruby for Chef
+[2012-10-08 07:06:44 -0400] iroller: Embedded ruby is only installed with omnibus. I'm trying to find a way how to use embedded ruby from omnibus and chef-server/client from my gem repo
+[2012-10-08 07:12:10 -0400] iroller: As I understand omnibus chef package consists of embedded ruby + rules for chef-gems installation using embedded ruby. So I just want to find a way to specify a custom repo for those gems
+[2012-10-08 07:17:56 -0400] zts: iroller: the omnibus chef package is a system package (rpm, deb, etc) that includes ruby, other dependencies, and all of the chef gems.  When you upgrade the omnibus package to the new version, you replace all of that - it is not just a matter of updating some gems
+[2012-10-08 07:18:20 -0400] zts: iroller: so, if I understand you correctly, I think you want to build your own omnibus packages to install
+[2012-10-08 07:19:50 -0400] zts: but I'm not sure exactly how to do that.  I think the answer at the moment is this: https://github.com/opscode/omnibus
+[2012-10-08 07:20:45 -0400] zts: it will become https://github.com/opscode/omnibus-ruby one day, but I don't think that's ready yet
+[2012-10-08 07:20:46 -0400] iroller: zts: apparently I do want to build my own omnibus pkg. Thanks for the link. Seems like I missed this repo
+[2012-10-08 07:21:18 -0400] zts: https://github.com/joemiller/bunchr <- another omnibus-style tool, which is also written in ruby
+[2012-10-08 07:21:33 -0400] zts: iroller: no problem - I'm not sure how easy it is, but hopefully that helps
+[2012-10-08 07:24:17 -0400] iroller: In fact I just wanted to have a separate cookbook which is able to install embedded ruby for me...
+[2012-10-08 07:27:15 -0400] masterkorp: http://i.imgur.com/1eU3N.jpg
+[2012-10-08 07:27:18 -0400] masterkorp: err
+[2012-10-08 07:33:48 -0400] iroller: zts: Do you know if chef 10.14.4 is compatible with ruby 1.8.7?
+[2012-10-08 07:38:12 -0400] zts: iroller: I believe so
+[2012-10-08 07:45:53 -0400] sameersegal: Hi, when the jenkins cookbook gives you an error like: "Cookbook apt not found. If you're loading apt from another cookbook, make sure you configure the dependency in your metadata ...", are you supposed to include 'recipe[apt]' in the role ahead of the 'recipe[jenkins]'?
+[2012-10-08 07:59:08 -0400] zts: sameersegal: including that in a role ahead of recipe[jenkins] will avoid that error, yes
+[2012-10-08 07:59:50 -0400] zts: sameersegal: it's saying that metadata.rb in the jenkins cookbook should say "depends 'apt'" in it.  If it did, you wouldn't need to list it in your role
+[2012-10-08 08:00:39 -0400] sameersegal: zts: but I get strange behaviour when I do that. Jenkins depends on apt and nginx (for proxy). When I place nginx in front of jenkins in the run list. I don't get the expected nginx.conf
+[2012-10-08 08:02:19 -0400] sameersegal: zts: do I need to do anything different to convert metadata.rb to metadata.json?
+[2012-10-08 08:02:32 -0400] sameersegal: It happens on cookbook upload, right?
+[2012-10-08 08:03:20 -0400] zts: sameersegal: correct - you make the change in metadata.rb, and it is automatically converted to metadata.json when you upload
+[2012-10-08 08:03:25 -0400] sameersegal: I have this in my metadata.rb: "%w(apt runit java nginx).each { |cb| depends cb }"
+[2012-10-08 08:04:18 -0400] sameersegal: but my metadata.json = "dependencies": { "runit": ">= 0.0.0", "java": ">= 0.0.0"},
+[2012-10-08 08:06:04 -0400] sameersegal: Do I need to update the version?
+[2012-10-08 08:06:19 -0400] zts: sameersegal: does your metadata.json have a more recent timestamp than metadata.rb ?
+[2012-10-08 08:06:40 -0400] zts: sameersegal: you shouldn't need to, but it might be helpful to see that your changes have been picked up (and uploaded to the server)
+[2012-10-08 08:07:52 -0400] sameersegal: zts: Yes, metadata.json is Apr 4 while rest of the files are all updated today (Oct 8)
+[2012-10-08 08:08:08 -0400] sameersegal: should I just delete metadata.json and upload again?
+[2012-10-08 08:09:44 -0400] zts: sameersegal: can't hurt to try, also try putting '-VV' on the end of your 'knife cookbook upload'
+[2012-10-08 08:10:04 -0400] sameersegal: When I did that, zts, it didn't get created. Let me try with your -W option
+[2012-10-08 08:10:24 -0400] zts: -V -V, not -W
+[2012-10-08 08:12:18 -0400] sameersegal: Sameers-MacBook-2:artoo-chef-repo Sameer$ knife cookbook upload jenkins -VV
+[2012-10-08 08:12:19 -0400] sameersegal: /Users/Sameer/.rvm/gems/ruby-1.9.3-p194/gems/systemu-2.5.2/lib/systemu.rb:31: warning: Insecure world writable dir /usr/local/bin in PATH, mode 040777
+[2012-10-08 08:12:19 -0400] sameersegal: DEBUG: Using configuration from /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/knife.rb
+[2012-10-08 08:12:19 -0400] sameersegal: DEBUG: No chefignore file found at /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/chefignore no files will be ignored
+[2012-10-08 08:12:21 -0400] sameersegal: DEBUG: Signing the request as sameersegal
+[2012-10-08 08:12:23 -0400] sameersegal: DEBUG: Sending HTTP Request via GET to api.opscode.com:443/organizations/artoo-test/cookbooks
+[2012-10-08 08:12:25 -0400] sameersegal: DEBUG: ---- HTTP Status and Header Data: ----
+[2012-10-08 08:12:27 -0400] sameersegal: DEBUG: HTTP 1.1 200 OK
+[2012-10-08 08:12:27 -0400] zts: sameersegal: hm, looks like you can try "knife cookbook metadata <cookbook>" to generate it too
+[2012-10-08 08:12:29 -0400] sameersegal: DEBUG: server: nginx/1.0.5
+[2012-10-08 08:12:31 -0400] sameersegal: DEBUG: date: Mon, 08 Oct 2012 08:10:48 GMT
+[2012-10-08 08:12:33 -0400] sameersegal: DEBUG: content-type: application/json; charset=utf-8
+[2012-10-08 08:12:35 -0400] sameersegal: DEBUG: transfer-encoding: chunked
+[2012-10-08 08:12:37 -0400] sameersegal: DEBUG: connection: close
+[2012-10-08 08:12:37 -0400] zts: please don't paste into the channel :(
+[2012-10-08 08:12:39 -0400] sameersegal: DEBUG: status: 200 OK
+[2012-10-08 08:12:41 -0400] sameersegal: DEBUG: content-encoding: gzip
+[2012-10-08 08:12:43 -0400] sameersegal: DEBUG: ---- End HTTP Status/Header Data ----
+[2012-10-08 08:12:44 -0400] zts: use pastebin.com or gist.github.com or something
+[2012-10-08 08:12:45 -0400] sameersegal: DEBUG: decompressing gzip response
+[2012-10-08 08:12:47 -0400] sameersegal: Uploading jenkins        [0.6.3]
+[2012-10-08 08:12:49 -0400] sameersegal: DEBUG: Versions of cookbook 'apt' returned by the server: 1.4.8, 0.9.0
+[2012-10-08 08:12:51 -0400] sameersegal: DEBUG: Matched cookbook 'apt' with constraint '>= 0.0.0' to cookbook version '1.4.8' on the server
+[2012-10-08 08:12:53 -0400] sameersegal: DEBUG: Versions of cookbook 'runit' returned by the server: 0.15.0
+[2012-10-08 08:12:55 -0400] sameersegal: DEBUG: Matched cookbook 'runit' with constraint '>= 0.0.0' to cookbook version '0.15.0' on the server
+[2012-10-08 08:12:57 -0400] sameersegal: DEBUG: Versions of cookbook 'java' returned by the server: 1.6.0
+[2012-10-08 08:12:59 -0400] sameersegal: DEBUG: Matched cookbook 'java' with constraint '>= 0.0.0' to cookbook version '1.6.0' on the server
+[2012-10-08 08:13:01 -0400] sameersegal: DEBUG: Versions of cookbook 'nginx' returned by the server: 1.0.2
+[2012-10-08 08:13:03 -0400] sameersegal: DEBUG: Matched cookbook 'nginx' with constraint '>= 0.0.0' to cookbook version '1.0.2' on the server
+[2012-10-08 08:13:05 -0400] sameersegal: INFO: Validating ruby files
+[2012-10-08 08:13:07 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/attributes/default.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:10 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/libraries/manage_node.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:11 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/metadata.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:13 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/providers/cli.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:15 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/providers/execute.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:17 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/providers/job.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:19 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/providers/node.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:21 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/default.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:23 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/iptables.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:25 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/node_jnlp.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:26 -0400] zts: and that there shows it has got the updated dependencies anyway
+[2012-10-08 08:13:27 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/node_ssh.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:29 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/node_windows.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:31 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/proxy_apache2.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:33 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/recipes/proxy_nginx.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:35 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/resources/cli.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:37 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/resources/execute.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:39 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/resources/job.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:41 -0400] sameersegal: DEBUG: Ruby file /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/resources/node.rb is unchanged, skipping syntax check
+[2012-10-08 08:13:43 -0400] sameersegal: INFO: Validating templates
+[2012-10-08 08:13:45 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/apache_jenkins.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:47 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/config.xml.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:49 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/htpasswd.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:51 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/hudson.plugins.git.GitSCM.xml.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:53 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/hudson.plugins.s3.S3BucketPublisher.xml.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:55 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/jenkins.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:57 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/nginx_jenkins.conf.erb is unchanged, skipping syntax check
+[2012-10-08 08:13:59 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/port_jenkins.erb is unchanged, skipping syntax check
+[2012-10-08 08:14:01 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/sv-hudson-slave-log-run.erb is unchanged, skipping syntax check
+[2012-10-08 08:14:03 -0400] sameersegal: DEBUG: Template /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/.chef/../cookbooks/jenkins/templates/default/sv-hudson-slave-run.erb is unchanged, skipping syntax check
+[2012-10-08 08:14:05 -0400] sameersegal: INFO: Syntax OK
+[2012-10-08 08:14:07 -0400] sameersegal: INFO: Saving jenkins
+[2012-10-08 08:14:09 -0400] sameersegal: DEBUG: Signing the request as sameersegal
+[2012-10-08 08:14:11 -0400] sameersegal: DEBUG: Sending HTTP Request via POST to api.opscode.com:443/organizations/artoo-test/sandboxes
+[2012-10-08 08:14:13 -0400] sameersegal: DEBUG: ---- HTTP Status and Header Data: ----
+[2012-10-08 08:14:15 -0400] sameersegal: DEBUG: HTTP 1.1 201 Created
+[2012-10-08 08:14:17 -0400] sameersegal: DEBUG: server: nginx/1.0.5
+[2012-10-08 08:14:19 -0400] sameersegal: DEBUG: date: Mon, 08 Oct 2012 08:10:52 GMT
+[2012-10-08 08:14:21 -0400] sameersegal: DEBUG: content-type: application/json; charset=utf-8
+[2012-10-08 08:14:23 -0400] sameersegal: DEBUG: transfer-encoding: chunked
+[2012-10-08 08:14:25 -0400] sameersegal: DEBUG: connection: close
+[2012-10-08 08:14:27 -0400] sameersegal: DEBUG: status: 201 Created
+[2012-10-08 08:14:29 -0400] sameersegal: DEBUG: location: https://api.opscode.com/organizations/artoo-test/sandboxes/abbb010637cc4060b43050d958235cae
+[2012-10-08 08:14:31 -0400] sameersegal: DEBUG: ---- End HTTP Status/Header Data ----
+[2012-10-08 08:14:33 -0400] sameersegal: INFO: Uploading files
+[2012-10-08 08:14:35 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/metadata.rb has not changed
+[2012-10-08 08:14:37 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/.gitignore has not changed
+[2012-10-08 08:14:39 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/nginx_jenkins.conf.erb has not changed
+[2012-10-08 08:14:41 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/jenkins.erb has not changed
+[2012-10-08 08:14:43 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/hudson.plugins.s3.S3BucketPublisher.xml.erb has not changed
+[2012-10-08 08:14:44 -0400] Tykling: wtf lol
+[2012-10-08 08:14:45 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/htpasswd.erb has not changed
+[2012-10-08 08:14:47 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/README.md has not changed
+[2012-10-08 08:14:48 -0400] Tykling: use a pastebin man
+[2012-10-08 08:14:49 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/sv-hudson-slave-log-run.erb has not changed
+[2012-10-08 08:14:51 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/node_ssh.rb has not changed
+[2012-10-08 08:14:53 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/providers/execute.rb has not changed
+[2012-10-08 08:14:55 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/node_jnlp.rb has not changed
+[2012-10-08 08:14:57 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/providers/node.rb has not changed
+[2012-10-08 08:14:59 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/proxy_nginx.rb has not changed
+[2012-10-08 08:15:01 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/hudson.plugins.git.GitSCM.xml.erb has not changed
+[2012-10-08 08:15:03 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/files/default/node_info.groovy has not changed
+[2012-10-08 08:15:05 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/proxy_apache2.rb has not changed
+[2012-10-08 08:15:07 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/providers/job.rb has not changed
+[2012-10-08 08:15:09 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/iptables.rb has not changed
+[2012-10-08 08:15:11 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/providers/cli.rb has not changed
+[2012-10-08 08:15:13 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/resources/cli.rb has not changed
+[2012-10-08 08:15:15 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/config.xml.erb has not changed
+[2012-10-08 08:15:17 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/attributes/default.rb has not changed
+[2012-10-08 08:15:19 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/libraries/manage_node.rb has not changed
+[2012-10-08 08:15:21 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/port_jenkins.erb has not changed
+[2012-10-08 08:15:23 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/apache_jenkins.erb has not changed
+[2012-10-08 08:15:25 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/files/ubuntu/jenkins.list has not changed
+[2012-10-08 08:15:27 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/resources/node.rb has not changed
+[2012-10-08 08:15:29 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/templates/default/sv-hudson-slave-run.erb has not changed
+[2012-10-08 08:15:31 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/node_windows.rb has not changed
+[2012-10-08 08:15:33 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/recipes/default.rb has not changed
+[2012-10-08 08:15:35 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/resources/job.rb has not changed
+[2012-10-08 08:15:37 -0400] sameersegal: DEBUG: /Users/Sameer/Documents/Code/Chef/Deployment/Test/artoo-chef-repo/cookbooks/jenkins/resources/execute.rb has not changed
+[2012-10-08 08:15:39 -0400] sameersegal: DEBUG: Committing sandbox
+[2012-10-08 08:15:41 -0400] sameersegal: DEBUG: Signing the request as sameersegal
+[2012-10-08 08:15:43 -0400] sameersegal: DEBUG: Sending HTTP Request via PUT to api.opscode.com:443/organizations/artoo-test/sandboxes/abbb010637cc4060b43050d958235cae
+[2012-10-08 08:15:45 -0400] sameersegal: DEBUG: ---- HTTP Status and Header Data: ----
+[2012-10-08 08:15:47 -0400] sameersegal: DEBUG: HTTP 1.1 200 OK
+[2012-10-08 08:15:49 -0400] sameersegal: DEBUG: server: nginx/1.0.5
+[2012-10-08 08:15:50 -0400] zts: Tykling: yay, if only there was an op around
+[2012-10-08 08:15:51 -0400] sameersegal: DEBUG: date: Mon, 08 Oct 2012 08:10:54 GMT
+[2012-10-08 08:15:53 -0400] sameersegal: DEBUG: content-type: application/json; charset=utf-8
+[2012-10-08 08:15:55 -0400] sameersegal: DEBUG: transfer-encoding: chunked
+[2012-10-08 08:15:55 -0400] zts: yah not yay
+[2012-10-08 08:15:55 -0400] williamherry: zts: thanks
+[2012-10-08 08:15:57 -0400] sameersegal: DEBUG: connection: close
+[2012-10-08 08:15:59 -0400] sameersegal: DEBUG: status: 200 OK
+[2012-10-08 08:16:01 -0400] sameersegal: DEBUG: content-encoding: gzip
+[2012-10-08 08:16:03 -0400] sameersegal: DEBUG: ---- End HTTP Status/Header Data ----
+[2012-10-08 08:16:05 -0400] sameersegal: DEBUG: decompressing gzip response
+[2012-10-08 08:16:07 -0400] sameersegal: DEBUG: Signing the request as sameersegal
+[2012-10-08 08:16:09 -0400] sameersegal: DEBUG: Sending HTTP Request via PUT to api.opscode.com:443/organizations/artoo-test/cookbooks/jenkins/0.6.3
+[2012-10-08 08:16:11 -0400] sameersegal: DEBUG: ---- HTTP Status and Header Data: ----
+[2012-10-08 08:16:13 -0400] sameersegal: DEBUG: HTTP 1.1 200 OK
+[2012-10-08 08:16:15 -0400] sameersegal: DEBUG: server: nginx/1.0.5
+[2012-10-08 08:16:17 -0400] sameersegal: DEBUG: date: Mon, 08 Oct 2012 08:10:59 GMT
+[2012-10-08 08:16:19 -0400] sameersegal: DEBUG: content-type: application/json; charset=utf-8
+[2012-10-08 08:16:21 -0400] sameersegal: DEBUG: transfer-encoding: chunked
+[2012-10-08 08:16:23 -0400] sameersegal: DEBUG: connection: close
+[2012-10-08 08:16:25 -0400] sameersegal: DEBUG: status: 200 OK
+[2012-10-08 08:16:27 -0400] sameersegal: DEBUG: content-encoding: gzip
+[2012-10-08 08:16:29 -0400] sameersegal: DEBUG: ---- End HTTP Status/Header Data ----
+[2012-10-08 08:16:31 -0400] sameersegal: DEBUG: decompressing gzip response
+[2012-10-08 08:16:33 -0400] sameersegal: INFO: Upload complete!
+[2012-10-08 08:16:35 -0400] sameersegal: Uploaded 1 cookbook.
+[2012-10-08 08:16:37 -0400] sameersegal: Sameers-MacBook-2:artoo-chef-repo Sameer$
+[2012-10-08 08:16:41 -0400] sameersegal: Sorry agout that - I was trying to use pastebin
+[2012-10-08 08:16:43 -0400] sameersegal: really sorry
+[2012-10-08 08:16:49 -0400] sameersegal: Got the metadata.json - Thanks for your help
+[2012-10-08 08:16:53 -0400] sameersegal: Sorry about that guys. LimeChat used to directly write it into pastebin ( I don't know what happened this time)
+[2012-10-08 08:20:20 -0400] masterkorp: please use gist nextime
+[2012-10-08 08:40:40 -0400] williamherry: join #linux
+[2012-10-08 09:46:10 -0400] Virunga: Hi!
+[2012-10-08 09:46:31 -0400] Virunga: I can't find this channel in the channel list.
+[2012-10-08 09:46:43 -0400] Virunga: Anyway now i'm here.
+[2012-10-08 10:00:13 -0400] Dunedan|w: I've a cookbook A which includes a definition with a template resource. Whenever I call this definition in cookbook B, chef searches for the template in cookbook B, but not in cookbook A. Could somebody please give me a hint what's missing there? I know that there is a parameter "cookbook" to specify from which cookbook to load files/templates, but it doesn't matter if I use that parameter or not in the template resource, chef only searchs in cookbook B.
+[2012-10-08 10:39:39 -0400] zts: Dunedan|w: the cookbook parameter is the right answer, so I'd have to suggest you gist/pastebin both the definition and the recipe you're calling it from
+[2012-10-08 11:03:18 -0400] Dunedan|w: zts: Ok, got it now. The parameter was missing in one spot. thx for you answer anyway.
+[2012-10-08 11:03:53 -0400] zts: Dunedan|w: no problem, glad you got it sorted
+[2012-10-08 13:49:07 -0400] clexmond: is there a standard practice for re-running chef, especially on ec2 instances? For example, let's say I've changed some attributes and the repo has new commits, what's the best way to re-run chef?
+[2012-10-08 13:57:13 -0400] CharlieSu: clexmond: just run 'chef-client'
+[2012-10-08 13:57:27 -0400] CharlieSu: clexmond: Or setup chef-client to run automatically every X minutes..
+[2012-10-08 13:58:12 -0400] CharlieSu: clexmond: look at this cookbook.  https://github.com/opscode/cookbooks/tree/master/chef-client
+[2012-10-08 13:58:58 -0400] clexmond: ok, that's perfect thanks
+[2012-10-08 13:59:10 -0400] CharlieSu: cool
+[2012-10-08 13:59:18 -0400] clexmond: what I wanted to avoid was having to ssh into each of several ec2 instances and run chef-client manually
+[2012-10-08 13:59:57 -0400] CharlieSu: clexmond: You can use knife to login to a group of servers all at once that meet a certain criteria to issue commands
+[2012-10-08 14:00:15 -0400] CharlieSu: clexmond: but using the chef-client cookbook is the way to go.
+[2012-10-08 14:00:35 -0400] clexmond: what would be the command in knife for that
+[2012-10-08 14:00:36 -0400] clexmond: ?
+[2012-10-08 14:00:49 -0400] clexmond: I read something along those lines elsewhere but couldn't see anything obvious
+[2012-10-08 14:01:02 -0400] geekbri: knife ssh "name:*.whatever.something AND chef_environment:my_environment" "sudo chef-client" -x your_user
+[2012-10-08 14:01:04 -0400] geekbri: should work
+[2012-10-08 14:01:19 -0400] geekbri: the whole first bit between the quotes can be whatever chef search query you want
+[2012-10-08 14:01:28 -0400] clexmond: right, cool
+[2012-10-08 14:01:29 -0400] clexmond: ty
+[2012-10-08 14:01:57 -0400] geekbri: i tend to test my queries with something like "whoami" first
+[2012-10-08 14:02:00 -0400] geekbri: you know, just incase :)
+[2012-10-08 14:02:23 -0400] geekbri: usually when i test it i pipe it through sort as well
+[2012-10-08 14:02:26 -0400] CharlieSu: geekbri: thanks for helping out..
+[2012-10-08 14:02:33 -0400] geekbri: No problemooooooo
+[2012-10-08 14:03:38 -0400] clexmond: i've spent the last 8 days or so transitioning from dev to devops, so all the help is much appreciated
+[2012-10-08 14:04:56 -0400] CharlieSu: clexmond: well this is a good place to ask for help..
+[2012-10-08 14:05:10 -0400] CharlieSu: I've got an issue with the RVM cookbook.  Hopefully some one can help..   https://gist.github.com/85c4ae0f0dfbeeedb12a
+[2012-10-08 14:05:18 -0400] CharlieSu: This just started happening last week.
+[2012-10-08 14:05:44 -0400] CharlieSu: I'm runing Chef 10.12.0 but have tried latest as well..
+[2012-10-08 14:06:35 -0400] willejs: im trying out hosted chef, i have configured knife and installed the ec2 plugin. i can successfully bootstrap an ec2 instance... however i get a 401 unauthorised when running chef client
+[2012-10-08 14:06:47 -0400] willejs: and its not added into the nodes list either
+[2012-10-08 14:07:12 -0400] willejs: it returns this error: Failed to authenticate as <removed>-validator. Ensure that your node_name and client key are correct.
+[2012-10-08 14:07:19 -0400] willejs: any ideas?
+[2012-10-08 14:07:29 -0400] CharlieSu: willejs: is your validation key correct?
+[2012-10-08 14:07:34 -0400] willejs: yes
+[2012-10-08 14:08:20 -0400] CharlieSu: when you run chef-client are you using the newly created client key?
+[2012-10-08 14:08:47 -0400] Virunga_: Noob question, is it normal get an error when i command chef-server-webui in terminal?
+[2012-10-08 14:08:52 -0400] willejs: im just doing sudo chef-client
+[2012-10-08 14:09:01 -0400] willejs: but in the bootstrap process it should add the node tight?
+[2012-10-08 14:09:11 -0400] CharlieSu: willejs: run it with debug mode on to see what key is being used...
+[2012-10-08 14:09:33 -0400] Virunga_: The error is chef-server-webui isn't amongst the gems.
+[2012-10-08 14:11:22 -0400] willejs: charliesu: i just reset the validator so hopefully that is it
+[2012-10-08 14:11:38 -0400] willejs: i think thats the only thing it could be, and i think i did actually regenerate one on another pc
+[2012-10-08 14:11:59 -0400] CharlieSu: willejs: ok cool..
+[2012-10-08 14:13:10 -0400] willejs: charliesu: cheers that was actually it. makes sence!
+[2012-10-08 14:14:09 -0400] CharlieSu: willejs: go figure :)
+[2012-10-08 14:14:53 -0400] clexmond: am I missing something or does "rake install" from the chef repo not install environments?
+[2012-10-08 14:16:02 -0400] tknerr: ohai chefs
+[2012-10-08 14:17:27 -0400] CharlieSu: clexmond: I've had a much better experience with the knife commands vs. the rake commands..  I think you should use them instead.  Anyways, I don't recall if environments are pushed with 'rake install'  I'm thinking they're not.
+[2012-10-08 14:17:57 -0400] clexmond: yeah, my workflow when I make changes is "rake install" followed by "knife environment from file..."
+[2012-10-08 14:18:12 -0400] clexmond: is there an alternate knife command that rolls everything up?
+[2012-10-08 14:18:55 -0400] CharlieSu: clexmond: not that I know of..  Just create a shell script that chains those commands together for you...
+[2012-10-08 14:19:06 -0400] CharlieSu: clexmond: or a git commit hook.
+[2012-10-08 14:20:54 -0400] jberanek: I haven't done much with environments myself, but some Etsy folks built spork (https://github.com/jonlives/knife-spork) around their workflow to help manage environments. May be helpful.
+[2012-10-08 14:26:42 -0400] CharlieSu: jberanek: cool project.. thanks for the info.
+[2012-10-08 14:41:06 -0400] geekbri: Spork is verrryy nniccceeee
+[2012-10-08 14:45:44 -0400] CharlieSu: I've got an issue with the RVM cookbook.  Hopefully some one can help..   https://gist.github.com/85c4ae0f0dfbeeedb12a  RVM install quit working on me last week.
+[2012-10-08 14:53:06 -0400] xdissent: CharlieSu: I'm about to tackle the same issue. I'll let you know what I find.
+[2012-10-08 14:53:44 -0400] CharlieSu: xdissent: that would be super helpful.  It is keeping my server from getting the chef-client recipe setup correctly too.
+[2012-10-08 14:54:18 -0400] CharlieSu: xdissent: Please PM me if I don't respond in this channel.
+[2012-10-08 14:54:49 -0400] jcwdev: aha. yes. this smells like a place full of answers.
+[2012-10-08 14:54:57 -0400] jcwdev: hello
+[2012-10-08 14:57:08 -0400] jcwdev: i have come to ask about best practice or approach to relying both on chef-server and chef-solo
+[2012-10-08 14:57:42 -0400] jcwdev: we run chef server to track node state for our EC2 farms
+[2012-10-08 14:58:01 -0400] jcwdev: developer VMs are provisioned through vagrant
+[2012-10-08 14:58:29 -0400] jcwdev: our application cookbooks make heavy use of data bags
+[2012-10-08 14:58:43 -0400] jcwdev: for application configuration
+[2012-10-08 14:59:14 -0400] jcwdev: however - some of this is sensitive credential information
+[2012-10-08 14:59:35 -0400] jcwdev: that we don't want to ship to vagrant devboxes
+[2012-10-08 14:59:43 -0400] xdissent: jcwdev: classic conundrum
+[2012-10-08 15:00:13 -0400] jcwdev: xdissent: ahh - i figured it must be
+[2012-10-08 15:00:40 -0400] xdissent: yeah and environments aren't really an answer because databags don't care about those
+[2012-10-08 15:01:25 -0400] jcwdev: yeah - we have been modeling our data bags with a top level ENV designation in each bag
+[2012-10-08 15:01:38 -0400] jcwdev: but maintenance becomes painful
+[2012-10-08 15:01:46 -0400] xdissent: jcwdev: the way my guys handle it now - we keep sensitive stuff in master and have placeholders in develop branch of our chef repo
+[2012-10-08 15:01:55 -0400] xdissent: develop runs on VMs, master on ec2
+[2012-10-08 15:02:18 -0400] jcwdev: so you have your creeds in the data bags, in the repo?
+[2012-10-08 15:02:27 -0400] xdissent: it works but you've gotta be pretty careful not to totally bone the merge and cross the streams databag-wise
+[2012-10-08 15:02:37 -0400] jcwdev: (when you say develop and master i assume you mean a repository)
+[2012-10-08 15:02:41 -0400] xdissent: jcwdev: yes, currently. also trying to move away from that
+[2012-10-08 15:02:42 -0400] Pushnell: Can a provider call itself with a different action?
+[2012-10-08 15:02:56 -0400] xdissent: yep, different branches in chef-repo in git
+[2012-10-08 15:03:11 -0400] Pushnell: I'm trying to write a provider with a :deploy action, which implies a bunch of different other actions within the same provider
+[2012-10-08 15:03:20 -0400] jcwdev: did you look into encrypted data bags?
+[2012-10-08 15:03:42 -0400] xdissent: jcwdev: I'm currently reworking all of our chef-repo stuff though, and this is one issue I'm goin to have to address
+[2012-10-08 15:03:51 -0400] jcwdev: yeah.. hehe ditto
+[2012-10-08 15:03:59 -0400] xdissent: I'm moving us from chef-hatch to chef-bootstrap/knife-server/spiceweasel
+[2012-10-08 15:04:14 -0400] xdissent: I'm fairly certain there's an answer in ONE of those layers
+[2012-10-08 15:04:35 -0400] xdissent: but encrypted data bags have the same problem I believe, but you also have to worry about getting your secret onto the box first (headache)
+[2012-10-08 15:05:19 -0400] jcwdev: data bags have to be wholly encrypted huh?
+[2012-10-08 15:05:51 -0400] jcwdev: can't just encrypt a piece of a dbag
+[2012-10-08 15:06:30 -0400] xdissent: not that I'm aware of
+[2012-10-08 15:06:33 -0400] jcwdev: i'll do some reading on your toolchain there. haven't looked at spiceweasel
+[2012-10-08 15:06:50 -0400] xdissent: spiceweasel is AAAAAALLLLMMMOOOOSSSTTTT ready it feels like
+[2012-10-08 15:07:15 -0400] xdissent: but the chef-bootstrap stuff helps a ton if you're going to be switching from vms to production and back a lot
+[2012-10-08 15:08:15 -0400] jcwdev: will look at it further as well. it seems like everything else is there for us just this credentials provisioning issue
+[2012-10-08 15:08:18 -0400] xdissent: and for my purposes, it removes one other set of sensitive credentials from my repo - our production chef client keys!
+[2012-10-08 15:09:34 -0400] xdissent: Pushnell: I think you'll have to run_action on the new_resource from within the provider. the resource will eventually call your provider's action though
+[2012-10-08 15:09:37 -0400] jcwdev: ah, yeah - we provision those manually to tools on a build machine that init our EC2 resources - chef takes over after.
+[2012-10-08 15:11:37 -0400] jcwdev: so far i have been really good about keeping creeds out of the repo - but i feel like I'm backed into a corner.
+[2012-10-08 15:12:02 -0400] xdissent: yeah somewhere down the line I had to say fuck it.
+[2012-10-08 15:12:34 -0400] xdissent: the encrypted thing was so exciting until I realized you still gotta have the secret file on every machine. now what? lol
+[2012-10-08 15:15:35 -0400] CharlieSu: xdissent: if you have physical machines I've got a pretty cool way of doing the encryption stuff that is a little more unique.  I've used ChallengeResponse with a YubiKey to do encryption/decryption.
+[2012-10-08 15:15:51 -0400] jcwdev: that sounds awesome!
+[2012-10-08 15:16:07 -0400] jcwdev: an excuse to get someone to pony up for Yubi's
+[2012-10-08 15:16:10 -0400] grahamc: xdissent: not sure if this is useful, but if you set encrypted_data_bag_secret in your knife.rb, it'll bootstrap it onto the serve
+[2012-10-08 15:16:31 -0400] CharlieSu: jcwdev: hah.. ya.. They're one of my favorite gadgets ever.. I've been a huge fan for 3 years now..
+[2012-10-08 15:17:29 -0400] jcwdev: so, in the case of vagrant
+[2012-10-08 15:17:37 -0400] xdissent: grahamc: you're right...
+[2012-10-08 15:18:15 -0400] xdissent: but if you're concerned about data bag security, any box that has the encrypted data bag itself has the secret too, so if that's compromised your data is gone anyway
+[2012-10-08 15:18:16 -0400] jcwdev: the key would be sourced from a vagrant conf instead of knife?
+[2012-10-08 15:18:48 -0400] eliklein: anyone from opscode available?
+[2012-10-08 15:20:04 -0400] xdissent: oh snap you can encrypt data bag ITEMS. not item keys, but individual dbag items...
+[2012-10-08 15:20:10 -0400] jcwdev: yeah
+[2012-10-08 15:20:13 -0400] jcwdev: was just reading
+[2012-10-08 15:20:17 -0400] jcwdev: it's across the bag
+[2012-10-08 15:20:28 -0400] jcwdev: but it still means you can put it into the repo in a sane way
+[2012-10-08 15:20:31 -0400] xdissent: so, keep the secret out of git and distribute it through other channels, then at least your repo is safe
+[2012-10-08 15:20:40 -0400] jcwdev: yeah
+[2012-10-08 15:20:56 -0400] jcwdev: when i say it i don't mean the key of course, but the bag
+[2012-10-08 15:20:58 -0400] xdissent: but yeah, not really helping much with keeping everything easily distributed and managed among devs
+[2012-10-08 15:21:18 -0400] jcwdev: right now i am keeping the bags out of the repo entirely until i figure this out
+[2012-10-08 15:21:20 -0400] xdissent: and you'll have this extra secret to keep track of forever
+[2012-10-08 15:21:37 -0400] xdissent: i think that's the best way to do it maybe
+[2012-10-08 15:21:55 -0400] jcwdev: which?
+[2012-10-08 15:22:11 -0400] jcwdev: encrypted bags in the repo?
+[2012-10-08 15:22:17 -0400] jcwdev: or "fuck it"
+[2012-10-08 15:22:44 -0400] grahamc: why not keep them in the repo, encrypted?
+[2012-10-08 15:23:24 -0400] jcwdev: will work, i will just have to reorganize my data bags to accommodate
+[2012-10-08 15:23:46 -0400] jcwdev: since they look like AppName->Env->Keylist->values
+[2012-10-08 15:24:07 -0400] jcwdev: i would had to encrypt all Envs with the same key.
+[2012-10-08 15:24:37 -0400] jcwdev: partial dbag encryption would do the trick
+[2012-10-08 15:27:32 -0400] maxmanders: Hey - quick question re chef-client and knife bootstrap. My target (WIndows) box is not web accessible.  I have to use an ssh tunnel to forward RDP to the windows box...
+[2012-10-08 15:27:53 -0400] maxmanders: What do I need to forward to allow me to use knife boostrap on the client behind the router?
+[2012-10-08 15:31:19 -0400] dpetzel: anyone know the search syntax if I wanted to find  nodes with an empty run_list? I tried 'run_list:[]' and run_list:''. Both produce  invalid search query
+[2012-10-08 15:42:01 -0400] Virunga_: Hi, i installed rubygems 1.8 to resolve a problem knife was giving me "invalid date format in specification", but after that chef-server-webui no longer works. It says that don't find chef-web-server amongst [ ... /* a gem list */ ]. Could you help me?
+[2012-10-08 15:42:19 -0400] Virunga_: Is there a better solution than install rubygems1.8 maybe?
+[2012-10-08 15:42:25 -0400] CharlieSu: xdissent: You still looking into the RVM issue?
+[2012-10-08 15:42:27 -0400] Virunga_: Or i can fix the second error?
+[2012-10-08 15:42:54 -0400] xdissent: CharlieSu: yeah but i've gotta set up a couple other things first
+[2012-10-08 15:43:55 -0400] CharlieSu: k
+[2012-10-08 15:49:07 -0400] jcwdev: maxmanders: using chef-server?
+[2012-10-08 16:05:08 -0400] gyre007: ok Im hitting really strange issue on the chef server when uploading a cookbook
+[2012-10-08 16:06:10 -0400] gyre007: when uploading a cookbook chef server spits crazy loads of errors like these: https://gist.github.com/3853302
+[2012-10-08 16:06:13 -0400] gyre007: WHAT THE HECK :)
+[2012-10-08 16:06:19 -0400] gyre007: I've never seen this in my life :)
+[2012-10-08 16:06:33 -0400] jb__: gyre007: wrong port?
+[2012-10-08 16:07:00 -0400] gyre007: what do you mean ?
+[2012-10-08 16:07:11 -0400] maxmanders: jcwdev: Yeah - chef-server not hosted chef... I've worked around it for now by manually installing chef-client and creating first-boot.json, client.rb and adding validator.pem
+[2012-10-08 16:07:45 -0400] gyre007: jb__, knife client list work fine
+[2012-10-08 16:07:45 -0400] jb__: gyre007: the chef-server api runs under :4000 normally, not :4040. make sure thats correct in your knife.rb
+[2012-10-08 16:08:05 -0400] gyre007: jb__, as I said this is happening only when uploading a cookbook...
+[2012-10-08 16:08:09 -0400] jb__: ah
+[2012-10-08 16:08:12 -0400] gyre007: like ANY cookbook :)
+[2012-10-08 16:08:19 -0400] jb__: :)
+[2012-10-08 16:08:31 -0400] jb__: wth!
+[2012-10-08 16:09:01 -0400] gyre007: totally bizzare...looks like a bug in Chef server ?
+[2012-10-08 16:09:02 -0400] jcwdev: yeah. i tunnel 4000 and 4040 for knife + web client
+[2012-10-08 16:09:08 -0400] Virugna: Right after the update of rubygems, chef-server-webui doesn't and give this error http://pastebin.com/m6WTWN0B , could you help me please?
+[2012-10-08 16:09:22 -0400] Virugna: *work
+[2012-10-08 16:12:52 -0400] gyre007: its returning Failed to upload #<Chef::CookbookVersion:0x00000001a90708> : 500 Internal Server Error
+[2012-10-08 16:12:55 -0400] gyre007: uhh
+[2012-10-08 16:14:52 -0400] gyre007: but knife client list or knife node list work perfectly fine...it's the cookbook upload whch is failing...
+[2012-10-08 16:16:42 -0400] jcwdev: I'm sure you've bounced the server, glanced at logs on the server?
+[2012-10-08 16:17:07 -0400] DWRob: I'm wriring my first recipe . . . I have a role with override attributes that should apply to every node that has that role. In my recipie do I access these attributes like any other node attribute? I dont see the attrib using knife node show -a
+[2012-10-08 16:19:56 -0400] gyre007: jcwdev, im looking at the logs now...
+[2012-10-08 16:21:22 -0400] gyre007: but why does the knife work and the pload not...
+[2012-10-08 16:32:32 -0400] DWRob: how do I access role attributes in a recipe?
+[2012-10-08 16:59:07 -0400] gyre007: is there a repo for 12.04 ??
+[2012-10-08 17:04:16 -0400] gyre007: oh boy it's not
+[2012-10-08 17:04:31 -0400] chip-: Anybody have a cookbook for SASL memcached, before I go inventing a wheel?
+[2012-10-08 17:51:57 -0400] uncommitted: is there a good way to make sure a directory is recursively chown'd?
+[2012-10-08 17:53:17 -0400] uncommitted: seems "recursive true" doesn't really do what it says from what I can see
+[2012-10-08 18:06:34 -0400] smurfy: if i have a recipe that sends multiple notifies to restart a service, and they are queued up, does it actually restart the service for each occurence of a notification? Or is it smart enough to restart to once only/is there a way to make it do that?
+[2012-10-08 18:09:05 -0400] jtimberman: smurfy: it only restarts once, unless a different action is sent (e.g. reload and restart both)
+[2012-10-08 18:09:17 -0400] smurfy: ok great
+[2012-10-08 18:12:46 -0400] CharlieSu: jtimberman: have you seen anyone discuss this RVM bug?  https://gist.github.com/85c4ae0f0dfbeeedb12a
+[2012-10-08 18:25:17 -0400] Pushnell: we have run_list, which is kindof like a constructor.  suggestion: give me a destructor, shutdown_run_list
+[2012-10-08 18:26:15 -0400] Pushnell: and a knife command to do a system shutdown but run the shutdown_run_list first
+[2012-10-08 18:26:39 -0400] jtimberman: CharlieSu: is that fnichol's rvm cookbook?
+[2012-10-08 18:27:54 -0400] jtimberman: CharlieSu: i've not used that cookbook, and am not using rvm on my systems currently.
+[2012-10-08 18:36:34 -0400] maek: Anyone know where to change the config for open source chef to point to a non local host couchdb?
+[2012-10-08 18:40:17 -0400] jtimberman: maek: http://wiki.opscode.com/display/chef/Chef+Configuration+Settings#ChefConfigurationSettings-couchdb
+[2012-10-08 18:41:23 -0400] maek: jtimberman: ty ty!
+[2012-10-08 18:42:35 -0400] jtimberman: You're welcome :)
+[2012-10-08 18:43:33 -0400] maek: jtimberman: do you have an thoughts on scaling up oss chef. we have 2k nodes in it and are moving to private chef but this needs to limp along as we migrate. It seems beam from couch and ruby from chef-server seem to fight the most for resources so copying the private chef tiered topology i was just going to start by moving couch off. seem legit?
+[2012-10-08 18:45:19 -0400] wassy121: Hi there folks.  I'm having some basic trouble with our chef setup, and I can't seem to figure out what's going wrong.  http://pastebin.com/pugWPBCP - default.rb:21 refers to the ":mailhub" line.  Can anyone point out what I am doing wrong?
+[2012-10-08 18:47:13 -0400] maek: wassy121: search returns an iterator
+[2012-10-08 18:47:14 -0400] maek: try
+[2012-10-08 18:47:21 -0400] maek: email_server[0] or .first
+[2012-10-08 18:49:35 -0400] wassy121: wonderful.  Thanks.
+[2012-10-08 18:49:39 -0400] wassy121: I knew it was something silly :)
+[2012-10-08 18:50:00 -0400] wassy121: I wonder where else we are doing that?  It may have to do with the recent 10.12 -> 10.14 upgrade
+[2012-10-08 18:51:08 -0400] wassy121: Nope, the recipe has just been broken for a while.  Thanks again :)
+[2012-10-08 18:56:05 -0400] maek: wassy121: np
+[2012-10-08 18:56:40 -0400] jtimberman: maek: http://wiki.opscode.com/display/chef/Scalability+and+High+Availability
+[2012-10-08 18:56:49 -0400] jtimberman: several notes and links about the topic there
+[2012-10-08 19:00:52 -0400] chip-: maek: I'm frankly impressed you got 2k nodes into OSS. That's impressive.
+[2012-10-08 19:02:24 -0400] maek: jtimberman: ty
+[2012-10-08 19:02:45 -0400] maek: chip-: it basically works ok. its just slowing down
+[2012-10-08 19:18:03 -0400] DWRob: Question re: CHEF-2346 - if you installed from gems where is this change made?
+[2012-10-08 19:18:38 -0400] DWRob: ^ solr maxFieldLength
+[2012-10-08 19:20:18 -0400] smurfy: can you send a notify to a service definition that resides under a different cookbook::recipe?
+[2012-10-08 19:22:21 -0400] maek: DWRob: in var do find . -name schema.xml
+[2012-10-08 19:22:26 -0400] maek: mines in ./lib/chef/solr/home/conf/schema.xml
+[2012-10-08 19:24:55 -0400] DWRob: looking
+[2012-10-08 19:24:57 -0400] maek: DWRob: also there are 2 maxFieldLength settings, make sure you get tine one in the 'main' something or another xml block
+[2012-10-08 19:25:29 -0400] maek: DWRob: sorry im lying, its solrconfig.xml that you want
+[2012-10-08 19:25:44 -0400] maek: inside the <mainIndex>
+[2012-10-08 19:25:48 -0400] DWRob: I dont see that file anywhere
+[2012-10-08 19:26:33 -0400] maek: find from / ? this is chef .10.0 on centos
+[2012-10-08 19:26:34 -0400] DWRob: I found it
+[2012-10-08 19:26:35 -0400] maek: so not sure
+[2012-10-08 19:27:11 -0400] DWRob: I did a find for this once already, not sure why it didnt show up
+[2012-10-08 19:27:51 -0400] DWRob: <mainIndex> ?
+[2012-10-08 19:28:06 -0400] maek: DWRob: yeah
+[2012-10-08 19:28:12 -0400] maek: i assume this is for the windows nodes
+[2012-10-08 19:28:14 -0400] CharlieSu: jtimberman: it is James Harton's RVM cookbook.
+[2012-10-08 19:28:26 -0400] DWRob: restart or just rebuild the index?
+[2012-10-08 19:28:27 -0400] maek: not showing up in search
+[2012-10-08 19:28:36 -0400] maek: restart solr
+[2012-10-08 19:28:36 -0400] maek: rebuild index
+[2012-10-08 19:28:40 -0400] DWRob: thx
+[2012-10-08 19:28:42 -0400] maek: np
+[2012-10-08 19:45:50 -0400] chewie71: Is anyone successfully bootstrapping from VMware templates?  I want the VM to clone, boot, then bootstrap the chef stuff.  Using 'knife vsphere' I can get it to clone and boot an Ubuntu template, but it comes up with no IP....so the rest of the steps fail.
+[2012-10-08 19:45:52 -0400] maxmanders: I understand that I require incoming ports 5985-5986 enabled to use knife... what exactly is listening on these ports, i.e. can someone give me a brief overview of the process the knife command goes through when provisioning a server?
+[2012-10-08 19:46:48 -0400] maxmanders: Ah never mind - it's late and I've had a long day !
+[2012-10-08 19:48:42 -0400] chewie71: Here's my command...  knife vsphere vm clone mytest --dest-folder "Test and Dev" -x user -P pass -V --bootstrap -N mytest --cspec linux-customization-spec --ccpu 4 --cram 8 --ctz 'America/Chicago' --template ubuntu-12.04-x64 -f Templates --cvlan pg_Production-VLAN129
+[2012-10-08 19:50:47 -0400] chewie71: There's A LOT of config settings to worry about between vsphere and bootstrap so maybe I'm missing something.
+[2012-10-08 19:52:28 -0400] jtimberman: CharlieSu: i've never used that one either.
+[2012-10-08 20:07:59 -0400] jodell_: is there a way to add an admin user to chef-server via cli?
+[2012-10-08 20:08:05 -0400] jodell_: chef-server-webui
+[2012-10-08 20:08:17 -0400] juliancdunn: jodell_: knife client create?
+[2012-10-08 20:11:04 -0400] j4m3s: if i wanted to set this node[:bigcouch][:erlang][:cookie] attribute in my node file how would that look? i tried "bigcouch": { "erlang": { "cookie":"foobar"}}} and it didn't work
+[2012-10-08 20:15:07 -0400] luckymike: =>
+[2012-10-08 20:15:48 -0400] luckymike: "bigcouch" => { "erlang" => { "cookie" => "foobar" } }
+[2012-10-08 20:16:14 -0400] j4m3s: luckymike, thanks! is there a better way to set something like that?
+[2012-10-08 20:16:25 -0400] smurfy: do i have to define a "service" within a recipe in order to notify it, or can i use one defined elsewhere, i.e. another cookbook and recipe
+[2012-10-08 20:16:31 -0400] luckymike: where are you setting it?
+[2012-10-08 20:16:35 -0400] j4m3s: in node.json
+[2012-10-08 20:17:31 -0400] luckymike: that's probably the best way there
+[2012-10-08 20:17:48 -0400] luckymike: we generally set everything in roles or attribute files
+[2012-10-08 20:22:14 -0400] j4m3s: luckymike, what is the difference between @node and node when it comes to templates
+[2012-10-08 20:22:37 -0400] luckymike: can you point me to an example
+[2012-10-08 20:22:38 -0400] luckymike: ?
+[2012-10-08 20:23:01 -0400] j4m3s: luckymike, # Each node in the system must have a unique name.  A name can be short
+[2012-10-08 20:23:01 -0400] j4m3s: # (specified using -sname) or it can by fully qualified (-name).  There can be
+[2012-10-08 20:23:01 -0400] j4m3s: # no communication between nodes running with the -sname flag and those running
+[2012-10-08 20:23:01 -0400] j4m3s: # with the -name flag.
+[2012-10-08 20:23:02 -0400] j4m3s: -name bigcouch@<%= node[:fqdn] %>
+[2012-10-08 20:23:02 -0400] j4m3s: # All nodes must share the same magic cookie for distributed Erlang to work.
+[2012-10-08 20:23:04 -0400] j4m3s: # Comment out this line if you synchronized the cookies by other means (using
+[2012-10-08 20:23:06 -0400] j4m3s: # the ~/.erlang.cookie file, for example).
+[2012-10-08 20:23:07 -0400] j4m3s: -setcookie <%= @node[:bigcouch][:erlang][:cookie] %>
+[2012-10-08 20:23:10 -0400] j4m3s: shit sorry
+[2012-10-08 20:23:11 -0400] j4m3s: luckymike, http://pastie.org/5020711
+[2012-10-08 20:23:38 -0400] luckymike: ah, that's erb syntax
+[2012-10-08 20:24:07 -0400] jodell_: juliancdunn: afaict that's not creating a corresponding webui user
+[2012-10-08 20:24:22 -0400] j4m3s: luckymike, so that's correct?
+[2012-10-08 20:24:48 -0400] luckymike: I think so I'm not big on erb, screw it up all the time
+[2012-10-08 20:25:09 -0400] luckymike: you could take a look at some other cookbook templates to compare
+[2012-10-08 20:25:45 -0400] chewie71: On my client when I try to do this... knife bootstrap IPADDR -N mytest -x user -P pass --sudo -VV -s chef-server ...I get a "No such file or directory /etc/chef/validation.pem"
+[2012-10-08 20:25:47 -0400] j4m3s: yeah i tried to do it like monit and i'm not getting the results i expected with bigcouch that i did with monit
+[2012-10-08 20:26:09 -0400] luckymike: looking at it again, I'd think that @ is extraneous
+[2012-10-08 20:27:26 -0400] chewie71: The /etc/chef/validation.pem exists on the chef-server.  I tried copying that locally to ~/.chef/validation.pem....and modifying my knife.rb....but I get the exact same error on the file at the new location.
+[2012-10-08 20:30:02 -0400] j4m3s: luckymike, here's a better breakdown of my issue
+[2012-10-08 20:30:03 -0400] j4m3s: http://pastie.org/5020756
+[2012-10-08 20:32:03 -0400] j4m3s: monit gets populated properly, while bigcouch does not
+[2012-10-08 20:37:31 -0400] luckymike: dunno, it looks good
+[2012-10-08 20:37:43 -0400] luckymike: is your template in the right place?
+[2012-10-08 20:37:56 -0400] luckymike: named correctly etc?
+[2012-10-08 20:37:59 -0400] j4m3s: yes
+[2012-10-08 20:39:30 -0400] j4m3s: if i change the template to @node[:bigcouch][:cookie] and then change the node.json file to reflect that it works!
+[2012-10-08 20:43:10 -0400] luckymike: huh
+[2012-10-08 20:44:12 -0400] j4m3s: luckymike, if i change the template to be @node[:bigcouch][cookie] and remove the erlang block from the bigcouch section it works
+[2012-10-08 20:44:19 -0400] drgonzo65: is there anything special i need to do to get a handler working with chef-solo?
+[2012-10-08 20:44:25 -0400] j4m3s: *[:bigcouch][:cookie]
+[2012-10-08 20:44:44 -0400] luckymike: j4m3s: right, I understood, just not sure why that worked and it didn't the other way
+[2012-10-08 20:56:20 -0400] chewie71: Where is the "no such file or directory" error coming from in this command? http://pastie.org/5020878
+[2012-10-08 20:56:47 -0400] chewie71: That file exists on the local client where I'm running knife.
+[2012-10-08 20:57:22 -0400] wdpro_kevin: that file needs to exist in the .chef or /etc/chef directory of the machine you are running the bootstrap from
+[2012-10-08 20:57:58 -0400] chewie71: I'm running bootstrap on my Mac desktop.  It exists in ~/.chef
+[2012-10-08 20:58:55 -0400] chewie71: I copied it from /etc/chef/validation.pem on the chef-server
+[2012-10-08 20:59:12 -0400] wdpro_kevin: it is here? /Users/matt/.chef/
+[2012-10-08 21:00:09 -0400] chewie71: yes it definitely is
+[2012-10-08 21:00:16 -0400] wdpro_kevin: what does the "validation_key" property say in /Users/matt/.chef/knife.rb?
+[2012-10-08 21:00:53 -0400] j4m3s: luckymike, attributes file overrides node.json ?
+[2012-10-08 21:00:53 -0400] chewie71: validation_key           '~/.chef/validation.pem'
+[2012-10-08 21:01:09 -0400] chewie71: Let me try using the full path...
+[2012-10-08 21:01:21 -0400] wdpro_kevin: maybe hard code it to /Users/matt/.chef/validation_key
+[2012-10-08 21:01:26 -0400] wdpro_kevin: right
+[2012-10-08 21:02:00 -0400] chewie71: that was it.....
+[2012-10-08 21:02:14 -0400] luckymike: j4m3s: attributes are written to the node, so the attribute file probably does supercede something that is saved only on the node.json
+[2012-10-08 21:02:24 -0400] wdpro_kevin: sweet
+[2012-10-08 21:02:32 -0400] wdpro_kevin: not sure why ~ didn't work
+[2012-10-08 21:02:37 -0400] chewie71: By the way....the chef install instructions in the wiki never mention you have to copy that validation.pem file to your local machine.....I guess it's just assumed?
+[2012-10-08 21:02:56 -0400] wdpro_kevin: Here is a question for the masses or one mass
+[2012-10-08 21:03:55 -0400] wdpro_kevin: It seems my recipe templates keep getting created even though they exist and the file has not changed
+[2012-10-08 21:04:52 -0400] wdpro_kevin: are there any other triggers I'm overlooking?
+[2012-10-08 21:05:18 -0400] fractaloop: Anyone having any issues with environments? When I `knife environment from file environments/_default.rb` with an empty file I get a 500 from Opscode
+[2012-10-08 21:08:26 -0400] fractaloop: oops nm that was convention sorry
+[2012-10-08 21:12:05 -0400] luckymike: wdpro_kevin: what do you mean keep getting created? if nothing has changed what gets created?
+[2012-10-08 21:13:25 -0400] wdpro_kevin: I see in each chef run the file getting backed up and replaced with a new
+[2012-10-08 21:13:47 -0400] Pushnell: I have a recipe which I'm trying to use both in AWS prod and vagrant dev  the recipe has a search call which is inside `if defined? node['ec2']` but the cookbook is still failing to compile with missing /etc/chef.pem .
+[2012-10-08 21:13:59 -0400] wdpro_kevin: file and the service restarted even though the template or the file on the server has not been modified
+[2012-10-08 21:14:18 -0400] Pushnell: so am I to understand that even having a search() call in a recipe will cause it to fail on chef-solo, even if that call never happens?
+[2012-10-08 21:18:00 -0400] luckymike: wdpro_kevin: that does seem like the wrong behavior
+[2012-10-08 21:18:12 -0400] luckymike: not sure why though
+[2012-10-08 21:18:22 -0400] wdpro_kevin: I'm looking at the debug log
+[2012-10-08 21:21:10 -0400] chewie71: Using knife bootstrap.....if I set the --bootstrap-proxy then the server I'm bootstrapping can't reach the local chef-server.  Is there a solution for that problem?
+[2012-10-08 21:22:44 -0400] joemiller: jtimberman: ping
+[2012-10-08 21:23:20 -0400] joemiller: jtimberman: do you know of any way to configure things like Contacts in osx programatically/cli ?  for instance, i'm wondering if i can chefiy the steps of "setup contacts to sync with google apps"
+[2012-10-08 21:23:37 -0400] wdpro_kevin: the node need to be able to access the server over the api port 4040
+[2012-10-08 21:29:39 -0400] chewie71: wdpro_kevin:  I see that now....have to pass '-s chef-server:4040' as the param
+[2012-10-08 21:35:23 -0400] chewie71: Actually.....looks like it has to be '-s http://chef-server:4040' or I get gsub errors during the bootstrap.
+[2012-10-08 21:36:07 -0400] sbinq: Hi, is it possible to apply the same recipe twice with different parameters to the same node? Sample usecase - I have one host, and want two create a test setup of cluster with two tomcat instances
+[2012-10-08 21:36:11 -0400] wdpro_kevin: yep
+[2012-10-08 21:37:21 -0400] sbinq: Hi, is it possible to apply the same recipe twice with different parameters to the same node? Sample usecase - I have one host, and want two create a test setup of cluster with two tomcat instances
+[2012-10-08 21:37:25 -0400] sbinq: From what I can see usually in recipes this should be probably impossible - but probably someone did smth like this / could advice something?
+[2012-10-08 21:37:31 -0400] sbinq: (sorry, occasional dup)
+[2012-10-08 21:38:27 -0400] ohlol: da fuq, based on https://github.com/opscode/chef/blob/master/chef/lib/chef/run_status.rb shouldn't run_status.respond_to? :updated_resources work?
+[2012-10-08 21:41:10 -0400] fauncybillups: what is the idiomatic way to get the architecture of the machine I'm deploying to with chef.. in bash, I would just do `uname -i` and capture that output.. is there a better approach with chef other than shelling out?
+[2012-10-08 21:43:51 -0400] ohlol: fauncybillups: ohai kernel
+[2012-10-08 21:44:22 -0400] ohlol: node["kernel"] in chef directly
+[2012-10-08 21:44:26 -0400] fauncybillups: ahh.. nice
+[2012-10-08 21:44:28 -0400] fauncybillups: thanks!
+[2012-10-08 21:44:32 -0400] ohlol: np
+[2012-10-08 21:44:59 -0400] ohlol: all the data in ohai should be available in the node hash within chef
+[2012-10-08 21:45:04 -0400] jtimberman: joemiller: might be a defaults property for that but i don't know it off hand
+[2012-10-08 21:45:13 -0400] jtimberman: defaults read com.apple.contacts?
+[2012-10-08 22:31:56 -0400] gyre007: we are seeing a very strange thing happening in our infra...
+[2012-10-08 22:36:48 -0400] gyre007: once we run chef-client ohai find fqdn...second time we run it doesnt find it
+[2012-10-08 22:36:55 -0400] gyre007: and it goes all the time around like that
+[2012-10-08 22:37:35 -0400] gyre007: because of that..bunch of our stuff is failing :(...anyone idea why would this be happening ?
+[2012-10-08 22:42:38 -0400] kallistec: gyre007: fqdn comes from hostname -f, doing anything that could cause problems there?
+[2012-10-08 22:54:45 -0400] erikh: does hostname -f still break on GNU machines with improperly configured dns?
+[2012-10-08 22:55:02 -0400] erikh: (it did for a while there)
+[2012-10-08 23:53:49 -0400] qhartman: knife node search seems to not be able to return nested attributes when invoked with the -a option. Is that true, or am I doing something wrong?

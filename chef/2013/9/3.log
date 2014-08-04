@@ -1,0 +1,986 @@
+[2013-09-03 00:04:00 -0400] mahmoudimus: I want to override the template used here: https://github.com/opscode-cookbooks/yum/blob/master/providers/repository.rb#L100
+[2013-09-03 00:04:47 -0400] mahmoudimus: would resources("template[/etc/yum.repos.d/#{my_repo_name}.repo") do taht?
+[2013-09-03 00:05:24 -0400] UForgotten: mahmoudimus: is there something wrong with it? are you using a distro that uses yum?
+[2013-09-03 00:06:53 -0400] mahmoudimus: UForgotten, yes, i'm using a distro that does use Yum
+[2013-09-03 00:06:57 -0400] UForgotten: I'm not sure what you want to override.
+[2013-09-03 00:07:06 -0400] mahmoudimus: I want to append a few variables to the template
+[2013-09-03 00:07:27 -0400] mahmoudimus: I'm writing a cookbook for: https://github.com/jbraeuer/yum-s3-plugin
+[2013-09-03 00:07:52 -0400] mahmoudimus: and I use the yum_resource provider to create a new repo, but I want to add a few parameters at the end, notably what's here:https://github.com/jbraeuer/yum-s3-plugin#how-to-configure-a-s3-based-repo
+[2013-09-03 00:07:58 -0400] UForgotten: I suppose if you fork the cookbook you can edit the resource
+[2013-09-03 00:08:03 -0400] mahmoudimus: maybe I"m just going down the wrong approach
+[2013-09-03 00:08:58 -0400] mahmoudimus: UForgotten, or I can just override teh template
+[2013-09-03 00:09:18 -0400] UForgotten: you can edit the template but you'll want to also edit the provider to pass down any additional variables you need
+[2013-09-03 00:09:37 -0400] UForgotten: otherwise you're just hardcoding extra stuff in the template
+[2013-09-03 00:09:56 -0400] mahmoudimus: hmm, woudn't taht be available via .variables ?
+[2013-09-03 00:10:02 -0400] mahmoudimus: on the resource?
+[2013-09-03 00:11:23 -0400] UForgotten: If they are available in that state, not sure what gets passed down that deep.  another think you could do is make a definition or resource+provider that calls a copy of the template so you don't have to edit the default cookbook template.
+[2013-09-03 00:12:01 -0400] mahmoudimus: ah good idea.
+[2013-09-03 00:12:06 -0400] mahmoudimus: any examples to do that?
+[2013-09-03 00:12:18 -0400] mahmoudimus: also, for future reference, how can I override taht template?
+[2013-09-03 00:13:04 -0400] mahmoudimus: k tried resources("template[repo]") and resources('templates[/etc/yum.repos.d/repo.rb]')
+[2013-09-03 00:13:08 -0400] mahmoudimus: s/k/i
+[2013-09-03 00:14:13 -0400] UForgotten: I'm still a newbie at this myself but it might help to learn the differences between a standalone recipe, a definition, and a resource+provider combo first.
+[2013-09-03 00:14:57 -0400] miah: a definition isn't much different fron a recipe. it just wraps some convience around it to make a recipe look like a resource
+[2013-09-03 00:15:04 -0400] miah: imho, most recipes _should_ be definitions
+[2013-09-03 00:15:14 -0400] miah: resource providers are truely the way though
+[2013-09-03 00:15:16 -0400] UForgotten: miah: yes, you can dry up recipes by using a definition
+[2013-09-03 00:15:39 -0400] UForgotten: I never could get a resource+provider combo working personally
+[2013-09-03 00:15:44 -0400] UForgotten: definitions were way easier
+[2013-09-03 00:15:53 -0400] miah: yes, but definitions are still abstract resources
+[2013-09-03 00:16:01 -0400] mahmoudimus: are these definitions: https://github.com/opscode-cookbooks/yum/blob/master/resources/repository.rb ?
+[2013-09-03 00:16:08 -0400] mahmoudimus: (sorry, super chef newb here)
+[2013-09-03 00:16:12 -0400] miah: no, that is a dsl based resource
+[2013-09-03 00:16:17 -0400] mahmoudimus: G_G
+[2013-09-03 00:16:49 -0400] miah: you can write resource providers as subclasses of Chef::Resource or Chef::Provider, or you can use the dsl methods to dynamically create them
+[2013-09-03 00:16:56 -0400] miah: (i prefer subclassing)
+[2013-09-03 00:17:41 -0400] UForgotten: the directory structure usually reveals what things are.  cookbook/[resource|provider|templates|attributes|recipes]
+[2013-09-03 00:17:55 -0400] mahmoudimus: UForgotten, what's a definition though?
+[2013-09-03 00:17:57 -0400] miah: dont forget cookbook/libraries
+[2013-09-03 00:18:07 -0400] miah: http://docs.opscode.com/essentials_cookbook_definitions.html
+[2013-09-03 00:18:11 -0400] UForgotten: ^
+[2013-09-03 00:18:54 -0400] miah: more of this makes sense as you learn object oriented programming
+[2013-09-03 00:19:00 -0400] UForgotten: I think of it as an abstract macro that lets you call one recipe multiple times with a few variable/attribute changes
+[2013-09-03 00:19:16 -0400] mahmoudimus: miah, I'm actually a pretty seasoned developer, so the OO stuff is fine
+[2013-09-03 00:19:18 -0400] miah: ya, thats a pretty good way to describe them
+[2013-09-03 00:19:34 -0400] miah: mahmoudimus: ya, you just dont find many people in the chef space that understand oop =)
+[2013-09-03 00:19:42 -0400] mahmoudimus: miah, I'm just trying to wrap my head around the various inversion of controls that chef incorporates
+[2013-09-03 00:19:45 -0400] miah: ya
+[2013-09-03 00:19:59 -0400] UForgotten: I certainly don't. I'm a sysadmin.  so on the devops spectrum I'm 90% ops 10% dev
+[2013-09-03 00:20:09 -0400] miah: the way i see it: write resource providers, then write recipes that couple your business logic with those resources
+[2013-09-03 00:20:23 -0400] mahmoudimus: miah, but yes, the way chef made sense to me was to think of it as a modeling problem
+[2013-09-03 00:20:28 -0400] miah: try to avoid writing recipes that use the primitives to build 'abstract' objects
+[2013-09-03 01:51:23 -0400] mahmoudimus: when using chef-shell to debug a recipe, i'm doing "include_recipe" but it's not loading the attributes of the cookbook. any ideas?
+[2013-09-03 01:57:22 -0400] mahmoudimus: oh man :( https://tickets.opscode.com/browse/CHEF-3831
+[2013-09-03 01:57:25 -0400] mahmoudimus: G_G
+[2013-09-03 04:08:53 -0400] arussel: I'm trying to follow: https://learnchef.opscode.com/starter-use-cases/multi-node-ec2/
+[2013-09-03 04:09:46 -0400] arussel: I'm a bit lost at the very begining, I've created a pem file, name 'foo' on aws, but renamed to bar on my machine. Should I use foo or bar ?
+[2013-09-03 04:10:20 -0400] arussel: top of knife.rb seems to say foo but bottom of it seems to say bar ...
+[2013-09-03 05:56:02 -0400] Guest3965: Hello, I was wondering if someone could help me out with chef-solo
+[2013-09-03 05:56:53 -0400] Guest3965: I'm trying to install mod_security using the cookbook from HoneyApps
+[2013-09-03 05:57:32 -0400] Guest3965: I keep getting an error saying -
+[2013-09-03 05:57:34 -0400] Guest3965: NoMethodError: undefined method `each' for nil:NilClass /opt/chef-repo/cookbooks/mod_security/recipes/install_base.rb:10:in `from_file'
+[2013-09-03 06:36:34 -0400] nico: hi there
+[2013-09-03 06:36:51 -0400] nico: anyone with a pointer on log rotation for chef server 11 ?
+[2013-09-03 06:37:29 -0400] nico: I'm running it on debian, docs I found are missing some explanations
+[2013-09-03 07:59:47 -0400] hippiehacker: anyone seen any clean ways to change chef environments via a recipe cleanly? (and restart the convergence?)
+[2013-09-03 08:20:52 -0400] remil: what would be the proper way to add a few attributes to a node using some shell or ruby scripting ?
+[2013-09-03 10:09:15 -0400] remil: could it be possible that a node attribute would be cached on the node ? when i edit the node with chef or in the web if i can't see an attribute but it shows up when i perform the chef-client run
+[2013-09-03 10:36:42 -0400] fishGoM00: remil: I've always been under the impression attributes are evaluated on the chef-client run (during compilation)
+[2013-09-03 10:38:50 -0400] Storme|mobile: attributes come fom different sources but the client determines which one wins and stores them on rhe chef server at the end of the successful run
+[2013-09-03 10:40:39 -0400] ocholetras: hi all
+[2013-09-03 10:40:54 -0400] Storme|mobile: heyla
+[2013-09-03 10:45:05 -0400] ocholetras: I want to manage the openssh attribute allow_users, based on "something" (may be a role or another attribute) . I mean, if the machine is going to be managed by the com department we add admincom to the allow_users, and i want to stack with other users, could be 3rd party admins or whatever.
+[2013-09-03 10:46:27 -0400] ocholetras: I have implemented with roles, and arrays at the same level of precedence merge, and i dont mind the order, so that is great. But im new on chef, and dont want to start with a anti-pattern. I have recently read that only when it is unavoidable, use attributes on roles.
+[2013-09-03 10:47:07 -0400] ocholetras: Somebody can think out loud with me about this?
+[2013-09-03 10:47:11 -0400] ocholetras: ^ ^
+[2013-09-03 10:49:08 -0400] Storme|mobile: well you could always write a wrapper cookbook and have the attributes there
+[2013-09-03 10:50:23 -0400] ocholetras: Yea, the think is what to use on the "only_if" statement
+[2013-09-03 10:50:43 -0400] Storme|mobile: since cbs are versioned that seems to be commonly acceptable
+[2013-09-03 10:51:00 -0400] ocholetras: need a mark to say: "OK, this machine is going to be managed by: com, 3rd and dev
+[2013-09-03 10:51:37 -0400] ocholetras: And that mark, goes in the node.
+[2013-09-03 10:52:03 -0400] Storme|mobile: you could have different recipes inside the wrapper, and which ones you pull un controls the user list
+[2013-09-03 10:52:07 -0400] ocholetras: Another way is to have 1 recipe for each admins group, and add that recipe on the node runlist
+[2013-09-03 10:52:21 -0400] ocholetras: ok
+[2013-09-03 10:52:35 -0400] ocholetras: think we are thiking on the same thing ^ ^
+[2013-09-03 10:52:45 -0400] Storme|mobile: yeah.
+[2013-09-03 10:53:03 -0400] ocholetras: So, new user, new recipe
+[2013-09-03 10:53:13 -0400] Storme|mobile: its run,ist bloat but tbh thats unavoidable
+[2013-09-03 10:53:41 -0400] Storme|mobile: well, id say user group, but depends on your setup
+[2013-09-03 10:53:41 -0400] ocholetras: i thing i can have a cookbook for that propouse, something like "mycompany_management"
+[2013-09-03 10:55:59 -0400] ocholetras: We do 3 things with admin users:
+[2013-09-03 10:55:59 -0400] ocholetras: 1 create
+[2013-09-03 10:55:59 -0400] ocholetras: 2 add sudoers
+[2013-09-03 10:56:00 -0400] ocholetras: 3 allow ssh access
+[2013-09-03 10:57:29 -0400] Storme|mobile: if you go by group you can add sudo access to the group instead, cleaner
+[2013-09-03 10:57:48 -0400] ocholetras: yea, sudo
+[2013-09-03 10:57:49 -0400] ocholetras: but ssh?
+[2013-09-03 10:58:34 -0400] ocholetras: It does have sense to think on a list of users to proccess (array attribute?), because the steps are the same. Even creating recipes,  the thing is going to be: admin_users_attribute += ['newadminuser'] on newadminuser recipe and so on..
+[2013-09-03 10:59:31 -0400] xhae: ocholetras: use pam. http://www.cyberciti.biz/tips/howto-deny-allow-linux-user-group-login.html
+[2013-09-03 11:00:19 -0400] xhae: that way you can easily manage ssh logins based on group membership, after some work to set it up.
+[2013-09-03 11:00:44 -0400] ocholetras: sounds good
+[2013-09-03 11:00:49 -0400] ocholetras: ill have look
+[2013-09-03 11:01:18 -0400] ocholetras: wtf
+[2013-09-03 11:01:31 -0400] ocholetras: there is an "AllowGroups" option on sshd_config
+[2013-09-03 11:01:36 -0400] ocholetras: ><'
+[2013-09-03 11:02:30 -0400] ocholetras: That said, i only have to create the admin users with the right group and im done.
+[2013-09-03 11:05:41 -0400] ocholetras: But, it sounds right to me, that actually there should be an array with all the users ,based on roles or whatever, that are going to manage the machine. And then iterate over that list, creating them.
+[2013-09-03 11:05:41 -0400] ocholetras: It may  be that im loosing something about the way of cooking with chef. he he ^^ but having a recipe for each admin user, just to create the user... does not sounds much like DRY
+[2013-09-03 11:08:17 -0400] Storme|mobile: right,  databag search on group makes more sense to me.
+[2013-09-03 11:09:21 -0400] xhae: ocholetras: the hash of users is stored in a databag if you're using https://github.com/opscode-cookbooks/users
+[2013-09-03 11:09:26 -0400] xhae: which you probably should be
+[2013-09-03 12:13:54 -0400] mikeb2: hi folks, anyone got any idea why passenger_apache2 is ignoring my module_path and using its own?
+[2013-09-03 12:36:22 -0400] mikeb2: hello, can someone please have a go at explaining what "If this is suitable for your application, add 'cookbook "passenger"' to the define above to use that template" this might mean in the context of this https://gist.github.com/mikebrules/6423332. How do I add "cookbook'passenger'" - any idea? Th
+[2013-09-03 12:48:43 -0400] ocholetras: So guys, talking about roles and attributes. It is evil to define attributes on roles?
+[2013-09-03 12:49:13 -0400] stormerider: some people hate roles, some people dont. listen to both arguments and make your own decision.
+[2013-09-03 12:49:26 -0400] ocholetras: i dont hate roles hehe
+[2013-09-03 12:50:47 -0400] ocholetras: but Adam Jacob comments on a blog saying:
+[2013-09-03 12:50:47 -0400] ocholetras:  1) Roles should be thin by design - a run list and a name.
+[2013-09-03 12:50:47 -0400] ocholetras: 2) Roles should only include attributes if its unavoidably necessary.
+[2013-09-03 12:54:43 -0400] workmad3: ocholetras: I prefer to only set default attributes on roles
+[2013-09-03 12:55:28 -0400] workmad3: ocholetras: so they're more like saying 'well, if you're playing this part, we'll change your defaults from X to Y, but feel free to override if needed'
+[2013-09-03 12:56:29 -0400] ocholetras: Sounds good. Im starting with chef and going crazy with so many people talking about patterns and antipatterns in so different ways
+[2013-09-03 12:57:45 -0400] adamjk-dev: ocholetras: yeah, its tough..... you gotta weight the options and do what is best for you for now... keeping in mind that "roles" could change in the future
+[2013-09-03 12:58:05 -0400] adamjk-dev: ocholetras: for example, we use role cookbooks (since they are versioned), but Opscode has hinted that in the future roles may be versioned in Chef as well
+[2013-09-03 12:58:38 -0400] ocholetras: Yea, so much people talking about setting your company default attrs on wrapped cookbooks because of versioning..
+[2013-09-03 12:59:19 -0400] adamjk-dev: ocholetras: yeah, we follow that paradigm for now.... (I prefer to have source control drive just about everything)
+[2013-09-03 13:01:06 -0400] ocholetras: That is one of de advantages of chef, making infrastructure like code he he
+[2013-09-03 13:03:10 -0400] ocholetras: For example, for stacking elements in an attribute array (adminsusers) the first way i found was to use roles for each managers group: com, dev, 3rdparty ... using same precedence level on array attributes will result on merge, and with users order doesnt matter as you just proccess that array and do watever you do.. sudoers... ssh_access...etc..
+[2013-09-03 13:03:59 -0400] ocholetras: But then i have found the users cookbook, and the databags and all this stuff  which are great. But you still need that list of users that are going to access your machine
+[2013-09-03 13:04:29 -0400] ocholetras: so still need to construct that "stack-list" of users based on "something"
+[2013-09-03 13:04:49 -0400] ocholetras: and by "something" you can mean: roles, other attributes, recipes on the noderunlist... etc..
+[2013-09-03 13:05:30 -0400] adamjk-dev: ocholetras: precisely... that is the power... you decide which way is best... not just one way to do things
+[2013-09-03 13:05:47 -0400] adamjk-dev: ocholetras: I see it as a strength in a way, rather than a limiting factor
+[2013-09-03 13:07:23 -0400] ocholetras: yea
+[2013-09-03 13:07:43 -0400] ocholetras: i agree with that
+[2013-09-03 13:07:53 -0400] ocholetras: flexibility is a plus, sure
+[2013-09-03 13:08:15 -0400] ocholetras: think ill start with something
+[2013-09-03 13:08:27 -0400] ocholetras: then we will see how is going Xd
+[2013-09-03 13:09:59 -0400] ocholetras: But for example, using a recipe (you can call it: management:3rdparty) to just append a user in an array attribute. Sounds like wasting a file...
+[2013-09-03 13:10:26 -0400] ocholetras: may be it is jus the way i see it
+[2013-09-03 13:10:29 -0400] ocholetras: ^ ^
+[2013-09-03 13:11:48 -0400] adamjk-dev: ocholetras: yeah.... it isnt a huge deal to change from roles to role cookbooks, and to environments etc.
+[2013-09-03 13:12:26 -0400] adamjk-dev: ocholetras: eh.... its tough... and I am not an expert myself haha
+[2013-09-03 13:12:42 -0400] ocholetras: ha ha
+[2013-09-03 13:12:45 -0400] ocholetras: dot worry
+[2013-09-03 13:12:47 -0400] ocholetras: me neither
+[2013-09-03 13:13:01 -0400] ocholetras: but experience talks by itself, sometimes better thant the experts
+[2013-09-03 13:13:03 -0400] ocholetras: ha ha!
+[2013-09-03 13:13:08 -0400] ocholetras: thx 4 the input!
+[2013-09-03 13:13:10 -0400] ocholetras: see you!
+[2013-09-03 13:53:40 -0400] pabst^: What is the easiest way to keep to chef servers synched?
+[2013-09-03 13:57:20 -0400] thebishop: is there a distro-independent way to force a repo (apt, yum) update in a cookbook?
+[2013-09-03 14:02:17 -0400] fitzdsl_: Is there any reason why when applying cookbook chef server url's domain is stripped ?
+[2013-09-03 14:05:04 -0400] fitzdsl_: my chef_serer_url is 'https://chef.example.com' but when applying chef-client I get some errors like "Error connecting to https://chef/bookshelf/...."
+[2013-09-03 14:05:54 -0400] fitzdsl_: so if I don't setup search in my resolv.conf or in /etc/hosts chef-client is failling
+[2013-09-03 14:13:12 -0400] stormerider: fitzdsl_: i believe that's based on the bookshelf['vip'] setting in chef-server.rb
+[2013-09-03 14:14:13 -0400] fitzdsl_: stormerider: not sure to understand your answer
+[2013-09-03 14:16:05 -0400] stormerider: so chef components can be split across multiple servers. the bookshelf component has a setting for the hostname it should advertise to clients. if that's wrong, you need to tweak the vip setting in the chef-server.rb and run chef-server-ctl reconfigure
+[2013-09-03 14:16:39 -0400] fitzdsl_: stormerider: ok thanks I'll look to that
+[2013-09-03 14:16:54 -0400] stormerider: np
+[2013-09-03 14:25:06 -0400] fitzdsl_: stormerider: you were right, pb fix. thanks
+[2013-09-03 14:27:22 -0400] stormerider: glad to hear it :)
+[2013-09-03 14:31:45 -0400] jtimberman: thebishop: no, because every distro / package manager is different.
+[2013-09-03 14:32:30 -0400] thebishop: jtimberman, ok. so you have to check the distro in the recipe to include the correct cookbook?
+[2013-09-03 14:35:27 -0400] jtimberman: i mean, you could do something like this: https://gist.github.com/jtimberman/6424786
+[2013-09-03 14:37:00 -0400] thebishop: jtimberman, i see... so you don't use 'package "apt"' to do an apt-get update on ubuntu?  A tutorial said that would work and it was working for me
+[2013-09-03 14:37:26 -0400] thebishop: that's why i thought there might be a cookbook to do it on any platform (or not if it doesn't make sense for a particular os)
+[2013-09-03 14:37:44 -0400] adnichols: "any" is a long list :)
+[2013-09-03 14:39:50 -0400] thebishop: true, but less than a dozen would probably satisfy 90%+ of users.  anyway it doesn't matter that much
+[2013-09-03 14:42:19 -0400] jtimberman: thebishop: package 'apt' would merely ensure that the 'apt' package is installed, not trigger an apt-get update.
+[2013-09-03 14:47:23 -0400] stormerider: you could write a wrapper cookbook for apt/yum/etc if you wanted
+[2013-09-03 14:47:38 -0400] jtimberman: the thing is, people expect cookbooks to work on multiple platforms and THEN they get irritated that there are cookbook dependencies on things like 'apt' or 'yum' or 'windows' which actually make the cookbook work on multiple platforms. :)
+[2013-09-03 14:48:01 -0400] jtimberman: "people" may or may not overlap in that statement.
+[2013-09-03 14:49:35 -0400] stormerider: jtimberman: indeed. i really wish there was something like "platform_depends redhat|centos yum", etc
+[2013-09-03 14:50:56 -0400] jtimberman: stormerider: me too! :D http://tickets.opscode.com/browse/CHEF-3871
+[2013-09-03 14:52:18 -0400] gswallow: root@web02-2:/usr/local/src/ruby-2.0.0-p247# chef-client -h
+[2013-09-03 14:52:18 -0400] gswallow: /usr/local/lib/ruby/site_ruby/2.0.0/rubygems/custom_require.rb:36:in `require': cannot load such file -- yajl/yajl (LoadError)
+[2013-09-03 14:52:44 -0400] drrk: jtimberman: I think a good fix for that would be 'provides' statements in cookbooks
+[2013-09-03 14:52:50 -0400] gswallow: root@web02-2:/usr/local/lib/ruby/site_ruby/2.0.0# cd /usr/local/lib/ruby/gems/2.0.0/gems/yajl-ruby-1.1.0/lib
+[2013-09-03 14:53:09 -0400] drrk: so you can require 'package_mgmt' and yum and apt and msi can provide that
+[2013-09-03 14:53:10 -0400] gswallow: root@web02-2:/usr/local/lib/ruby/gems/2.0.0/gems/yajl-ruby-1.1.0/lib# mv usr/local/lib/ruby/site_ruby/2.0.0/x86_64-linux/yajl/yajl.so yajl
+[2013-09-03 14:53:22 -0400] gswallow: root@web02-2:/usr/local/lib/ruby/gems/2.0.0/gems/yajl-ruby-1.1.0/lib# chef-client
+[2013-09-03 14:53:23 -0400] gswallow: [2013-09-03T10:49:44-04:00] INFO: *** Chef 10.26.0 ***
+[2013-09-03 14:53:25 -0400] gswallow: anyone run into that?
+[2013-09-03 14:53:55 -0400] gswallow: doesn't look like a chef problem per se.  I hit this with ruby-2.0.0-p247, but not with ruby-2.0.0-p0.
+[2013-09-03 14:58:10 -0400] prognostikos: I've installed a new chef server with the omnibus installer and want to replace the self-signed ssl certs for the api with my own. Can I just replace the files in /var/opt/chef-server/nginx/ca or is there a better/smarter way?
+[2013-09-03 15:04:07 -0400] stormerider: jtimberman: thanks, voted + watched :)
+[2013-09-03 15:04:35 -0400] gswallow: Hrmthe ruby-shadow gem just choked, too o_O
+[2013-09-03 15:10:14 -0400] dsteen: morning all!  having a problem getting ldap working with private-chef
+[2013-09-03 15:10:39 -0400] dsteen: I've put the ldap configuration lines in the attributes file, but they don't seem to be pulled in.
+[2013-09-03 15:10:58 -0400] dsteen: from /opt/opscode/embedded/cookbooks/private-chef/attributes/default.rb
+[2013-09-03 15:11:03 -0400] dsteen: should they be going somewhere else?
+[2013-09-03 15:11:12 -0400] dsteen: I'm trying to follow the instructions here:
+[2013-09-03 15:11:17 -0400] dsteen: http://docs.opscode.com/server/private_chef_1x_install.html#active-directory-and-ldap
+[2013-09-03 15:15:01 -0400] jtimberman: dsteen: opscode support (support@opscode.com) is probably the quickest way to get assistance with Enterprise Chef.
+[2013-09-03 15:16:55 -0400] dsteen: ok. thanks
+[2013-09-03 15:30:29 -0400] gswallow: http://tickets.opscode.com/browse/CHEF-3933
+[2013-09-03 15:30:43 -0400] gswallow: While I may not eat your newborns, I will lobby my congressman to reinstate the draft.
+[2013-09-03 15:31:02 -0400] jujugrrr: hello, I've noticed for a while that when I'm using knife ssh -C 1, the concurrency 1 doesn't. By example knife ssh -C 1 role:xxx "echo `date` && sleep 5" -a ipaddress. It returns 10.x.x.x Tue 3 Sep 2013 15:24:18 BST then 10.x.x.x Tue 3 Sep 2013 15:24:18 BST. Do you have the same behaviour ?
+[2013-09-03 15:51:29 -0400] jkeiser: jujugrrr: what behavior are you expecting?
+[2013-09-03 15:52:02 -0400] jujugrrr: jkeiser: I though it would run the ssh cmd 1 by 1
+[2013-09-03 15:52:23 -0400] jujugrrr: jkeiser: Did I misunderstand the option?
+[2013-09-03 15:52:44 -0400] jkeiser: That's what I would expect too, but I can't see how the output you mentioned is inconsistent with that
+[2013-09-03 15:52:50 -0400] jkeiser: oh, the sleep
+[2013-09-03 15:52:59 -0400] jujugrrr: yep, date,sleep 5 secs, sleep
+[2013-09-03 15:53:07 -0400] jujugrrr: I would expect a diff in the date
+[2013-09-03 15:53:22 -0400] jkeiser: jujugrrr: I've had problems with -C 1 in the past, but it used to do the first command, and then all later commands in parallel
+[2013-09-03 15:53:28 -0400] jkeiser: first command by itself
+[2013-09-03 15:53:40 -0400] jujugrrr: yep that what I've noticed as well
+[2013-09-03 15:53:48 -0400] jujugrrr: if I run the command above
+[2013-09-03 15:53:58 -0400] jujugrrr: I can see the first output, then 5 secs after all the other servers
+[2013-09-03 15:54:03 -0400] jujugrrr: but still it is the same date
+[2013-09-03 15:54:24 -0400] jujugrrr: I have the illusion it is processing the first one then all of them, but in fact it's all in the same time anyway
+[2013-09-03 15:55:06 -0400] jkeiser: jujugrrr: I think when I asked last, a patch existed.  Are you using Chef 11.6?
+[2013-09-03 15:55:13 -0400] jujugrrr: My knife version is .   knife --version = > Chef: 11.4.0
+[2013-09-03 15:55:53 -0400] jujugrrr: I'm trying with 11.6
+[2013-09-03 15:59:51 -0400] jujugrrr: jkeiser: it is better, I can see the output coming 5secs by 5 secs. However the returned date is always the same
+[2013-09-03 15:59:51 -0400] nicgrayson: anyone have luck getting a fully automated deployment of a new hadoop cluster to work? I always have issues with the order of nodes etc, takes at least 2 converges
+[2013-09-03 16:01:26 -0400] jkeiser: jujugrrr: I can't think of any rational explanation for that, weird
+[2013-09-03 16:05:36 -0400] patrickv: hi! I'm trying to figure out how to use JSON role definitions: http://docs.opscode.com/essentials_roles.html doesn't say what files to use - and actually it says 'environments' and not 'roles in the JSON section
+[2013-09-03 16:05:57 -0400] patrickv: for the ruby files I know I have to have a <role>.rb file - but for JSON no clue
+[2013-09-03 16:08:33 -0400] fak3r: setting up new env, knife configure -i - ERROR: Chef::Exceptions::ValidationFailed: Option name's value LOGIN_EMAIL_HERE does not match regular expression /^[a-z0-9\-_]+$/
+[2013-09-03 16:09:53 -0400] jujugrrr: jkeiser: Me either, could you try this kind of cmd on your environment?
+[2013-09-03 16:19:19 -0400] fishGoM00: fak3r: could be anywhere
+[2013-09-03 16:19:42 -0400] fishGoM00: but it sounds like you have the string "LOGIN_EMAIL_HERE" somewhere instead of an email address
+[2013-09-03 16:20:03 -0400] jtimberman: prognostikos: should be ok to replace the SSL certs, though you probably want to upgrade them first.
+[2013-09-03 16:20:06 -0400] fishGoM00: that of course fails validation against the regex mentioned in your error
+[2013-09-03 16:24:15 -0400] fak3r: fishGoM00: thanks, think the issue is my username was firstname.lastname but chef-server only likes firstname_lastname
+[2013-09-03 16:26:39 -0400] fishGoM00: fak3r: interesting, looks like there are a few validation gotchas out there :)
+[2013-09-03 16:27:51 -0400] fak3r: fishGoM00: yep, got it to work, created new user in webui, then knife config, imported pem, now works - thanks
+[2013-09-03 16:47:49 -0400] jbz_: Stupid ruby question. If I have an array in an attribute, as far as I can tell using the << operator doesn't work - i.e. node.default["foo"]["bar"] << obj
+[2013-09-03 16:48:08 -0400] jbz_: What's the recommended way to add an object to an array attribute?
+[2013-09-03 16:49:19 -0400] a13x212: is it possible to override an attribue when i run a recipe via chef-client -o?
+[2013-09-03 16:53:02 -0400] dgarstang: Anyone know how to make chef-vagrant show file deltas?
+[2013-09-03 16:54:22 -0400] dgarstang: I have a script here which is gonna have to add a node to chef... One way would be to wrap the knife upload from file.... is that the best way?
+[2013-09-03 16:54:43 -0400] bean__: dgarstang: unless you want to write ruby, probably.
+[2013-09-03 16:55:04 -0400] dgarstang: bean__: I suppose talking to the API directly wounldn't be trivial.
+[2013-09-03 16:57:12 -0400] bean__: dgarstang: it'd be doable, if you wanted to tear about the source of knife and figure out what it's doing, heh
+[2013-09-03 16:57:15 -0400] jchauncey: unless you want to write the authentication code to talk with chef its easier to probably just use ruby
+[2013-09-03 16:57:41 -0400] bean__: jchauncey: good luck getting dgarstang to write ruby. He'll avoid it at all costs.
+[2013-09-03 16:57:42 -0400] jchauncey: i have a clojure rest api i created for chef but luckily someone had already done the hard part which is the auth piece
+[2013-09-03 16:57:43 -0400] dgarstang: jchauncey: or python wrapping the knife call in my case. :)
+[2013-09-03 16:57:53 -0400] jchauncey: yeah
+[2013-09-03 16:58:12 -0400] jchauncey: it would be awesome if there were more client languages supported in the commuinty
+[2013-09-03 16:58:37 -0400] jchauncey: I'm using my clojure lib to write self service apps for bootstrapping vagrant boxes
+[2013-09-03 16:59:01 -0400] dgarstang: Actually, I may not need to do this. I commented out the section in ec2_server_create.rb that tries to ssh into the new node (cuz it's broken). knife ec2 should go ahead and do that afterwards anyway
+[2013-09-03 17:00:21 -0400] jkeiser: jujugrrr: I tried a "date; sleep 5" with -C 1 and it does indeed appear to be waiting 5 seconds between each one
+[2013-09-03 17:00:48 -0400] jkeiser: jujugrrr: I am getting times of 10 seconds between each, actually, probably because of long VPN connect times
+[2013-09-03 17:01:39 -0400] jujugrrr: jkeiser: thank you, so it seems better for you
+[2013-09-03 17:01:50 -0400] jkeiser: jujugrrr: yeah.  The command I ran:
+[2013-09-03 17:01:57 -0400] jkeiser: knife ssh -C 1 role:opscode-erchef -- "date; sleep 5"
+[2013-09-03 17:02:00 -0400] jkeiser: I am on Mac OS X
+[2013-09-03 17:02:21 -0400] jujugrrr: me too
+[2013-09-03 17:02:26 -0400] jkeiser:   opscode-ci  knife --version
+[2013-09-03 17:02:27 -0400] jkeiser: Chef: 11.6.0
+[2013-09-03 17:02:28 -0400] jkeiser:   opscode-ci  ruby --version
+[2013-09-03 17:02:29 -0400] jkeiser: ruby 1.9.3p125 (2012-02-16 revision 34643) [x86_64-darwin12.3.0]
+[2013-09-03 17:03:44 -0400] jujugrrr: ah it is fine
+[2013-09-03 17:04:07 -0400] jujugrrr: my command was doing an echo of the date cmd return by my computer :-)
+[2013-09-03 17:04:24 -0400] jujugrrr: at least I know 11.6 is working fine with concurrency now :-)
+[2013-09-03 17:15:59 -0400] jbz_: Let me re-ask this, recognizing it may be a stupid question.  Is there a way to append an element to an array in an attribute, akin to <<?
+[2013-09-03 17:18:33 -0400] timsmith: just like that
+[2013-09-03 17:19:40 -0400] agarson: jb__: yes, but you need to be aware that arrays don't merge the same way hashes do, depending upon the context in which you execute that << you may or may not actually see your new elements
+[2013-09-03 17:20:08 -0400] agarson: jbz_: ^ not jb__
+[2013-09-03 17:21:02 -0400] jbz_: agarson: Hm I get an error, basically: "Undefined node attribute or method `<<' on `node'. To set an attribute, use `<<=value' instead."
+[2013-09-03 17:21:44 -0400] agarson: jbz_: do something like this instead then node.set[:foo] = [node[:foo], "element"].flatten
+[2013-09-03 17:21:50 -0400] agarson: there
+[2013-09-03 17:22:01 -0400] agarson: there are a ton of ways to do it
+[2013-09-03 17:22:17 -0400] jbz_: That won't stomp on other array elements in foo?
+[2013-09-03 17:22:28 -0400] jbz_: oh
+[2013-09-03 17:22:29 -0400] jbz_: derp
+[2013-09-03 17:23:13 -0400] jbz_: agarson: Thanks!
+[2013-09-03 17:23:22 -0400] agarson: just be aware, array attributes get clobbered by higher precedence attributes, so if you append this at the node default level and you use a normal env level attribute of the same name, your changes get clobbered
+[2013-09-03 17:23:32 -0400] jbz_: righto.
+[2013-09-03 17:23:46 -0400] arussel: hi, anyone knows cookbook, blog post how-to on deploying akka application with chef ?
+[2013-09-03 17:25:14 -0400] adnichols: arussel aren't akka apps just java apps?
+[2013-09-03 17:25:45 -0400] dgarstang: I'm passing this to knife-ec2 ... "--run-list "role[location_hub],role[role_admin]"" ... however, when I run knife ec2 node edit, the run list is empty. What's up with that?
+[2013-09-03 17:28:58 -0400] dgarstang: I'm passing this to knife-ec2 ... "--run-list "role[location_hub],role[role_admin]"" ... however, when I run knife ec2 node edit, the run list is empty. What's up with that?
+[2013-09-03 17:32:59 -0400] arussel: adnichols: it is a java app with dependencies and a conf file, yes
+[2013-09-03 17:33:20 -0400] adnichols: arussel yep - so my point is you can look for examples of deploying java apps
+[2013-09-03 17:34:01 -0400] adnichols: those will be much more common than examples referencing akka
+[2013-09-03 17:34:21 -0400] arussel: adnichols: don't it expect either a fat jar file or a war file ?
+[2013-09-03 17:35:35 -0400] adnichols: arussel it depends on how you do it. We deploy using a big zipfile that has everything in it
+[2013-09-03 17:36:17 -0400] arussel: adnichols: you package the /etc/init.d/yourapp into the zipfile ?
+[2013-09-03 17:36:35 -0400] adnichols: arussel you can start by looking at this: https://github.com/opscode-cookbooks/application
+[2013-09-03 17:36:54 -0400] adnichols: arussel no, peripheral dependencies like init scripts and cross-app configs we populate w/ a chef recipe
+[2013-09-03 17:37:00 -0400] mattupstate: dgarstang: after the node has finished provisioning or during the chef run?
+[2013-09-03 17:37:16 -0400] adnichols: arussel in our case the application cookbook didn't meet our needs but it may meet yours
+[2013-09-03 17:37:28 -0400] dgarstang: mattupstate: not sure... knife-ec2 has finished... I had to comment out the two lines that ssh into the box
+[2013-09-03 17:37:49 -0400] arussel: adnichols: it probably will, just need to find a way to create the zip file.
+[2013-09-03 17:38:05 -0400] adnichols: arussel yeah, we do that in our CI environment
+[2013-09-03 17:38:12 -0400] mattupstate: if you specify a run list in `knife ec2 server create ` and the node provisions without error you should see the roles in the run list afterwards
+[2013-09-03 17:38:24 -0400] arussel: adnichols: thanks
+[2013-09-03 17:38:43 -0400] dgarstang: mattupstate: Nope... not there. it's reported by the output of knife, but a knife node edit shows the run list as empty.
+[2013-09-03 17:38:54 -0400] mattupstate: dgarstang: then something has gone wrong
+[2013-09-03 17:39:15 -0400] mattupstate: (obviously)
+[2013-09-03 17:39:19 -0400] mattupstate: having a think
+[2013-09-03 17:39:53 -0400] dgarstang: mattupstate: *sigh* I commented out wait_for_sshd() and bootstrap_for_node(). I suppose the run list might be set in bootstrap_for_node() then. Seems strange though that the node gets added
+[2013-09-03 17:40:28 -0400] mattupstate: dgarstang: i'm not sure what those functions are for or from
+[2013-09-03 17:40:58 -0400] dgarstang: mattupstate: They're in ec2_server_create.rb
+[2013-09-03 17:41:13 -0400] mattupstate: why are you fiddling with them?
+[2013-09-03 17:41:46 -0400] dgarstang: mattupstate: because the bootstrap doesn't work for us over an ssh proxy
+[2013-09-03 17:41:49 -0400] mattupstate: and i dont see them
+[2013-09-03 17:42:03 -0400] dgarstang: mattupstate: /opt/chef/embedded/lib/ruby/gems/1.9.1/gems/knife-ec2-0.6.4/lib/chef/knife/ec2_server_create.rb
+[2013-09-03 17:43:03 -0400] mattupstate: i'm making an assumption here, but bootstrap_for_node is the obvious place the run list would be used
+[2013-09-03 17:43:22 -0400] mattupstate: you have to wait for the server to come up on aws before you can do anything regarding chef
+[2013-09-03 17:43:32 -0400] mattupstate: and the run list is specified during bootstrap
+[2013-09-03 17:43:34 -0400] dgarstang: mattupstate: well, bootstrap_for_node would seem like the place the node would be added too, but it's not, because with that commented out, the ndoe is still added to chef
+[2013-09-03 17:45:02 -0400] mattupstate: dgarstang: perhaps it's an obvious assumption, but its free software ;)
+[2013-09-03 17:45:25 -0400] dgarstang: mattupstate: i might be SOL
+[2013-09-03 17:45:47 -0400] SwedenHerman: ohai: looking for help regarding chef. I have started working with an organization that sells consultancy hours doing chef work. I'm trying to figure out how to describe chef to hosting or sysadmin people who have never heard about it
+[2013-09-03 17:46:03 -0400] dgarstang: Can't even work out where Bootstrap class is defined.
+[2013-09-03 17:46:30 -0400] mattupstate: it's part of chef core
+[2013-09-03 17:46:47 -0400] mattupstate: https://github.com/opscode/chef/blob/master/lib/chef/knife/bootstrap.rb
+[2013-09-03 17:46:49 -0400] dgarstang: SwedenHerman: if they've never heard of chef.... I wouldn't trust their abilities much. :)
+[2013-09-03 17:47:03 -0400] SwedenHerman: I'm hoping to sell hours to them and their clients
+[2013-09-03 17:47:09 -0400] SwedenHerman: @dgarstang
+[2013-09-03 17:47:19 -0400] SwedenHerman: so I'm trying to make the case that they need us
+[2013-09-03 17:47:21 -0400] SwedenHerman: but I
+[2013-09-03 17:47:26 -0400] SwedenHerman: I'm a total non-tech
+[2013-09-03 17:47:32 -0400] dgarstang: mattupstate: Ok, this is about to be deposited in the too-hard-basket
+[2013-09-03 17:48:11 -0400] SwedenHerman: if a company's goal is equal environments on dev and production, why is golden-image VM not the answer?
+[2013-09-03 17:48:11 -0400] mattupstate: dgarstang: you're probably better off writing your own scripts to do things similar to knife-ec2
+[2013-09-03 17:48:13 -0400] SwedenHerman: basically
+[2013-09-03 17:48:36 -0400] dgarstang: mattupstate: I was trying to use whisk.... we have our own tool for spinning up instances from a yaml config file right now, and it's a mess.
+[2013-09-03 17:49:02 -0400] dgarstang: mattupstate: the layout of the yaml file anyway. Add VPC to the mix and it gets more messed up
+[2013-09-03 17:49:09 -0400] pwelch: anyone using the edelight mongodb cookbook? It works except when running chef-client on the current PRIMARY causes the entire cluster to reinitialize and recalculate who should be primary
+[2013-09-03 17:49:15 -0400] mattupstate: dgarstang: its no easy task, i understand. i have a few helper scripts that sort of help a bit
+[2013-09-03 17:49:23 -0400] mattupstate: but they're tailored to my needs
+[2013-09-03 17:49:32 -0400] mattupstate: i also want to start using vpc and i haven't gotten there yet
+[2013-09-03 17:51:04 -0400] SwedenHerman: anyone up for explaining why life is difficult if your managing your infrastructure with golden images?
+[2013-09-03 17:51:08 -0400] SwedenHerman: to a non-tech?
+[2013-09-03 17:51:19 -0400] mattupstate: i dont know what golen-images are
+[2013-09-03 17:51:33 -0400] SwedenHerman: @mattupstate VMs
+[2013-09-03 17:51:35 -0400] SwedenHerman: that you copy-paste
+[2013-09-03 17:51:42 -0400] mattupstate: never heard of it
+[2013-09-03 17:51:50 -0400] SwedenHerman: if you want equal dev and production environments
+[2013-09-03 17:51:57 -0400] SwedenHerman: you could make a vm
+[2013-09-03 17:51:58 -0400] SwedenHerman: copy-paste
+[2013-09-03 17:52:00 -0400] SwedenHerman: new you have two
+[2013-09-03 17:52:03 -0400] mattupstate: search "infrastructure as code" on google
+[2013-09-03 17:52:33 -0400] pwelch: It is more about having a base image for everything. You could have a golden image but update it using chef
+[2013-09-03 17:52:44 -0400] pwelch: Packer.io might be a good tool for managing them
+[2013-09-03 17:53:08 -0400] pwelch: it will make Amazon EC2 templates and Vagrant VMs for development
+[2013-09-03 17:53:38 -0400] dgarstang: using packer.io. it's good
+[2013-09-03 17:54:00 -0400] mattupstate: what does packer use to provision?
+[2013-09-03 17:54:17 -0400] pwelch: mattupstate: whatever you want chef, puppet or even shell scripts
+[2013-09-03 17:54:18 -0400] jameson__: whatever you want to use.
+[2013-09-03 17:54:19 -0400] dgarstang: mattupstate: it's a single C binary
+[2013-09-03 17:54:29 -0400] dgarstang: C code... how novel.
+[2013-09-03 17:54:38 -0400] pwelch: dgarstang: actually it is Go
+[2013-09-03 17:54:49 -0400] dgarstang: pwelch: really? it's an ELF binary on my box
+[2013-09-03 17:54:54 -0400] mattupstate: interesting
+[2013-09-03 17:55:08 -0400] pwelch: dgarstang: havent worked with go or c but the repo is all golang
+[2013-09-03 17:55:14 -0400] mattupstate: how have i not heard of this before?!
+[2013-09-03 17:55:16 -0400] paulmooring: dgarstang: Go is a compiled language
+[2013-09-03 17:55:23 -0400] dgarstang: paulmooring: ah.
+[2013-09-03 17:55:54 -0400] paulmooring: dgarstang: and it's always statically compiled, so a single unlinked binary makes sense ;)
+[2013-09-03 17:56:05 -0400] pwelch: mattupstate: check out the packer.io docs they are pretty good. they have a section about using provisioners
+[2013-09-03 17:56:14 -0400] mattupstate: pwelch: already there
+[2013-09-03 17:56:14 -0400] pwelch: mattupstate: it is from the same guy that does Vagrant
+[2013-09-03 17:56:20 -0400] mattupstate: just noticed that too
+[2013-09-03 17:56:40 -0400] mattupstate: i was using veewee to make vagrant boxes
+[2013-09-03 17:56:56 -0400] jameson__: yeah use packer now
+[2013-09-03 17:57:19 -0400] dgarstang: *sigh* give me a general tool for building Amazon instances and I'll give you my left arm
+[2013-09-03 17:57:26 -0400] jameson__: packer is new hotness, brought to you by vagrant
+[2013-09-03 18:00:10 -0400] dgarstang: Anyone used cloudmaker (http://airbnb.github.io/cloud-maker), or AWS cli? (http://aws.amazon.com/cli)
+[2013-09-03 18:00:25 -0400] SwedenHerman: @mattupstate (if you don't have time I totally understand): you told me to google "infrastructure as code". First hit: a blogpost "understanding devops". The guy writes "But as systems have become virtualized and as developers have started practicing Continuous Integration (CI), things have started to change. The number of environment and their instances you have to deal with has gone up by several orders of magnitudes. " Why hav
+[2013-09-03 18:00:33 -0400] SwedenHerman: increased so much because of CI?
+[2013-09-03 18:00:40 -0400] SwedenHerman: What is it about CI that causes that to happen?
+[2013-09-03 18:01:42 -0400] stormerider: i'd say it's more virtualization than CI, scaling horizontally instead of vertically.
+[2013-09-03 18:02:29 -0400] jameson__: dgarstang: if you use python, I recommend boto over awscli usually.
+[2013-09-03 18:03:09 -0400] mattupstate: SwedenHerman: you'll have to ask the guy that wrote that
+[2013-09-03 18:03:26 -0400] jchauncey: the parallelization of our builds is where we have most of our infrastructure
+[2013-09-03 18:03:35 -0400] SwedenHerman: @mattupstate: my boss told me to come to IRC for answers :)
+[2013-09-03 18:03:43 -0400] SwedenHerman: That guy probably charges by the hour
+[2013-09-03 18:03:55 -0400] jameson__: haha
+[2013-09-03 18:04:11 -0400] dgarstang: jameson__: boto doesn't have an inherant way of reading instance types from yaml files
+[2013-09-03 18:04:11 -0400] SwedenHerman: anyone interested in explaining the why it is that continuous integration makes managing infrastructure with golden images unmanagable?
+[2013-09-03 18:04:34 -0400] jameson__: SwedenHerman: as stormerider said, virtualization is the real reason
+[2013-09-03 18:04:41 -0400] jchauncey: because as you spin up new services each one may require different things, golden images are hard to manage
+[2013-09-03 18:04:51 -0400] jchauncey: things like chef  make that problem easier to manage
+[2013-09-03 18:05:00 -0400] jameson__: it's not golden images are unmanagale, everyone wants a different. ^ what jchauncey is saying.
+[2013-09-03 18:05:14 -0400] jameson__: you can still have golden images for the base system.
+[2013-09-03 18:05:21 -0400] jchauncey: because all we need is a consistent base image and then run lists to bootstrap that base image
+[2013-09-03 18:05:24 -0400] jchauncey: right
+[2013-09-03 18:05:26 -0400] jameson__: ala- chef install, ruby install, python instance.
+[2013-09-03 18:05:52 -0400] jameson__: but everyone now want golden image for every type of service (and we provide it because it's easy to stamp them)
+[2013-09-03 18:06:03 -0400] SwedenHerman: @jchauncey I am at such a basic level of tech understanding I have a hard time even envisioning what it means to "spin up a new service"
+[2013-09-03 18:06:09 -0400] SwedenHerman: can you give me an example
+[2013-09-03 18:06:32 -0400] jchauncey: yeah give me afew minutes the baby is fussy =) ill be right bac
+[2013-09-03 18:06:40 -0400] jameson__: dgarstang: yeah I think I use something else for that..
+[2013-09-03 18:06:58 -0400] jameson__: I think pyyaml?
+[2013-09-03 18:06:59 -0400] SwedenHerman: @jchauncey appreciate it - I know how that goes because I have two of my own (luckily asleep now)
+[2013-09-03 18:07:38 -0400] dgarstang: jameson__: I'm looking further up the stack
+[2013-09-03 18:08:43 -0400] SwedenHerman: the guy who writes about "infrastructure as code says "Spinning up a new virtual environment or a new version of the environment then becomes a matter of executing a script that can create and provision an image or set of images  all the way from OS to the complete application stack installed and configured. Hours can become minutes."
+[2013-09-03 18:08:54 -0400] SwedenHerman: It sounds like you can't just start a golden-image VM with applications installed
+[2013-09-03 18:08:59 -0400] SwedenHerman: is that correct?
+[2013-09-03 18:09:00 -0400] mattupstate: dgarstang: what your looking for is not trivial in the sense that everyone's needs are usually quite different
+[2013-09-03 18:09:11 -0400] dgarstang: mattupstate: *squinty eye*
+[2013-09-03 18:09:34 -0400] mattupstate: but writing a script to read a yaml file to pull arguments for provisioning an ec2 server is, at least in my opinion, trivial
+[2013-09-03 18:09:47 -0400] dgarstang: mattupstate: http://airbnb.github.io/cloud-maker/ looks ok, but it wants a mandatory S3 bucket for reasons I can't fathom
+[2013-09-03 18:10:00 -0400] dgarstang: mattupstate: in theory
+[2013-09-03 18:11:40 -0400] jameson__: dgarstang: I believe cloud-maker does something like what cloud-formation does
+[2013-09-03 18:11:51 -0400] jameson__: it store templates and a few other things in that S3 bucket
+[2013-09-03 18:12:15 -0400] dgarstang: jameson__: doesn't seem that way. cloudformation is designed to bring up an entire cluster pre-configured.
+[2013-09-03 18:12:50 -0400] jameson__: SwedenHerman: yep, usually the process is spin up base (golden image) then install your special stuff, then stamp that install as a golden image for your special service
+[2013-09-03 18:13:15 -0400] jchauncey: SwedenHerman: check PM
+[2013-09-03 18:13:27 -0400] jameson__: so now you have a golden image for the service you can just use (that ideally just starts the services, etc)
+[2013-09-03 18:13:40 -0400] jchauncey: right
+[2013-09-03 18:13:50 -0400] SwedenHerman: what is an example of such a service
+[2013-09-03 18:13:55 -0400] SwedenHerman: I'm a total non-tech
+[2013-09-03 18:13:58 -0400] jchauncey: it depends
+[2013-09-03 18:14:15 -0400] jchauncey: in my case we are breaking up a monolithic app into multiple interconnected "services"
+[2013-09-03 18:14:21 -0400] jchauncey: ala Service oriented Architecture
+[2013-09-03 18:14:42 -0400] jameson__: dgarstang: you should be able to use cloud-make without S3..
+[2013-09-03 18:14:58 -0400] jchauncey: each service may need its own database be written in a different language
+[2013-09-03 18:15:36 -0400] volker-: is there an internal function that does an nslookup to get from a hostname the IP?
+[2013-09-03 18:15:42 -0400] jchauncey: so a service could be sending out notifications when an event happens in another service
+[2013-09-03 18:17:22 -0400] jameson__: dgarstang: are you trying to preconfigure? or you want a pre-configured instance at boot? because chef does the former, and the latter is stamping.
+[2013-09-03 18:19:52 -0400] dgarstang: jameson__: I want to be able to run something like 'some_tool -r app_server -x hub -e production -n test21'
+[2013-09-03 18:20:01 -0400] dgarstang: jameson__: cloudmaker says the S3 bucket is required
+[2013-09-03 18:20:44 -0400] jameson__: wait, doesn't knife-ec2 do that?
+[2013-09-03 18:21:06 -0400] dgarstang: jameson__: for about the millionith time (no offence), knife-ec2 doesn't work (for us) via an ssh proxy
+[2013-09-03 18:21:14 -0400] jameson__: ohhh
+[2013-09-03 18:21:17 -0400] jameson__: haha.. yeah...
+[2013-09-03 18:22:52 -0400] jameson__: you ssh into something and run these commands?
+[2013-09-03 18:23:30 -0400] dgarstang: jameson__: knife-ec2 tries to bootstrap the new node
+[2013-09-03 18:23:52 -0400] mattupstate: dgarstang: again, you're probably better off writing some "helper scripts" that wrap some commands to do what you want
+[2013-09-03 18:24:05 -0400] dgarstang: mattupstate: right, which is where cloudmaker comes in
+[2013-09-03 18:24:26 -0400] dgarstang: except cloudmaker keeps giving me 'bin/cloud-maker:2:in `require': no such file to load -- cloud-maker (LoadError)'
+[2013-09-03 18:25:51 -0400] jameson__: @_@ sounds like a ruby installation problem.
+[2013-09-03 18:26:59 -0400] dgarstang: http://airbnb.github.io/cloud-maker/ .... not a lot of docs
+[2013-09-03 18:28:16 -0400] dgarstang: looks like it can't find the cloud-maker lib?
+[2013-09-03 18:28:27 -0400] cpuguy83: dgarstang: You ruby env is not right.
+[2013-09-03 18:28:29 -0400] dgarstang: is there a ruby equiv of PYTHONPATH?
+[2013-09-03 18:29:04 -0400] cpuguy83: dgarstang: Are you trying to call this from chef?  From the command line?
+[2013-09-03 18:29:12 -0400] dgarstang: cpuguy83: command line.
+[2013-09-03 18:29:24 -0400] cpuguy83: dgarstang: Make sure you are setting the right ruby path
+[2013-09-03 18:29:25 -0400] jameson__: dgarstang: you have to install the cloudmaker gem.
+[2013-09-03 18:29:33 -0400] dgarstang: jameson__: oh
+[2013-09-03 18:29:41 -0400] jameson__: install it as a gem, not running the bin/ file itself..
+[2013-09-03 18:30:04 -0400] dgarstang: jameson__: one day... one day someone will document their stuf
+[2013-09-03 18:30:08 -0400] jameson__: make a new folder (or repo) for you cloud-maker project, add gem cloud-maker into the Gemfile, and bundle install
+[2013-09-03 18:30:22 -0400] cpuguy83: ^ yeah, if you haven't done a gem install cloud-maker then that's important.
+[2013-09-03 18:30:37 -0400] dgarstang: uno momento. Lunch!
+[2013-09-03 18:30:39 -0400] cpuguy83: Can't just clone the repo and run the bin
+[2013-09-03 18:30:57 -0400] jameson__: missing the gemfile.lock file is (usually) a sign that this is a library/gem and not a executable.
+[2013-09-03 18:31:13 -0400] dgarstang: cpuguy83 yah that's wot I was doing
+[2013-09-03 18:32:18 -0400] peterjmit: Any one got any experience with "HTTP Request via POST to api.opscode.com:443/organizations/<org-name>/reports/nodes/<node-name>/runs"
+[2013-09-03 18:32:24 -0400] peterjmit: resulting in a 404
+[2013-09-03 18:34:15 -0400] cpuguy83: dgarstang: There, I submitted a PR for you for the install instructions
+[2013-09-03 18:34:36 -0400] dgarstang: cpuguy83: tanx. :
+[2013-09-03 18:34:39 -0400] dgarstang: :)
+[2013-09-03 18:39:18 -0400] dgarstang: aw crap. If I use cloudmaker, I have to have chef install it via a gem
+[2013-09-03 18:39:29 -0400] dgarstang: actually, I gotta have chef BUILD the gem and install it
+[2013-09-03 18:40:16 -0400] dgarstang: if it was a package, I could download it, stick it in our repo, and use 'package' on it
+[2013-09-03 18:40:28 -0400] dgarstang: if it's a gem, err....
+[2013-09-03 18:51:13 -0400] Kzim: hi, i can't require openssl with the ruby embedded in Chef ?:(
+[2013-09-03 18:51:45 -0400] dgarstang: gem install cloud-maker ... 'libxml2 is missing.' .... no it's NOT
+[2013-09-03 18:53:11 -0400] adnichols: dgarstang you probably need the -dev package for libxml2
+[2013-09-03 19:00:17 -0400] dgarstang: hm cloudmaker prompts me for things like ELB when I run it
+[2013-09-03 19:03:53 -0400] dgarstang: cloudmaker is hardly a generic use tool if it's prompting for an ELB, CNAME, IAM instance profile name when I run it
+[2013-09-03 19:04:57 -0400] fak3r: following docs here https://learnchef.opscode.com/quickstart/chef-repo/ - knife downloaded and installed magic_shell in ./cookbooks
+[2013-09-03 19:05:04 -0400] gswallow: iirc cookbook files are lazily loaded, as are template.s
+[2013-09-03 19:05:35 -0400] fak3r: but when I try knife cookbook create aliases - it bombs out, trying to write to a diff directory ERROR: Errno::EACCES: Permission denied - /var/chef
+[2013-09-03 19:06:39 -0400] gswallow: If I'm in a ruby_block with chef 11.6.0, and I try to do something like t = Chef::Resource::Template.new("path")  t.run_action("create")
+[2013-09-03 19:06:48 -0400] gswallow: it fails.  Because the template hasn't been lazily loaded.
+[2013-09-03 19:07:51 -0400] gswallow: Can I use Chef::CookbookSynchronizer.sync_cookbooks to get around that?
+[2013-09-03 19:08:03 -0400] cpasmoi: gswallow, I don't understand why you don't use a template block ?
+[2013-09-03 19:08:12 -0400] gswallow: it doesn't work in a ruby block
+[2013-09-03 19:08:24 -0400] cpasmoi: well, instead the ruby block I meant
+[2013-09-03 19:08:30 -0400] gswallow: ah
+[2013-09-03 19:08:38 -0400] gswallow: because I need to discover directories in a filesystem :)
+[2013-09-03 19:08:57 -0400] cpasmoi: there is the "only_if" and "not_if" statement in the template block
+[2013-09-03 19:09:11 -0400] cpasmoi: something like File.exists
+[2013-09-03 19:09:44 -0400] gswallow: In the ruby block, I use this:
+[2013-09-03 19:10:02 -0400] gswallow:     base_dir = Dir.entries("/var/scripts/assays")
+[2013-09-03 19:10:02 -0400] gswallow:     base_dir.each do |dir|
+[2013-09-03 19:10:02 -0400] gswallow:       if node["customer"].nil?
+[2013-09-03 19:10:03 -0400] gswallow:         if dir !~ /^\./ and File.exists?("/var/scripts/assays/#{dir}/current")
+[2013-09-03 19:10:03 -0400] gswallow:           customer_dirs << dir
+[2013-09-03 19:10:03 -0400] gswallow:         end
+[2013-09-03 19:10:03 -0400] gswallow:       else ...
+[2013-09-03 19:10:27 -0400] gswallow: then I call to a couple of methods that create templates, and run an execute resource.
+[2013-09-03 19:12:22 -0400] fak3r: fixed: added cookbook_path to knife.rb (but knife knows where cookbooks dir is if it downloads a cookbook)
+[2013-09-03 19:13:06 -0400] Kzim: so what can i do about the require "openssl" ? i can't recompile the ruby of Chef no ?
+[2013-09-03 19:21:21 -0400] seancribbs: pinging NC-based Opscoders who use Webmachine - RESTFest is looking for someone to talk about it in-depth if you don't mind a trip to SC in two weeks
+[2013-09-03 19:35:15 -0400] stephan_: Something wrong with chef downloading at the moment?
+[2013-09-03 19:35:18 -0400] stephan_: Downloading Chef 11.6.0 for el... Unable to retrieve a valid package!
+[2013-09-03 19:35:27 -0400] stephan_: Everything was working a few hours ago
+[2013-09-03 19:36:02 -0400] stephan_: url: https://www.opscode.com/chef/download?v=11.6.0&prerelease=false&p=el&pv=6&m=x86_64
+[2013-09-03 19:37:31 -0400] gleam: works for me
+[2013-09-03 19:42:11 -0400] stephan_: Seems to work the network connection on my end
+[2013-09-03 19:42:12 -0400] stephan_: never mind
+[2013-09-03 19:42:21 -0400] stephan_: thanks
+[2013-09-03 19:42:58 -0400] pabst^: hmmm..... im not finding any good ways to keep multiple chef servers in sync
+[2013-09-03 19:46:10 -0400] jchauncey: pabst^: that sounds awful =\
+[2013-09-03 19:46:41 -0400] toioiz: Question, I'm working on a recipe for /etc/hosts using the hostsfile lwrp, looking at a way to get it to read say, 2 dozen different entries, based on node attributes, is there a sane way to do that?
+[2013-09-03 19:47:41 -0400] arussel: adnichols: do you have a cookbook to write service script around a jar file ?
+[2013-09-03 19:47:48 -0400] pabst^: jchauncey: doesn't it :/
+[2013-09-03 19:50:25 -0400] dgarstang: Really sick of writing script and tools that no one will ever use.
+[2013-09-03 19:52:56 -0400] adamjk-dev: hey all.... did anyone have to update search queries (from within a recipe) to be compatible with Chef 11?
+[2013-09-03 19:53:07 -0400] arussel: I have a jar file I can start with java -jar foo.jar and would like to deploy it using chef. Is there a cookbook that takes care of start/stop script, pid ...
+[2013-09-03 20:00:35 -0400] fak3r: I'm using librarian-chef, does Berkshelf supersede it, or is it just another tool that doest the same thing?
+[2013-09-03 20:01:50 -0400] yfeldblum: fak3r, two tools in the same space
+[2013-09-03 20:02:09 -0400] fak3r: oh, so berkshelf can also upload cookbooks to the server so that's in place of knife cookbook upload...
+[2013-09-03 20:02:42 -0400] fak3r: sorry, used to use chef, diff job, fast fwd a year, and now I'm back in a chef-job fulltime! trying to 'relearn' best practices, etc
+[2013-09-03 20:11:54 -0400] adamjk-dev: anyone have issues with search in recipes using Chef 11 server?    http://pastebin.com/rgtCeNaY
+[2013-09-03 20:13:11 -0400] bradgignac: fak3r: i'm sure many people would disagree, but it looks like people are moving in the direction of berkshelf
+[2013-09-03 20:13:58 -0400] bradgignac: although one big reason i say that is that the recipes in the opscode-cooksbooks repo are using berkshelf
+[2013-09-03 20:14:41 -0400] jameson__: dgarstang: yeah tooling is painful sometimes.
+[2013-09-03 20:14:44 -0400] jameson__: as in all the time
+[2013-09-03 20:15:11 -0400] jameson__: am I wrong or is there no way for Berkshelf to search for missing cookbooks in a path?
+[2013-09-03 20:15:41 -0400] jameson__: (so I don't have to split old/upstream cookbooks repo into sub-repos or individually include :path)
+[2013-09-03 20:21:58 -0400] adnichols: arussel I don't have one but you just write an upstart script that runs the jar
+[2013-09-03 20:22:08 -0400] dgarstang: jameson__: moreso when no one gives a shit
+[2013-09-03 20:22:08 -0400] adnichols: arussel or <insert init tool here>
+[2013-09-03 20:29:37 -0400] jameson__: dgarstang: that's a structural problem with the company (that we have to figure out how to solve)
+[2013-09-03 20:29:56 -0400] dgarstang: jameson__: no one gives a shit there either?
+[2013-09-03 20:30:38 -0400] jameson__: dgarstang: no-one-gives-a-shit might actually be no-one-understand-why-they-should-give-a-shit
+[2013-09-03 20:30:58 -0400] jameson__: it's usually the latter, and thats a soft skill around communcating
+[2013-09-03 20:31:16 -0400] jameson__: I have to explain why using chef 11 is good, blah blah
+[2013-09-03 20:31:18 -0400] dgarstang: by the time you filter out social networking and similar companies, and then subtract what's in the city of SF, there ain't much left.
+[2013-09-03 20:31:30 -0400] dgarstang: jameson__: yah
+[2013-09-03 20:32:26 -0400] jameson__: I think it's something many technical people needs to improve on.
+[2013-09-03 20:32:34 -0400] dgarstang: maybe I'm naieve, but I really want to work for a company doing something inspiring, not... *opens up craigslist, first job that comes up* err, Flurry.
+[2013-09-03 20:32:57 -0400] thebishop: hi folks. when i provision a cookbook the role->node assignments i configured on the server are blown away.  what am i doing wrong?
+[2013-09-03 20:33:23 -0400] jameson__: well, be glad you aren't doing product :) at least ops is similar problems that is abstracted from the product problems
+[2013-09-03 20:33:30 -0400] jameson__: and our stuff is somewhat measurable and sane ;)
+[2013-09-03 20:33:50 -0400] jameson__: thebishop: you mean provision a node?
+[2013-09-03 20:34:17 -0400] adnichols: thebishop you mean the run_list you have configured changes?
+[2013-09-03 20:34:23 -0400] thebishop: jameson__, i'm not sure the correct terminology.  i'm running 'vagrant provision' within a cookbook that's already running
+[2013-09-03 20:34:37 -0400] mveitas: arussel: I have a template that I use for running a jar file
+[2013-09-03 20:35:04 -0400] thebishop: adnichols, i did make a change to the run_list yes'
+[2013-09-03 20:35:19 -0400] adnichols: thebishop is this a vagrant instance running against your chef server?
+[2013-09-03 20:35:25 -0400] thebishop: adnichols, yes'
+[2013-09-03 20:35:28 -0400] mveitas: arussel: https://gist.github.com/mveitas/6429190
+[2013-09-03 20:35:59 -0400] adnichols: thebishop can you give us a pastebin of the before/after and show what you are running that causes it to change?
+[2013-09-03 20:37:19 -0400] dgarstang: dice.com, ventureloop.com, indeed.com, linkedin.com, startuply.com... it's all the same shit.
+[2013-09-03 20:41:03 -0400] mveitas: dgarstang: don't forget your favorite recruiter who will spam you 3x a day with shit you are not interested in
+[2013-09-03 20:41:17 -0400] dgarstang: mveitas: totally
+[2013-09-03 20:42:29 -0400] adnichols: there are plenty of industries that don't have those problems - be careful what you complain about
+[2013-09-03 20:44:11 -0400] dgarstang: adnichols: I think the net-net is the same. by the time you remove all the crap, you have about as many opportunities as the ... cotton picking industry.
+[2013-09-03 20:44:35 -0400] adnichols: I disagree, you get to be selective
+[2013-09-03 20:44:44 -0400] Kzim: can i put a case: on a node attribute in the resource of my provider ? i need to set a default value depending of the plateform
+[2013-09-03 20:45:06 -0400] adnichols: Kzim jtimberman sent out a gist showing that earlier
+[2013-09-03 20:45:12 -0400] adnichols: Kzim so I think that'd work
+[2013-09-03 20:45:18 -0400] dgarstang: adnichols: I've had my resume out there for a year. I get 10 phone calls a day, 20 emails a day. In that time, I've heard of nothing inspiring.
+[2013-09-03 20:45:28 -0400] Kzim: adamjk-dev, anyone have it in history please ?
+[2013-09-03 20:45:57 -0400] adnichols: https://gist.github.com/jtimberman/6424786
+[2013-09-03 20:46:49 -0400] Kzim: adnichols, it's not in a resource of a prover yes ?
+[2013-09-03 20:47:13 -0400] adnichols: Kzim oh sorry - misunderstood, you are right
+[2013-09-03 20:47:40 -0400] Kzim: adnichols, no problem, perhaps you know if it's possible in a provider's resource to do the same thing ?
+[2013-09-03 20:48:01 -0400] adnichols: Kzim I'm sure there's a way to accompllish the same result - don't have an example
+[2013-09-03 20:49:16 -0400] adnichols: dgarstang perhaps it's time for a career change then - I haven't had the same experience but perhaps my standards are lower
+[2013-09-03 20:49:20 -0400] Kzim: adnichols, thx
+[2013-09-03 20:50:10 -0400] dgarstang: adnichols: tis all I know
+[2013-09-03 20:50:51 -0400] jchauncey: all i will say about finding a job now days is that you need to be willing to relocate
+[2013-09-03 20:51:03 -0400] dgarstang: jchauncey: all roads lead to downtown SF
+[2013-09-03 20:51:15 -0400] adnichols: jchauncey well yeah, if yer in GA :)
+[2013-09-03 20:51:27 -0400] jchauncey: adnichols: haha
+[2013-09-03 20:51:30 -0400] dgarstang: adnichols: if yer outside downtown SF
+[2013-09-03 20:51:35 -0400] adnichols: dgarstang disagree
+[2013-09-03 20:51:37 -0400] jchauncey: all roads lead to boulder =)
+[2013-09-03 20:51:43 -0400] adnichols: :)
+[2013-09-03 20:51:46 -0400] mattupstate: don't forget nyc ;)
+[2013-09-03 20:51:51 -0400] dgarstang: adnichols: not on the job boards they don't
+[2013-09-03 20:52:02 -0400] adnichols: dgarstang that's the first problem I don't use job boards
+[2013-09-03 20:52:12 -0400] jchauncey: http://www.rallydev.com/careers/open-positions
+[2013-09-03 20:52:32 -0400] wapcaplet: chip- are you alive, and are you that dood that works at opscode i met saturday at a certain birthday party?
+[2013-09-03 20:52:33 -0400] jchauncey: should have just pm'd you that pretty off topic
+[2013-09-03 20:52:38 -0400] wapcaplet: or is that some other chip-
+[2013-09-03 20:52:46 -0400] chip-: that'd be me
+[2013-09-03 20:52:49 -0400] wapcaplet: awesome
+[2013-09-03 20:52:49 -0400] dgarstang: jchauncey: moi? I think it went to the channel
+[2013-09-03 20:53:02 -0400] jchauncey: dgarstang: yeah
+[2013-09-03 20:53:08 -0400] chip-: o/~ I'm the one, the ace, the only o/~
+[2013-09-03 20:53:23 -0400] dgarstang: jchauncey: They're too big. :)
+[2013-09-03 20:53:40 -0400] dgarstang: jchauncey: about 50 is my limit.
+[2013-09-03 20:53:49 -0400] wapcaplet: thanks!
+[2013-09-03 20:54:10 -0400] idlemich1el: how do you upgrade/update the chef-client on a node using the chef-client recipe? is that possible?
+[2013-09-03 20:54:12 -0400] dgarstang: the most fullfilling damn job I had was working for a CLEC in billings, MT
+[2013-09-03 20:55:58 -0400] dgarstang: adnichols: whadya use?
+[2013-09-03 20:56:33 -0400] mattupstate: idlemich1el: http://wiki.opscode.com/display/chef/Upgrading+Chef+0.10.x+to+the+newest+version+of+Chef
+[2013-09-03 20:56:58 -0400] idlemich1el: mattupstate: what about versoin 11.4.0 -> 11.4.2
+[2013-09-03 20:57:19 -0400] idlemich1el: does it not matter?
+[2013-09-03 20:57:31 -0400] cwj: idlemich1el: perhaps http://cookbooks.opscode.com/cookbooks/omnibus_updater is relevant to your interests
+[2013-09-03 20:58:12 -0400] mattupstate: idlemich1el: look at the comments
+[2013-09-03 20:59:56 -0400] idlemich1el: ah -- thanks mattupstate
+[2013-09-03 21:00:00 -0400] idlemich1el: and cwj
+[2013-09-03 21:07:11 -0400] gswallow: Ok, so not-lazily-fetching a template in a ruby block is hard, I admit.
+[2013-09-03 21:07:29 -0400] adamjk-dev: Kzim: what?
+[2013-09-03 21:09:20 -0400] jameson__: i love how jtimberman's case statment degrades into blah blah blah as he goes further down in his examples
+[2013-09-03 21:10:00 -0400] wamilton: s/(degrades)/gracefully \1/
+[2013-09-03 21:13:04 -0400] jtimberman: jameson__: :D
+[2013-09-03 21:13:13 -0400] jtimberman: jameson__: that was only one cup of coffee into the day.
+[2013-09-03 21:13:21 -0400] cap10morgan: I have a couple of cookbooks listed as "recommends" dependencies, but when I try to include_recipe from them, I just get "Cookbook not found". What's the proper way to use "recommends" to avoid this problem?
+[2013-09-03 21:13:30 -0400] jtimberman: the question is, are they more entertaining, or more relevant to the use case as I drink more coffee?
+[2013-09-03 21:13:49 -0400] jtimberman: cap10morgan: recommends and suggests don't do anything. you need to use depends if you have an actual dependency
+[2013-09-03 21:14:46 -0400] cap10morgan: jtimberman: OK, so does that mean a recommended cookbook has to either be a) in the run list explicitly or b) a 'depends' of another cookbook for it to work at all?
+[2013-09-03 21:15:03 -0400] jtimberman: cap10morgan: right
+[2013-09-03 21:15:11 -0400] cap10morgan: OK, thx
+[2013-09-03 21:15:12 -0400] jtimberman: cap10morgan: at this time, it's just "documentatio"
+[2013-09-03 21:15:17 -0400] jtimberman: and, documentation
+[2013-09-03 21:18:58 -0400] konopka: Are there any issues with https://preview.opscode.com/?
+[2013-09-03 21:19:35 -0400] konopka: I'm getting a blank "Opscode" page with a header & footer when I log into it
+[2013-09-03 21:20:26 -0400] jtimberman: konopka: seems to be loading for me.
+[2013-09-03 21:20:51 -0400] cwj: same here
+[2013-09-03 21:20:59 -0400] timsmith: any idea when that becomes the real UI
+[2013-09-03 21:21:01 -0400] timsmith: not a preview
+[2013-09-03 21:21:01 -0400] konopka: jtimberman: i signed up for an account last week. wonder if something is up with my account.
+[2013-09-03 21:21:02 -0400] jtimberman: konopka: if you're still having a problem with hosted Enterprise Chef, email support@opscode.com. They'll probably need your browser+version
+[2013-09-03 21:21:05 -0400] jameson__: so i am misunderstanding that Berkshelf doesn't have a "site: :path './some/where/locally'" or something for supporting "cookbooks" repo/directories?
+[2013-09-03 21:21:24 -0400] jtimberman: timsmith: dunno. i just ran chef on the systems and they didn't change anything :)
+[2013-09-03 21:21:33 -0400] konopka: jtimberman: will do. thanks for the email pointer.
+[2013-09-03 21:21:40 -0400] jtimberman: jameson__: it totally does.
+[2013-09-03 21:21:47 -0400] jameson__: so I don't end up doing cookbook "not_mine1", path: "/some/where/not_mine1" for every single one?
+[2013-09-03 21:21:49 -0400] jtimberman: jameson__: but rather
+[2013-09-03 21:21:51 -0400] timsmith: run it again
+[2013-09-03 21:21:53 -0400] timsmith: few more times
+[2013-09-03 21:21:53 -0400] jtimberman: oh sorry
+[2013-09-03 21:22:04 -0400] jameson__: yeah, I'm trying to avoid the :path per-cookbook :\
+[2013-09-03 21:22:26 -0400] jtimberman: jameson__: no, it doesn't have a berksfile-wide one. but you could use a Dir.glob on all directories in cookbooks/ and write a line for each one.
+[2013-09-03 21:23:29 -0400] jtimberman: https://gist.github.com/jtimberman/6429808
+[2013-09-03 21:23:31 -0400] jtimberman: timsmith: :)
+[2013-09-03 21:23:56 -0400] jameson__: i guess I will make the changes and see if I can get a PR in for berkshelf then :|
+[2013-09-03 21:24:03 -0400] patrickv: give me money
+[2013-09-03 21:24:04 -0400] patrickv: please
+[2013-09-03 21:24:04 -0400] rafaelmagu: jtimberman: so this works inside the Berksfile?
+[2013-09-03 21:24:17 -0400] jtimberman: rafaelmagu: thats directly from the berksfile in my personal chef-repo.
+[2013-09-03 21:24:22 -0400] rafaelmagu: Neat
+[2013-09-03 21:24:25 -0400] jtimberman: as i noted, it may not work so well for LARGE repos.
+[2013-09-03 21:24:28 -0400] jameson__: I feel like site :path "./vendors_cookbooks" is something useful until everyone gets to splitting their cookbooks...
+[2013-09-03 21:24:33 -0400] jameson__: or adding them to the commmunity site
+[2013-09-03 21:24:37 -0400] rafaelmagu: Only thing missing from Berkshelf, in my opinion, is svn support
+[2013-09-03 21:24:47 -0400] jtimberman: e.g., Opscode's hosted chef cookbooks repo has a LOT of cookbooks because we haven't converted over everything yet.
+[2013-09-03 21:25:42 -0400] rafaelmagu: I was having a look at the git class in Berks' GH repo and I think I can get duplicate that to get a basic svn out, but not sure how to test it locally
+[2013-09-03 21:25:42 -0400] walkah: jtimberman: hey! is there a reason that dmg_package doesn't do upgrades ?
+[2013-09-03 21:25:57 -0400] jtimberman: walkah: what does it mean to upgrade a dmg?
+[2013-09-03 21:26:15 -0400] jtimberman: walkah: most of the time, the apps I install from a DMG have Sparkle.framework, so they'll update themselves.
+[2013-09-03 21:26:24 -0400] walkah: jtimberman: install the version specified in source / checksum
+[2013-09-03 21:26:46 -0400] walkah: jtimberman: fair enough afaik, vagrant doesn't (yet?) though
+[2013-09-03 21:27:12 -0400] walkah: I'd like to keep my virtualbox / vagrant packages in sync across my machines
+[2013-09-03 21:31:39 -0400] walkah: jtimberman: one hack I thought of trying was see if the .dmg is in cache, if it is and the checksum is different remove the old app/pkg and install the new one? not foolproof but might be closer to what I'm after..
+[2013-09-03 21:32:15 -0400] Kzim: Is there a faster way to copy file than remote_file from the cookbook ?
+[2013-09-03 21:33:47 -0400] gswallow: copy a remote file from a local server?
+[2013-09-03 21:36:22 -0400] monokrome: f
+[2013-09-03 21:36:36 -0400] monokrome: Hey. Does anyone know how I can delete (or just unfreeze!) a cookbook on my master?
+[2013-09-03 21:36:42 -0400] monokrome: It wont let me upload a cookbook because it's frozen
+[2013-09-03 21:36:48 -0400] monokrome: I don't know what that means
+[2013-09-03 21:36:50 -0400] gswallow: force (bad, bad habit)
+[2013-09-03 21:37:12 -0400] monokrome: -force throws an error
+[2013-09-03 21:37:16 -0400] monokrome: If it's --force, that didn't work
+[2013-09-03 21:37:22 -0400] jbz_: er
+[2013-09-03 21:37:29 -0400] jbz_: did you try just updating the version number?
+[2013-09-03 21:37:32 -0400] jbz_: Or is that not doable?
+[2013-09-03 21:37:36 -0400] jbz_: (environments, etc)
+[2013-09-03 21:37:37 -0400] gswallow: that was next
+[2013-09-03 21:37:48 -0400] jbz_: force only prevents overwrite of the same version number
+[2013-09-03 21:37:55 -0400] jbz_: I mean, freeze
+[2013-09-03 21:38:09 -0400] monokrome: I shouldn't bump the version number for a third party opscode cookbook, right?
+[2013-09-03 21:38:23 -0400] jbz_: er
+[2013-09-03 21:38:28 -0400] jbz_: if it's not your cookbook, no.
+[2013-09-03 21:38:36 -0400] gswallow: you could delete the cookbook and re-upload
+[2013-09-03 21:38:38 -0400] jbz_: I mean, if you didn't fork it.
+[2013-09-03 21:38:52 -0400] jbz_: what error does --force give you?
+[2013-09-03 21:38:59 -0400] jbz_: (dash dash force)
+[2013-09-03 21:38:59 -0400] monokrome: http://goo.gl/S0RXG
+[2013-09-03 21:39:01 -0400] monokrome: That's the cookbook
+[2013-09-03 21:39:11 -0400] monokrome: How can I delete a cookbook on the master?
+[2013-09-03 21:39:18 -0400] jbz_: Delete a cookbook on the server?
+[2013-09-03 21:39:20 -0400] monokrome: jbz_: No, it doesn't
+[2013-09-03 21:39:29 -0400] monokrome: This is just the official windows cookbook
+[2013-09-03 21:39:34 -0400] jbz_: er
+[2013-09-03 21:39:50 -0400] jbz_: monokrome: wait, when you try to upload it, what is the error?
+[2013-09-03 21:40:10 -0400] monokrome: It tells me to use --force
+[2013-09-03 21:40:19 -0400] jbz_: also, if this isn't your cookbook, why do you need to reupload it?  Has it changed?
+[2013-09-03 21:40:29 -0400] jbz_: If it's the official cookbook, it shouldn't change without the version changing.
+[2013-09-03 21:40:40 -0400] monokrome: I'm just trying to do `knife upload cookbooks`
+[2013-09-03 21:41:00 -0400] jbz_: oh, globally?  Yeah, that's going to puke if you have frozen cookbooks.
+[2013-09-03 21:41:20 -0400] monokrome: It's always worked before, but someone added Windows to Chef and now it's broken
+[2013-09-03 21:41:29 -0400] monokrome: Normally Chef wont try to update a cookbook that hasn't changed, right?
+[2013-09-03 21:41:42 -0400] jbz_: knife upload will always try to upload the cookbook.
+[2013-09-03 21:41:44 -0400] gswallow: it will happily overwrite it
+[2013-09-03 21:41:56 -0400] gswallow: unless you need to force it
+[2013-09-03 21:42:00 -0400] jbz_: right
+[2013-09-03 21:42:18 -0400] gswallow: I didn't know you could even upload all cookbooks because I never do.
+[2013-09-03 21:42:23 -0400] jbz_: yeah me either :-)
+[2013-09-03 21:42:45 -0400] monokrome: Apparently my coworker had to change the Windows cookbook and sent a pull request about a typo
+[2013-09-03 21:42:48 -0400] monokrome: http://goo.gl/QNJXTk
+[2013-09-03 21:42:55 -0400] monokrome: but now it's locked to the old/original version
+[2013-09-03 21:43:04 -0400] monokrome: and --force still fails, telling me to use force
+[2013-09-03 21:43:12 -0400] monokrome: INFO: HTTP Request Returned 409 Conflict: The cookbook windows at version 1.10.1 is frozen. Use the 'force' option to override.
+[2013-09-03 21:44:25 -0400] kppullin: before I go create a jira issue, anyone have ideas on why chef-solo can't load the 'zip/zip' gen (on windows)?  "FATAL: LoadError: windows_zipfile[...] had an error: LoadError: cannot load such file -- zip/zip"
+[2013-09-03 21:44:57 -0400] jbz_: monokrome: what's the exact command line you're using?
+[2013-09-03 21:45:22 -0400] monokrome: knife upload cookbooks/windows --force
+[2013-09-03 21:45:31 -0400] monokrome: and it tells me to use -VV to actually see the error
+[2013-09-03 21:45:34 -0400] monokrome: So, then I use
+[2013-09-03 21:45:36 -0400] monokrome: knife upload cookbooks/windows --force -VV
+[2013-09-03 21:45:45 -0400] monokrome: which tells me to use --force
+[2013-09-03 21:48:44 -0400] gswallow: monokrome: which version of chef are you using?
+[2013-09-03 21:48:49 -0400] monokrome: 11.4.4
+[2013-09-03 21:48:53 -0400] gswallow: hrm
+[2013-09-03 21:48:55 -0400] monokrome: the master and all clients have 11.4.4
+[2013-09-03 21:51:52 -0400] jbz_: ohi
+[2013-09-03 21:51:55 -0400] jbz_: er, oh
+[2013-09-03 21:52:01 -0400] jbz_: does knife upload have force?
+[2013-09-03 21:52:02 -0400] jbz_: it might not
+[2013-09-03 21:52:05 -0400] jbz_: dangerous
+[2013-09-03 21:52:09 -0400] jbz_: knife cookbook upload does
+[2013-09-03 21:52:18 -0400] jbz_: use this:
+[2013-09-03 21:52:23 -0400] jbz_: knife cookbook upload windows --force
+[2013-09-03 21:52:26 -0400] jbz_: different command.
+[2013-09-03 21:52:53 -0400] monokrome: well that's silly
+[2013-09-03 21:52:57 -0400] jbz_: no
+[2013-09-03 21:52:58 -0400] jbz_: it's not
+[2013-09-03 21:53:11 -0400] jbz_: knife upload originally was meant to upload everything on the server.
+[2013-09-03 21:53:23 -0400] jbz_: knife cookbook is for specifically uploading cookbooks.
+[2013-09-03 21:53:28 -0400] jbz_: At least, as I understand it.
+[2013-09-03 21:53:32 -0400] monokrome: originally doesn't matter, what matters is what it does now is silly
+[2013-09-03 21:53:37 -0400] monokrome: knife is a terrible tool
+[2013-09-03 21:53:37 -0400] jbz_: well
+[2013-09-03 21:53:57 -0400] jbz_: I know I'd rather have --force on the sharper tool, not the one that blasts everything.
+[2013-09-03 21:54:25 -0400] monokrome: If it exists on one, it should on both to avoid these confusions. If someone is silly enough to use force on the generalized one, that's a diferent problem.
+[2013-09-03 21:54:43 -0400] monokrome: and in this case, our cookbooks are versioned in git anyway and force wouldn't hurt anything.
+[2013-09-03 21:55:05 -0400] monokrome: same with roles and data bags
+[2013-09-03 21:55:06 -0400] gswallow: the weird thing is:
+[2013-09-03 21:55:06 -0400] gswallow: knife | grep upload 2>&1
+[2013-09-03 21:55:07 -0400] gswallow: WARNING: Nokogiri was built against LibXML version 2.9.0, but has dynamically loaded 2.9.1
+[2013-09-03 21:55:07 -0400] gswallow: knife cookbook upload [COOKBOOKS...] (options)
+[2013-09-03 21:55:15 -0400] monokrome: even though knife isn't smart about data bags, so we don't use it for them
+[2013-09-03 21:55:37 -0400] gswallow: I don't see any context-sensitive help for a "knife upload" command.  Is that command deprecated?
+[2013-09-03 21:55:47 -0400] monokrome: What version of knife do you have?
+[2013-09-03 21:55:59 -0400] gswallow: 10.26.0
+[2013-09-03 21:56:11 -0400] monokrome: It probably didn't exist yet
+[2013-09-03 21:56:40 -0400] gswallow: I'm updating now
+[2013-09-03 21:57:50 -0400] gswallow: indeed
+[2013-09-03 21:57:56 -0400] dgarstang: 'knife cookbook upload [COOKBOOKS...] (options)'
+[2013-09-03 21:59:14 -0400] monokrome: ?
+[2013-09-03 22:05:18 -0400] dgarstang: god, writing a tool to spin up ec2 instances is awful
+[2013-09-03 22:06:50 -0400] dgarstang: if I detach the role from the instance type, that means the instance type has to get looked up from somewhere. Where? How? Global? Yes, no? Do I need to write recursive yaml imports? Egads
+[2013-09-03 22:08:48 -0400] slillibri: What would cause bookshelf to return 403, or rather nginx to return 403 on queries to bookshelf queries?
+[2013-09-03 22:16:44 -0400] dgarstang: if someone was gonna write a tool to create ec2 instances and make the role and the instance type inputs, how would ya do it?
+[2013-09-03 22:18:15 -0400] mattupstate: dgarstang: docopt
+[2013-09-03 22:18:23 -0400] mattupstate: http://docopt.org/
+[2013-09-03 22:19:08 -0400] dgarstang: mattupstate: handy, but not quite what I was after
+[2013-09-03 22:19:41 -0400] monokrome: dgarstang: What's your actual problem that you're solving?
+[2013-09-03 22:19:45 -0400] monokrome: IE, why do you need to create instances?
+[2013-09-03 22:20:02 -0400] monokrome: Is your problem that you want to create/destroy instances to scale with demand?
+[2013-09-03 22:20:48 -0400] monokrome: If so then you just want this http://goo.gl/e86sSu
+[2013-09-03 22:21:01 -0400] dgarstang: monokrome: build a command line too to create amazon ec2 instances taking role, location, environemt as inputs. read config from yaml files
+[2013-09-03 22:22:10 -0400] monokrome: The point is: "Why does it need to be a command-line?"
+[2013-09-03 22:22:28 -0400] dgarstang: monokrome: because we use the command line?
+[2013-09-03 22:22:37 -0400] dgarstang: monokrome: because writing a web UI isn't gonna be any easier?
+[2013-09-03 22:22:47 -0400] mattupstate: so whats wrong with docopt?
+[2013-09-03 22:22:52 -0400] monokrome: For instance, if you use Ubuntu / Cloud-Init, you can scale with EC2's command-line and userdata scripts
+[2013-09-03 22:22:57 -0400] monokrome: http://goo.gl/TRKJUc
+[2013-09-03 22:23:01 -0400] dgarstang: mattupstate: does it read and merge yaml files?
+[2013-09-03 22:23:14 -0400] dgarstang: monokrome: lets assume no autoscaling
+[2013-09-03 22:23:26 -0400] monokrome: even without autoscaling, what I just said solves the problem
+[2013-09-03 22:23:27 -0400] mattupstate: of course not, nothing is going to do that out of the box exactly the way you want
+[2013-09-03 22:23:32 -0400] monokrome: assuming you're on Ubuntu
+[2013-09-03 22:23:46 -0400] dgarstang: mattupstate: that's what I need
+[2013-09-03 22:23:55 -0400] monokrome: The point is that it's more productive ask about problems, not solutions :/
+[2013-09-03 22:24:51 -0400] mattupstate: dgarstang: the tools are there to build what you need, which is obviously very specific
+[2013-09-03 22:25:38 -0400] dgarstang: mattupstate: seems like the inverse. what we're trying to do is very generic and the tools out there are too specific
+[2013-09-03 22:25:58 -0400] mattupstate: i would disagree, but thats just me
+[2013-09-03 22:26:05 -0400] mattupstate: docopt = CLI entry point
+[2013-09-03 22:26:07 -0400] vyke: Today I started seeing {{ FATAL: Net::HTTPServerException: 413 "Request Entity Too Large" }}.  I've tried messing with the chef nginx config with no luck.  I'm running chef 11.  The total size of the node information to upload is about 5M.  Any suggestions or tips?
+[2013-09-03 22:26:10 -0400] mattupstate: yaml libraries in every language
+[2013-09-03 22:26:28 -0400] dgarstang: mattupstate: cloudmaker was prompting me for the ELB's associated with an instance. That's pretty specific
+[2013-09-03 22:26:29 -0400] mattupstate: then shell out to knife
+[2013-09-03 22:26:37 -0400] dgarstang: mattupstate: knife don't work
+[2013-09-03 22:26:49 -0400] monokrome: dgarstang: Amazon ships standard command-line tools for managing EC2 instances
+[2013-09-03 22:26:51 -0400] monokrome: Use those
+[2013-09-03 22:27:21 -0400] monokrome: As for how to bind roles to it, use `knife bootstrap`
+[2013-09-03 22:27:40 -0400] dgarstang: monokrome: your missing the bits in the middle. you've given me a cli lib and your mentioning the amazon api tools for spinning up a box (Id use boto anyways). i need the big that merges all the yaml config
+[2013-09-03 22:27:41 -0400] monokrome: If knife doesn't work, we need to know the problem that your solving or at least the operating system that you're using in order to help
+[2013-09-03 22:27:45 -0400] mattupstate: if knife doesn't work, then shell out to whatever you need to start your instances
+[2013-09-03 22:28:06 -0400] dgarstang: mattupstate: and pass it what?
+[2013-09-03 22:28:08 -0400] monokrome: dgarstang: No, you're not listening. What OS are you using?
+[2013-09-03 22:28:22 -0400] dgarstang: monokrome: Ubuntu 12.04
+[2013-09-03 22:28:33 -0400] mattupstate: dgarstang: YAML libraries!
+[2013-09-03 22:28:34 -0400] monokrome: Great, the EC2 command-line access user data scripts
+[2013-09-03 22:28:41 -0400] monokrome: Ubuntu comes with cloud-init
+[2013-09-03 22:28:42 -0400] dgarstang: mattupstate: yes, I know.
+[2013-09-03 22:28:53 -0400] monokrome: if you don't know how to set up user data scripts, use something like http://goo.gl/TRKJUc
+[2013-09-03 22:28:57 -0400] dgarstang: monokrome: cloud init configures a box once it's up. it doesn't being the box up
+[2013-09-03 22:29:10 -0400] dgarstang: monokrome: i know how to use user-data in ec2
+[2013-09-03 22:29:21 -0400] monokrome: then you already know the answer to your question
+[2013-09-03 22:29:32 -0400] dgarstang: monokrome: sorry, I must have missed it then
+[2013-09-03 22:29:33 -0400] monokrome: No, the EC2 command line tools create instances
+[2013-09-03 22:29:40 -0400] monokrome: you can provide user data scripts to those tools
+[2013-09-03 22:29:48 -0400] monokrome: they will create an instance
+[2013-09-03 22:29:50 -0400] dgarstang: monokrome: yes... and how do you pass the 50 options to it? Where does that data come from?
+[2013-09-03 22:30:14 -0400] mattupstate: docopt is your CLI entry point, pyyaml is your yaml loader, boto launches your instances using parameters from the yaml
+[2013-09-03 22:30:17 -0400] monokrome: Well, 1) the script that I just gave you converts scripts into one file you can use as user data and 2) you can write a bash script
+[2013-09-03 22:30:24 -0400] monokrome: There's a 5 minute solution
+[2013-09-03 22:30:30 -0400] mattupstate: all in python too
+[2013-09-03 22:30:35 -0400] monokrome: or use mattupstate's solution
+[2013-09-03 22:30:38 -0400] monokrome: they all solve your problem
+[2013-09-03 22:30:44 -0400] dgarstang: i guess I didn't explain myself. All my fault.
+[2013-09-03 22:30:56 -0400] cwj: lmao
+[2013-09-03 22:31:04 -0400] monokrome: Didn't we already cover that? :/
+[2013-09-03 22:31:17 -0400] monokrome: What is the problem that you are solving? (Not the solution you want to build)
+[2013-09-03 22:31:38 -0400] dgarstang: monokrome: bring up amazon instances with a script
+[2013-09-03 22:31:48 -0400] monokrome: amazon's ec2 command-line tools do that
+[2013-09-03 22:31:59 -0400] monokrome: That is still your SOLUTION, not your problem :/
+[2013-09-03 22:32:00 -0400] dgarstang: monokrome: oh boy
+[2013-09-03 22:32:12 -0400] jbz_: amazon's ec2 cli tools suck <insert obscene object here>
+[2013-09-03 22:32:26 -0400] dgarstang: let's say you want to spin up a new instance with a role of 'web' and an instance type of 'm1.large'....
+[2013-09-03 22:32:51 -0400] monokrome: dgarstang: Then you use ec2 command line tools and give it a user data script that cloud-init will then run the scripts in
+[2013-09-03 22:33:31 -0400] monokrome: cloud-init has examples for chef, and if you want a way to easier way to organize the scripts you can use something to organize them (IE, http://goo.gl/TRKJUc)
+[2013-09-03 22:33:34 -0400] dgarstang: role=web, type=m1.large. it's easy to key details for the new instance in a yaml file from the role of web... no problem there...
+[2013-09-03 22:33:59 -0400] dgarstang: monokrome: again, cloud-init is once the box is up
+[2013-09-03 22:34:21 -0400] monokrome: dgarstang: It's once the box is up. That doesn't matter. It's BEFORE Chef is installed / exists on the box.
+[2013-09-03 22:34:31 -0400] dgarstang: monokrome: box not up yet
+[2013-09-03 22:34:52 -0400] vyke: Running chef-client on nodes and getting {{ FATAL: Net::HTTPServerException: 413 "Request Entity Too Large" }}.  I think the node data is too large to upload to the Chef server after the client run completes.  I've attempted nginx config, but no luck.  Any suggestions?
+[2013-09-03 22:35:07 -0400] monokrome: Ugh... How hard is it to explain your PROBLEM? Instead of your solution?
+[2013-09-03 22:35:17 -0400] monokrome: your solution is not a good one
+[2013-09-03 22:35:54 -0400] mattupstate: `knife ec2 server create . run-list "role[web]" flavor m1.large .`
+[2013-09-03 22:36:03 -0400] cwj: vyke: yikes have you looked at https://github.com/opscode/whitelist-node-attrs
+[2013-09-03 22:36:12 -0400] dgarstang: mattupstate: knife ec2 doesn't work when using an ssh proxy
+[2013-09-03 22:36:29 -0400] cwj: vyke: if you know which sets of node attributes are making node data so large, you could filter them
+[2013-09-03 22:36:33 -0400] monokrome: mattupstate: dgarstang doesn't want to use knife for no apparent reason. Says it doesn't work?
+[2013-09-03 22:36:41 -0400] monokrome: dgarstang: Yes, it does. --ssh-gateway
+[2013-09-03 22:36:42 -0400] dgarstang: monokrome: It does not work
+[2013-09-03 22:36:46 -0400] mattupstate: --ssh_gateway
+[2013-09-03 22:36:49 -0400] dgarstang: monokrome: oh no it doesn't.
+[2013-09-03 22:36:53 -0400] monokrome: Yes it does, you just don't know what you're doing
+[2013-09-03 22:36:55 -0400] monokrome: I did it a month ago
+[2013-09-03 22:37:35 -0400] vyke: cwj: thanks  I'll take a look at whitelist-node-attrs
+[2013-09-03 22:37:57 -0400] dgarstang: monokrome: there seems to be a few issues. One of them is that it waits for the instance to come up, and then immediattely tries to ssh into it. Well, the instance is up, but ssh isn't running yet, so it gets a disconnect (which seems to somehow be translated from a connection refused by the proxy) and then immediately gives up
+[2013-09-03 22:38:05 -0400] monokrome: knife ssh YOURNODEIPADDRESS --ssh_gateway YOURAGTEWAYIPADDRESS
+[2013-09-03 22:38:14 -0400] monokrome: will ssh into the instance through your gateway
+[2013-09-03 22:38:26 -0400] dgarstang: monokrome: knife ssh suffers the same issue as knife ec2 server create with the ssh proxy
+[2013-09-03 22:38:36 -0400] monokrome: great
+[2013-09-03 22:38:40 -0400] monokrome: then use the solution that I recommend
+[2013-09-03 22:38:47 -0400] dgarstang: monokrome: you mean use .ssh/config ?
+[2013-09-03 22:39:00 -0400] drrk: Almost every node i bootstrap needs an ssh proxy, ssh_gateway works fine
+[2013-09-03 22:39:02 -0400] monokrome: No, use user data scripts to set up your chef environment
+[2013-09-03 22:39:23 -0400] monokrome: ssh_gateway DOES work, though
+[2013-09-03 22:39:24 -0400] dgarstang: monokrome: again, box doesn't exist yet
+[2013-09-03 22:39:34 -0400] monokrome: dgarstang: Why not?
+[2013-09-03 22:39:35 -0400] dgarstang: drrk: not for us
+[2013-09-03 22:39:40 -0400] dgarstang: monokrome: because it's not built yet
+[2013-09-03 22:39:47 -0400] monokrome: Why not?
+[2013-09-03 22:39:57 -0400] dgarstang: monokrome: because the tool that builds it doesn't exist
+[2013-09-03 22:40:05 -0400] monokrome: Because your solution doesn't work? Then why don't you just explain the problem your solving instead of the solution you've invented?
+[2013-09-03 22:40:23 -0400] dgarstang: monokrome: I am trying to write a tool to spin up instances in amazon,
+[2013-09-03 22:40:49 -0400] dgarstang: monokrome: because knife ec2 server create does not seem to work across ssh proxies
+[2013-09-03 22:41:00 -0400] monokrome: Great. There are tons that already do it. EC2's command line tools. knife-ec2. ec2-autoscaling.
+[2013-09-03 22:41:24 -0400] dgarstang: monokrome: I sense your not quite getting what I'm saying.... just a feeling...
+[2013-09-03 22:41:39 -0400] monokrome: I sense you're not quite paying attention :/
+[2013-09-03 22:41:45 -0400] mattupstate: i think its safe to say we're all understanding monokrome
+[2013-09-03 22:41:53 -0400] monokrome: You can use this with a mix of any of these command line tools and user data scripts
+[2013-09-03 22:42:10 -0400] dgarstang: *sigh* where do these tools get their config from?
+[2013-09-03 22:42:11 -0400] monokrome: some of them don't even require the userdata scripts, IE knife bootstrap
+[2013-09-03 22:42:15 -0400] drrk: the issue with gateway is it tries to ssh too early right?
+[2013-09-03 22:42:17 -0400] mattupstate: dgarstang: have you been able to deploy a server through a manual process?
+[2013-09-03 22:42:28 -0400] monokrome: From the command line? That's what you asked for...
+[2013-09-03 22:42:28 -0400] dgarstang: mattupstate: err... yes of course
+[2013-09-03 22:42:35 -0400] dgarstang: monokrome: yes
+[2013-09-03 22:42:41 -0400] monokrome: or from a user data script
+[2013-09-03 22:42:43 -0400] drrk: can you not just add a delay or retry?
+[2013-09-03 22:42:50 -0400] mattupstate: dgarstang: so then build a tool that repeats that process and you're good to go
+[2013-09-03 22:42:50 -0400] dgarstang: drrk: more to the point, it seems to not retry
+[2013-09-03 22:42:52 -0400] jmickle: ERROR:  Error installing knife-ec2:
+[2013-09-03 22:42:52 -0400] jmickle: nokogiri requires Ruby version >= 1.9.2.
+[2013-09-03 22:42:58 -0400] jmickle: has anyone hit this error on ubuntu 12?
+[2013-09-03 22:43:01 -0400] dgarstang: drrk: to the ruby ec2 plugin?
+[2013-09-03 22:43:19 -0400] dgarstang: mattupstate: that's what I've been trying ot get advice on for the last 10 minutes
+[2013-09-03 22:43:35 -0400] drrk: i suspect its plain knife but yeah
+[2013-09-03 22:43:37 -0400] mattupstate: dgarstang: what have you used so far to deploy?
+[2013-09-03 22:43:38 -0400] dgarstang: monokrome: user data doesn't work so well if the instance hasn't been created yet
+[2013-09-03 22:43:49 -0400] monokrome: dgarstang: No, you need to listen.
+[2013-09-03 22:44:00 -0400] monokrome: You can supply a user-data script to the ec2 command-line tools.
+[2013-09-03 22:44:03 -0400] dgarstang: mattupstate: custom perl script written by the boss, ec2_run_instances in the ec2-api-tools
+[2013-09-03 22:44:14 -0400] monokrome: EC2 command-line tools can create an instance and pass along a user data script.
+[2013-09-03 22:44:26 -0400] mattupstate: dgarstang: ok, so whats wrong with that?
+[2013-09-03 22:44:31 -0400] dgarstang: monokrome: ok, find... how do I set the path of the user-data script? ie how does the ec2 command line tools know where to get it from?
+[2013-09-03 22:44:51 -0400] monokrome: dgarstang: you give it the path
+[2013-09-03 22:44:53 -0400] dgarstang: mattupstate: it's not automated and the old mkhost.pl script doesn't work with chef
+[2013-09-03 22:44:56 -0400] monokrome: It doesn't care where it is
+[2013-09-03 22:45:15 -0400] dgarstang: monokrome: I don't want to give it the path. I want the path to be in a yaml config file. All I want to give it is a role, and a location
+[2013-09-03 22:45:29 -0400] gswallow: Ok, uncle.  How the hell do you fetch a template from the chef server from within a ruby block?
+[2013-09-03 22:45:32 -0400] monokrome: dgarstang: Great. Write a bash script. It'll take 2 minutes.
+[2013-09-03 22:46:13 -0400] dgarstang: monokrome: ok, how do you merge yaml files toegther in bash? how do you put the yaml config together in a way that isn't a big shitty mess? hwo do you deep merge yaml files in a bash script?
+[2013-09-03 22:46:48 -0400] mattupstate: dgarstang: organizing your YAML is your problem and out of the scope of the chef channel
+[2013-09-03 22:46:53 -0400] monokrome: dgarstang: Bash isn't the proper solution? Great. Use Ruby or Python.
+[2013-09-03 22:46:58 -0400] monokrome: Still takes 2 minutes.
+[2013-09-03 22:46:59 -0400] mattupstate: otherwise, use ruby or python to load the yaml, and shell out to your existing tools
+[2013-09-03 22:47:13 -0400] dgarstang: mattupstate: you shoulda just said than 10 minutes ago
+[2013-09-03 22:47:18 -0400] monokrome: What are the YAML files for anyway? Sounds like you're doing it wrong.
+[2013-09-03 22:47:24 -0400] mattupstate: dgarstang: you didn't mention you have existing tools
+[2013-09-03 22:47:38 -0400] dgarstang: mattupstate: i don't. i need to write the tool that loads the yaml
+[2013-09-03 22:47:48 -0400] dgarstang: monokrome: Thanks for your help.
+[2013-09-03 22:47:51 -0400] mattupstate: and in fact, i did mention to use python or ruby
+[2013-09-03 22:48:11 -0400] mattupstate: and to shell out
+[2013-09-03 22:48:15 -0400] mattupstate: and to load yaml
+[2013-09-03 22:48:19 -0400] mattupstate: and what not ;)
+[2013-09-03 22:48:22 -0400] vyke: vyke
+[2013-09-03 22:48:34 -0400] dgarstang: mattupstate: i figured all that out before I came in here and asked the question. That's not the hard bit
+[2013-09-03 22:48:45 -0400] mattupstate: you're not making any sense now
+[2013-09-03 22:49:16 -0400] mattupstate: we've all pointed you in plenty of possible directions, so start messing around and come back when you have chef specific problems
+[2013-09-03 22:49:38 -0400] dgarstang: mattupstate: it's all about the organisation of tha yaml, which I guess is outside scope. I just figured someone somewhere else in the universe might have wanted to spin up instances from the command line and just pass in some basics like the role and the location. it's got to be a general problem.
+[2013-09-03 22:49:49 -0400] monokrome: dgarstang: What is the YAML for
+[2013-09-03 22:49:56 -0400] dgarstang: mattupstate: knife ec2 server don't work with ssh proxies? :)
+[2013-09-03 22:50:07 -0400] dgarstang: monokrome: Thanks for your help.
+[2013-09-03 22:50:18 -0400] mattupstate: dgarstang: it does, which has been proven already, but for some reason it doesn't work FOR YOU
+[2013-09-03 22:50:21 -0400] monokrome: rofl
+[2013-09-03 22:50:49 -0400] mattupstate: file an issue with kife-ec2 if you can figure out why the ssh-gateway doesn't work for you
+[2013-09-03 22:56:56 -0400] awc737: is chef-solo fine to use for produciton?
+[2013-09-03 22:57:02 -0400] awc737: for using on a production server
+[2013-09-03 22:58:56 -0400] mattupstate: awc737: sure
+[2013-09-03 22:59:12 -0400] mattupstate: awayne: its just what you do with it that should be in question
+[2013-09-03 22:59:31 -0400] awc737: so on my localhost i'm using chef solo with vagrant
+[2013-09-03 22:59:45 -0400] awc737: can i just source control my cookbooks, and the chef config, and put that on a production server without vagrant
+[2013-09-03 22:59:51 -0400] awayne: mattupstate: i think that was the wrong tell :)
+[2013-09-03 23:00:31 -0400] mattupstate: awc737: it's a little trickier, i'd think
+[2013-09-03 23:00:33 -0400] awayne: afternoon all
+[2013-09-03 23:00:40 -0400] drrk: awc737: I was doing something like that for a bit. I suspect you will find it limiting
+[2013-09-03 23:00:43 -0400] mattupstate: you gotta get the cookbooks onto the production server somehow
+[2013-09-03 23:00:50 -0400] mattupstate: install chef on the server
+[2013-09-03 23:00:55 -0400] awc737: mattupstate, version control?
+[2013-09-03 23:01:05 -0400] awc737: why is installing chef on the server tricky?
+[2013-09-03 23:01:10 -0400] mattupstate: and run an appropriate chef-solo command
+[2013-09-03 23:01:24 -0400] mattupstate: awc737: automating that is a little tricky
+[2013-09-03 23:01:36 -0400] mattupstate: (depending on your skill level)
+[2013-09-03 23:01:42 -0400] mattupstate: if you version control your cookbooks
+[2013-09-03 23:01:54 -0400] mattupstate: you could checkout the repo on the production server
+[2013-09-03 23:02:02 -0400] awc737: hm, i don't follow what's different. i would probably use berkshelf and version control my personal cookbooks
+[2013-09-03 23:02:09 -0400] mattupstate: thats fine
+[2013-09-03 23:02:21 -0400] mattupstate: but if you're using vagrant, vagrant installs the cookbooks on to the VM for you
+[2013-09-03 23:02:24 -0400] mattupstate: and runs chef-solo for you
+[2013-09-03 23:02:37 -0400] awc737: yeah, that's where i'm unsure. because I've only used chef with vagrant
+[2013-09-03 23:02:38 -0400] mattupstate: vagrant also installs chef and what not
+[2013-09-03 23:03:05 -0400] mattupstate: the only thing stopping you from doing it that way is understanding how chef-colo works on its own
+[2013-09-03 23:03:47 -0400] mattupstate: and writing some rudimentary wrappers around the commands
+[2013-09-03 23:04:04 -0400] mattupstate: that are tailored for your production server and not a virtualbox VM
+[2013-09-03 23:04:24 -0400] awc737: it almost seems easier to just configure my production server with no cookbooks
+[2013-09-03 23:04:40 -0400] mattupstate: depends on how complex your server is
+[2013-09-03 23:04:43 -0400] awc737: and use cookbooks for dev environments
+[2013-09-03 23:04:52 -0400] awc737: but i really want something that is synced somewhat
+[2013-09-03 23:05:53 -0400] mattupstate: awc737: just look at the docs for chef-solo
+[2013-09-03 23:06:07 -0400] awc737: yeah i use it all the time in vagrant
+[2013-09-03 23:06:09 -0400] mattupstate: get your cookbooks onto the production server and figure out the command to run
+[2013-09-03 23:06:13 -0400] awc737: k
+[2013-09-03 23:06:17 -0400] awc737: it doesn't sound too tricky then
+[2013-09-03 23:06:39 -0400] mattupstate: no, but if you want it repeatable, you might want to wrap the commands using another tool
+[2013-09-03 23:06:47 -0400] awc737: i see
+[2013-09-03 23:06:50 -0400] mattupstate: such as the SSH part
+[2013-09-03 23:06:54 -0400] awc737: is chef server more ideal for what i'm trying to accomplish
+[2013-09-03 23:07:12 -0400] mattupstate: depends on your complexity
+[2013-09-03 23:07:22 -0400] mattupstate: at least thats my opinion
+[2013-09-03 23:07:44 -0400] awayne: This issue baffling me ...
+[2013-09-03 23:08:15 -0400] awayne: i have a recipe for a windows server that is all of a sudden throwing an error trying to execute windows_zipfile.
+[2013-09-03 23:08:17 -0400] awayne: LoadError: cannot load such file -- zip/zip
+[2013-09-03 23:08:21 -0400] mattupstate: awc737: if you dont need chef-server, you can use a simpler tool
+[2013-09-03 23:08:31 -0400] mattupstate: such as ansible
+[2013-09-03 23:09:48 -0400] awayne: nothing has changed in the recipe. same windows vm reset to the same snapshot. worked fine last week, now fails on the require 'zip/zip' in windows_zipfile
+[2013-09-03 23:10:28 -0400] awc737: well I like chef solo
+[2013-09-03 23:10:32 -0400] awc737: i can use that with ansible?
+[2013-09-03 23:11:13 -0400] drrk: you could, but i dont think you want too :)
+[2013-09-03 23:12:47 -0400] drrk: it would be a waste of ansible really, just using it to ssh and run a single executable
+[2013-09-03 23:12:52 -0400] dgarstang: mattupstate: are you in multiple ec2 regions?
+[2013-09-03 23:14:10 -0400] dgarstang: or is ANYONE that has knife ec2 working with proxies in multiple amazon regions?
+[2013-09-03 23:14:18 -0400] mattupstate: awc737: no, ansible would replace chef-solo
+[2013-09-03 23:14:29 -0400] awc737: oh, ok. i'm looking at ansible now. although i was enjoying chef
+[2013-09-03 23:14:38 -0400] awc737: and spent a long time learning and have perfect configs now lol
+[2013-09-03 23:14:42 -0400] mattupstate: ha
+[2013-09-03 23:15:55 -0400] mattupstate: you could simply write a bash script that scp's your cookbooks up and runs chef-solo on the server
+[2013-09-03 23:16:05 -0400] dgarstang: mattupstate: are you in multiple ec2 regions?
+[2013-09-03 23:16:17 -0400] mattupstate: dgarstang: no
+[2013-09-03 23:16:21 -0400] mattupstate: not yet at least
+[2013-09-03 23:16:53 -0400] dgarstang: mattupstate: so the box you can knife ec2 on, the ssh proxy, and the new node are all in the same location?
+[2013-09-03 23:17:14 -0400] mattupstate: dgarstang: i dont use an ssh proxy
+[2013-09-03 23:17:34 -0400] dgarstang: mattupstate: thought it was you that said you where a few minutes ago. Someone did.
+[2013-09-03 23:17:52 -0400] mattupstate: nope, never said that
+[2013-09-03 23:19:11 -0400] dgarstang: mattupstate: bugger
+[2013-09-03 23:26:39 -0400] dgarstang: yep, revisited knife ec2 server create with proxy. Still getting 'ERROR: Net::SSH::Disconnect: connection closed by remote host'
+[2013-09-03 23:29:33 -0400] ggayan: hey guys, is it posible to push chef-client runs to clients with hosted chef?
+[2013-09-03 23:33:00 -0400] dgarstang: mattupstate: just ran knife ec2 server create. Failed twice, worked once.
+[2013-09-03 23:36:08 -0400] dgarstang: To anyone that cares, the fact that knife-ec2 server create works SOMETIMES and not other times with the SAME command line indicates my options passed to knife are CORRECT
+[2013-09-03 23:39:34 -0400] moted: Does anybody out there have a good way of using something like value_for_platform with minitest-chef-handler?  I want to test for packages but their values differ.
+[2013-09-03 23:42:49 -0400] dgarstang: *sigh* I don't know how to catch the disonnect. 'Net::SSH::Disconnect' ?

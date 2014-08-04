@@ -1,0 +1,781 @@
+[2012-01-11 09:55:00 -0500] isale-eko: Does nyone know how to fix chef-solo's typeError, can't convert nil to string. See stacktrace: https://gist.github.com/1593963. thanks
+[2012-01-11 10:39:00 -0500] BryanWB: any freebsd users around? i want to change the gecode cookbook (used by chef-server) and want to know how that change effects freebsd
+[2012-01-11 11:17:00 -0500] tolland: is there some way to disable authentication during client registration using validation.pem, as I am currently pretty screwed while I sort out this authentication problem?
+[2012-01-11 12:13:00 -0500] fish_: looks like sometimes a change to a recipe doesn't update the recipe on the nodes until I change the version in metdata
+[2012-01-11 12:39:00 -0500] BryanWB: fish_: no it should still update
+[2012-01-11 12:39:00 -0500] BryanWB: it only won't update if there is an older version on the server that happens to have a higher version number than the one you are trying to upload
+[2012-01-11 12:41:00 -0500] fish_: oh okay thx.
+[2012-01-11 12:52:00 -0500] lflux: am I missing something totally, or is a recipe file not executed in the order I've written it?
+[2012-01-11 12:54:00 -0500] lflux: for some reason my database statements are run before a cookbook_file I have almost at the top of a recipe
+[2012-01-11 12:59:00 -0500] BryanWB: any ruby code runs before resources
+[2012-01-11 12:59:00 -0500] BryanWB: lflux: ^^
+[2012-01-11 12:59:00 -0500] lflux: It's not ruby code, the database statements are from a LWRP
+[2012-01-11 12:59:00 -0500] lflux: https://gist.github.com/1594546
+[2012-01-11 13:00:00 -0500] lflux: but it runs all the stuff from the database LWRP before the cookbook_file resource
+[2012-01-11 13:00:00 -0500] BryanWB: lflux: then i dont know :(
+[2012-01-11 13:00:00 -0500] lflux: which means it barfs on the last step when it loads the file and runs it as query
+[2012-01-11 13:00:00 -0500] yfeldblum: lflux, you are reading from the config file immediately
+[2012-01-11 13:01:00 -0500] yfeldblum: during the compile phase, before the config file has been written out
+[2012-01-11 13:01:00 -0500] lflux: ah
+[2012-01-11 13:01:00 -0500] yfeldblum: sorry the pgsql file
+[2012-01-11 13:01:00 -0500] lflux: any good way to get it to run the way I want?
+[2012-01-11 13:01:00 -0500] erikh: I'm obviously working too much, I read 'barfs' as 'bar fs'
+[2012-01-11 13:01:00 -0500] erikh: and I was wondering who made that and what OS that FS was for.
+[2012-01-11 13:01:00 -0500] yfeldblum: why do you need to copy that file to the node?
+[2012-01-11 13:02:00 -0500] lflux: because it's huge.
+[2012-01-11 13:03:00 -0500] yfeldblum: is that file idempotent? or is that file supposed to be run just once?
+[2012-01-11 13:03:00 -0500] lflux: it's the DDL for the databases
+[2012-01-11 13:03:00 -0500] lflux: so yes only once really.
+[2012-01-11 13:04:00 -0500] lflux: rather, the initial DDL.
+[2012-01-11 13:04:00 -0500] yfeldblum: why does that need to be done from chef, rather from the application's admin tools?
+[2012-01-11 13:04:00 -0500] lflux: there are no admin tools for the application.
+[2012-01-11 13:04:00 -0500] lflux: currently it's a shellscript that's run when we initialize the VM.
+[2012-01-11 13:04:00 -0500] erikh: hrm
+[2012-01-11 13:04:00 -0500] yfeldblum: the postgres shell is an admin tool
+[2012-01-11 13:04:00 -0500] lflux: which I'm trying to convert to chef.
+[2012-01-11 13:05:00 -0500] erikh: is the lwrp something you wrote?
+[2012-01-11 13:05:00 -0500] erikh: for postgresql_database
+[2012-01-11 13:05:00 -0500] lflux: no, it's from opscode.
+[2012-01-11 13:05:00 -0500] erikh: hrm.
+[2012-01-11 13:05:00 -0500] lflux: https://github.com/opscode/cookbooks/tree/master/database
+[2012-01-11 13:05:00 -0500] erikh: humor me, are you familiar with notifies?
+[2012-01-11 13:05:00 -0500] lflux: not yet
+[2012-01-11 13:06:00 -0500] yfeldblum: lflux, everything you put in chef should be designed to declare a desired final state, and every implementation code you put in chef should be designed to be idempotent; this doesn't sound like you're declaring a final state and this doesn't sound like it works idempotently
+[2012-01-11 13:06:00 -0500] erikh: ok, get familiar with them and try structuring your resources with notifies so that you control the order (using the :immediately flag)
+[2012-01-11 13:07:00 -0500] erikh: treat each one like an event that chef can schedule how it pleases unless you tell it otherwise
+[2012-01-11 13:07:00 -0500] erikh: my experience is that's the only sane way to get some things idempotent.
+[2012-01-11 13:08:00 -0500] erikh: especially order-dependent resources
+[2012-01-11 13:09:00 -0500] erikh: anyhow, the point to take away from this is that chef behaves in many ways like an event-based processor and you'll level up treating it that way
+[2012-01-11 13:09:00 -0500] lflux: yfeldblum: yes, it's not optimal, but I want to define seperate application environments from data bags and initialize them from chef
+[2012-01-11 13:10:00 -0500] yfeldblum: erikh, the issue isn't the order of the resources; the issue at hand is that all resources are declared at the same time and their attributes are set during the compile phase, but merely declaring one resource here requires that another resource be already executed
+[2012-01-11 13:12:00 -0500] lflux: erikh: I'll look into that, thanks
+[2012-01-11 13:13:00 -0500] `brendan: morning
+[2012-01-11 13:17:00 -0500] BryanWB: yfeldblum: good morning ;)
+[2012-01-11 13:33:00 -0500] yfeldblum: BryanWB, morning, also, bbs ...
+[2012-01-11 13:34:00 -0500] BryanWB: bbs?
+[2012-01-11 13:52:00 -0500] lflux: hmm, are recipes in a run list also evalutated in whatever order, or are they evaluated in the order they are in the list?
+[2012-01-11 13:52:00 -0500] erikh: in the order they're in the list
+[2012-01-11 13:59:00 -0500] BryanWB: lflux they are evaluated in the order they are in the list, unlike puppet
+[2012-01-11 14:00:00 -0500] lflux: and it's read left to right?
+[2012-01-11 14:00:00 -0500] yfeldblum: back
+[2012-01-11 14:01:00 -0500] lflux: the output from when I run knife node show I mean
+[2012-01-11 14:01:00 -0500] BryanWB: lflux: sorry, was thinking of recipe
+[2012-01-11 14:01:00 -0500] BryanWB: lflux, yeah, L-to-R
+[2012-01-11 14:01:00 -0500] BryanWB: thank God chef wasn't written in Farsi :p
+[2012-01-11 14:01:00 -0500] lflux: thansk
+[2012-01-11 14:02:00 -0500] lflux: heh, i'm in the process of converting our website to allow both LTR and RTL scripts.
+[2012-01-11 14:02:00 -0500] lflux: it's ... interesting
+[2012-01-11 14:04:00 -0500] erikh: oh wow
+[2012-01-11 14:04:00 -0500] erikh: I would not wish that pain on my worst enemies
+[2012-01-11 14:04:00 -0500] yfeldblum: heh same
+[2012-01-11 14:05:00 -0500] yfeldblum: we could have rubinius 2.0 already, if it were not for those darned people who speak & write in other languages
+[2012-01-11 14:05:00 -0500] erikh: ha.
+[2012-01-11 14:06:00 -0500] lflux: damn those who use languages that don't fit in ascii
+[2012-01-11 14:06:00 -0500] yfeldblum: oh no, we need unicode for sure: how else would we get snowman and checkbox glyphs?
+[2012-01-11 14:06:00 -0500] lflux: yeah, it's pretty painful. it took us a week just to find a way to edit our language strings in our environment with RTL
+[2012-01-11 14:06:00 -0500] erikh: oh I've just done some i18n with greek and some norse languages; it was non-fun
+[2012-01-11 14:07:00 -0500] erikh: and that's the easy stuff
+[2012-01-11 14:07:00 -0500] yfeldblum: rails + i18n? or other?
+[2012-01-11 14:07:00 -0500] erikh: nah mod_perl for me.
+[2012-01-11 14:07:00 -0500] erikh: which really isn't much different from ruby 1.9
+[2012-01-11 14:07:00 -0500] lflux: nordic isn't that hard. cyrillic is worse.
+[2012-01-11 14:13:00 -0500] BryanWB: i had to work w/ indic and R-L scripts, pretty tough
+[2012-01-11 14:13:00 -0500] BryanWB: but never w/ ruby
+[2012-01-11 14:20:00 -0500] BryanWB: is there a way to configure the apache cookbook to use the mpm rather than prefork?
+[2012-01-11 14:21:00 -0500] BryanWB: do i just change node['apache']['default_modules']  ?
+[2012-01-11 14:47:00 -0500] youngjedi: is it possible to set recipe variables from within a ruby_block resource?
+[2012-01-11 14:48:00 -0500] youngjedi: ah, i just have to declare it at the top
+[2012-01-11 14:48:00 -0500] ssd7: OHai chefs.
+[2012-01-11 14:48:00 -0500] youngjedi: wait no
+[2012-01-11 14:48:00 -0500] youngjedi: hmm
+[2012-01-11 14:50:00 -0500] youngjedi: yeah, question remains: possible to set recipe variables with w/in ruby_block
+[2012-01-11 14:50:00 -0500] youngjedi: ?*
+[2012-01-11 15:00:00 -0500] Yulya: hello guys
+[2012-01-11 15:00:00 -0500] Yulya: is there any way to get server-side variables?
+[2012-01-11 15:01:00 -0500] Yulya: i need sort of counter to check that some code running no more than on N nodes from cluster
+[2012-01-11 15:03:00 -0500] Yulya: it will be great if i can do something like variable[blah]++ on one node and see this counter on other nodes
+[2012-01-11 15:04:00 -0500] yfeldblum: youngjedi, you can only set local variables in a ruby_block's block attribute that you use from a subsequent ruby_block's block attribute
+[2012-01-11 15:05:00 -0500] youngjedi: gotcha, thanks
+[2012-01-11 15:12:00 -0500] mattray: Yulya: perhaps use a data bag?
+[2012-01-11 15:14:00 -0500] Yulya: wow
+[2012-01-11 15:15:00 -0500] Yulya: mattray: thnx, thats look like solution
+[2012-01-11 15:15:00 -0500] ssd7: Hmm.  Depending on the circumstances, I would be careful with datbags.
+[2012-01-11 15:15:00 -0500] Yulya: mattray: are databags provides data consistency between nodes?
+[2012-01-11 15:16:00 -0500] Yulya: what will happen when two nodes try to change value in same databag at the same time?
+[2012-01-11 15:16:00 -0500] mattray: Yulya: I don't think it's safe yet, AFAIK there are tickets open
+[2012-01-11 15:17:00 -0500] mattray: but I believe you could insert items into the data bag as flags
+[2012-01-11 15:17:00 -0500] mattray: so if you had an "updated" data bag, you could just insert node names
+[2012-01-11 15:17:00 -0500] mattray: no modifications, just inserts
+[2012-01-11 15:17:00 -0500] mattray: hacky, but probably effective until we get atomic operations on data bags
+[2012-01-11 15:18:00 -0500] Yulya: hm
+[2012-01-11 15:18:00 -0500] Yulya: well
+[2012-01-11 15:18:00 -0500] Yulya: thnx you very mutch
+[2012-01-11 15:18:00 -0500] mattray: or you could use search on the individual nodes
+[2012-01-11 15:18:00 -0500] mattray: and just sum them
+[2012-01-11 15:18:00 -0500] mattray: search on an attribute, like node['configured']
+[2012-01-11 15:18:00 -0500] mattray: and those that are 'true' sum them?
+[2012-01-11 15:18:00 -0500] mattray: again, not elegant, but atomic
+[2012-01-11 15:19:00 -0500] ssd7: Yeah, which of these is best really depends on the use case.  If the use case is "I need to bring up 10 nodes and have only 5 of them run this code" then there isn't going to be a great solution.
+[2012-01-11 15:19:00 -0500] ssd7: If the use case is "When I bring up a new node, I only want it to run this code if there isn't already 5 others"
+[2012-01-11 15:20:00 -0500] ssd7: then search or databags may work a bit better.
+[2012-01-11 15:20:00 -0500] youngjedi: curl -L http://opscode.com/chef/install.sh | bash
+[2012-01-11 15:20:00 -0500] youngjedi: ^ is f-ing amazing
+[2012-01-11 15:20:00 -0500] youngjedi: <3
+[2012-01-11 15:22:00 -0500] laurent\: does it has to run as root ?
+[2012-01-11 15:23:00 -0500] rays: having an issue with the opscode nginx recipie, it looks like nginx is being run by sv and we cant get the proc to restart
+[2012-01-11 15:24:00 -0500] rays: says the port is in use
+[2012-01-11 15:24:00 -0500] ssd7: laurent\: Yes, with maybe some possible exception if you've rigged various permissions
+[2012-01-11 15:25:00 -0500] ssd7: laurent\: Debian and RHEL based systems, it uses a native deb or rpm packages, so you need rights to use dpkg or rpm
+[2012-01-11 15:25:00 -0500] ssd7: laurent\: On some other systems, you probably just need to set up /opt/opscode and a handful of other directories to be writable if you wanted to install without root.
+[2012-01-11 15:26:00 -0500] laurent\: ok, i hope the curl install.sh|bash is not the only way to install it
+[2012-01-11 15:31:00 -0500] workmad3: rays: is port 80 in use?
+[2012-01-11 15:31:00 -0500] millisami: Hi, Is there any cookbook for Drupal that does the whole installation without going to http://<server_fqdn>/install.php manually after installation?
+[2012-01-11 15:32:00 -0500] rays: workmad3: it looks like an nginx proc got loaded and now there are two trying to start...
+[2012-01-11 15:32:00 -0500] rays: this sounds close to what we think is going on
+[2012-01-11 15:32:00 -0500] rays: http://tickets.opscode.com/browse/COOK-458
+[2012-01-11 15:32:00 -0500] rays: but we are not loading the nginx.conf via template, but through a copy from another cookbook
+[2012-01-11 15:38:00 -0500] rays: workmad3: any ideas?
+[2012-01-11 15:39:00 -0500] workmad3: rays: does the recipe apply cleanly on a fresh node? (if you can check that easily :) )
+[2012-01-11 15:39:00 -0500] workmad3: rays: if it does, I'd suggest killing that extra process
+[2012-01-11 15:40:00 -0500] workmad3: rays: otherwise, investigate your recipe and see what starts the extra process :)
+[2012-01-11 15:46:00 -0500] yfeldblum: mattray: return Last-Modified on all data-bag API responses and permit If-Not-Modified-Since on all data-bag API PUT requests?
+[2012-01-11 15:50:00 -0500] yfeldblum: mattray, that should be a correct HTTP interface exposing an optimistic-locking strategy
+[2012-01-11 15:55:00 -0500] mattray: yfeldblum: yeah, that was the discussion at the Developer Summit
+[2012-01-11 15:55:00 -0500] yfeldblum: mattray, technically, don't even need the Last-Modified response headers: the client can just use the Date response headers
+[2012-01-11 15:55:00 -0500] mattray: http://wiki.opscode.com/display/chef/Data+Bag+-+Enhance+and+or+Replace
+[2012-01-11 15:56:00 -0500] yfeldblum: mattray, i think ... but the Last-Modified response headers do indicate that the server can indeed tell when the resource was last modified
+[2012-01-11 15:57:00 -0500] yfeldblum: mattray, that API should be implemented on all resources anyway, regardless of what happens with extending or replacing data bags ...
+[2012-01-11 15:57:00 -0500] yfeldblum: mattray, also, a canonical bytes format for all resources should be devised so that resources can be hashed and strong ETags returned
+[2012-01-11 15:58:00 -0500] yfeldblum: mattray, basically that can just means sorting hash keys and stripping all whitespace from json documents
+[2012-01-11 15:58:00 -0500] youngjedi: i need node[:fqdn] on the first run, before ohai has set fqdn, so it's coming back as Nil
+[2012-01-11 15:59:00 -0500] youngjedi: any advice?
+[2012-01-11 15:59:00 -0500] yfeldblum: mattray, but that would open up ETag and If-Modified and If-Not-Modified request headers as well
+[2012-01-11 15:59:00 -0500] yfeldblum: youngjedi, ohai runs before any of your recipe code
+[2012-01-11 16:00:00 -0500] ssd7: youngjedi: Where are you trying to use it and finding it come back as nil?  The ohai attributes are populated very very early within th run.  Is it possible that hostname --fqdn (hostname -f) isn't returning a value on that node?
+[2012-01-11 16:01:00 -0500] youngjedi: stacktrace throws: /var/chef/cache/cookbooks/cookbook/recipes/recipe.rb:22:in `+'
+[2012-01-11 16:01:00 -0500] youngjedi: line 22: Chef::Log.info("fqdn is " + node[:fqdn])
+[2012-01-11 16:01:00 -0500] youngjedi: sorry, error is actually TypeError: can't convert nil into String
+[2012-01-11 16:02:00 -0500] youngjedi: hostname: Name or service not known
+[2012-01-11 16:02:00 -0500] youngjedi: my problem
+[2012-01-11 16:02:00 -0500] youngjedi: :/
+[2012-01-11 16:02:00 -0500] youngjedi: as you were
+[2012-01-11 16:15:00 -0500] Dink: Where/how in chef can I do something like  puppets "require => [File[$fileA_tmp], Exec['check_fileA']]," ?
+[2012-01-11 16:35:00 -0500] lflux: If my resource defines arguments like def template(arg='DEFAULT'), shouldn't that be overrided in my recipe when I say 'template "baseddl"' ?
+[2012-01-11 16:35:00 -0500] lflux: because apparently it isn't from what I can see
+[2012-01-11 16:36:00 -0500] mattray: Dink: I don't know Puppet, but is that a conditional? http://wiki.opscode.com/display/chef/Resources#Resources-ConditionalExecution
+[2012-01-11 16:36:00 -0500] mattray: like if the file exists, execute?
+[2012-01-11 16:36:00 -0500] mattray: there are also notifications and subscriptions http://wiki.opscode.com/display/chef/Resources#Resources-Notifications
+[2012-01-11 16:37:00 -0500] nacer: how to have this : node.run_list_extends.include?("recipe:ufw")
+[2012-01-11 16:37:00 -0500] nacer: ?
+[2012-01-11 16:47:00 -0500] Dink: mattray: thanks that might work
+[2012-01-11 16:51:00 -0500] laurent\: nacer: node.expand!.recipes.include? "ufw" ?
+[2012-01-11 16:52:00 -0500] nacer: laurent\: i try that
+[2012-01-11 16:59:00 -0500] nacer: laurent\: seem fine
+[2012-01-11 17:00:00 -0500] Dink: Is there a way to test "syntax" issues within a cookbook ?
+[2012-01-11 17:01:00 -0500] thom: Dink: in general you don't need to do the explicit requires that puppet needs; just place your resources in the order you wish them to be executed
+[2012-01-11 17:03:00 -0500] nacer: laurent\: this work too :  node.recipes.include?("ufw")
+[2012-01-11 17:09:00 -0500] jtimberman: Dink: when uploading the cookbook to a chef server, knife does that automatically
+[2012-01-11 17:09:00 -0500] jtimberman: Dink: you can do 'knife cookbook test COOKBOOK' though
+[2012-01-11 17:11:00 -0500] mattray: Dink: take a look at foodcritic for syntax stuff
+[2012-01-11 17:11:00 -0500] mattray: http://acrmp.github.com/foodcritic/
+[2012-01-11 17:17:00 -0500] Dink: Thanks all for the pointers/tips. Its a steep learning curve especially when you don't know ruby. Might try to just hack bryanwb's sudo cookbook to just do a full replace but still do the checks vs trying to convert our current puppet into chef.
+[2012-01-11 17:18:00 -0500] Dink: It will be a while before we start using attributes/variables within our sudoers file.
+[2012-01-11 17:22:00 -0500] jtimberman: Dink: have a look at http://community.opscode.com/cookbooks for starters. Loads of cookbooks there for solving a variety of problems.
+[2012-01-11 17:25:00 -0500] Dink: jtimberman: Thanks. Yeah I looked there for "sudo".  Wanted to incorporate a visudo check prior to replacing the file and not to use attributes but a full file replacement.
+[2012-01-11 17:28:00 -0500] jtimberman: Dink: well, a full file replacement sudo cookbook is really simple )
+[2012-01-11 17:28:00 -0500] jtimberman: package "sudo"
+[2012-01-11 17:29:00 -0500] jtimberman: cookbook_file "/etc/sudoers" do
+[2012-01-11 17:29:00 -0500] jtimberman:   source "sudoers"
+[2012-01-11 17:29:00 -0500] jtimberman: end
+[2012-01-11 17:29:00 -0500] jtimberman: :)
+[2012-01-11 17:29:00 -0500] jtimberman: (of course there should be a 'mode' in there to set permissions)
+[2012-01-11 17:30:00 -0500] jtimberman: making sure the content is correct does complicate it quite a bit.
+[2012-01-11 17:30:00 -0500] yfeldblum: `mode 0777`
+[2012-01-11 17:30:00 -0500] yfeldblum: is key
+[2012-01-11 17:30:00 -0500] yfeldblum: `mode 0400` is too much security
+[2012-01-11 17:30:00 -0500] jtimberman: yfeldblum: :P
+[2012-01-11 17:30:00 -0500] Dink: jtimberman: that is where I was thinking of using something like 'only_if  "visudo -c -f #template"' or something
+[2012-01-11 17:31:00 -0500] Dink: but wasn't sure how to check the template vs the actual file on the server
+[2012-01-11 17:31:00 -0500] russss: coincidentally I just pushed out a broken sudoers file using chef :/
+[2012-01-11 17:31:00 -0500] russss: thankfully only in my DR testing environment
+[2012-01-11 17:32:00 -0500] Dink: template being the full file
+[2012-01-11 17:33:00 -0500] russss: Dink: not sure. You might have to write the file out somewhere else, which would be ugly
+[2012-01-11 17:34:00 -0500] Dink: russss: that is what I did when we used puppet. Wrote it out to /etc/sudoers.tmp made sure perms were same as /etc/sudoers and tested it against that
+[2012-01-11 17:34:00 -0500] Dink: was hoping to do the same or something similar within chef
+[2012-01-11 17:34:00 -0500] russss: you might be able to get hold of the rendered template contents somehow but I don't know off hand
+[2012-01-11 17:35:00 -0500] Dink: Basically have two "file" stanzas one for tmp other for regular and it would only move onto regular after visudo and diff was successful
+[2012-01-11 17:36:00 -0500] Dink: so it wrote out sudoers.tmp with correct perms or what not, then ran visudo and diff against /etc/sudoers and if succeeded it would then write out to /etc/sudoers and one last visudo check to make sure
+[2012-01-11 17:45:00 -0500] Dink: http://tinypaste.com/ae30a3fa
+[2012-01-11 17:53:00 -0500] gmcinnes: hey chefs. Is there a way to get insight into script resources that fail? ie, is there a way to see what the rendered script looked like?
+[2012-01-11 17:56:00 -0500] gmcinnes: duh. wait. it already does this. sorry.
+[2012-01-11 18:05:00 -0500] Dink: http://tinypaste.com/923ee04f  <--- would that work ?
+[2012-01-11 18:07:00 -0500] yfeldblum: gmcinnes, i would recommend writing your scripts correctly on the first try every time
+[2012-01-11 18:08:00 -0500] Dink: hmm just noticed that if visudo fails it would still run correct ?
+[2012-01-11 18:17:00 -0500] epsas: b/win 8
+[2012-01-11 18:21:00 -0500] jschneiderhan: Has anyone seen this before or know of a solution?  It looks like Ubuntu (11.04) renames /dev/sdi to /dev/xvdi - http://pastebin.com/AtPwZYhv .  /dev/xvdi is not a valid device in the ec2 api, so setting [mysql][ebs_vol_dev] directly to /dev/xvdi doesn't work.
+[2012-01-11 18:57:00 -0500] jdeamattson: Are folks seeing the following error when attempting to install cookbooks from the site?
+[2012-01-11 18:57:00 -0500] jdeamattson: ERROR: Errno::ENOENT: No such file or directory - /Users/jdeamattson/repos/chef-repo/.chef/../cookbooks/runit.tar.gz
+[2012-01-11 18:57:00 -0500] jdeamattson: Is this a local issue or a server side issue?
+[2012-01-11 19:09:00 -0500] jdeamattson: Are people encountering issues with installing cookbooks from the site? Are they seeing the issue that I outlined above?
+[2012-01-11 19:16:00 -0500] rays: in the opscode status page I'm seeing "Could not list status. (Error 30001)" but knife client list shows everything
+[2012-01-11 19:16:00 -0500] rays: any idea whats up?
+[2012-01-11 19:17:00 -0500] jdeamattson: Anyone from Opscode on the channel?
+[2012-01-11 19:17:00 -0500] rays: *node list, not client list
+[2012-01-11 19:27:00 -0500] jdeamattson: What is the easies way to get Amazon stock AMI's (platform amazon) to be recognized as CentOS (which they are under the covers)?
+[2012-01-11 19:28:00 -0500] failshell: hello. im writing a custom ohai plugin, what do i need to require to have access to node[:foo] ?
+[2012-01-11 19:29:00 -0500] laurent\: why do you want to have access to it ?
+[2012-01-11 19:29:00 -0500] failshell: to do a case
+[2012-01-11 19:29:00 -0500] laurent\: i guess it's not supposed to happen
+[2012-01-11 19:30:00 -0500] failshell: depending on platform, trigger something
+[2012-01-11 19:30:00 -0500] failshell: basically, either list RPMs or DEBs
+[2012-01-11 19:31:00 -0500] jdeamattson: Is something wrong with the Opscode API servers and others.
+[2012-01-11 19:31:00 -0500] jdeamattson: ERROR: Server returned error for https://api.opscode.com/organizations/numentaoperations/sandboxes/499ef04b50c94dea940c6232e00f1745, retrying 1/5 in 4s
+[2012-01-11 19:31:00 -0500] laurent\: failshell: oh ok
+[2012-01-11 19:32:00 -0500] laurent\: failshell: so want you to access the results from previously run ohai plugins ?
+[2012-01-11 19:32:00 -0500] failshell: laurent\: yes
+[2012-01-11 19:32:00 -0500] failshell: i could always check for the presence of /etc/redhat-release or /etc/debian-something
+[2012-01-11 19:32:00 -0500] laurent\: i guess  a lot ohai plugins already do that
+[2012-01-11 19:33:00 -0500] failshell: the ohai docs is sparse :(
+[2012-01-11 19:33:00 -0500] laurent\: ohai sources ! :)
+[2012-01-11 19:36:00 -0500] arthur_kalm: Hi everyone, we're trying to use a remote_directory to upload a secret key to our nagios server, but it looks like it's not being uploaded. The files are in the files/default directory and we have a remote_directory call to move it to a specific place. Is there a way to debug this?
+[2012-01-11 19:41:00 -0500] jdeamattson: Is anyone from opscode in the room?
+[2012-01-11 19:43:00 -0500] mattray: jdeamattson: what's up?
+[2012-01-11 19:43:00 -0500] jdeamattson: Please see the Support Discussion I just opened.
+[2012-01-11 19:43:00 -0500] mattray: arthur_kalm: you can use "chef-client -l debug"
+[2012-01-11 19:44:00 -0500] jdeamattson: But I am getting weird results when attempt to 1) install cookbooks from the site and 2) when uploading cookbooks to hosted-chef.
+[2012-01-11 19:44:00 -0500] jdeamattson: We my comments earlier in the thread...
+[2012-01-11 19:45:00 -0500] mattray: jdeamattson: I pinged support for you, perhaps ssd7 or jessicab know more
+[2012-01-11 19:47:00 -0500] jdeamattson: Thank you....
+[2012-01-11 19:47:00 -0500] jessicab: jdeamattson: im grabbing your ticket btw, ill respond in it though since i need some infos from you.. probably easier to send in there
+[2012-01-11 19:49:00 -0500] jdeamattson: jessicab - not a problem.
+[2012-01-11 19:51:00 -0500] arthur_kalm: mattray thanks
+[2012-01-11 19:52:00 -0500] arthur_kalm: I'm looking at the output and I don't see where it's downloading the files
+[2012-01-11 19:53:00 -0500] arthur_kalm: But they are in the cookbook when you 'knife cookbook show nagios 1.0.4'
+[2012-01-11 19:59:00 -0500] arthur_kalm: So it really seems like the file are there, and they are on the file system of the chef repo
+[2012-01-11 20:06:00 -0500] lflux: ohai
+[2012-01-11 20:07:00 -0500] lflux: in https://github.com/opscode/cookbooks/blob/master/database/libraries/resource_database.rb , is it supposed to read arg='DEFAULT' ?
+[2012-01-11 20:07:00 -0500] lflux: since it isn't picking up my arguments in my recipes when I try to say use a different template
+[2012-01-11 20:07:00 -0500] lflux: since everything else seems to use arg=nil
+[2012-01-11 20:10:00 -0500] chip-: Anybody else seen Cipher is not a module errors when bootstrapping RHEL5? /usr/lib/ruby/1.8/openssl/cipher.rb:22
+[2012-01-11 20:13:00 -0500] arthur_kalm: This probably needs more context, I'll post on the mailing list
+[2012-01-11 20:13:00 -0500] jdeamattson: jessicab: Responded to the thread with more data. We are partially resolved. Have another thread opened on which I would like your opinion.
+[2012-01-11 20:14:00 -0500] arthur_kalm: Ch ** ewdafa has joined #chef
+[2012-01-11 20:14:00 -0500] arthur_kalm: sorry
+[2012-01-11 20:14:00 -0500] arthur_kalm: chip- i ran into that yesterday
+[2012-01-11 20:15:00 -0500] arthur_kalm: chip- 64 bit system?
+[2012-01-11 20:15:00 -0500] chip-: arthur_kalm: yeah.
+[2012-01-11 20:15:00 -0500] chip-: arthur_kalm: find a workaround?
+[2012-01-11 20:16:00 -0500] arthur_kalm: Yeah
+[2012-01-11 20:16:00 -0500] arthur_kalm: chip- http://blas.phemo.us/2010/12/13/cipher-is-not-a-module-error-from-ruby-on-centos-64
+[2012-01-11 20:17:00 -0500] chip-: awesome, thank you.
+[2012-01-11 20:17:00 -0500] arthur_kalm: You want the thing right at the bottom, exclude i386
+[2012-01-11 20:17:00 -0500] arthur_kalm: You're bootstrapping the system right?
+[2012-01-11 20:17:00 -0500] chip-: right
+[2012-01-11 20:17:00 -0500] arthur_kalm: Yep, same thing :)
+[2012-01-11 20:18:00 -0500] arthur_kalm: np, glad to help
+[2012-01-11 20:19:00 -0500] chip-: wish this customer had Canonical on the approved vendor list
+[2012-01-11 20:22:00 -0500] arthur_kalm: chip- it really seems like Ubuntu server has taken off like a rocket
+[2012-01-11 20:22:00 -0500] chip-: arthur_kalm: I prefer to spend time there if I get to make the choice.
+[2012-01-11 20:22:00 -0500] arthur_kalm: I haven't been in space for a while
+[2012-01-11 20:22:00 -0500] arthur_kalm: Yeah, I do too
+[2012-01-11 20:23:00 -0500] arthur_kalm: Was never fond of RHEL, everything is in the "wrong" place ;)
+[2012-01-11 20:25:00 -0500] chip-: Ah, bootstrap is rolling along. Thanks for the fix, that was maddening.
+[2012-01-11 20:26:00 -0500] arthur_kalm: chip- great to hear, happy cooking
+[2012-01-11 20:40:00 -0500] miah: hullo
+[2012-01-11 20:52:00 -0500] dyer: argh, I guess ohai doesnt know anything about VPC's
+[2012-01-11 20:54:00 -0500] Damm: sounds like it just needs to detect vpc / and or ec2
+[2012-01-11 20:54:00 -0500] Damm: and report intelligently
+[2012-01-11 20:54:00 -0500] Damm: specially knowing as vpc is free; so most kids on ec2 are gonna go... ooh daddy can I play with the candy?
+[2012-01-11 20:55:00 -0500] fujin: no one uses vpc I guess <3
+[2012-01-11 20:56:00 -0500] Damm: I doubt that
+[2012-01-11 20:56:00 -0500] Damm: we see at least 5 - 10 customers wanting vpc a week
+[2012-01-11 20:56:00 -0500] fujin: probably all noobs
+[2012-01-11 20:56:00 -0500] fujin: Enterprise
+[2012-01-11 20:56:00 -0500] Damm: right and if the noobs want it.. Enterprise is next
+[2012-01-11 20:56:00 -0500] yatesy: most will be windows probably
+[2012-01-11 20:56:00 -0500] fujin: word to that
+[2012-01-11 20:56:00 -0500] Damm: all it takes is a noob to get a job in a enterprise gig
+[2012-01-11 20:56:00 -0500] Damm: spread that noob-ness
+[2012-01-11 20:57:00 -0500] Damm: presto!
+[2012-01-11 20:57:00 -0500] fujin: what I was getting at is that it hadn't spread here. I have seen little requests for VPC detection in ohai/chef support ever since it was announced
+[2012-01-11 20:57:00 -0500] fujin: in fact, this may be the first such case
+[2012-01-11 20:57:00 -0500] Damm: there's a support case about it, a ticket about it
+[2012-01-11 20:57:00 -0500] fujin: OH
+[2012-01-11 20:57:00 -0500] Damm: at least 3 people
+[2012-01-11 20:57:00 -0500] fujin: there are loads of tickets
+[2012-01-11 20:58:00 -0500] Damm: and according to one of my managers
+[2012-01-11 20:58:00 -0500] fujin: http://tickets.opscode.com/browse/OHAI-310
+[2012-01-11 20:58:00 -0500] Damm: if there's 3 people that want it, theres' 4500 others that don't
+[2012-01-11 20:58:00 -0500] fujin: this would be a killer :\
+[2012-01-11 20:58:00 -0500] Damm: welcome to 5 minutes ago
+[2012-01-11 20:59:00 -0500] fujin: o_0?
+[2012-01-11 20:59:00 -0500] fujin: welcome to my foot in your ass!
+[2012-01-11 20:59:00 -0500] Damm: fujin, pull the tampon out of your vagina bud.
+[2012-01-11 20:59:00 -0500] yfeldblum: or ... if there are 3 people that told you they want it, there are 4500 others that want that haven't told you
+[2012-01-11 21:00:00 -0500] Damm: yfeldblum, right... he's quirky so he plays it up
+[2012-01-11 21:00:00 -0500] fujin: simmer down man
+[2012-01-11 21:01:00 -0500] fujin: maybe one of you guys who needs that code can pony up and write something
+[2012-01-11 21:01:00 -0500] fujin: lolol
+[2012-01-11 21:01:00 -0500] fujin: like the mailing post list guy today
+[2012-01-11 21:01:00 -0500] fujin: "i opened this ticket 7 months ago and still no one did my job for me"
+[2012-01-11 21:01:00 -0500] fujin: you = community
+[2012-01-11 21:03:00 -0500] tornd: hm
+[2012-01-11 21:03:00 -0500] Damm: fujin, http://www.albion.com/netiquette/
+[2012-01-11 21:03:00 -0500] Damm: http://www.albion.com/netiquette/rule4.html
+[2012-01-11 21:03:00 -0500] tornd: I'm using the chef gem in a Rails 3.1.3 project here to use the REST API, and I'm getting the error "uninitialized constant Chef::Provider::Package::Apt (NameError)" when the railsapp is initializing
+[2012-01-11 21:04:00 -0500] tornd: anything brutally obvious I've missed?
+[2012-01-11 21:04:00 -0500] fujin: tornd: show code
+[2012-01-11 21:04:00 -0500] tornd: there's not really any code, thats just from including the chef gem in my Gemfile
+[2012-01-11 21:04:00 -0500] tornd: I can test in a new project and see if it happens there
+[2012-01-11 21:05:00 -0500] fujin: o_0
+[2012-01-11 21:05:00 -0500] tornd: sec
+[2012-01-11 21:05:00 -0500] fujin: where's the stack trace come from?
+[2012-01-11 21:05:00 -0500] fujin: try require 'chef/provider/package/apt' ? i dunno :)
+[2012-01-11 21:05:00 -0500] fujin: there are other options for talking to the rest API from a rails app, like the spice gem, a little more lightweight than using all of chef/rest
+[2012-01-11 21:05:00 -0500] fujin: spice?
+[2012-01-11 21:05:00 -0500] bawt: spice is https://github.com/danryan/spice/
+[2012-01-11 21:05:00 -0500] tornd: oh
+[2012-01-11 21:06:00 -0500] tornd: was actually looking for something more lightweight but the wiki recommended using the built in stuff so I didn't think more of it
+[2012-01-11 21:06:00 -0500] tornd: thanks
+[2012-01-11 21:06:00 -0500] tornd: i'll test the other stuff anyhow
+[2012-01-11 21:06:00 -0500] fujin: I have used the built in stuff before, definitely, for a lot of stuff
+[2012-01-11 21:06:00 -0500] fujin: but it would b e weird for something in the Gemfile to be requiring the apt package class causing a NameError like that
+[2012-01-11 21:06:00 -0500] jschneiderhan: hi all - i'm a total noob whose trying to figure out how to work with multiple environments with chef and I'm getting a bit confused.  I'm using a hosted chef account with multiple environments (development, staging, production)
+[2012-01-11 21:06:00 -0500] tornd: yeah, never integrated against the api before, just need to do some client management from another app here so I thought it would be perfect to take it for a spin
+[2012-01-11 21:06:00 -0500] jschneiderhan: the place that is confusing to me is how to push changes in an isolated way.  I can see how versioning of cookbooks works, but what about other objects like roles and data bags.  how would one push a change to a role and only have it apply to nodes in the development environment.  I
+[2012-01-11 21:07:00 -0500] fujin: jschneiderhan: roles can have environmental run lists. I use that
+[2012-01-11 21:07:00 -0500] fujin: databags however are environment-wide
+[2012-01-11 21:07:00 -0500] fujin: I also restrict chef search results optionally to be enviornment-constrained, or not
+[2012-01-11 21:07:00 -0500] jschneiderhan: thanks fujin
+[2012-01-11 21:07:00 -0500] fujin: jschneiderhan: if you are really concerned / new, it may be easier to use multiple organisations
+[2012-01-11 21:07:00 -0500] mattray: jschneiderhan: within the environment you can set the versions of your cookbooks
+[2012-01-11 21:07:00 -0500] fujin: but env_run_list has been fine
+[2012-01-11 21:08:00 -0500] fujin: I have like a base role that has a common run list and then the other environments duplicate and append some items to the common run list
+[2012-01-11 21:08:00 -0500] fujin: has been quite handy for incremental changes throuhg develop/staging/production
+[2012-01-11 21:08:00 -0500] bemu: chip-, arthur_kalm: Are you guys using the aegisco repo for Ruby packages?
+[2012-01-11 21:08:00 -0500] tornd: fujin: https://gist.github.com/1596772
+[2012-01-11 21:08:00 -0500] tornd: fujin: thats a totally blank project with the only change from a pristine project being "gem 'chef'" in Gemfile
+[2012-01-11 21:08:00 -0500] jschneiderhan: so would part of the release process be updating the environment run list, for example updating the production run list in each role after testing in staging?
+[2012-01-11 21:09:00 -0500] chip-: bemu: it's in the centos5-gems bootstrap, so yes.
+[2012-01-11 21:09:00 -0500] fujin: tornd: loooks like a bug in the dpkg package provider https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/package/dpkg.rb#L27
+[2012-01-11 21:09:00 -0500] jschneiderhan: fujin - i hadn't thought of the organization tactic, i'll look into that
+[2012-01-11 21:09:00 -0500] fujin: tornd: uses that class name (NameError) without a require for the Apt class.
+[2012-01-11 21:10:00 -0500] tornd: fujin: anything I should report or?
+[2012-01-11 21:10:00 -0500] fujin: I don't see why not!
+[2012-01-11 21:10:00 -0500] yfeldblum: jschneiderhan, i currently use multiple chef-servers for all that
+[2012-01-11 21:10:00 -0500] tornd: hehe
+[2012-01-11 21:10:00 -0500] fujin: jschneiderhan: I have used multiple chef servers for that in the past - was crucial when training new sysadmins
+[2012-01-11 21:10:00 -0500] bemu: chip-: It was preventing a successful bootstrap? Or cropping up after the fact?
+[2012-01-11 21:11:00 -0500] jschneiderhan: i'm thinking the multiple chef servers may be a good idea, at least at first
+[2012-01-11 21:11:00 -0500] jschneiderhan: thank you all for the pointers
+[2012-01-11 21:12:00 -0500] bemu: jschneiderhan: That's what I did before environments, and would do again if I was super concerned about separating services (ie, had sysadmins who needed training, as fujin noted)
+[2012-01-11 21:12:00 -0500] mattray: jschneiderhan: bemu: you can also use multiple organizations for the same effect with Hosted/Private Chef
+[2012-01-11 21:12:00 -0500] yfeldblum: e.g. you can set up a couple oss-chef-server on single servers for various envs like qa, test, etc; and for when you need your chef-server to be HA in a prod env you can use opscode hosted-chef for prod
+[2012-01-11 21:12:00 -0500] bemu: Was just thinking that :)
+[2012-01-11 21:12:00 -0500] fujin: I think at one stage before Environments existed Sonian had in the realm of 15 organizations
+[2012-01-11 21:13:00 -0500] fujin: like a "blue" and "green" version of each organization for A/B testing changes
+[2012-01-11 21:13:00 -0500] mattray: jschneiderhan: Organizations share nothing except users
+[2012-01-11 21:13:00 -0500] jschneiderhan: i'm using hosted chef - so i'm definitely going to take a look at the organization approach
+[2012-01-11 21:13:00 -0500] yfeldblum: i sense an oncoming War of the Sheds
+[2012-01-11 21:14:00 -0500] jschneiderhan: sounds like what i'm looking for
+[2012-01-11 21:14:00 -0500] bemu: chip-: I haven't seen that before, so if you can provide some more info, we might be able to find a better resolution. Your call, I don't use CentOS.
+[2012-01-11 21:15:00 -0500] tornd: fujin: heh, check this out
+[2012-01-11 21:15:00 -0500] tornd: % bundle show chef
+[2012-01-11 21:15:00 -0500] tornd: /Users/trond/.rvm/gems/ruby-1.9.2-p290@temp-chef-test/gems/chef-0.8.10
+[2012-01-11 21:15:00 -0500] tornd: bleeding edge
+[2012-01-11 21:15:00 -0500] fujin: ah shit
+[2012-01-11 21:16:00 -0500] fujin: that will do it man! lolol
+[2012-01-11 21:16:00 -0500] tornd: wonder why it doesnt pull down 0.10.8 when I don't specify a version
+[2012-01-11 21:16:00 -0500] tornd: same numbers, just in different order, heh
+[2012-01-11 21:16:00 -0500] tornd: 0.10.8 -> 0.8.10
+[2012-01-11 21:17:00 -0500] fujin: TIGHT WHIP BLUE TIPS CHEST FULL OF TEFLON
+[2012-01-11 21:17:00 -0500] tornd: ah
+[2012-01-11 21:18:00 -0500] tornd: chef 0.10.8 depends on json <= 1.6.1, >= 1.4.4
+[2012-01-11 21:18:00 -0500] tornd: but rails 3.1.3 brings json 1.6.4
+[2012-01-11 21:18:00 -0500] tornd: chef 0.8.10 doesnt depend on any specific json version
+[2012-01-11 21:18:00 -0500] tornd: so guess thats the cause
+[2012-01-11 21:19:00 -0500] fujin: ah gnarly
+[2012-01-11 21:19:00 -0500] tornd: yeah
+[2012-01-11 21:19:00 -0500] fujin: i hate json gem
+[2012-01-11 21:19:00 -0500] tornd: hehe
+[2012-01-11 21:19:00 -0500] tornd: I'll just use spice, only need some super simple stuff here anyway so
+[2012-01-11 21:22:00 -0500] bemu: tornd: I liked spice.
+[2012-01-11 21:22:00 -0500] arthur_kalm: bemu it wasn't the repo
+[2012-01-11 21:23:00 -0500] bemu: arthur_kalm: But did it break bootstrapping? If so, what AMIs or whatever are you using?
+[2012-01-11 21:23:00 -0500] bemu: Because I haven't seen that / had it reported.
+[2012-01-11 21:23:00 -0500] arthur_kalm: It's an issue bootstrapping a 64 bit CentOS/RHEL
+[2012-01-11 21:23:00 -0500] bemu: Does it break the bootstrap though?
+[2012-01-11 21:23:00 -0500] arthur_kalm: This is just a base install
+[2012-01-11 21:23:00 -0500] bemu: Or does it crop up after the fact?
+[2012-01-11 21:23:00 -0500] arthur_kalm: Yeah
+[2012-01-11 21:24:00 -0500] arthur_kalm: No, during bootstrap
+[2012-01-11 21:24:00 -0500] bemu: Interesting.
+[2012-01-11 21:24:00 -0500] bemu: What's the source of the install?
+[2012-01-11 21:24:00 -0500] arthur_kalm: Did you see what the resolution was?
+[2012-01-11 21:24:00 -0500] bemu: yah.
+[2012-01-11 21:24:00 -0500] arthur_kalm: What do you mean by the source?
+[2012-01-11 21:25:00 -0500] arthur_kalm: It's that repo that gets added for ruby
+[2012-01-11 21:25:00 -0500] bemu: There are other related problems with multilib as well, that solution would also solve the other problem -- but I simply removed the i386 packages from the x86_64 repo and that also does the trick.
+[2012-01-11 21:25:00 -0500] bemu: of the CentOS box.
+[2012-01-11 21:25:00 -0500] bemu: or RHEL.
+[2012-01-11 21:25:00 -0500] bemu: Are you installing from 'official' ISOs?
+[2012-01-11 21:25:00 -0500] bemu: Or?
+[2012-01-11 21:25:00 -0500] bawt: Or is it supposed to, anyway? My service isn't starting from my recipe, but it says it's sending the start action (and the service isn't erroring out)
+[2012-01-11 21:25:00 -0500] thehar: Who's around from opscode?
+[2012-01-11 21:26:00 -0500] thehar: In taking the path of creating separate repositories, in git, for cookbooks... How will databags live?
+[2012-01-11 21:26:00 -0500] bemu: You guys need to get this opscode conversation out of #chef. Go make a #opscode channel or something!
+[2012-01-11 21:26:00 -0500] thehar: oooh fancy
+[2012-01-11 21:26:00 -0500] bemu: (joking)
+[2012-01-11 21:26:00 -0500] thehar: lol
+[2012-01-11 21:27:00 -0500] arthur_kalm: Yeah, that's what did the trick as well
+[2012-01-11 21:27:00 -0500] thehar: ohajim
+[2012-01-11 21:27:00 -0500] thehar: jtimberman: you around?
+[2012-01-11 21:27:00 -0500] bemu: arthur_kalm: Can you tell me what you're bootstrapping though?
+[2012-01-11 21:28:00 -0500] arthur_kalm: thehar i just import them from the json file
+[2012-01-11 21:28:00 -0500] arthur_kalm: A CentOS box
+[2012-01-11 21:28:00 -0500] bemu: thehar: Same here. Except for the encrypted ones.
+[2012-01-11 21:28:00 -0500] bemu: arthur_kalm: Specifics, sir.
+[2012-01-11 21:28:00 -0500] thehar: i mean in terms of the git repository
+[2012-01-11 21:28:00 -0500] thehar: since repos are becoming submodules of a major repo
+[2012-01-11 21:28:00 -0500] arthur_kalm: bemu sorry for the slowness, im on my phone ...
+[2012-01-11 21:28:00 -0500] thehar: how will data bags live? under their own 'major repo'?
+[2012-01-11 21:28:00 -0500] bemu: arthur_kalm: How/where did you create the CentOS box?
+[2012-01-11 21:28:00 -0500] bemu: oh, no worries.
+[2012-01-11 21:29:00 -0500] thehar: i'm curious because we are adopting the separate repo stuff here at Lookout and I'd like to match close to the community
+[2012-01-11 21:29:00 -0500] thehar: or 'standard'
+[2012-01-11 21:29:00 -0500] bemu: I just have an incredibly difficult time getting info from CentOS users, for some reason. They help out until their problem is solved, and then fly away.
+[2012-01-11 21:29:00 -0500] arthur_kalm: bemu it's a CentOS box from the official ISO
+[2012-01-11 21:30:00 -0500] bemu: arthur_kalm: I think this may be new then. If you can provide me the specific ISO, I'll try to investigate further. It sounds like maybe they changed a repo.
+[2012-01-11 21:30:00 -0500] youngjedi: doorbell on 29
+[2012-01-11 21:30:00 -0500] thehar: jsut the person i was hoping to find
+[2012-01-11 21:31:00 -0500] arthur_kalm: bemu np, im actually an Ubuntu user, but gotta make sure it works on CentOS before rolling out to the corporate RHEL
+[2012-01-11 21:31:00 -0500] arthur_kalm: bemu do you want me to file a JIRA for this?
+[2012-01-11 21:31:00 -0500] bemu: arthur_kalm: Word. Happy to help, just get me more infos when you can. :)
+[2012-01-11 21:31:00 -0500] arthur_kalm: thehar lol
+[2012-01-11 21:31:00 -0500] thehar: teehee
+[2012-01-11 21:31:00 -0500] arthur_kalm: bemu would a JIRA be OK?
+[2012-01-11 21:32:00 -0500] bemu: arthur_kalm: Wouldn't hurt. Just provide the specific ISO, and the source of the i386 packages if you can.
+[2012-01-11 21:32:00 -0500] arthur_kalm: Ill have to dig through log files
+[2012-01-11 21:32:00 -0500] bemu: arthur_kalm: Also, keep in mind that a lot of the issues we see on CentOS/RHEL are related to yum repos, so testing on CentOS is not a great way of assuring success on RHEL.
+[2012-01-11 21:33:00 -0500] bemu: arthur_kalm: The former is more important than the latter, because I should be able to reproduce.
+[2012-01-11 21:33:00 -0500] arthur_kalm: I don't remember which ISO though, it's at 5.7
+[2012-01-11 21:33:00 -0500] bemu: Okay, that makes sense, I have only tested on 5.5 and 5.6
+[2012-01-11 21:33:00 -0500] arthur_kalm: K
+[2012-01-11 21:33:00 -0500] arthur_kalm: I will be testing on RHEL as well
+[2012-01-11 21:33:00 -0500] arthur_kalm: Maybe in a week or two
+[2012-01-11 21:33:00 -0500] bemu: It'll be a few days before I can test, at least. If you happen to know how to create an AMI, that would help.
+[2012-01-11 21:34:00 -0500] bemu: Or if you can point me to a cloud provider with 5.7 images.
+[2012-01-11 21:34:00 -0500] arthur_kalm: bemu sorry, this is all local with VMware
+[2012-01-11 21:34:00 -0500] bemu: kk, no prob. Thanks!
+[2012-01-11 21:35:00 -0500] arthur_kalm: But you should be able to upgrade to 5.7..
+[2012-01-11 21:35:00 -0500] bemu: Yeah, but no guarantee I'll get the same yum repos.
+[2012-01-11 21:35:00 -0500] arthur_kalm: Anyway ill try to put up a JIRA with more info this week
+[2012-01-11 21:36:00 -0500] bemu: Sounds great. Thanks.
+[2012-01-11 21:36:00 -0500] arthur_kalm: Well, i think its the yum repo that gets added by knife bootstrap
+[2012-01-11 21:36:00 -0500] bemu: Not mine (aegisco), I don't have old ruby versions kicking around.
+[2012-01-11 21:37:00 -0500] jtgiri_: Hello- I wanted to know if there is a way to pass command line arguments from knife and use it in recipe , for example,  knife bootstrap 127.0.0.1  --distro  centos --run-list "role[base]" DEv1 , that way if I want to build server for dev1 I can use issue it from command line , is that doable ?
+[2012-01-11 21:37:00 -0500] bemu: I wonder also if removing the offending packages before installing would help.
+[2012-01-11 21:37:00 -0500] bemu: we already remove ruby and ruby-lib, iirc.
+[2012-01-11 21:38:00 -0500] arthur_kalm: bemu it adds the aegisco one yeah. It's not an issue with older ruby versions i think
+[2012-01-11 21:38:00 -0500] arthur_kalm: bemu good question
+[2012-01-11 21:38:00 -0500] bemu: Because I think it won't try to install i386 versions if it doesn't have a reason to (ie, upgrading an older version)
+[2012-01-11 21:38:00 -0500] bemu: That's why those remove lines are in the bootstrap, iirc.
+[2012-01-11 21:39:00 -0500] arthur_kalm: Aha
+[2012-01-11 21:39:00 -0500] arthur_kalm: Well i might have another bare instance lying around, i can try bootstrapping that
+[2012-01-11 21:40:00 -0500] bemu: Okay, do you know how to modify the bootstrap file?
+[2012-01-11 21:40:00 -0500] bemu: Or you could just remove the ruby-related packages by hand before bootstrap.
+[2012-01-11 21:40:00 -0500] arthur_kalm: I'll try both
+[2012-01-11 21:41:00 -0500] bemu: They will do the same thing, either/or.
+[2012-01-11 21:44:00 -0500] bemu: How is everyone using logstash, btw?
+[2012-01-11 21:45:00 -0500] bemu: Working on setting up logstash -> rabbitmq cluster -> elasticsearch cluster currently.
+[2012-01-11 21:46:00 -0500] bemu: avashai's suggestion of using 0mq over rabbitmq has me wondering if that's a better approach.
+[2012-01-11 21:58:00 -0500] gmcinnes: Is there any work on a config for knife bootstrap for centos 6?
+[2012-01-11 22:06:00 -0500] bemu: gmcinnes: Yes, but I'm not sure I can link it to you off hand. It should be a slightly modified version of the centos5 one. I don't think you need the aegisco repo anymore because upstream has the ruby package.
+[2012-01-11 22:06:00 -0500] bemu: Everything else is probably the same.
+[2012-01-11 22:06:00 -0500] bemu: That being said, it will probably work just fine to use the centos5 one on centos6 if you don't want to modify it.
+[2012-01-11 22:06:00 -0500] bemu: I wouldn't suggest this however.
+[2012-01-11 22:07:00 -0500] gmcinnes: no, it doesn't.
+[2012-01-11 22:07:00 -0500] gmcinnes: fscking centos.
+[2012-01-11 22:07:00 -0500] bemu: What's the problem?
+[2012-01-11 22:07:00 -0500] bemu: If you gist me the centos5 bootstrap, I can suggest changes for centos6 and you can test them.
+[2012-01-11 22:08:00 -0500] gmcinnes: it looks like it doesn't properly install a ruby
+[2012-01-11 22:09:00 -0500] arthur_kalm: bemu i gotta run, I'll get back to you soon
+[2012-01-11 22:09:00 -0500] arthur_kalm: Take care
+[2012-01-11 22:09:00 -0500] bemu: arthur_kalm: Thanks.
+[2012-01-11 22:09:00 -0500] gmcinnes: bemu: do you want a gist of the whole install process?
+[2012-01-11 22:09:00 -0500] bemu: gmcinnes: Sure, and a list of ruby packages and their sources.
+[2012-01-11 22:09:00 -0500] bemu: ruby* packages.
+[2012-01-11 22:09:00 -0500] bemu: rather.
+[2012-01-11 22:10:00 -0500] gmcinnes: not sure what you mean.
+[2012-01-11 22:10:00 -0500] bemu: I need to know what ruby-related packages are installed on the system after the attempted bootstrap.
+[2012-01-11 22:10:00 -0500] bemu: and where they came from.
+[2012-01-11 22:10:00 -0500] bemu: and a copy of your bootstrap file please.
+[2012-01-11 22:10:00 -0500] gmcinnes: oh. none, I don't think. That's why it falls over :)
+[2012-01-11 22:10:00 -0500] gmcinnes: Where's the bootstrap file?
+[2012-01-11 22:11:00 -0500] bemu: I need data, not thoughts :)
+[2012-01-11 22:11:00 -0500] gmcinnes: bemu: ok.
+[2012-01-11 22:11:00 -0500] bemu: Well, depends on where you installed Chef. What version of the gem are you using? I can find that myself.
+[2012-01-11 22:11:00 -0500] bemu: Did you search the mailing list for a centos6 bootstrap?
+[2012-01-11 22:12:00 -0500] gmcinnes: https://gist.github.com/1597088
+[2012-01-11 22:12:00 -0500] gmcinnes: no, I didn't. I admit the bootstrap process is opaque to me.
+[2012-01-11 22:12:00 -0500] gmcinnes: but now I see some.
+[2012-01-11 22:13:00 -0500] bemu: On the mailing list? Cool. Try one of those please?
+[2012-01-11 22:13:00 -0500] gmcinnes: well, not the mailing list. but by googling. They're in github.
+[2012-01-11 22:13:00 -0500] bemu: oh, if they are different, link them and I can look over.
+[2012-01-11 22:14:00 -0500] bemu: Sorry, I'm a bit preoccupied.
+[2012-01-11 22:17:00 -0500] gmcinnes: bemu:  https://raw.github.com/stevendanna/knife-hacks/master/bootstraps/centos6-gems.erb  and https://raw.github.com/jarlebh/chef/010747cc44bf7f980353c1524633dee306022e56/chef/lib/chef/knife/bootstrap/centos6-gems.erb
+[2012-01-11 22:18:00 -0500] jhilton: please o please tell me the 20 instance limit error I'm getting is solvable
+[2012-01-11 22:18:00 -0500] jhilton: bit more context.. chef managing ec2 instances
+[2012-01-11 22:18:00 -0500] jhilton: any help would be greatly appreciated
+[2012-01-11 22:19:00 -0500] jhilton: Error I see when trying to launch a new ec2 instance with knife
+[2012-01-11 22:19:00 -0500] jhilton: ERROR: Fog::Service::Error: InstanceLimitExceeded => 20 instance(s) are already running.
+[2012-01-11 22:21:00 -0500] Aengus: jhilton: that is a aws limit, not a chef limitation.
+[2012-01-11 22:21:00 -0500] bemu: jhilton: Easily resolvable though.
+[2012-01-11 22:21:00 -0500] jhilton: ah ha
+[2012-01-11 22:21:00 -0500] jhilton: interesting
+[2012-01-11 22:21:00 -0500] bemu: Opscode is super forgiving about you running more nodes than you should be.
+[2012-01-11 22:21:00 -0500] jhilton: good to hear it's not in chef..
+[2012-01-11 22:21:00 -0500] yfeldblum: so that you don't accidentally start 10,000 instances and wonder why you're getting billed $10,000,000/yr
+[2012-01-11 22:22:00 -0500] jhilton: right.. I'm glad they try to protect me from myself
+[2012-01-11 22:22:00 -0500] jhilton: well that's promising.. I'll check some amazon stuff.. is it something I need to contact them about or is it a setting in a profile?
+[2012-01-11 22:24:00 -0500] bemu: gmcinnes: Those are almost identical. One installs rubygems from a package, one from source.
+[2012-01-11 22:24:00 -0500] bemu: and one uses curl, one uses wget.
+[2012-01-11 22:24:00 -0500] bemu: Take your pick. I'd probably install rubygems from source.
+[2012-01-11 22:24:00 -0500] gmcinnes: bemu: ok. I'm trying to hack ssd7's bootstrap into place, but I can't convince knife bootstrap to use that "distro"
+[2012-01-11 22:24:00 -0500] bemu: -d centos6-gems
+[2012-01-11 22:25:00 -0500] bemu: put it in ~/.chef/bootstrap
+[2012-01-11 22:25:00 -0500] bemu: If that doesn't work, paste/gist output please.
+[2012-01-11 22:26:00 -0500] jhilton: @bemu Thanks for the heads up
+[2012-01-11 22:31:00 -0500] jtimberman: jhopp: yeah, you need to contact amazon support to request more instances.
+[2012-01-11 22:32:00 -0500] jtimberman: er, instance capacity
+[2012-01-11 22:32:00 -0500] yfeldblum: jtimberman, jhilton is gone
+[2012-01-11 22:33:00 -0500] gmcinnes: hmm. Its looking for love in all the wrong places.  My .chef dir is not at ~, but inside my chef-repo
+[2012-01-11 22:33:00 -0500] yfeldblum: gmcinnes, knife looks in chef-repo/.chef/ first, and ~/.chef second
+[2012-01-11 22:35:00 -0500] stuartrexking: How would I search for all nodes of a certain role in a certain environment? knife search node "role:arole AND Environment:prod" does not work.
+[2012-01-11 22:36:00 -0500] jtimberman: yfeldblum: one of the downsides to a) not having joins/part messages in my irc client and b) using tab completion and not looking at who i typed at.
+[2012-01-11 22:36:00 -0500] laurent\: bemu: i've started playing with logstash and graylog2, "avashai's suggestion of using 0mq over rabbitmq" do you have any pointer on this ?
+[2012-01-11 22:37:00 -0500] gmcinnes: yfeldblum: It doesn't seem to be picking up bootstrap files in chef-repo/.chef/bootstrap though.  And not giving a detailed error: ERROR: TypeError: can't convert Array into String
+[2012-01-11 22:40:00 -0500] bemu: stuartrexking: I think it's chef_environment, check the haproxy cookbook.
+[2012-01-11 22:40:00 -0500] bemu: jtimberman: It's okay, it was for posterity's sake. The logs will look good :D
+[2012-01-11 22:41:00 -0500] bemu: laurent\: Negative, we're probably at about the same place.
+[2012-01-11 22:41:00 -0500] jtimberman: bemu: Yeah, you can tell how worried I am ;)
+[2012-01-11 22:41:00 -0500] bemu: laurent\: We're going to stick with rabbitmq for the time being, but if it becomes an issue will scope out 0mq
+[2012-01-11 22:42:00 -0500] jnh: Hey all. Any chance I can have commit access to opscode/cookbooks so I can subtree merge my rvm and passenger cookbooks?
+[2012-01-11 22:42:00 -0500] bemu: laurent\: Currently working on making the rabbitmq actually do the clustering stuff, because it looks like that was never really touched.
+[2012-01-11 22:43:00 -0500] bemu: laurent\: I also did the same for elasticsearch, but I don't even know we're going to use it afterall. Happy to share our changes though, if interested. Some of it's a bit hacky at this point.
+[2012-01-11 22:43:00 -0500] bemu: just because we're prototyping at current.
+[2012-01-11 22:43:00 -0500] jtimberman: contributing?
+[2012-01-11 22:43:00 -0500] bawt: contributing is http://wiki.opscode.com/display/chef/How+to+Contribute
+[2012-01-11 22:43:00 -0500] jnh: jtimberman: I'm already a contributor.
+[2012-01-11 22:43:00 -0500] jtimberman: jnh: thats not really how we handle contributions. the page above describes the process.
+[2012-01-11 22:44:00 -0500] jnh: jtimberman: okay. no problem. I've been through this before :)
+[2012-01-11 22:45:00 -0500] bemu: laurent\: I'm not really sure what elasticsearch gives us that greylog2 wouldn't
+[2012-01-11 22:45:00 -0500] jtimberman: Also, about the cookbooks repository: http://wiki.opscode.com/display/chef/Cookbook+Support
+[2012-01-11 22:46:00 -0500] gmcinnes: yfeldblum: n/m. Updated my local chef, and all seems good. I think I was on an out of date version.
+[2012-01-11 22:46:00 -0500] stuartrexking: :bemu Thanks
+[2012-01-11 22:52:00 -0500] yfeldblum: yes a rabbitmq cluster cookbook would be nice to have ...
+[2012-01-11 22:53:00 -0500] fujin: had one at Sonian, died in the fires of eternal never-to-be-open-sourced
+[2012-01-11 22:53:00 -0500] fujin: a search based one would be easy enough to hack together? :)
+[2012-01-11 22:54:00 -0500] yfeldblum: a good example is always easier to copy from and extend
+[2012-01-11 22:55:00 -0500] laurent\: bemu: especially now, the latest graylog2 uses elasticsearch to store and index messages
+[2012-01-11 22:59:00 -0500] bemu: fujin: Working on it currently.
+[2012-01-11 22:59:00 -0500] fujin: which, rabbit?
+[2012-01-11 22:59:00 -0500] bemu: yar
+[2012-01-11 22:59:00 -0500] fujin: hmm. I see
+[2012-01-11 22:59:00 -0500] fujin: Let me gift you something
+[2012-01-11 23:00:00 -0500] bemu: I read something about people using internal IPs in place of hostnames, though... is that viable?
+[2012-01-11 23:00:00 -0500] yfeldblum: bemu, want to make it all about the Rs and Ps ... i'd like to define multiple named rabbit servers on each node
+[2012-01-11 23:00:00 -0500] bemu: I'm currently just generating an /etc/hosts file with mappings.
+[2012-01-11 23:00:00 -0500] bemu: yfeldblum: ah.
+[2012-01-11 23:00:00 -0500] fujin: bemu: yes, of course. when I clustered rabbitmq, I didn't bother with /etc/hosts mapping or any of that rubbish.
+[2012-01-11 23:00:00 -0500] fujin: You have a perfectly working list of ipaddresses
+[2012-01-11 23:00:00 -0500] fujin: erlang is fine with rabbit@10.x.x.x
+[2012-01-11 23:00:00 -0500] bemu: word.
+[2012-01-11 23:00:00 -0500] bemu: Thanks.
+[2012-01-11 23:02:00 -0500] jtimberman: search!
+[2012-01-11 23:04:00 -0500] bemu: logstash is really f'n cool, btw. I'm digging.
+[2012-01-11 23:08:00 -0500] fujin: http://community.opscode.com/cookbooks/discovery https://github.com/fujin/chef-discovery
+[2012-01-11 23:08:00 -0500] laurent\: i'm not yet convinced when used with graylog2
+[2012-01-11 23:08:00 -0500] fujin: go forth and search for the things you need to find
+[2012-01-11 23:11:00 -0500] fujin: that new logstash zeromq business looks tasy
+[2012-01-11 23:11:00 -0500] fujin: tasty
+[2012-01-11 23:11:00 -0500] fujin: bemu: gift ^^
+[2012-01-11 23:12:00 -0500] fujin: Discover.search("rabbitmq_master", :node => node, :environment_aware => true)
+[2012-01-11 23:13:00 -0500] fujin: grr, Discovery** even
+[2012-01-11 23:13:00 -0500] thbishop: fujin: nice
+[2012-01-11 23:13:00 -0500] fujin: ah. thank you
+[2012-01-11 23:13:00 -0500] fujin: gifts for everyone today.
+[2012-01-11 23:13:00 -0500] fujin: sorry for being so mad lately
+[2012-01-11 23:17:00 -0500] jtanner: trying to bootstap chef-solo, but i keep getting "/usr/lib/ruby/1.8/openssl/cipher.rb:22: Cipher is not a module (TypeError)"
+[2012-01-11 23:17:00 -0500] jtanner: any ideas?
+[2012-01-11 23:17:00 -0500] fujin: haha. saw someone with that exact error earlier today, maybe on twitter or something.
+[2012-01-11 23:18:00 -0500] fujin: something like, you have 1.8.7 ruby openssl i386
+[2012-01-11 23:18:00 -0500] fujin: and 1.9.2 ruby x64
+[2012-01-11 23:18:00 -0500] fujin: try using a real operating system
+[2012-01-11 23:18:00 -0500] jtimberman: for github repos of single cookbooks: github.com/you/chef-NAME or github.com/you/cookbook-NAME ?
+[2012-01-11 23:19:00 -0500] fujin: jtimberman: i thought it was chef-NAME
+[2012-01-11 23:19:00 -0500] fujin: i just renamed minitest-cookbook to chef-minitest
+[2012-01-11 23:19:00 -0500] fujin: y u no guys no make up your minds?
+[2012-01-11 23:19:00 -0500] fujin: said that way wrong
+[2012-01-11 23:19:00 -0500] fujin: MAKE UP MOAR MINDS.
+[2012-01-11 23:19:00 -0500] jtimberman: or, NAME-cookbook
+[2012-01-11 23:19:00 -0500] jtimberman: fujin: we haven't said anything about it.
+[2012-01-11 23:19:00 -0500] fujin: oh, my bad
+[2012-01-11 23:19:00 -0500] fujin: thought there was semi-official community-only never enforced policy or something about it.
+[2012-01-11 23:20:00 -0500] jtimberman: i'm pretty sure i've named all mine on github, "NAME-cookbook"
+[2012-01-11 23:20:00 -0500] jtimberman: nothing like that
+[2012-01-11 23:20:00 -0500] fujin: chef-NAME-cookbook
+[2012-01-11 23:20:00 -0500] bemu: jtanner: It's further up in the chat log. exclude=i386 or something in your yum.conf
+[2012-01-11 23:20:00 -0500] jtimberman: :D
+[2012-01-11 23:20:00 -0500] jtimberman: fujin: <3
+[2012-01-11 23:20:00 -0500] fujin: bemu: that's the dickins!
+[2012-01-11 23:21:00 -0500] fujin: exclude i386, get that shit out of there. :P
+[2012-01-11 23:21:00 -0500] yfeldblum: jtimberman, regarding splitting up the opscode cookbooks repo or just something else?
+[2012-01-11 23:21:00 -0500] bemu: jtanner: I'm guessing you are using 5.7?
+[2012-01-11 23:21:00 -0500] jtanner: bemu: 5.5
+[2012-01-11 23:21:00 -0500] jtimberman: yfeldblum: yes
+[2012-01-11 23:21:00 -0500] jtimberman: yfeldblum: to both :)
+[2012-01-11 23:21:00 -0500] bemu: great.
+[2012-01-11 23:21:00 -0500] bemu: jtanner: Where'd you install from?
+[2012-01-11 23:21:00 -0500] yfeldblum: jtimberman, chef-NAME-cookbook
+[2012-01-11 23:21:00 -0500] jtimberman: yfeldblum: i was going to go with NAME-cookbook
+[2012-01-11 23:21:00 -0500] bemu: fujin: Thanks!
+[2012-01-11 23:22:00 -0500] jtanner: bemu: the os or the ruby packages?
+[2012-01-11 23:22:00 -0500] yfeldblum: :P
+[2012-01-11 23:22:00 -0500] fujin: np might be useful
+[2012-01-11 23:22:00 -0500] bemu: jtanner: OS.
+[2012-01-11 23:22:00 -0500] jnh: jtimberman: COOK-972 - did I fill out the ticket correctly?
+[2012-01-11 23:22:00 -0500] jtanner: bemu: a local kickstart repo we setup here
+[2012-01-11 23:22:00 -0500] yfeldblum: i'd prefer NAME-cookbook to chef-NAME because the former connotes cookbookness while the latter connotes some kind of plugin to chef rather than a cookbook
+[2012-01-11 23:23:00 -0500] yfeldblum: chef-NAME-cookbook is the clearest though
+[2012-01-11 23:23:00 -0500] bemu: jtanner: Can you gist me a list of the ruby-related packages you have installed, and where they came from please?
+[2012-01-11 23:23:00 -0500] yfeldblum: i'd use chef-HANDLER for report handlers & the like
+[2012-01-11 23:23:00 -0500] bemu: fujin: This is awesome. Will definitely be retrofitting some recipes to use it.
+[2012-01-11 23:23:00 -0500] yfeldblum: so long as they're distributed as gems of the same name (chef-HANDLER) on rubygems.org
+[2012-01-11 23:24:00 -0500] jtanner: bemu: http://wiki.opscode.com/display/chef/Installing+Chef+Client+on+CentOS
+[2012-01-11 23:24:00 -0500] jtanner: installed centos 5.5, with @base, then started following that page
+[2012-01-11 23:24:00 -0500] bemu: jtanner: That's not what I asked for.
+[2012-01-11 23:25:00 -0500] bemu: This is a new bug that has popped up, just heard about it today. If you can help me figure out why it is happening, I can do what I can to fix it.
+[2012-01-11 23:25:00 -0500] jtimberman: jnh: see the cookbook support page on the wiki about how we treat the opscode/cookbooks repository.
+[2012-01-11 23:25:00 -0500] jtimberman: http://wiki.opscode.com/display/chef/Cookbook+Support
+[2012-01-11 23:26:00 -0500] yfeldblum: jtimberman, and if anyone's worried about conventions & compatibility & stuff, librarian-chef can fetch cookbooks from any git source regardless of the repository's name :P
+[2012-01-11 23:26:00 -0500] jtanner: bemu: if the http://rbel.frameos.org/rbel5 repo is added, yum pulls ruby down from there
+[2012-01-11 23:26:00 -0500] bemu: jtanner: Would also be helpful if you could try to bootstrap chef-solo with an older version of Chef. 10.2 or 6, just so we can eliminate changes to Chef as the reason we're only seeing this now.
+[2012-01-11 23:26:00 -0500] bemu: jtanner: Those are just packages from my repo... that doesn't help. I need to know where you're seeing the problem.
+[2012-01-11 23:27:00 -0500] jtimberman: yfeldblum: yeah, i was having a play with it the other day, good stuff.
+[2012-01-11 23:27:00 -0500] jnh: jtimberman: what exactly are you getting at?
+[2012-01-11 23:27:00 -0500] bemu: There are yum commands to show you where a package was grabbed from, I assume. Use them.
+[2012-01-11 23:28:00 -0500] fujin: you may actually have to cat text files to figure that out no?
+[2012-01-11 23:28:00 -0500] fujin: did this bug seriously only pop up today? that's nasty
+[2012-01-11 23:28:00 -0500] bemu: No idea. Not a CentOS user.
+[2012-01-11 23:28:00 -0500] bemu: Yeappp. First time I heard about it. I would assume a repo changed, that wasn't mine.
+[2012-01-11 23:29:00 -0500] fujin: Here is the blog post
+[2012-01-11 23:29:00 -0500] fujin: http://blas.phemo.us/2010/12/13/cipher-is-not-a-module-error-from-ruby-on-centos-64
+[2012-01-11 23:30:00 -0500] jtanner: bemu: http://fpaste.org/z6ao/
+[2012-01-11 23:30:00 -0500] bemu: Those aren't mine.
+[2012-01-11 23:31:00 -0500] jtanner: bemu: did you happen to build .i386 packages in your repo? seems like the i386 rpms are coming in with different versions?
+[2012-01-11 23:31:00 -0500] bemu: and afaik, those are the packages with the segfaults.
+[2012-01-11 23:31:00 -0500] bemu: .299 is the one you want.
+[2012-01-11 23:31:00 -0500] bemu: Correction.
+[2012-01-11 23:31:00 -0500] bemu: Those are mine, but they're the old ones with the segfaults.
+[2012-01-11 23:31:00 -0500] bemu: I removed them from my repo, don't think RBEL dude did.
+[2012-01-11 23:32:00 -0500] bemu: Can you try bootstrapping with the aegisco repo, but not the RBEL repo?
+[2012-01-11 23:32:00 -0500] bemu: and are you trying to install client or server?
+[2012-01-11 23:32:00 -0500] jtanner: bemu: i'm setting up server
+[2012-01-11 23:32:00 -0500] bemu: jtanner: I did build i386 and x86_64
+[2012-01-11 23:33:00 -0500] bemu: You're getting different versions because Sergio has old packages up with newer version numbers.
+[2012-01-11 23:33:00 -0500] jtanner: bemu: ok, just got the segfault ... i'll go remove the ruby packages and get the other repo
+[2012-01-11 23:34:00 -0500] bemu: Okay. You may need other RPMs from Sergio's repo for server. I only support client with mine, plus gecode, because I'm masochistic.
+[2012-01-11 23:34:00 -0500] fujin: hehe
+[2012-01-11 23:34:00 -0500] fujin: damn gecode to hell.
+[2012-01-11 23:34:00 -0500] fujin: what did it ever give to us?
+[2012-01-11 23:35:00 -0500] yfeldblum: a dependency resolver for the chef-server
+[2012-01-11 23:35:00 -0500] fujin: lol
+[2012-01-11 23:35:00 -0500] fujin: was joking man
+[2012-01-11 23:35:00 -0500] fujin: I know
+[2012-01-11 23:35:00 -0500] fujin: it's just a pain in the ass to build for multiple platforms, can ya dig?
+[2012-01-11 23:36:00 -0500] yfeldblum: force everyone to use one platform?
+[2012-01-11 23:36:00 -0500] laurent\: yeah !
+[2012-01-11 23:37:00 -0500] laurent\: and provide vmdk images with preinstalled os and apps :)
+[2012-01-11 23:37:00 -0500] bemu: I'm actually curious why the RBEL repo is used at all. it doesn't look like he has packages that I don't have in aegisco. Maybe I'm missing one though.
+[2012-01-11 23:37:00 -0500] jtanner: i only used it beause the doc said it was necessary
+[2012-01-11 23:38:00 -0500] bemu: Let me know what you figure out please, and let me know if I can help.
+[2012-01-11 23:38:00 -0500] jtanner: bootstrap is running right now
+[2012-01-11 23:38:00 -0500] bemu: kk
+[2012-01-11 23:39:00 -0500] yfeldblum: meh, just force everyone to use only one application, too
+[2012-01-11 23:39:00 -0500] jtanner: i think it just died because rabbitmq is not installed
+[2012-01-11 23:40:00 -0500] jtanner: http://fpaste.org/hFwg/
+[2012-01-11 23:40:00 -0500] bemu: I would love to find an intrepidus CentOS user who wants to take over the RPM packages, because they could certainly use some love.
+[2012-01-11 23:40:00 -0500] bemu: I have a cookbook which sets up rpmbuild and all of that, builds the packages.
+[2012-01-11 23:41:00 -0500] bemu: But I don't fully understand multilib, or why the upstream ruby packages fail at it.
+[2012-01-11 23:41:00 -0500] bemu: and I just... don't use CentOS, so beyond making sure chef-client bootstraps correctly... I don't have a lot of interest in working on it further.
+[2012-01-11 23:42:00 -0500] jtimberman: jnh: What I'm getting at is that the Opscode cookbooks repository contains cookbooks that we write and support directly. You are welcome to share your cookbooks on the Chef Community site, and I encourage you to do so. I know that the namespace there is flat and those cookbooks may already exist, but we do have plans to address that problem - I don't have specifics about a timeframe on that, though.
+[2012-01-11 23:42:00 -0500] bemu: jtanner: It's trying to install a rabbitmq package which doesn't exist.
+[2012-01-11 23:43:00 -0500] bemu: No idea about that.
+[2012-01-11 23:43:00 -0500] jtanner: i didn't have epel enabled, most likely
+[2012-01-11 23:43:00 -0500] jnh: jtimberman: ahh. okay, just that I have had hints from some opscode peeps that you guys wanted to merge them.
+[2012-01-11 23:43:00 -0500] bemu: jtanner: Probably. Looks like rabbitmq has an RPM repo you could use also
+[2012-01-11 23:43:00 -0500] bemu: http://www.rabbitmq.com/download.html
+[2012-01-11 23:44:00 -0500] jtanner: i installed it from epel
+[2012-01-11 23:44:00 -0500] bemu: kk
+[2012-01-11 23:44:00 -0500] bemu: So I'm wondering if the root of the bootstrap problem is that the RBEL repo changed?
+[2012-01-11 23:44:00 -0500] jtanner: configure: error: Your version of gcc is too old. You need at least version 4.2.   ... that's not good
+[2012-01-11 23:45:00 -0500] bemu: oh, I never uploaded that package.
+[2012-01-11 23:45:00 -0500] bemu: That's why the RBEL repo is in there.
+[2012-01-11 23:45:00 -0500] bemu: jtanner: That's why the gcc install is in there.
+[2012-01-11 23:46:00 -0500] bemu: Makes sense now.
+[2012-01-11 23:46:00 -0500] bemu: Actually, isn't it available upstream?
+[2012-01-11 23:46:00 -0500] bemu: just called something different?
+[2012-01-11 23:46:00 -0500] bemu: gcc4 or something?
+[2012-01-11 23:46:00 -0500] bemu: or gcc44
+[2012-01-11 23:46:00 -0500] bemu: It's been a while.
+[2012-01-11 23:46:00 -0500] bemu: but then it makes an executable called gcc44
+[2012-01-11 23:46:00 -0500] bemu: which you have to update-alternatives
+[2012-01-11 23:47:00 -0500] bemu: The package in RBEL probably does this for you, or ignores upstream's naming convention.
+[2012-01-11 23:47:00 -0500] bemu: This is all speculation.
+[2012-01-11 23:47:00 -0500] bemu: You can see why I loathe CentOS now? :)
+[2012-01-11 23:47:00 -0500] jtanner: yep
+[2012-01-11 23:47:00 -0500] jtanner: is this easier in cent6 ?
+[2012-01-11 23:48:00 -0500] jtimberman: jnh: Are you jamesotron? looks like you're the lucky winner of the 'rvm' and 'passenger' cookbooks :)
+[2012-01-11 23:48:00 -0500] bemu: Unsure.
+[2012-01-11 23:48:00 -0500] jtanner: what os do you build on primarily ?
+[2012-01-11 23:48:00 -0500] bemu: I build the RPMs on CentOS.
+[2012-01-11 23:48:00 -0500] bemu: But I use Ubuntu personally.
+[2012-01-11 23:48:00 -0500] jtanner: ok
+[2012-01-11 23:48:00 -0500] jtanner: which release of ubuntu?
+[2012-01-11 23:48:00 -0500] bemu: I built those packages because no one had released anything for CentOS.
+[2012-01-11 23:48:00 -0500] bemu: and I wanted to help the community. Famous last words.
+[2012-01-11 23:49:00 -0500] bemu: 11.04
+[2012-01-11 23:49:00 -0500] fujin: =P
+[2012-01-11 23:49:00 -0500] jtanner: k
+[2012-01-11 23:49:00 -0500] jnh: jtimberman: yes, I am.
+[2012-01-11 23:50:00 -0500] JasonBox: hrm, was the weird thing with ruby on rhel 6 ever resolved?
+[2012-01-11 23:51:00 -0500] fujin: never, unfortunately everyone just gave up
+[2012-01-11 23:51:00 -0500] fujin: and started using ubuntu
+[2012-01-11 23:51:00 -0500] bemu: JasonBox: Which weird thing? RHEL6 has Ruby from upstream, .299. I backported this for aegisco to resolve the segfaults.
+[2012-01-11 23:52:00 -0500] fujin: d'aw! ruined it
+[2012-01-11 23:52:00 -0500] bemu: :(
+[2012-01-11 23:52:00 -0500] fujin: I have a client right now with some ubuntu boxes on the side, they haven't even noticed yet
+[2012-01-11 23:52:00 -0500] fujin: I heard Arch is the new big thing
+[2012-01-11 23:53:00 -0500] bemu: Yeah, I keep hearing that too.
+[2012-01-11 23:53:00 -0500] erikh: it's ok but it tends to run a little bleeding edge for my tastes
+[2012-01-11 23:53:00 -0500] bemu: But then I ask, "How will it make my life easier than Ubuntu"
+[2012-01-11 23:53:00 -0500] erikh: easy to break
+[2012-01-11 23:53:00 -0500] jtimberman: JasonBox: the one where they don't have a modern ruby? no, they still have ruby 1.8.7 :). ftp://ftp.redhat.com/pub/redhat/linux/enterprise/6Server/en/os/SRPMS/
+[2012-01-11 23:53:00 -0500] bemu: and there are crickets.
+[2012-01-11 23:53:00 -0500] erikh: packaging is super nice though
+[2012-01-11 23:53:00 -0500] fujin: how do you make a package?
+[2012-01-11 23:53:00 -0500] erikh: 20 lines of shell variables
+[2012-01-11 23:53:00 -0500] erikh: makepkg
+[2012-01-11 23:53:00 -0500] erikh: done
+[2012-01-11 23:54:00 -0500] jtimberman: packaging in arch is super easy
+[2012-01-11 23:54:00 -0500] fujin: sounds pretty good
+[2012-01-11 23:54:00 -0500] fujin: (not as easy as fpm -> deb, but that's cheating I suppose)
+[2012-01-11 23:54:00 -0500] jtanner: what, you guys don't like writing .spec ? =P
+[2012-01-11 23:54:00 -0500] fujin: count me out of that for sur e:)
+[2012-01-11 23:55:00 -0500] lflux: specfiles aren't that bad
+[2012-01-11 23:55:00 -0500] jtimberman: E_DONOTWANT
+[2012-01-11 23:55:00 -0500] lflux: all of our apps at work are deployed as rpms
+[2012-01-11 23:56:00 -0500] JasonBox: bemu: Yeah, the segfault thing is what I was thinking of
+[2012-01-11 23:56:00 -0500] lflux: once someone builds you a specfile and make infrastructure maintaining it isn't worse than say for bsd ports
+[2012-01-11 23:57:00 -0500] JasonBox: So should I be installed a newer ruby on my SL6.1 systems for chef?

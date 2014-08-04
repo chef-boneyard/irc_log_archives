@@ -1,0 +1,58 @@
+[2012-05-03 01:10:55 -0400] github-bawt: [chef] marcparadise pushed 4 new commits to whyrun: http://git.io/tXCXVw
+[2012-05-03 01:10:55 -0400] github-bawt: [chef/whyrun] resource_block to execute in absence of failure_message - Marc Paradise
+[2012-05-03 01:10:55 -0400] github-bawt: [chef/whyrun] set up whyrun assertions for Provider::Service::Simple - Marc Paradise
+[2012-05-03 01:10:55 -0400] github-bawt: [chef/whyrun] Allow execution to proceed any time failure_message missing - Marc Paradise
+[2012-05-03 01:25:58 -0400] github-bawt: [chef] marcparadise pushed 4 new commits to whyrun: http://git.io/kcgS_Q
+[2012-05-03 01:25:58 -0400] github-bawt: [chef/whyrun] Fix broken tests in init_service_spec - Marc Paradise
+[2012-05-03 01:25:58 -0400] github-bawt: [chef/whyrun] Fix broken/inaccurate tests in arch_service_spec - Marc Paradise
+[2012-05-03 01:25:59 -0400] github-bawt: [chef/whyrun] Fix broken/inaccurate tests in freebsd_service_spec - Marc Paradise
+[2012-05-03 14:58:18 -0400] andreacampi: hey guys
+[2012-05-03 14:58:38 -0400] andreacampi: did the way we look up resources for notifications change between 0.10.8 and 0.10.10?
+[2012-05-03 14:59:27 -0400] andreacampi: I have some code that is sending a notification to what should be a Chef::Resource, and it used to work
+[2012-05-03 15:00:03 -0400] andreacampi: whereas 0.10.10 raises a InvalidResourceSpecification
+[2012-05-03 15:00:25 -0400] andreacampi: because in fact it is a WeakRef
+[2012-05-03 15:01:07 -0400] andreacampi: I understand why it fails, not so much why it worked in 10.8 :)
+[2012-05-03 15:10:11 -0400] yfeldblum: https://github.com/opscode/chef/compare/0.10.8...0.10.10.rc.3
+[2012-05-03 15:11:56 -0400] andreacampi: yeah, I know a lot of stuff :)
+[2012-05-03 15:21:40 -0400] andreacampi: the only change that looks vaguely related is https://github.com/opscode/chef/commit/8b9feb90bf259b6954b25b7c9c56655b957e3f69
+[2012-05-03 15:46:56 -0400] btm: I think we've been making notifications less brokenish accidently for a while.
+[2012-05-03 15:48:43 -0400] btm: like this -> http://tickets.opscode.com/browse/CHEF-2812
+[2012-05-03 15:48:49 -0400] btm: That was 0.10.6.
+[2012-05-03 16:35:08 -0400] andreacampi: ah, http://tickets.opscode.com/browse/CHEF-2812?focusedCommentId=21664&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-21664 is interesting, I wasn't aware of that implementation detail
+[2012-05-03 16:37:19 -0400] andreacampi: anyway, it looks like what I'm doing is very much an edge case so I won't worry too much
+[2012-05-03 16:38:39 -0400] andreacampi: I guess if it breaks real-world stuff, we'll hear about it :)
+[2012-05-03 16:39:07 -0400] andreacampi: I'll find time to post a little headsup to the ml
+[2012-05-03 16:42:25 -0400] c_t: that reminds me, I should finally get my ass on the mailing list
+[2012-05-03 16:56:05 -0400] yfeldblum: andreacampi, what are youdoing?
+[2012-05-03 16:56:51 -0400] andreacampi: notifies(:restart, resource)
+[2012-05-03 16:57:10 -0400] andreacampi: where resource is in fact a WeakRef to a Chef::Resource
+[2012-05-03 16:57:47 -0400] andreacampi: it used to work in 0.10.8, doesn't work in 0.10.10 and I don't understand
+[2012-05-03 16:57:48 -0400] andreacampi: why
+[2012-05-03 17:19:34 -0400] yfeldblum: andreacampi, why a WeakRef?
+[2012-05-03 17:20:01 -0400] andreacampi: to break a circular reference between 2 resources
+[2012-05-03 17:20:30 -0400] yfeldblum: andreacampi, what's the problem with the circular reference?
+[2012-05-03 17:21:04 -0400] andreacampi: well, that without a WeakRef they wouldn't be GC'ed
+[2012-05-03 17:21:49 -0400] andreacampi: that's kind of orthogonal, though...
+[2012-05-03 17:22:21 -0400] yfeldblum: andreacampi, the Ruby GC is a reftracing (mark-and-sweep) GC, not a refcounting GC, so circular references should not pose a problem ...
+[2012-05-03 17:23:32 -0400] andreacampi: fair enough
+[2012-05-03 17:23:44 -0400] andreacampi: either way, let's assume it's a mistake
+[2012-05-03 17:23:55 -0400] andreacampi: point is, in 0.10.8 it worked regardless
+[2012-05-03 17:24:38 -0400] andreacampi: in 0.10.10 it breaks not a big deal, I don't care that much either way and the "official" syntax is nice
+[2012-05-03 17:24:49 -0400] andreacampi: I just don't understand why it worked before
+[2012-05-03 17:30:17 -0400] yfeldblum: https://github.com/opscode/chef/blob/0.10.10.rc.3/chef/lib/chef/resource.rb#L51
+[2012-05-03 17:30:20 -0400] yfeldblum: https://github.com/opscode/chef/blob/0.10.10.rc.3/chef/lib/chef/resource_collection.rb#L142
+[2012-05-03 17:31:03 -0400] yfeldblum: we might have `Klazz === o`, but we will not have `Klazz === WeakRef.new(o)`
+[2012-05-03 17:32:03 -0400] yfeldblum: so while the message-forwarding of WeakRef works, it's not complete
+[2012-05-03 17:32:38 -0400] andreacampi: exactly
+[2012-05-03 17:32:39 -0400] yfeldblum: WeakRef doesn't forward, e.g., #kind_of?, #class, #object_id, etc
+[2012-05-03 17:32:52 -0400] andreacampi: but the code looks pretty much the same in 0.10.8
+[2012-05-03 17:32:58 -0400] andreacampi: so it should fail there, too
+[2012-05-03 17:33:29 -0400] andreacampi: s/pretty much/exactly/
+[2012-05-03 17:34:18 -0400] yfeldblum: but calling code can change ... in other words, you're treating a WeakRef of a resource as though it were the resource itself, and that will work sometimes, and not other times, and it completely depends on all the code that it passes through, not just the few places that check its type
+[2012-05-03 17:36:37 -0400] andreacampi: right. and I don't mind fixing this cookbook, in fact I already did
+[2012-05-03 17:36:58 -0400] andreacampi: I just don't like dismissing problems as "unspecified behavior"
+[2012-05-03 17:37:41 -0400] andreacampi: anyway, well past dinner time, I should head home
+[2012-05-03 17:37:46 -0400] yfeldblum: latez
+[2012-05-03 17:37:47 -0400] andreacampi: later :)
+[2012-05-03 23:53:57 -0400] github-bawt: [chef] btm pushed 1 new commit to master: http://git.io/9NrWsw
+[2012-05-03 23:53:57 -0400] github-bawt: [chef/master] CHEF-2652: update an example config file to match code changes. - Andrea Campi

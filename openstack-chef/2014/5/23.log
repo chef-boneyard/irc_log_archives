@@ -1,0 +1,91 @@
+[2014-05-23 09:26:05 -0400] mattt: srenatus: can i bug you about something
+[2014-05-23 09:26:12 -0400] srenatus: mattt: sure
+[2014-05-23 09:26:53 -0400] mattt: srenatus: https://review.openstack.org/#/c/94647/4/recipes/setup.rb
+[2014-05-23 09:27:09 -0400] mattt: srenatus: line 89 i'm doing a node.set
+[2014-05-23 09:27:18 -0400] mattt: srenatus: this all seems to work OK when i do a manual converge
+[2014-05-23 09:27:52 -0400] mattt: srenatus: however i'm trying to add a spec test to ensure that node attribute is getting set, and printing chef_node.node['openstack']['integration-test'] returns a nil (which is the default), indicating it's not getting set
+[2014-05-23 09:29:35 -0400] mattt: srenatus: sorry, it's printing a nil for 'id'
+[2014-05-23 09:30:41 -0400] srenatus: hmm
+[2014-05-23 09:30:51 -0400] srenatus: still gathering context ;)
+[2014-05-23 09:32:45 -0400] mattt: yeah
+[2014-05-23 09:32:48 -0400] mattt: let me try another converge
+[2014-05-23 09:32:51 -0400] mattt: to make sure i haven't broken something
+[2014-05-23 09:32:58 -0400] mattt: but last i tried it worked
+[2014-05-23 09:33:57 -0400] srenatus: I'm trying it, too, now.
+[2014-05-23 09:35:56 -0400] srenatus: patch set #4 works here... confusing
+[2014-05-23 09:36:31 -0400] mattt: expect(chef_run.node['openstack']['integration-test']['image1']['id']).to eq('test') always fails
+[2014-05-23 09:36:39 -0400] mattt: since it thinks id is nil
+[2014-05-23 09:37:00 -0400] srenatus: but the spec_helper only stubs image_id for cirros..?
+[2014-05-23 09:39:05 -0400] mattt: srenatus: yeah, which is the name of the default image1/image2 attributes
+[2014-05-23 09:39:11 -0400] srenatus: sorry, yes just saw that
+[2014-05-23 09:44:56 -0400] mattt: srenatus: just did a full converge, and node['openstack']['integration-test']['image1']['id'] def. got set
+[2014-05-23 09:46:17 -0400] srenatus: mattt: I could reproduce it here (rspec), now staring at it
+[2014-05-23 09:46:37 -0400] mattt: i'll be honest, i know nothing about rspec
+[2014-05-23 09:46:46 -0400] mattt: so i may be doing something stupid
+[2014-05-23 09:46:53 -0400] mattt: i'd actually put money on me doing something stupid
+[2014-05-23 09:47:51 -0400] srenatus: I'm not that proficient either...
+[2014-05-23 09:54:19 -0400] srenatus: mattt: have you already consulted #chefspec? (you really got me wondering now, too...)
+[2014-05-23 09:54:51 -0400] srenatus: btw I'm glad to see this cookbook come into existence.. :)
+[2014-05-23 09:55:03 -0400] mattt: srenatus: not yet  let me dig a bit further then i'll ask
+[2014-05-23 09:55:11 -0400] mattt: srenatus: yeah, the first pass will probably not really work much
+[2014-05-23 09:55:21 -0400] mattt: srenatus: but at least it gives everyone access to it to hack on
+[2014-05-23 09:55:47 -0400] mattt: if i deploy an AIO w/ nova-network and this tempest cookbook and run a smoke test w/ tempest, i get < 40 failures i think
+[2014-05-23 09:55:50 -0400] mattt: which is quite a lot
+[2014-05-23 09:56:02 -0400] mattt: but more attributes will need to be added to tweak the tempest.conf file to get that down
+[2014-05-23 10:09:17 -0400] srenatus: mattt: seems like ruby_block's blocks are not actually run (:create): https://coderwall.com/p/afdnyw  the code there is a little outdated though
+[2014-05-23 10:09:27 -0400] srenatus: mattt: chef_run.find_resource('ruby_block', "Get and set image1's ID").old_run_action(:create)  << this seemed to get me a little further
+[2014-05-23 10:09:54 -0400] srenatus: mattt: which means: NoMethodError: undefined method `openstack_command_env' for Chef::Resource::R
+[2014-05-23 10:09:57 -0400] srenatus: ubyBlock
+[2014-05-23 10:11:15 -0400] srenatus: mattt: http://www.hastebin.com/uleyubaqef.pl
+[2014-05-23 10:11:33 -0400] mattt: srenatus: i was starting to think it had something to do w/ that ruby block :(
+[2014-05-23 10:12:04 -0400] srenatus: mattt: including the error: http://www.hastebin.com/waroxohazo.vbs
+[2014-05-23 10:22:23 -0400] mattt: srenatus: looking now
+[2014-05-23 10:22:42 -0400] mattt: srenatus: also what's w/ the .pl and .vbs in the hastebin URLs?  :)
+[2014-05-23 11:09:55 -0400] srenatus: mattt: I guess hastebin's guessing the wrong language...
+[2014-05-23 11:32:45 -0400] mattt: srenatus: yeah having issues stubbing stuff  thought i got everything but it's still not happy
+[2014-05-23 11:33:01 -0400] mattt: this ball ache is making me wonder if i wrote this cookbook incorrectly :P
+[2014-05-23 11:33:50 -0400] srenatus: mattt: just added a stub for openstack_command_env here, too, but doesn't fix the problem though
+[2014-05-23 11:34:07 -0400] mattt: srenatus: yep, i did also, then stubbed out openstack_command itself
+[2014-05-23 11:34:12 -0400] mattt: but it's still saying 'glance' doesn't exist
+[2014-05-23 11:36:53 -0400] mattt: ah
+[2014-05-23 11:36:54 -0400] mattt: i see
+[2014-05-23 11:38:06 -0400] mattt: ok making progress
+[2014-05-23 11:38:21 -0400] mattt: need to stub openstack_command on Chef::Resource::RubyBlock and not Chef::Recipe
+[2014-05-23 11:40:03 -0400] srenatus: ah ok
+[2014-05-23 11:40:32 -0400] mattt: would have been faster to rewrite this cookbook to not use the ruby_block :P
+[2014-05-23 11:42:15 -0400] mattt: ok everything's stubbed but now back to
+[2014-05-23 11:42:16 -0400] mattt: Failure/Error: expect(chef_run.node['openstack']['integration-test']['image1']['id']).to eq('5d1ff378-e9c1-4db7-97c1-d35f07824595')
+[2014-05-23 11:42:19 -0400] mattt: :P
+[2014-05-23 11:43:16 -0400] srenatus: I wonder if the executed ruby_block in chefspec does affect the "overall" chefspec chef-run...
+[2014-05-23 11:50:44 -0400] mattt: srenatus: this is starting to feel like black magic
+[2014-05-23 11:52:16 -0400] srenatus: mattt: :7  what are the alternatives?  i.e. how would you do without ruby_block?
+[2014-05-23 11:53:09 -0400] mattt: i've broken something, because now node['openstack'] is nil
+[2014-05-23 11:53:18 -0400] mattt: srenatus: i'm not sure if there is some way to subscribe/notify
+[2014-05-23 11:53:54 -0400] mattt: srenatus: or we assume that this cookbook is being added to your environment AFTER  you have deployed your glance nodes
+[2014-05-23 11:54:30 -0400] mattt: i  tried to do it in such a way that you could deploy an AIO + tempest in one shot
+[2014-05-23 11:54:35 -0400] mattt: but this is turning into a ball ache
+[2014-05-23 12:04:37 -0400] mattt: srenatus: do you know what the diff between chef_run.node and node is?
+[2014-05-23 12:04:52 -0400] mattt: because printing chef_run.node shows me all my default attrs
+[2014-05-23 12:05:02 -0400] mattt: whilst node doesn't
+[2014-05-23 12:09:42 -0400] srenatus: mattt: I suppose chef_run is the result of runner.converge(...), so it should contain stuff
+[2014-05-23 12:10:05 -0400] srenatus: mattt: I'd have expected it to include the newly set attributes, too, but... hm.
+[2014-05-23 12:10:11 -0400] mattt: srenatus: so if the cookbook sets an attr, should i be checking node or chef_run.node ?
+[2014-05-23 12:10:26 -0400] mattt: i think i give up, this is doing my head in
+[2014-05-23 12:10:31 -0400] srenatus: I'd guess chef_run.node, but that's really just guessing...
+[2014-05-23 12:19:32 -0400] mattt: srenatus: thanks for your help
+[2014-05-23 12:23:52 -0400] srenatus: mattt: :)
+[2014-05-23 12:55:21 -0400] openstackgerrit: Matt Thompson proposed a change to stackforge/cookbook-openstack-integration-test: First pass at cookbook-openstack-integration-test  https://review.openstack.org/94647
+[2014-05-23 13:41:08 -0400] mattt: srenatus: think i got it
+[2014-05-23 13:49:01 -0400] mattt: srenatus: know what it was?  I was stubbing image_id against recipe and not resource::rubyblock :(
+[2014-05-23 13:55:15 -0400] srenatus: mattt: cool.  looking forward to seeing the next patch set ;)
+[2014-05-23 13:55:41 -0400] mattt: srenatus: i actually dug through some code which markvan wrote which was doing something similar and realised where i was going wrong
+[2014-05-23 13:57:11 -0400] srenatus: mattt: can't wait for the patch set...
+[2014-05-23 13:57:19 -0400] mattt: srenatus: almost there
+[2014-05-23 13:58:18 -0400] openstackgerrit: Matt Thompson proposed a change to stackforge/cookbook-openstack-integration-test: First pass at cookbook-openstack-integration-test  https://review.openstack.org/94647
+[2014-05-23 13:58:26 -0400] mattt: ^^^ srenatus
+[2014-05-23 13:58:55 -0400] srenatus: :)
+[2014-05-23 14:16:16 -0400] srenatus: hmm vmware stuff in openstack-block-storage::cinder-common is a little weird.... should it really unconditionally require a vmware password? https://github.com/stackforge/cookbook-openstack-block-storage/blob/master/recipes/cinder-common.rb#L64
+[2014-05-23 14:36:12 -0400] openstackgerrit: Matt Thompson proposed a change to stackforge/cookbook-openstack-integration-test: First pass at cookbook-openstack-integration-test  https://review.openstack.org/94647
+[2014-05-23 15:22:18 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-common: Add missing AMQP attributes  https://review.openstack.org/92916
+[2014-05-23 16:25:24 -0400] openstackgerrit: Mathew Odden proposed a change to stackforge/cookbook-openstack-compute: Add missing AMQP options to nova.conf  https://review.openstack.org/92937
+[2014-05-23 19:31:22 -0400] lrr: anyone here that can help me diagnose why in the console tab of an instance won't show the console but when i click the "show only console" it will show the console in a new tab?

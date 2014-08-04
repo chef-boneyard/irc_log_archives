@@ -1,0 +1,280 @@
+[2013-02-10 00:42:11 -0500] coolj: window mode left
+[2013-02-10 00:42:17 -0500] coolj: oops
+[2013-02-10 01:22:50 -0500] coderanger: miah: You around?
+[2013-02-10 01:23:35 -0500] coderanger: Bashing my head against haproxy and I can't get it to behave
+[2013-02-10 01:25:09 -0500] manimal_: i finally got chef server running, a linux workstation configured (had some probs with a windows workstation), and 2-3 random nodes i can now bootstrap properly from workstation
+[2013-02-10 02:00:17 -0500] gaffneyc: @coderanger: What kind of trouble are you running into with haproxy?
+[2013-02-10 02:20:07 -0500] kisoku: anyone know how to get bento to build an image with a specific chef version ?
+[2013-02-10 03:36:00 -0500] pabst^: Can I specify a specific version of a cookbook to install with knife cookbook site install?
+[2013-02-10 03:36:59 -0500] pabst^: forget it
+[2013-02-10 03:37:02 -0500] pabst^: was obvious
+[2013-02-10 03:37:03 -0500] pabst^: :P
+[2013-02-10 03:37:07 -0500] manimal_: hehe
+[2013-02-10 03:42:52 -0500] jtimberman: kisoku: have to edit the chef-client.sh script in the common dir
+[2013-02-10 03:42:59 -0500] jtimberman: bash -s -- -v VERSION
+[2013-02-10 04:19:50 -0500] coderanger: gaffneyc: still around?
+[2013-02-10 04:20:03 -0500] gaffneyc: @coderanger: yep
+[2013-02-10 04:20:46 -0500] gaffneyc: @coderanger: So what are you running into? Not an expert but we've rolled out two different haproxy installs in the last month or so
+[2013-02-10 04:20:53 -0500] coderanger: So I have two frontends, http one works fine, https one (fronted by stud, but it fails even talking directly to it on localhost) fails
+[2013-02-10 04:21:02 -0500] coderanger: https://github.com/coderanger/psf-chef/blob/master/site-cookbooks/psf-loadbalancer/templates/default/haproxy.cfg.erb
+[2013-02-10 04:21:13 -0500] coderanger: http://hastebin.com/lololisuno.txt is a debug trace of reqs to both
+[2013-02-10 04:22:15 -0500] coderanger: backends are all marked as up, and you can see it routing to the right backend in the trace
+[2013-02-10 04:22:31 -0500] coderanger: but the nginx on app host just doesn't respond for the "https" requests
+[2013-02-10 04:24:20 -0500] gaffneyc: Hm
+[2013-02-10 04:24:45 -0500] gaffneyc: In the trace where are you seeing it route to the backend (line #)?
+[2013-02-10 04:25:03 -0500] coderanger: 25/26
+[2013-02-10 04:25:11 -0500] coderanger: you can see it selects the wiki backend
+[2013-02-10 04:26:14 -0500] coderanger: but I don't know what "wiki.clicls" means
+[2013-02-10 04:26:21 -0500] coderanger: I presume that is short for client close
+[2013-02-10 04:26:51 -0500] gaffneyc: It's possible. I'm not too familiar with the log format
+[2013-02-10 04:28:37 -0500] gaffneyc: What do you get if you `curl localhost:8000/` from the host?
+[2013-02-10 04:30:07 -0500] gaffneyc: Honestly I'm not sure what could be the issue. Nothing is standing out in the config or logs.
+[2013-02-10 04:30:52 -0500] gaffneyc: I'd probably start testing assumptions. Add a default_server block to the backend
+[2013-02-10 04:30:55 -0500] coderanger: http://hastebin.com/tevokayibu.txt
+[2013-02-10 04:31:14 -0500] coderanger: Tried that, definitely not a routing issue, and commenting out the http one doesn't help anything
+[2013-02-10 04:35:09 -0500] gaffneyc: So it should be selecting the wiki backend
+[2013-02-10 04:35:40 -0500] gaffneyc: Which should fallback to the local webserver if none of those servers are available
+[2013-02-10 04:36:09 -0500] gaffneyc: 503 is definitely coming from from haproxy?
+[2013-02-10 04:36:16 -0500] coderanger: Yeah, not seeing any connections to the fallback server, which isn't surprising
+[2013-02-10 04:36:27 -0500] gaffneyc: Connections to the downstream servers?
+[2013-02-10 04:37:43 -0500] coderanger: I'm trying that now, need to use a server that doesn't have prod traffic on it to tell :)
+[2013-02-10 04:37:57 -0500] coderanger: Also cleaning up the global options a bit
+[2013-02-10 04:39:49 -0500] gaffneyc: We're using a derivate of https://github.com/railsmachine/moonshine_haproxy/blob/master/templates/haproxy.cfg.erb
+[2013-02-10 04:40:30 -0500] gaffneyc: Could do something with tcpflow on the load balancer
+[2013-02-10 04:40:51 -0500] gaffneyc: `sudo tcpflow port 8000` or whatever. It's standard tcpdump syntax
+[2013-02-10 04:41:03 -0500] gaffneyc: *tcp flow -C
+[2013-02-10 04:41:08 -0500] gaffneyc: tcpflow -C
+[2013-02-10 04:41:15 -0500] gaffneyc: otherwise it creates files
+[2013-02-10 04:49:26 -0500] manimal_: so, once i bootstrap a new client, and add a recipe to the node's runlist, how often do the nodes communicate with the chefserver to update themselves, or do i have to run chef-client myself
+[2013-02-10 04:50:38 -0500] manimal_: i thought i would be smart and created a new node in webui and added recipe to it, then when i bootstrapped it, it just overwrote the node i had just created lol
+[2013-02-10 04:50:38 -0500] gaffneyc: manimal_: Usually need to configure that yourself.
+[2013-02-10 04:51:20 -0500] manimal_: so do i just run chef-client on the node with cron?
+[2013-02-10 04:51:23 -0500] gaffneyc: manimal_: If you've got a chef cookbook it's whatever the interval is being passed to chef-client or via cron
+[2013-02-10 04:51:40 -0500] gaffneyc: Depends on how you want to configure it...
+[2013-02-10 04:51:52 -0500] gaffneyc: Can either do cron or run chef-client as a service
+[2013-02-10 04:51:53 -0500] manimal_: whats best practice?
+[2013-02-10 04:52:08 -0500] gaffneyc: We're doing both at the moment
+[2013-02-10 04:52:43 -0500] gaffneyc: I'd suggest running chef as a service with forking (-f) enabled
+[2013-02-10 04:52:59 -0500] gaffneyc: Service is easier if you need to put the node in maintenance mode
+[2013-02-10 04:53:37 -0500] gaffneyc: We've had some issues in the past with the service taking hundreds (like 600MB) of memory. Most of that has been solved with adding -f
+[2013-02-10 04:54:00 -0500] gaffneyc: Causes the chef run to fork, so memory is reclaimed after the run. A lot like how resque runs
+[2013-02-10 04:54:27 -0500] manimal_: ok, i assume either way eventually i have to figure out how to get the node to run chef-client thru cron or as service automatically somehow after the bootstrap so i dont have to configure it manually on each box
+[2013-02-10 04:54:38 -0500] manimal_: (3 day chef noob)
+[2013-02-10 04:55:09 -0500] gaffneyc: Yeah, there isn't anything set up by defualt
+[2013-02-10 04:55:22 -0500] gaffneyc: But it's chef so of course theres a cookbook for it!
+[2013-02-10 04:55:33 -0500] gaffneyc: We're using a cookbook based off https://github.com/opscode-cookbooks/chef-client
+[2013-02-10 04:56:56 -0500] gaffneyc: We cut out all the shit we didn't need and standardized on upstart (since we're on ubuntu)
+[2013-02-10 04:57:07 -0500] manimal_: past 2 or 3 days ive been  messing around installing and finally totally understand the install process for server, workstation, and nodes.  now im applying basic recipes to nodes
+[2013-02-10 04:57:23 -0500] manimal_: i have xen installed here on 2 boxes and got about 12 vms total i can play with
+[2013-02-10 04:57:33 -0500] manimal_: at home
+[2013-02-10 04:59:27 -0500] manimal_: once i figured out the wiki docs and docs.opscode site were taking me in circles it got a little easier lol
+[2013-02-10 05:00:44 -0500] gaffneyc: @coderanger: Is there a reason stud can't just connect to port 80? That is only use the one frontend
+[2013-02-10 05:01:25 -0500] gaffneyc: manimal_: Yeah, it takes some getting used to. Give it 6 months you'll feel like wizard.
+[2013-02-10 05:10:10 -0500] manimal_: 6 months?!?! :p
+[2013-02-10 05:11:22 -0500] manimal_: webui doesnt seem to work too well in IE go figure
+[2013-02-10 05:19:33 -0500] manimal_: i talked to a couple of recruiting agencies out here and damn, everyone wants chef/puppet/ec2 ppl right now
+[2013-02-10 05:56:38 -0500] jikbag: Hi folks. I am looking for the best example chef-repo for setting up a web application. So far I have been able to find velocity2011-chef-repo in github but it seems a bit old now. Is there a better one that I should be looking at?
+[2013-02-10 06:00:54 -0500] manimal_: jikbag i was about to mention django but that recipe looks 2 years old...
+[2013-02-10 06:29:21 -0500] miah: coderanger: sup
+[2013-02-10 06:39:55 -0500] manimal_: Error executing action `run` on resource 'execute[apt-get-update]'
+[2013-02-10 06:40:47 -0500] manimal_: im on centos, dont have apt=get, got my chefserver configured with some recipes and when i run chef-client it failes because of apt-get i think
+[2013-02-10 06:41:17 -0500] manimal_: i thought i added an apt recipe too hmmm
+[2013-02-10 07:19:30 -0500] manimal_: ok i figured out that error...one to the next!
+[2013-02-10 07:19:48 -0500] manimal_: Error executing action `post` on resource 'http_request[compact chef couchDB]'
+[2013-02-10 07:20:15 -0500] manimal_: after i run chief-client on my chefserver
+[2013-02-10 07:21:11 -0500] manimal_: its recipe chef-server
+[2013-02-10 12:45:45 -0500] tolland: I purged a cookbook version off hosted chef
+[2013-02-10 12:46:07 -0500] tolland: now its showing as "application error has occurere, Please try again later"
+[2013-02-10 12:46:11 -0500] tolland: error10000
+[2013-02-10 13:46:26 -0500] aboudreault: If in my attributes/default.rb file of my cookbook X. I put a line default['Y']['attr1' = BLA
+[2013-02-10 13:46:51 -0500] aboudreault: Will it be loaded properly when I the include_recipe Y ?
+[2013-02-10 13:47:54 -0500] aboudreault: currently, I was doing a node.override['locale']['lang'] = 'en_US.UTF-8', IN my recipes/default.rb file
+[2013-02-10 13:58:26 -0500] zts: aboudreault: yes - attributes are loaded before recipes are compiled, which means that the attribute will already be set before Chef sees the include_recipe
+[2013-02-10 13:59:29 -0500] aboudreault: zts, ok, so I should do an node.override in my attributes/default.rb or  default[...] ?
+[2013-02-10 13:59:39 -0500] aboudreault: (of the external cookbook setting)
+[2013-02-10 14:14:35 -0500] zts: aboudreault: the latter
+[2013-02-10 14:14:48 -0500] aboudreault: ok
+[2013-02-10 14:15:15 -0500] zts: aboudreault: note that you could also set the attribute in a role or environment, and that would work the same way
+[2013-02-10 14:15:54 -0500] aboudreault: Ok, but I do not use role for the moment. It's only a cookbook to build  a development box.
+[2013-02-10 14:23:06 -0500] zooz: hi people
+[2013-02-10 14:23:14 -0500] zooz: I am a little confused now
+[2013-02-10 14:23:27 -0500] zooz: so what the new chef server is called?
+[2013-02-10 14:23:37 -0500] zooz: 11.2.0 that is
+[2013-02-10 14:23:52 -0500] zooz: is there a gem for that or a package (non-omnibus) for that?
+[2013-02-10 14:31:45 -0500] coolj: it's erchef now, no ruby involved. the ::rubygems-install doesn't work b/c there's no chef-server-api gem anymore iirc. you can still do a bootstrap w/ solo per https://github.com/opscode-cookbooks/chef-server/blob/master/README.md#bootstrap-chef-server-with-chef-solo, but it think it's doing a package install behind the scenes
+[2013-02-10 14:31:55 -0500] coolj: zooz: ^
+[2013-02-10 14:32:44 -0500] zooz: coolj, great
+[2013-02-10 14:32:45 -0500] zooz: thanks
+[2013-02-10 14:32:56 -0500] zooz: I am going to build some RPMs for it for fedora18 upwards
+[2013-02-10 14:33:14 -0500] zooz: opscode seems to suck when it comes to building packages
+[2013-02-10 14:33:58 -0500] zooz: coolj, for the chef-client 11.x everything stays the same I believe, in terms of installation and naming?
+[2013-02-10 14:37:37 -0500] coolj: zooz: yeah, but it server package puts stuff in /etc/chef-server and when i bootstraped via solo, it didn't create the webui and validation keys...i had to chef-server-ctl cleanse yes ; chef-server-ctl reconfigure, then it created chef-validator.pem and i had to link to validation.pem or use -K with chef-client
+[2013-02-10 14:38:09 -0500] coolj: can't type this morning :\
+[2013-02-10 14:38:48 -0500] coolj: also erchef listens on 8000, not 4000
+[2013-02-10 14:42:24 -0500] jtimberman: coolj: package installation only puts the bits on disk. the reconfigure step is required to actually get it running.
+[2013-02-10 14:42:31 -0500] jtimberman: post install scripts considered harmful :)
+[2013-02-10 14:42:44 -0500] zooz: yes, please no post install scripts
+[2013-02-10 14:42:59 -0500] zooz: they are definitely the wrong way of doing packaging
+[2013-02-10 14:43:03 -0500] jtimberman: zooz: what do you mean that we suck when it comes to building packages?
+[2013-02-10 14:43:08 -0500] coolj: jtimberman: i thought the recipe ran the reconfigure, but i maight be confused!
+[2013-02-10 14:43:09 -0500] jtimberman: because that seems rather unfair.
+[2013-02-10 14:43:24 -0500] jtimberman: coolj: did you use the chef-server cookbook from the master branch?
+[2013-02-10 14:43:40 -0500] jtimberman: (i've not used that for awhile myself)
+[2013-02-10 14:43:42 -0500] zooz: jtimberman, I do not know everything what is behind it, but what about proper packages for CentOS, Fedora etc?
+[2013-02-10 14:43:51 -0500] jtimberman: "proper" packages?
+[2013-02-10 14:43:55 -0500] jtimberman: like, packaged by the distribution?
+[2013-02-10 14:44:09 -0500] zooz: yeah, for instance
+[2013-02-10 14:44:14 -0500] coolj: jtimberman: pretty sure i did...was thinking there might be a conflict since solo already had /etc/chef created or s.thing
+[2013-02-10 14:44:16 -0500] jtimberman: or rather, packaged according to the distributions packaging policy
+[2013-02-10 14:44:35 -0500] zooz: jtimberman, let's take Puppet as an example here
+[2013-02-10 14:44:55 -0500] zooz: they provide awesome packages for RPM based distros
+[2013-02-10 14:45:00 -0500] Mithrandir: yeah, everybody should just learn to run ldconfig themselves after installing shared libs, not do it automatically from postinst scripts
+[2013-02-10 14:45:04 -0500] Mithrandir: </troll>
+[2013-02-10 14:45:04 -0500] jtimberman: what's wrong with the single package?
+[2013-02-10 14:45:19 -0500] zooz: jtimberman, do you mean omnibus?
+[2013-02-10 14:45:23 -0500] jtimberman: Yes.
+[2013-02-10 14:45:26 -0500] coolj: https://github.com/opscode-cookbooks/chef-server/blob/master/recipes/default.rb#L77
+[2013-02-10 14:45:36 -0500] zooz: almost everything is wrong with omnibus
+[2013-02-10 14:45:40 -0500] jtimberman: ok
+[2013-02-10 14:46:10 -0500] zooz: it's great for testing maybe, but not for production
+[2013-02-10 14:46:55 -0500] zooz: building a single giant package with everything included apart from libc is not getting you anywhere closer to getting chef into mainstream distributions
+[2013-02-10 14:47:04 -0500] jtimberman: The omnibus packaging gives you a full stack of everything required to run chef / chef server, without worrying about whether an upstream dependency changed in some unpredictable way, or is wildly different and requires workarounds across distribution versions (centos 5 vs 6).
+[2013-02-10 14:47:17 -0500] Mithrandir: it is in mainstream distributions.  :-P
+[2013-02-10 14:47:19 -0500] jtimberman: The goal is not to get that into mainstream distributions.
+[2013-02-10 14:47:39 -0500] jtimberman: specifically, we're not trying to get the single package "omnibus" install into distributions.
+[2013-02-10 14:47:56 -0500] zooz: sure, that would never get its way into distros
+[2013-02-10 14:48:01 -0500] Mithrandir: jtimberman: yeah, putting omnibus in distros would be crazy. :-)
+[2013-02-10 14:48:06 -0500] coolj: yeah, that would be weird
+[2013-02-10 14:48:35 -0500] zooz: so what do you do to get chef into mainstream distros?
+[2013-02-10 14:49:09 -0500] Mithrandir: for Debian and Ubuntu they've worked with a DD to get it in.
+[2013-02-10 14:49:28 -0500] Mithrandir: by providing a good starting point, help and support as well as funding.
+[2013-02-10 14:50:11 -0500] zooz: Mithrandir, is chef already in Ubuntu repositories?
+[2013-02-10 14:51:19 -0500] Mithrandir:       chef | 0.7.10-0ubuntu1.1 | lucid/universe | source, all
+[2013-02-10 14:51:19 -0500] Mithrandir:       chef | 0.8.16-4.2 | oneiric/universe | source, all
+[2013-02-10 14:51:20 -0500] Mithrandir:       chef |  10.12.0-2 | quantal/universe | source, all
+[2013-02-10 14:51:20 -0500] Mithrandir:       chef |  10.12.0-2 | raring/universe | source, all
+[2013-02-10 14:51:36 -0500] Mithrandir: I should get around to updating that to something more recent.
+[2013-02-10 14:52:10 -0500] jtimberman: 0.7 :(
+[2013-02-10 14:52:31 -0500] jtimberman: yay lts distros
+[2013-02-10 14:52:44 -0500] Mithrandir: well, yes. It's due to how Ubuntu's version policies work.
+[2013-02-10 14:53:31 -0500] zooz: are there any plans to do packages for RPM based distros?
+[2013-02-10 14:53:53 -0500] Mithrandir: there has been some in the past, I'm not sure what the current state is.  Maybe jtimberman knows.
+[2013-02-10 14:56:04 -0500] jtimberman: I'm not aware of any plans for Opscode to do any. Our engineering, release and packaging efforts are pretty focused.
+[2013-02-10 14:56:36 -0500] jtimberman: We make all the bits available such that community efforts could be made.
+[2013-02-10 14:56:46 -0500] zooz: fair enough
+[2013-02-10 14:56:52 -0500] zooz: and thanks for great work
+[2013-02-10 14:58:13 -0500] zooz: I will build packages for fedora18 and create a yum repository so people can enjoy chef on fedora distro more easily
+[2013-02-10 14:58:37 -0500] zooz: will also try and get them into the mainstream
+[2013-02-10 14:59:54 -0500] coolj: +1 on the great work on 11, but please (pretty please!) update the wikis for the new version...i know doc work sucks, but it's pretty frustrating not having up to dte docs /complains_but_doesnt_actually_contribute
+[2013-02-10 15:00:30 -0500] zooz: coolj, documentation is always a tricky part :-)
+[2013-02-10 15:01:14 -0500] jtimberman: zooz: i recommend posting to the chef mailing list to see if others are interested in assisting.
+[2013-02-10 15:01:24 -0500] aboudreault: can my files in file/X.sh be preprocessed? to put some attributes value?
+[2013-02-10 15:01:47 -0500] renchap: is it plans for chef 11 repos on apt.opscode.com ?
+[2013-02-10 15:01:47 -0500] jtimberman: aboudreault: as in the files/default directory in your cookbook? use templates instead.
+[2013-02-10 15:02:03 -0500] jtimberman: renchap: i don't know yet, best to ask btm.
+[2013-02-10 15:02:07 -0500] aboudreault: jtimberman, cookbook_file can work with that too?
+[2013-02-10 15:02:20 -0500] jtimberman: aboudreault: no you would have to use the template resource instead
+[2013-02-10 15:02:36 -0500] aboudreault: jtimberman, ok
+[2013-02-10 15:08:05 -0500] zooz: jtimberman, yep, absolutely. I am aware of some upstream issues with chef dependencies, that's why I just want to get the packages out first so community can start using chef and in the mean time try and get them into the mainstream fedora
+[2013-02-10 17:54:56 -0500] olly88: is there a good way to specify which ruby gems to use from a gem_package definition?
+[2013-02-10 18:06:54 -0500] sascha_d: I'm getting permissions errors in my own hosted chef org.  What have I done?   Permission denied. You do not have permission to list the clients in this organization. (Error 22001)
+[2013-02-10 18:19:42 -0500] ranjibd: olly88, gem_binary attribute
+[2013-02-10 18:20:13 -0500] ranjibd: sascha_d, is it an admin client? or a node ?
+[2013-02-10 18:20:23 -0500] ranjibd: nodes cant enlist clients,
+[2013-02-10 18:20:30 -0500] ranjibd: or read ,
+[2013-02-10 18:20:31 -0500] sascha_d: it's my logged in ID on the UI
+[2013-02-10 18:20:47 -0500] [locke]: is there a way for me to include attributes from other none-default attributes files?
+[2013-02-10 18:20:47 -0500] sascha_d: the only one I've ever used
+[2013-02-10 18:23:18 -0500] ranjibd: sascha_d, not sure, working from me, just checked
+[2013-02-10 18:23:40 -0500] sascha_d: I know. It's weird. I've had this account for couple of years now i think
+[2013-02-10 18:25:46 -0500] chip-: [locke]: You can use include_attribute "cookbook::attribute_file" if you need to.
+[2013-02-10 18:27:27 -0500] [locke]: it doesnt work
+[2013-02-10 18:27:28 -0500] [locke]: i tried it, chef11 doesnt take it
+[2013-02-10 18:31:20 -0500] kallistec: [locke]: include_attribute should still work in Chef 11. Do you get an error of some sort?
+[2013-02-10 18:41:36 -0500] olly88: ranjibd: thanks, that worked great
+[2013-02-10 18:42:11 -0500] [locke]: was the normal error stack for the include_attribute line
+[2013-02-10 18:43:28 -0500] kallistec: [locke]: what do you mean "normal error stack"? gist? Are you using solo BTW?
+[2013-02-10 18:43:49 -0500] [locke]: i'm in starbucks and cant connect to our vpn to commit and try again
+[2013-02-10 18:45:26 -0500] kallistec: :/ I dunno how much longer I'll be on IRC, if the error persists can you mail the chef list about it?
+[2013-02-10 18:46:02 -0500] kallistec: I know we use a bunch of include_attribute and haven't had issues with Chef 11, so there must be another piece to the puzzle
+[2013-02-10 18:50:41 -0500] [locke]: normal ruby error stack message, it's not a chef-solo
+[2013-02-10 18:51:04 -0500] [locke]: the only way it worked was putting the attributes in the default
+[2013-02-10 18:51:39 -0500] jtgiri_: hey guys, for mysql cookbook , if you don't specify the password in attributes, is there a way to access the randomly generated password ?
+[2013-02-10 18:53:15 -0500] [locke]: in the default iptables attribute file i tried to include_attribute "iptables::uptime"
+[2013-02-10 18:53:31 -0500] [locke]: building the iptables rules based on running applications
+[2013-02-10 18:53:48 -0500] [locke]: and it fails on including the attribute from the other attribute file
+[2013-02-10 18:54:33 -0500] [locke]: also tried load_attribute_by_short_filename
+[2013-02-10 19:18:42 -0500] ashp: What's the easiest way in chef to pass in different role attributes based on an ec2 tag?  I'm playing around with porting puppet modules from work to chef to get to grips with it and I'm not sure from the docs how to model things.  Right now, via hiera, we provide different attributes to nodes based on the 'environment' tag we set via ec2.
+[2013-02-10 19:20:52 -0500] sudonim: Hey Folks, I get a "Recipe Compile Error" when I call "include_recipe" within my main recipe. However, if I add the same recipe to the run_list it works fine.
+[2013-02-10 19:22:19 -0500] sudonim: Most of the documentation I've seen suggests  that calling include_recipe "postgresql" within a "main" cookbook should just work.
+[2013-02-10 19:23:43 -0500] sudonim: (running chef-solo if that helps)
+[2013-02-10 19:26:59 -0500] kallistec: ashp: 1. use different roles; 2. use a data bag with one item per environment tag; 3; structure your role like "tag1" => "value1", "tag2" => "value2" and update your recipes accordingly
+[2013-02-10 19:27:29 -0500] ashp: ahh, ok, I'll experiment with that
+[2013-02-10 19:27:48 -0500] kallistec: sudonim: can you gist the error?
+[2013-02-10 19:27:50 -0500] ashp: different roles could work but it feels weird to have dev_blah, stage_blah, prod_blah as roles.  Maybe that's the "done thing" in chef howeve r:)
+[2013-02-10 19:28:37 -0500] ashp: i kind of like doing it in databags as that way there's a databag associated with the role, keeping it obvious where the data belongs
+[2013-02-10 19:28:38 -0500] kallistec: ashp: we use data bags for that, e.g. an "environments" data bag and then have individual items for each
+[2013-02-10 19:28:56 -0500] sudonim: kallistec: https://gist.github.com/sud0n1m/87ebbce1a420945792ae
+[2013-02-10 19:29:01 -0500] sudonim: (thanks!)
+[2013-02-10 19:29:12 -0500] kallistec: so then you load the data bag item "environments", node["app_env"]
+[2013-02-10 19:29:24 -0500] ashp: ahh, ok, that makes sense
+[2013-02-10 19:30:12 -0500] kallistec: sudonim: you need to specify a dependency in your cookbook's metadata
+[2013-02-10 19:30:36 -0500] olly88: I'm trying to use the apt cookbook to add a repository, and I'm getting this error: https://gist.github.com/olly/4750725
+[2013-02-10 19:30:38 -0500] kallistec: sudonim: http://docs.opscode.com/breaking_changes_chef_11.html#non-recipe-file-evaluation-includes-dependencies
+[2013-02-10 19:30:42 -0500] sudonim: kallistec: Cool, ok thanks! I think that gives me enough to go on.
+[2013-02-10 19:30:44 -0500] olly88: Its caused by these lines: https://github.com/opscode-cookbooks/apt/blob/master/providers/repository.rb#L127-L128
+[2013-02-10 19:30:58 -0500] olly88: if I comment them out it all seems to work. Can anyone shed any light on this?
+[2013-02-10 19:33:57 -0500] sudonim: kallistec: Suh-weet! That works perfectly.
+[2013-02-10 19:35:37 -0500] kallistec: sudonim: more discussion of the changes here: http://www.opscode.com/blog/2013/02/05/chef-11-in-depth-attributes-changes/
+[2013-02-10 20:12:11 -0500] jmickle: does anyone know if its possible to do an only_if and not_if in the same block?
+[2013-02-10 20:28:25 -0500] kallistec: jmickle: yeah, you can have both. recentish versions of chef can have multiple of each
+[2013-02-10 20:28:45 -0500] jmickle: ok ty
+[2013-02-10 20:30:28 -0500] dols:  i'm seeing timeouts on pulling down  http://www.opscode.com/chef/install.sh
+[2013-02-10 20:35:28 -0500] kallistec: dols: working on it
+[2013-02-10 20:36:28 -0500] manimal_: im excited i been learning chef using vms with xen and i found the knife xapi plugin yesterday
+[2013-02-10 20:37:32 -0500] jmickle: ;-)
+[2013-02-10 20:37:47 -0500] jmickle: good job manimal, keep it up
+[2013-02-10 20:48:41 -0500] manimal_: ty
+[2013-02-10 21:05:42 -0500] msch: hi people, i'm trying to bootstrap a server
+[2013-02-10 21:05:49 -0500] msch: that involves wget https://www.opscode.com/chef/install.sh
+[2013-02-10 21:05:52 -0500] msch: opscode is down
+[2013-02-10 21:05:57 -0500] msch: anyone know a mirror?
+[2013-02-10 21:07:41 -0500] manimal_: i think they are working on the issue, i dont know a mirror, dont have the packages?
+[2013-02-10 21:07:49 -0500] Kespan: i'm surprised that opscode is running such an old version of nginx 1.0.5 (release 7/19/2011)?
+[2013-02-10 21:12:46 -0500] Kespan: nothing on status.opscode.com (aside from the blog being down a while ago) and nothing on twitter
+[2013-02-10 21:12:51 -0500] msch: manimal_: nope. could you put them online somewhere?
+[2013-02-10 21:13:31 -0500] msch: Kespan: yeah it's really horrible. i would expect them to put stuff like install.sh on some separate host that won't be down :/
+[2013-02-10 21:19:10 -0500] jtimberman: msch: the files are in s3 - opscode-omnitruck-release.s3.amazonaws.com
+[2013-02-10 21:19:27 -0500] jtimberman: not the easiest thing to navigate, but they're available
+[2013-02-10 21:19:41 -0500] msch: jtimberman: ok cool thanks. which one do i need? i always had the install.sh figure it out
+[2013-02-10 21:20:05 -0500] jtimberman: msch: i don't know what your platform, version and machine type are :)
+[2013-02-10 21:20:17 -0500] msch: jtimberman: yeah i realized that this was a stupid question right after i typed it. sorry :)
+[2013-02-10 21:20:24 -0500] jtimberman: but, e.g., debian 6 32 bit: debian/6/i686/chef_11.2.0-1.debian.6.0.5_i386.deb
+[2013-02-10 21:20:39 -0500] msch: jtimberman: i'm still on chef 10, so does that mean i still need the chef_10 deb?
+[2013-02-10 21:20:40 -0500] jtimberman: back to housecleaning for me
+[2013-02-10 21:21:45 -0500] manimal_: i think it was 10.18 was latest?
+[2013-02-10 21:22:04 -0500] msch: manimal_: ubuntu/12.04/x86_64 only has chef-server not chef :/
+[2013-02-10 21:24:05 -0500] manimal_: debian/6/i686/chef_10.20.0-1.debian.6.0.5_i386.deb
+[2013-02-10 21:24:06 -0500] manimal_: ?
+[2013-02-10 21:24:24 -0500] msch: manimal_: yeah going to use this one. still would've preferred one for ubuntu :)
+[2013-02-10 21:25:24 -0500] manimal_: ubuntu/10.04/x86_64/chef_10.20.0-1.ubuntu.10.04_amd64.deb
+[2013-02-10 21:26:31 -0500] msch: manimal_: thanks for finding that for me! :)
+[2013-02-10 21:26:33 -0500] manimal_: ubuntu/11.04/i686/chef_10.20.0-1.ubuntu.11.04_i386.deb
+[2013-02-10 21:31:57 -0500] sudonim: Hey Folks, I'm getting "Cannot find a resource for pg_user on ubuntu version 12.10"
+[2013-02-10 21:32:19 -0500] sudonim: Trying to create a user in postgres.
+[2013-02-10 21:32:56 -0500] sudonim: Out of curiosity, is Ubuntu 12.10 not recommended for using chef?
+[2013-02-10 21:37:36 -0500] sudonim: (never mind -- looks like I was missing some config from the node.json)
+[2013-02-10 21:41:15 -0500] manimal_: wow specifying a role to run when bootstrapping a node is cool
+[2013-02-10 23:12:03 -0500] gaffneyc: Just starting some development on chef configs for a new app and we're doing chef-solo to get started.
+[2013-02-10 23:12:33 -0500] gaffneyc: Would love it to scp the chef configs to the server during the bootstrap but no idea if something like that is possible.
+[2013-02-10 23:13:19 -0500] gaffneyc: We've done S3 before for chef solo which worked out well, but we may not be able to do a remote source for this project
+[2013-02-10 23:17:17 -0500] jtimberman: gaffneyc: i think folks use "knife solo" or "cap-chef" for that.
+[2013-02-10 23:18:16 -0500] gaffneyc: @jtimberman: Thanks, haven't heard of either, guess it's time to do some research
+[2013-02-10 23:19:23 -0500] jtimberman: i could be wrong about cap-chef. and i've only used knife-solo fairly recently and not much
+[2013-02-10 23:23:50 -0500] gaffneyc: Did knife-solo get integrated into chef 11?
+[2013-02-10 23:23:54 -0500] jtimberman: no
+[2013-02-10 23:23:57 -0500] jtimberman: it's a gem
+[2013-02-10 23:24:06 -0500] jtimberman: it's not maintained by Opscode.
+[2013-02-10 23:24:30 -0500] gaffneyc: Okay, just remember seeing something like that in the release notes. Or thought I did
+[2013-02-10 23:24:54 -0500] gaffneyc: Oh! It was knife-essentials
+[2013-02-10 23:25:45 -0500] jtimberman: ah yeah, that's maintained by one of Opscode's developers.

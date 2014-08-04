@@ -1,0 +1,117 @@
+[2013-01-24 17:49:28 -0500] monst: howdy guy
+[2013-01-24 17:49:37 -0500] monst: I am getting an error running chef-client
+[2013-01-24 17:49:42 -0500] monst: " osops-utils/autoetchosts: skipping node () because it doesn't have a network assigned yet "
+[2013-01-24 17:49:50 -0500] monst: not sure how to debug
+[2013-01-24 17:50:55 -0500] monst: rackerjoe, i saw you had put some extra debuging info. maybe you might know
+[2013-01-24 17:51:25 -0500] rackerjoe: monst: is it actually killing the chef run or just outputting the INFO/WARNING line?
+[2013-01-24 17:51:34 -0500] monst: killing
+[2013-01-24 17:52:19 -0500] monst: http://pastebin.com/raw.php?i=7nadF6wL
+[2013-01-24 17:52:33 -0500] rackerjoe: what version of the osops-utils are you running?
+[2013-01-24 17:53:25 -0500] monst: 1.0.10 ?
+[2013-01-24 17:55:37 -0500] rackerjoe: can you verify that you have this commit?  https://github.com/rcbops-cookbooks/osops-utils/commit/c491bbda05c4123c043c3f2202285d2abb63f509
+[2013-01-24 17:55:59 -0500] rackerjoe: and are you using floating IPs on this node?
+[2013-01-24 17:56:23 -0500] monst: sure I can check, we are using floats
+[2013-01-24 17:56:33 -0500] monst: checking commit now
+[2013-01-24 17:57:06 -0500] rackerjoe: ok - the problem with that code was it was trying to add the /32 to /etc/hosts and that was breaking it.  try that commit and let me know if it resolves your problems.
+[2013-01-24 17:57:47 -0500] rackerjoe: cd <your chef cookbook dir>/cookbooks/osops-utils
+[2013-01-24 17:57:50 -0500] monst: thanks joe
+[2013-01-24 17:57:53 -0500] rackerjoe: curl https://github.com/rcbops-cookbooks/osops-utils/commit/c491bbda05c4123c043c3f2202285d2abb63f509.patch | patch -p1
+[2013-01-24 17:57:57 -0500] rackerjoe: and go from there
+[2013-01-24 17:57:59 -0500] monst: cool
+[2013-01-24 17:58:10 -0500] rackerjoe: if it breaks you can always reset to head and re-upload :)
+[2013-01-24 18:00:13 -0500] monst: Looks like we already had this commited
+[2013-01-24 18:00:34 -0500] monst: could our hosts file be jacked?
+[2013-01-24 18:01:14 -0500] rackerjoe: can you pastebin the stacktrace?
+[2013-01-24 18:01:18 -0500] monst: sure
+[2013-01-24 18:02:39 -0500] monst: http://pastebin.com/raw.php?i=GXAXNFHs
+[2013-01-24 18:07:21 -0500] monst: let me know if you need anything else
+[2013-01-24 18:40:43 -0500] monst: rackerjoe we enumerated the interfaces via the ip_location.rb
+[2013-01-24 18:40:45 -0500] monst: http://pastebin.com/raw.php?i=zgsDVWpz
+[2013-01-24 18:41:15 -0500] monst: could our environment be wrecking havock on it?
+[2013-01-24 18:43:08 -0500] monst: http://pastebin.com/raw.php?i=Ax0Tb0XT
+[2013-01-24 18:43:47 -0500] monst: looks like we see a mac address for eth4, but it doesn't show via ruby.
+[2013-01-24 18:44:00 -0500] monst: set till nil in ruby which fails
+[2013-01-24 18:44:23 -0500] monst: we used "ip addr show" for second output
+[2013-01-24 18:50:03 -0500] monst: apparently eth4 is showing impoper =\
+[2013-01-24 18:55:56 -0500] monst: after removing eth4 from the array we get a different error "FATAL: RuntimeError: Can't find address on network nova for node"
+[2013-01-24 18:55:58 -0500] monst: =\
+[2013-01-24 19:50:32 -0500] monst: everything seems to point to " if v["family"] == "inet6" or (v["family"] == "inet" and v["prefixlen"] != "32") then "
+[2013-01-24 19:50:51 -0500] monst: but even when reverting back, i still get the same error
+[2013-01-24 19:53:27 -0500] rackerjoe: can you show me your chef environment?
+[2013-01-24 19:55:12 -0500] monst: sure, a spesific command output?
+[2013-01-24 19:55:32 -0500] monst: i am using alamo 2.0
+[2013-01-24 19:55:56 -0500] rackerjoe: knife environment show rpcs
+[2013-01-24 19:56:02 -0500] rackerjoe: knife environment show rpcs -Fj
+[2013-01-24 19:58:06 -0500] monst: http://pastebin.com/raw.php?i=AtCZeuL6
+[2013-01-24 20:00:19 -0500] rackerjoe: can you send me 'knife node list' ?
+[2013-01-24 20:00:50 -0500] monst: sure
+[2013-01-24 20:01:05 -0500] monst:   open-tas02
+[2013-01-24 20:01:05 -0500] monst:   opencpu01
+[2013-01-24 20:01:29 -0500] monst: rackerjoe, let me check, I am getting a different error
+[2013-01-24 20:01:40 -0500] monst: I rebooted, and eth4 doesnt report nil
+[2013-01-24 20:01:45 -0500] monst: so let me see what the new error is
+[2013-01-24 20:01:52 -0500] rackerjoe: so the error went away?
+[2013-01-24 20:04:47 -0500] monst: rackerjoe, I appologize its the same error, I was running the modified ip_location.rb that skipped the eth4\
+[2013-01-24 20:05:05 -0500] monst: so nothing has changed
+[2013-01-24 20:05:37 -0500] rackerjoe: knife node show open-tas02
+[2013-01-24 20:05:41 -0500] rackerjoe: knife node show opencpu01
+[2013-01-24 20:06:00 -0500] rackerjoe: specifically looking for the run_list of the nodes
+[2013-01-24 20:06:05 -0500] rackerjoe: and their environment
+[2013-01-24 20:07:00 -0500] monst: ok cool let me pull those
+[2013-01-24 20:07:33 -0500] rackerjoe: Also, are you getting this on just one node or both.  If just one node, which one?  Also, which node is your controller?
+[2013-01-24 20:09:06 -0500] monst: http://pastebin.com/raw.php?i=ybUwQGhW
+[2013-01-24 20:09:12 -0500] monst: Both nodes are getting the error
+[2013-01-24 20:09:22 -0500] monst: Open-tas02 is the Controller
+[2013-01-24 20:11:00 -0500] monst: rackerjoe, did you notice the my eth4 is showing nil?
+[2013-01-24 20:11:09 -0500] monst: last line of http://pastebin.com/raw.php?i=zgsDVWpz
+[2013-01-24 20:13:51 -0500] petenerd: i'm trying to use the Single-Controller setup with chef and i'm having a bunch of issues.
+[2013-01-24 20:13:57 -0500] petenerd: is there a guide somewhere?
+[2013-01-24 20:18:41 -0500] rackerjoe: monst: I think the nil in the addresses is fine.  That is the hardware address and we are looking for the IP address in that cookbook.
+[2013-01-24 20:19:31 -0500] monst: ok
+[2013-01-24 20:21:42 -0500] rackerjoe: monst: did you touch the cookbooks at all after building the nodes?
+[2013-01-24 20:22:10 -0500] monst: we did
+[2013-01-24 20:22:31 -0500] rackerjoe: which cookbooks did you update?
+[2013-01-24 20:24:21 -0500] monst: added 2 bug fixes
+[2013-01-24 20:24:23 -0500] monst: https://bugs.launchpad.net/nova/+bug/1058332
+[2013-01-24 20:24:32 -0500] monst: https://bugs.launchpad.net/nova/+bug/1096719
+[2013-01-24 20:25:49 -0500] monst: rackerjoe would it make sense to cp the recipes from our working env to this one?
+[2013-01-24 20:26:49 -0500] monst: we tried to revert a majority of our changes
+[2013-01-24 20:27:09 -0500] rackerjoe: If you deployed this environment using the ISO make sure that you use the cookbooks from the iso branch of https://github.com/rcbops/chef-cookbooks.  A lot of those recipes have inter-dependencies so if you update one you need to update almost all of them.
+[2013-01-24 20:28:00 -0500] rackerjoe: for example, osops-utils in the iso branch is 1.0.8
+[2013-01-24 20:28:34 -0500] monst: ok we will revert all cookbooks to iso
+[2013-01-24 20:28:45 -0500] rackerjoe: And that is the one that you should be running.  You can certainly make local modifications but updating the cookbooks that form the crux of our libraries is usually a bad thing :)
+[2013-01-24 20:28:47 -0500] monst: and see if that fixes
+[2013-01-24 20:29:30 -0500] monst: rackerjoe is this what we want to pull from? https://github.com/rcbops/chef-cookbooks/tree/iso
+[2013-01-24 20:30:38 -0500] rackerjoe: yes.  Go to you cookbook directory, git checkout iso; git submodule init; git submodule sync;  git submodule update;
+[2013-01-24 20:30:42 -0500] rackerjoe: and upload those cookbooks.
+[2013-01-24 20:35:43 -0500] monst: rackerjoe, i did those commands and uploaded with knife
+[2013-01-24 20:35:57 -0500] monst: it showed Uploading osops-utils                    [1.0.10]
+[2013-01-24 20:36:07 -0500] monst: thought it was supose to be 1.0.8
+[2013-01-24 20:36:35 -0500] rackerjoe: It should be https://github.com/rcbops-cookbooks/osops-utils/blob/2e09cddc852f36d3b8f5731c3de0959cee999a33/metadata.rb
+[2013-01-24 20:37:04 -0500] monst: didnt seem to clean anything out
+[2013-01-24 20:37:11 -0500] rackerjoe: in your chef-cookbooks directory can you run 'git branch -a' ?
+[2013-01-24 20:37:44 -0500] monst: iso is stared *
+[2013-01-24 20:38:37 -0500] monst: http://pastebin.com/raw.php?i=r22iPSPV
+[2013-01-24 20:40:54 -0500] rackerjoe: can you run
+[2013-01-24 20:40:55 -0500] rackerjoe: git rev-parse HEAD
+[2013-01-24 20:41:00 -0500] rackerjoe: and
+[2013-01-24 20:41:06 -0500] rackerjoe: cd cookbooks/osops-utils ; git rev-parse HEAD
+[2013-01-24 20:41:11 -0500] monst: ok
+[2013-01-24 20:41:30 -0500] monst: root@open-tas02:/opt/rpcs/chef-cookbooks# git rev-parse HEAD
+[2013-01-24 20:41:31 -0500] monst: 2a2de390bca90a60366df587535d8267bedeeb15
+[2013-01-24 20:41:53 -0500] rackerjoe: oh - lol
+[2013-01-24 20:41:55 -0500] monst: same hash for cookbooks
+[2013-01-24 20:42:10 -0500] rackerjoe: you still have version 1.0.10 uploaded to your chef-server
+[2013-01-24 20:42:48 -0500] rackerjoe: knife cookbook bulk delete .* ; knife cookbook upload -a
+[2013-01-24 20:43:00 -0500] monst: root@open-tas02:/opt/rpcs/chef-cookbooks/cookbooks/osops-utils# git rev-parse HEAD
+[2013-01-24 20:43:01 -0500] monst: 88f5f8737b80ac8a5e566b90f1eadd009af5db07
+[2013-01-24 20:43:52 -0500] rackerjoe: osops-utils should be 2e09cddc852f36d3b8f5731c3de0959cee999a33
+[2013-01-24 20:45:25 -0500] rackerjoe: the 'git submodule update' should have checked that version out if you are on the iso branch.    'git diff origin/iso' should show no differential
+[2013-01-24 20:45:30 -0500] monst: git checkout iso; git submodule init; git submodule sync;  git submodule update;
+[2013-01-24 20:45:32 -0500] monst: ^ is not working
+[2013-01-24 20:45:38 -0500] monst: its pulling down 1.0.10
+[2013-01-24 20:46:08 -0500] rackerjoe: can you run 'git checkout iso ; git pull origin iso' ?
+[2013-01-24 20:46:09 -0500] monst: I appolgize I am new to git
+[2013-01-24 20:46:56 -0500] rackerjoe: ok - if that doesn't work then you have two options.  blow away /opt/rpcs/chef-cookbooks and check it out again, or re-install your controller and compute
+[2013-01-24 20:47:16 -0500] monst: gotcha, I will recheck out
+[2013-01-24 20:48:00 -0500] rackerjoe: when you check it out make sure that you check out the iso branch.  it would also be a good idea to delete al cookbooks and roles and re-upload them so you don't have the version problems

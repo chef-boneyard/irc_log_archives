@@ -1,0 +1,548 @@
+[2014-03-10 01:08:50 -0400] mjuszczak: Pretty sure I'm going to run with the Berkshelf method, one repo per chef cookbook, a "org-roles" repo which contains role recipes, a shared chef repo with only databags and environments (no roles, no cookbooks), and perhaps knife-spork for workflow.  Does this sound sane?
+[2014-03-10 01:47:12 -0400] coderanger: mjuszczak: IMO there is no reason to use bags
+[2014-03-10 01:53:19 -0400] coderanger: mjuszczak: Which means no central repo needed at all
+[2014-03-10 01:59:04 -0400] shlant: coderanger: but is there a good alternative for encrypted data bag atm?
+[2014-03-10 01:59:16 -0400] coderanger: shlant: There are several
+[2014-03-10 01:59:35 -0400] coderanger: shlant: citadel is an option if you are on AWS, Barbican is (possibly) an option if you are not
+[2014-03-10 02:00:38 -0400] coderanger: shlant: https://coderanger.net/2014/02/data-bags/ has a section on it
+[2014-03-10 02:03:51 -0400] shlant: coderanger: yep, I read that. I definitely do dispise having to distribute an encrypted data bag secret
+[2014-03-10 02:05:13 -0400] shlant: coderanger: on an unrelated note, can I use the remote_file resource as a kind of cp>
+[2014-03-10 02:05:32 -0400] coderanger: shlant: Not sure what you mean
+[2014-03-10 02:05:48 -0400] shlant: cp /path/to/file /path/to/destination
+[2014-03-10 02:06:02 -0400] shlant: or would i link
+[2014-03-10 02:06:23 -0400] coderanger: A link seems better, that isn't really a convergent operation though
+[2014-03-10 02:06:36 -0400] coderanger: better is to store the file in chef and write it out to both locations independently
+[2014-03-10 02:06:52 -0400] coderanger: You can also just use a file resource
+[2014-03-10 02:07:09 -0400] coderanger: file '/dest' do content lazy { ::File.read('/src') } end
+[2014-03-10 02:07:12 -0400] coderanger: or something like that
+[2014-03-10 02:08:03 -0400] shlant: coderanger: cool, thanks!
+[2014-03-10 02:13:18 -0400] shlant: coderanger: is lazy not required if the src file is already present?
+[2014-03-10 02:13:31 -0400] shlant: like if it's pulled form a repo
+[2014-03-10 02:13:34 -0400] coderanger: shlant: It would have to be present at recipe compile time
+[2014-03-10 02:13:45 -0400] shlant: ah
+[2014-03-10 02:13:49 -0400] coderanger: so if it is being written out by Chef, you need the lazy
+[2014-03-10 03:00:27 -0400] rbowlby: @sethvargus, just perused amazon for a good chef book and saw yours. What's the expected release date?
+[2014-03-10 03:20:45 -0400] coderanger: rbowlby: I think you meant sethvargo
+[2014-03-10 03:22:10 -0400] rbowlby: @sethvargo, just perused amazon for a good chef book and saw yours. What's the expected release date?
+[2014-03-10 03:22:15 -0400] rbowlby: lol, thanks coderanger
+[2014-03-10 03:53:09 -0400] fclausen: hello all - can I include mixins from a ruby_bloc? Specifically, I wish to make use of shell_out.
+[2014-03-10 03:57:06 -0400] coderanger: fclausen: No, Ruby doesn't allow that
+[2014-03-10 03:57:18 -0400] coderanger: fclausen: You can use Mixlib::Shellout directly though
+[2014-03-10 04:00:24 -0400] fclausen: @coderanger: ah right, I'll try that. thanks.
+[2014-03-10 04:02:03 -0400] douglaswth: coderanger: are you sure ruby doesn't allow that? I don't see why it would not
+[2014-03-10 04:02:41 -0400] coderanger: douglaswth: Mix something in to a raw block?
+[2014-03-10 04:02:54 -0400] coderanger: douglaswth: ruby_block doesn't execute against any specific context, just block.call
+[2014-03-10 04:19:35 -0400] fclausen: @coderanger, douglaswth : when I tried to include the mixin (in the ruby_block) it did not know what do to with the "include" keyword
+[2014-03-10 04:19:49 -0400] coderanger: Indeed, since it isn't a class body :)
+[2014-03-10 05:54:39 -0400] kisoku_: it's really irritating that I cannot view the metadata of a cookbook with knife
+[2014-03-10 05:55:03 -0400] kisoku_: ie. knife cookbook show foo 1.0.0 metadata.rb
+[2014-03-10 05:55:06 -0400] kisoku_: returns nothing
+[2014-03-10 05:58:00 -0400] sarkis: zanshin: thanks!
+[2014-03-10 05:58:06 -0400] coderanger: kisoku_: Drop the metadata.rb
+[2014-03-10 05:58:30 -0400] sarkis: how do you all manage databags when using chef solo?
+[2014-03-10 05:59:06 -0400] coderanger: sarkis: Not sure what you mean, they would just be JSON files
+[2014-03-10 05:59:24 -0400] sarkis: so you commit to your repo?
+[2014-03-10 05:59:44 -0400] sarkis: i guess if it's encrypted should be ok ...
+[2014-03-10 05:59:56 -0400] coderanger: sarkis: Depends on how you get the data on to the server
+[2014-03-10 06:00:00 -0400] sarkis: i'm worried about adding secrets like passwords to the git repo
+[2014-03-10 06:00:12 -0400] coderanger: sarkis: Are you using AWS?
+[2014-03-10 06:00:23 -0400] sarkis: no, it's dedicated hardware
+[2014-03-10 06:00:34 -0400] sarkis: i have a jumpbox i deploy from ...
+[2014-03-10 06:00:50 -0400] coderanger: sarkis: Secrets management is Hard, check out chef-vault perhaps
+[2014-03-10 06:00:53 -0400] sarkis: s/deploy/run knife solo prepare/cook
+[2014-03-10 06:01:13 -0400] sarkis: coderanger: thanks, should be a good place to start
+[2014-03-10 06:01:20 -0400] coderanger: I'm not a fan of data bags though, so things like Barbican or Red October might be better
+[2014-03-10 06:01:36 -0400] sarkis: coderanger: i wonder if it gets any easier if i was using chef-server
+[2014-03-10 06:01:50 -0400] coderanger: sarkis: Nope
+[2014-03-10 06:01:53 -0400] sarkis: coderanger: may i ask why? maybe you will save me some time i would spend going down the hole :P
+[2014-03-10 06:02:10 -0400] coderanger: sarkis: Why do I not like bags?
+[2014-03-10 06:02:26 -0400] sarkis: yes
+[2014-03-10 06:02:31 -0400] coderanger: sarkis: https://coderanger.net/2014/02/data-bags/
+[2014-03-10 06:02:46 -0400] sarkis: ah perfect, blog bookmarked :)
+[2014-03-10 06:02:48 -0400] sarkis: thanks coderanger
+[2014-03-10 06:03:27 -0400] kisoku_: coderanger: oh derp
+[2014-03-10 06:03:28 -0400] kisoku_: :-P
+[2014-03-10 06:03:50 -0400] kisoku: pagers they're useful
+[2014-03-10 06:03:51 -0400] kisoku: :-P
+[2014-03-10 06:08:08 -0400] sarkis: red october looks cool, more flexible .. probably start with "1 man" mode
+[2014-03-10 06:08:39 -0400] sarkis: coderanger: have you tried either by any chance?
+[2014-03-10 06:08:46 -0400] sarkis: i see you guys are using s3
+[2014-03-10 06:08:54 -0400] spheromak: kisoku: that data is returned in the api from the server. suprised knife doesn't have a way to it
+[2014-03-10 06:08:58 -0400] coderanger: No, I played with Barbican a while ago
+[2014-03-10 06:09:10 -0400] coderanger: But its changed a lot since then
+[2014-03-10 06:18:01 -0400] sarkis: coderanger: ty very much, great blog too.. you have a new regular reader :)
+[2014-03-10 06:18:17 -0400] coderanger: sarkis: Heh, I don't post particularly often :P
+[2014-03-10 06:18:31 -0400] spheromak: ony when rage levels are sufficient ?
+[2014-03-10 06:18:39 -0400] coderanger: spheromak: Pretty much
+[2014-03-10 06:18:41 -0400] sarkis: haha perfect if that is the case ^
+[2014-03-10 06:18:44 -0400] spheromak: i know the feeling
+[2014-03-10 06:19:01 -0400] sarkis: i mostly read to keep my raging to a minimum
+[2014-03-10 06:19:59 -0400] sarkis: sometimes it's good to actually go down the same path and all, but great to have a heads up on a train coming straight at me
+[2014-03-10 06:20:17 -0400] sarkis: gnite #chef, see you guys in the AM
+[2014-03-10 07:49:58 -0400] clodeindustrie: HI there
+[2014-03-10 07:50:24 -0400] clodeindustrie: I'm having conflicts happening with the name of two third party recipes I'm using
+[2014-03-10 07:50:35 -0400] clodeindustrie: I'm using an nginx cookbook from Opsworks for some things and one from Opscode for others
+[2014-03-10 07:51:05 -0400] clodeindustrie: is there  a way to namespace them or contain them?
+[2014-03-10 09:24:11 -0400] daharon: Hey guys, I'm looking for a C# Chef API client.  Not finding much.  Is there a well established one out there?
+[2014-03-10 09:30:34 -0400] chef571: hi
+[2014-03-10 09:30:53 -0400] chef571: i am getting error while installing the jboss 7 on centos 6.4 chef client
+[2014-03-10 09:31:03 -0400] chef571: using bootstrap
+[2014-03-10 09:31:36 -0400] chef571: Error:Cannot find a resource for jboss_parent on centos version 6.4
+[2014-03-10 09:32:08 -0400] chef571: any idea why this error comes?
+[2014-03-10 11:37:08 -0400] shadylog: hi guys. First off, thank you for supplying an install script that roughly works on every distribution
+[2014-03-10 11:37:09 -0400] shadylog: you guys get it
+[2014-03-10 11:37:12 -0400] shadylog: the puppet guys don't
+[2014-03-10 11:37:15 -0400] shadylog: thanks!
+[2014-03-10 11:37:29 -0400] shadylog: I'm trying to get the hang of chef-solo
+[2014-03-10 11:37:46 -0400] shadylog: and I get that a cookbook holds recipes
+[2014-03-10 11:37:54 -0400] shadylog: but is it common to have multiple cookbooks?
+[2014-03-10 11:38:40 -0400] shadylog: or is it common practise to only have one cookbook?
+[2014-03-10 11:43:17 -0400] workmad3: shadylog: it's fairly common to have multiple cookbooks to split your infrastructure apart into re-usable elements
+[2014-03-10 11:50:16 -0400] shadylog: workmad3: thanks! Another question: is there an example solo.rb ?
+[2014-03-10 11:50:19 -0400] shadylog: I can't find one
+[2014-03-10 11:52:28 -0400] shadylog: chef-solo -r https://github.com/opscode-cookbooks/nginx/releases/download/v2.2.0/nginx-2.2.0.tar.gz
+[2014-03-10 11:52:32 -0400] shadylog: results in an error
+[2014-03-10 11:53:25 -0400] workmad3: shadylog: I'm not aware of one... but the config should be pretty much the same as a client.rb config, except with things like 'cookbook_path', 'roles_path', etc set in it too
+[2014-03-10 11:54:12 -0400] shadylog: okay thank you
+[2014-03-10 13:17:30 -0400] jbellone: Morning everyone!
+[2014-03-10 13:27:46 -0400] clocKwize: hey guys, I'm having trouble, my bootstrap fails with this: https://gist.github.com/brightbits/3bf3eabf93ca13cb30cf
+[2014-03-10 13:27:56 -0400] clocKwize: I'm not sure what its saying exactly, other than there is a dependency issue
+[2014-03-10 13:28:20 -0400] clocKwize: its on ubuntu box, so its ties to yum are confusing, but I guess it decides later which package manager it uses
+[2014-03-10 13:28:35 -0400] clocKwize: having the yum cookbook, just makes it know how to talk to yum, if it chooses to, right?
+[2014-03-10 14:06:38 -0400] mjuszczak: I'm trying to justify to others on my team the reason to put our chef cookbooks in separate repos vs. in subdirectories of one major shared chef repository.
+[2014-03-10 14:07:00 -0400] mjuszczak: I want one repo per chef cookbook, but they want everything together.  They said it's easier to track changes if changes are made to multiple cookbooks.  FYI we're using berks.
+[2014-03-10 14:19:25 -0400] scottmuc: mjuszczak: I've struggled with both styles
+[2014-03-10 14:19:51 -0400] scottmuc: mjuszczak: I tend to start with monolithic repo and tease out the re-usable cookbooks when necessary
+[2014-03-10 14:20:29 -0400] scottmuc: mjuszczak: the danger lies when the monolith grows too unwieldy and there's too much coupling.
+[2014-03-10 14:22:33 -0400] mjuszczak: scottmuc: Do you use the berkshelf method?  Where do you put your roels and such when there's coupling?
+[2014-03-10 14:24:46 -0400] scottmuc: mjuszczak: I use berkshelf, not sure what you mean by berkshelf method. I like having app specific cookbooks live in the same repo as the app code (makes dev teams understand chef, and keeps the coupled changes localized). As for roles, I keep that close to the app as well (although I've started doing things role-less and use role recipes instead)
+[2014-03-10 14:25:47 -0400] scottmuc: haven't worked with large systems, but it works for small systems with just half a dozen services deployed
+[2014-03-10 14:26:22 -0400] jbellone: Anyone have a knife workflow example that works with proxy/no_proxy? Digging through some problems.
+[2014-03-10 14:27:19 -0400] mjuszczak: The "role recipe" setup is the berkshelf method.  Where do you keep the roles?  With the app?  So if something is app-specific it lives inside the application cookbooks?  Where do your generic roles live, like "MySQL server"
+[2014-03-10 14:30:05 -0400] scottmuc: mjuszczak: the role recipes live with the app the mysql cookbook will be in the Berksfile (because there's no need to recreate it) and it'll be wrapped by an app-specific mysql recipe. The reason for this, is that a mysql server (in my context) has no reason to exist on it's own. It's always needed to support some app
+[2014-03-10 14:30:35 -0400] scottmuc: mjuszczak: unless you're simply providing services, then a mysql role might make more sense to you.
+[2014-03-10 14:31:17 -0400] scottmuc: mjuszczak: also keep in mind that my experience has been doing config mgmt in support of software applications. Not necessarily generic IT infrastructure.
+[2014-03-10 14:32:38 -0400] erthad: hiall
+[2014-03-10 14:32:50 -0400] erthad: is it possible to limit chef run only to certain resources?
+[2014-03-10 14:33:00 -0400] erthad: like tags in puppet/ansible
+[2014-03-10 14:33:43 -0400] erthad: i.e. by default it processes the whole run but when I pass some commandline param(?) to chef-client it processes only certaing part of the recipes
+[2014-03-10 14:33:55 -0400] erthad: can chef do something like that?
+[2014-03-10 14:36:58 -0400] EricL: I mistakenly delete the client cert and node in Chef of an existing node.  How do I readd them (since the instance is still alive and well)?
+[2014-03-10 14:37:19 -0400] srenatus: erthad: -o recipe[only::thisone]
+[2014-03-10 14:37:45 -0400] srenatus: erthad: note that only with the most recent version this will not node.save at a successful end of the run
+[2014-03-10 14:48:45 -0400] mjuszczak: scottmuc: That makes sense.  Same here.  How do you tend to structure your app-specific roles?  Do you have a cookbooks directory in the app repo?  And a role recipie alongside other stuff?
+[2014-03-10 14:49:20 -0400] solvip_: how are you guys backing up your Chef servers?  knife-backup?
+[2014-03-10 14:52:00 -0400] scottmuc: mjuszczak: I tend to have an infra/ dir in the app
+[2014-03-10 14:52:39 -0400] scottmuc: mjuszczak: and a Vagrantfile that will configure a local instance with that infra/ code (and ideally be able to package the app locally and deploy it to that vagrant environment)
+[2014-03-10 14:54:25 -0400] kristianpaul: Morning
+[2014-03-10 14:54:31 -0400] CPS: is the node object available inside templates?
+[2014-03-10 15:05:20 -0400] erthad: srenatus: do you mean 11.10 or which version?
+[2014-03-10 15:06:50 -0400] erthad: sounds not very reliable as node.save from recipe would broke the runlist
+[2014-03-10 15:25:33 -0400] cocotton: Out of curiosity, is there a way from within a node to see what its attribute are?
+[2014-03-10 15:45:48 -0400] daxroc1: Can you source an environment within an execute block?
+[2014-03-10 16:06:37 -0400] aleszoulek: hello there, I'm using several levels of recipe_include and just found out, that one of the recipes is called twice for every chef-solo run. Is that an expected behaviour? Known issue in chef-solo 10.14.2...?
+[2014-03-10 16:07:22 -0400] aleszoulek: I've tried to simulate that from a scratch, to have a working (failing) case for that, but haven't managed to do so...
+[2014-03-10 16:07:25 -0400] workmad3: aleszoulek: 'include_recipe' doesn't do a check to see if the recipe has already been included, afaik... it just runs it again
+[2014-03-10 16:07:38 -0400] aleszoulek: "If the include_recipe method is used more than once to include a recipe, only the first inclusion is processed and any subsequent inclusions are ignored."
+[2014-03-10 16:07:41 -0400] aleszoulek: http://docs.opscode.com/essentials_cookbook_recipes.html
+[2014-03-10 16:07:45 -0400] workmad3: oh, ok :)
+[2014-03-10 16:08:16 -0400] aleszoulek: So let's say that apache cookbook and nginx cookbook both include recipe "base-httpd" or something :)
+[2014-03-10 16:08:59 -0400] aleszoulek: And (for sake of this example) I have a WWW role having nginx AND apache in the same runlist. I don't obviously want the base-httpd called twice...
+[2014-03-10 16:09:40 -0400] litjoco: hoping for some help with mysql and database cookbooks.  using the mysql_database resource I repeated get a load error for mysql.  line #29 in provider_database_mysql  in database cookbook
+[2014-03-10 16:09:41 -0400] aleszoulek: So just asking if there would be a reason for chef to re-run already executed recipe that I may be missing
+[2014-03-10 16:11:19 -0400] litjoco: running on rhel 6.4, I've check chef's gems and can see mysql-2.9.1 listed
+[2014-03-10 16:12:12 -0400] litjoco: the database cookbook uses chef_gem(mysql) which should load it - correct?
+[2014-03-10 16:13:53 -0400] workmad3: aleszoulek: could be that the two includes are in separate isolated runs (such as the isolated run_context inside an LWRP, iirc)
+[2014-03-10 16:14:11 -0400] workmad3: litjoco: can you give the entire error from the load error please?
+[2014-03-10 16:17:20 -0400] litjoco: cannot load such file -- mysql/mysql_api
+[2014-03-10 16:18:02 -0400] litjoco: "/var/chef/cache/cookbooks/database/libraries/provider_database_mysql.rb:29:in `load_current_resource'"
+[2014-03-10 16:18:29 -0400] litjoco: workmad3: is that what you are looking for?
+[2014-03-10 16:22:52 -0400] shlant: anyone know how to specify secret-file wit knife-openstack?
+[2014-03-10 16:24:51 -0400] obryan: this is sort of a survey question, those who use chef for web app deployment, do you use something in particular or did you end up putting your own cookbook together?
+[2014-03-10 16:25:18 -0400] obryan: I'm just trying to suss out if it's worth my time to keep looking for one that works for me or just start from scratch
+[2014-03-10 16:35:21 -0400] shlant: anyone? the openstack plugin seems completely useless without a secret-file flag
+[2014-03-10 16:36:00 -0400] drrk: shlant: it uses environment variables doesn't it?
+[2014-03-10 16:37:15 -0400] shlant: drrk: I don't understand what you mean
+[2014-03-10 16:37:35 -0400] shlant: oyu mean knife[:sercet_file]?
+[2014-03-10 16:38:39 -0400] srenatus: shlant: what is it that you're expecting?
+[2014-03-10 16:39:16 -0400] srenatus: shlant: knife[:secret_file] is used for encrypting data bags and on knife bootstrap, it is sent to the machine
+[2014-03-10 16:39:25 -0400] shlant: srenatus: I need to get my encrypted_data_bag_secret on the server in oder for encrypted data bags to work
+[2014-03-10 16:39:39 -0400] shlant: yea, so how do i do that with knife openstack?
+[2014-03-10 16:39:47 -0400] shlant: have it in knife.rb?
+[2014-03-10 16:40:35 -0400] srenatus: shlant: haven't used it in a while...
+[2014-03-10 16:40:44 -0400] srenatus: I'd say knife.rb yes.
+[2014-03-10 16:41:44 -0400] srenatus: shlant: knife-openstack is re-using knife's bootstrap methods... so it should work like that
+[2014-03-10 16:42:20 -0400] srenatus: shlant: above, there's a typo in secret_file, that was just an IRC typo, right?
+[2014-03-10 16:43:13 -0400] shlant: srenatus: yep
+[2014-03-10 16:46:15 -0400] srenatus: shlant: tried using knife bootstrap on a non-knife-openstack-provisioned VM?
+[2014-03-10 16:46:27 -0400] srenatus: shlant: does the rest work, i.e. installing chef, putting the validator there,... ?
+[2014-03-10 16:52:36 -0400] shlant: srenatus: That's how I usually do it. provision vm and then use knife bootstrap, but it's a PITA. I think I originally did it that way for this same reason.
+[2014-03-10 16:52:46 -0400] shlant: knife[:secret_file] doesn't work
+[2014-03-10 16:53:52 -0400] srenatus: shlant: hmm weird.... there's a third option btw: generate the user data to include everything needed for a proper chef run
+[2014-03-10 16:54:18 -0400] shlant: srenatus: what's the process for that?
+[2014-03-10 16:54:43 -0400] srenatus: shlant: https://github.com/TelekomLabs/cloudinit-cli
+[2014-03-10 16:54:58 -0400] srenatus: shlant: I never used it, though
+[2014-03-10 16:56:16 -0400] shlant: srenatus: thanks, I'll take a look
+[2014-03-10 17:11:19 -0400] aleszoulek: workmad3: Thx for pointing the right way... I'll investigate :)
+[2014-03-10 17:11:28 -0400] aleszoulek: let's see if that's the issue
+[2014-03-10 17:15:55 -0400] bro79: Hi, I have a definition in a cookbook I am writing. I need to issue a restart to a service defined in the default recipe. Is this possible?
+[2014-03-10 17:23:16 -0400] poguez: newbie with chef around here. I'm writing a pair of cookbooks to deploy some extensions of a system. The thing is that I need to modify a file to insert some lines with a regular expression using Chef Util::FileEdit but initialize constructor tells me it is private. I'm using Chef: 11.10.4
+[2014-03-10 17:30:54 -0400] gleam: i've used this, dunno if it will meet your needs. if not, you can probably get examples from the code: https://github.com/someara/line-cookbook
+[2014-03-10 17:31:15 -0400] CPS: filetypemismatch on template declaration, any ideas? https://gist.github.com/anonymous/9469822
+[2014-03-10 17:32:57 -0400] poguez: thank you gleam I appreciate it.
+[2014-03-10 17:34:15 -0400] gleam: cps is this your cookbook or someone else's?
+[2014-03-10 17:34:28 -0400] CPS: mine
+[2014-03-10 17:34:36 -0400] gleam: if you're using local true you need to use source "path\to\source\template\file.erb"
+[2014-03-10 17:34:40 -0400] gleam: not path "path\to\template\dir
+[2014-03-10 17:35:10 -0400] gleam: When this attribute is set to true, use the source attribute specify the path to a template on the local node.
+[2014-03-10 17:35:17 -0400] CPS: isn't that repetitive? source and path are both present
+[2014-03-10 17:35:29 -0400] gleam: path is different
+[2014-03-10 17:35:33 -0400] poguez: OK
+[2014-03-10 17:35:34 -0400] gleam: path is for the destination path for the file
+[2014-03-10 17:35:55 -0400] gleam: so you're telling it "the name of the resource is c:\configuration... but the actual path to the file i want you to create is d:\files\app_tier\..."
+[2014-03-10 17:36:09 -0400] gleam: path is for destination, source is for source
+[2014-03-10 17:39:13 -0400] dgarstang: Anyone know what Chef::HTTP is? I have a cookbook that uses it, but chef doesn't seem to like it and i can't find any docs on it.
+[2014-03-10 17:43:15 -0400] drogoh: is 'knife ssh' aware of -E?
+[2014-03-10 17:43:57 -0400] drogoh: from what I'm seeing, it isn't
+[2014-03-10 17:45:09 -0400] CPS: thanks gleam
+[2014-03-10 17:54:30 -0400] coderanger: drogoh: Put it in the search query
+[2014-03-10 17:54:43 -0400] coderanger: drogoh: knife ssh 'roles:foo AND chef_environment:whatever'
+[2014-03-10 18:04:43 -0400] drogoh: that still doesn't give me what I'm expecting. instead of hundreds of results I'm getting 1
+[2014-03-10 18:14:50 -0400] kbarry: I ma bootstrapping a linux node:
+[2014-03-10 18:15:57 -0400] kbarry: knife bootstrap servername01.domain.org -x root -P [password]
+[2014-03-10 18:16:10 -0400] kbarry: knife node list afterwords shows
+[2014-03-10 18:16:11 -0400] kbarry: servername01
+[2014-03-10 18:16:22 -0400] kbarry: not the expected "servername01.domain.org"
+[2014-03-10 18:16:55 -0400] kbarry: (FYI, this was bootstrapped before, i did a "knife node delete" and "knife client delete")
+[2014-03-10 18:17:25 -0400] kbarry: Also, i had to give the parameter --no-host-key-verify in the bootstrap bease of an error i was getting.
+[2014-03-10 18:18:47 -0400] kbarry: things "seem" to work just fine until i try to re-run chef-client a second time after bootstrapping.
+[2014-03-10 18:31:33 -0400] mjuszczak: coderanger: Do you prefer to put custom cookbooks in their own, individual repos, or tie them alongside the app code?
+[2014-03-10 18:50:59 -0400] RayS: is there a knife ec2 like tool or some fork of it that supports creating spot instances?
+[2014-03-10 19:04:32 -0400] btm: chef code review: join bit.ly/1glnipc, watch: bit.ly/1glnkgM
+[2014-03-10 19:08:27 -0400] glen: hey, why does this recipe give undefined method `lib_dir' for Chef::Resource::Template http://sprunge.us/aSbF
+[2014-03-10 19:08:50 -0400] glen: output itself: http://sprunge.us/jVjK
+[2014-03-10 19:09:13 -0400] glen: if i just rename lib_dir to lib_dir and create lib_dir = lib_dir_ before template block, then it just works. wtf
+[2014-03-10 19:09:27 -0400] someara: anyone know of any HWRP use_inline_resources examples?
+[2014-03-10 19:13:23 -0400] glen: well. if i moved the "def" inside "template" then it started to work. how to explain it?
+[2014-03-10 19:24:05 -0400] coderanger: someara: You mean something using it?
+[2014-03-10 19:24:55 -0400] coderanger: someara: A quick grep of my src folder shows both the apt and ark cookbooks use it
+[2014-03-10 19:28:57 -0400] someara: I meant... something written in the HWRP style with specs, that has an "embedded" chef resource that does the run_context/updated_by_last_action trick
+[2014-03-10 19:34:41 -0400] coderanger: someara: I can give you examples of things using poise which is far better, does that help? :)
+[2014-03-10 19:35:34 -0400] coderanger: use_inline_resources is a feature of LWRPs specifically AFAIK, so I don't think a class-based resource could use it directly
+[2014-03-10 19:35:49 -0400] coderanger: but the notifying_block helper in poise does a similar thing
+[2014-03-10 19:36:39 -0400] someara: hrmm
+[2014-03-10 19:50:34 -0400] spheromak: not hard to just check if the underlying resource took action tho. or use the old hack of making a run_context that the sub-resources run under, and then checking that for actions
+[2014-03-10 19:51:25 -0400] alexbst: howdy spheromak
+[2014-03-10 19:51:41 -0400] coderanger: spheromak: It is pretty hard to get right in a general case
+[2014-03-10 19:51:47 -0400] therealkoopa: I'm trying to add sticky sessions into the nginx module.
+[2014-03-10 19:51:57 -0400] spheromak: coderanger: i agree
+[2014-03-10 19:52:02 -0400] spheromak: alexbst: hi
+[2014-03-10 19:52:04 -0400] therealkoopa: Is it possible if I use the nginx cookbook from opscode?
+[2014-03-10 19:52:10 -0400] coderanger: spheromak: If you have one or two resources it is okay, but then you start dealing with notifications et al and it goes downhill fast
+[2014-03-10 19:52:14 -0400] coderanger: therealkoopa: It is possible, yes
+[2014-03-10 19:54:00 -0400] therealkoopa: coderanger: Okay, just use nginx::source and download the sticky session module? I am failing on the next part. Should I create a cookbook for the sticky sessions? Or should I extract the sticky sessions tarball to the node['nginx']['source']['prefix'] location?
+[2014-03-10 19:54:35 -0400] clodeindustrie: hi there
+[2014-03-10 19:54:54 -0400] clodeindustrie: I'm having cookbooks names conflicts
+[2014-03-10 19:54:55 -0400] clodeindustrie: I'm using an nginx cookbook from Opsworks for some things and one from Opscode for oth
+[2014-03-10 19:55:00 -0400] spheromak: coderanger: you need a getting started with poise
+[2014-03-10 19:55:05 -0400] coderanger: spheromak: I really do :-(
+[2014-03-10 19:55:06 -0400] clodeindustrie: is there a way to namespace them?
+[2014-03-10 19:55:08 -0400] spheromak: or someone needs to write that
+[2014-03-10 19:55:16 -0400] coderanger: spheromak: Writing my PyCon talk first, then the Poise docs/talk
+[2014-03-10 19:55:20 -0400] spheromak: I would like to use it but i will have to educate a buncha folk here
+[2014-03-10 19:55:30 -0400] spheromak: and thats just load i can't take on atm
+[2014-03-10 19:55:56 -0400] coderanger: clodeindustrie: No :-(
+[2014-03-10 19:56:04 -0400] coderanger: therealkoopa: Check out https://github.com/opscode-cookbooks/nginx/blob/master/recipes/http_geoip_module.rb and similar recipes in there
+[2014-03-10 19:56:18 -0400] therealkoopa: coderanger: will do. thanks
+[2014-03-10 19:57:04 -0400] clodeindustrie: coderanger: I'm using this to manage my cookbooks https://github.com/aceofsales/opsworks-control-tower
+[2014-03-10 19:57:32 -0400] coderanger: clodeindustrie: Never heard of it, but Chef has no way to isolate cookbooks that use the same name
+[2014-03-10 19:57:34 -0400] clodeindustrie: I guess I could search and replace all the occurences  of "include_recipe" in on of them
+[2014-03-10 19:57:36 -0400] clodeindustrie: meh
+[2014-03-10 19:57:54 -0400] clodeindustrie: thanks though
+[2014-03-10 19:58:46 -0400] mhenrixon: Anyone have experience using https://github.com/hw-cookbooks/repmgr ?
+[2014-03-10 20:01:28 -0400] RayS: is there a knife ec2 like tool or some fork of it that supports creating spot instances?
+[2014-03-10 20:21:52 -0400] Guest43450: having the following issue when trying berks upload:  Ridley::Errors::ConnectionFailed: SSL_connect returned=1 errno=0 state=SSLv3 read server certificate B: certificate verify failed
+[2014-03-10 20:21:59 -0400] Guest43450: I tried all I could find in google
+[2014-03-10 20:22:06 -0400] Guest43450: anyone had this issue on MAC OS?
+[2014-03-10 20:28:03 -0400] mhenrixon: Guest43450 `echo '{ "ssl": { "verify": false } }' > ~/.berskhelf/config.json`
+[2014-03-10 20:29:15 -0400] Guest43450: I tried that but did not work
+[2014-03-10 20:31:42 -0400] mhenrixon: Thats the only thing I had to do to make it work
+[2014-03-10 20:32:43 -0400] Guest43450: ok
+[2014-03-10 20:32:46 -0400] Guest43450: sorry this worked
+[2014-03-10 20:32:58 -0400] Guest43450: not sure why it did not when I cut and pasted it in the json file
+[2014-03-10 20:33:02 -0400] Guest43450: thank you
+[2014-03-10 20:33:04 -0400] chgravier: I have the same thing and workning Guest43450
+[2014-03-10 20:33:36 -0400] Guest43450: yeah I must have put in within the larger brackets
+[2014-03-10 20:33:41 -0400] Guest43450: all set
+[2014-03-10 20:34:08 -0400] mhenrixon: Glad I could help you out Guest43450
+[2014-03-10 20:34:43 -0400] Guest43450: should add that command in all the sites i went to today just make sure people just cut and paste your command
+[2014-03-10 20:35:47 -0400] Guest43450: now I have this
+[2014-03-10 20:35:47 -0400] Guest43450: but have not googled it yet
+[2014-03-10 20:35:48 -0400] Guest43450: Ridley::SandboxUploader crashed! Faraday::Error::ConnectionFailed: SSL_connect SYSCALL returned=5 errno=0 state=SSLv3 read server session ticket A
+[2014-03-10 20:36:05 -0400] coderanger: RayS: You can probably do it via Fog directly
+[2014-03-10 20:36:20 -0400] coderanger: mhenrixon: Oh god never do that
+[2014-03-10 20:36:35 -0400] coderanger: Guest43450: Rather than disable SSL verification which is hugely dangerous
+[2014-03-10 20:36:48 -0400] coderanger: Guest43450: You need to get an SSL CA bundle you trust
+[2014-03-10 20:36:56 -0400] coderanger: Guest43450: Do you have homebrew installed?
+[2014-03-10 20:37:00 -0400] Guest43450: yes
+[2014-03-10 20:37:02 -0400] Guest43450: I have brew
+[2014-03-10 20:37:07 -0400] Guest43450: I stalled that cacert
+[2014-03-10 20:37:10 -0400] DFieldFL: join #opscode
+[2014-03-10 20:37:12 -0400] coderanger: Guest43450: brew install ca-cert-bundler
+[2014-03-10 20:37:15 -0400] coderanger: er, bundle
+[2014-03-10 20:37:27 -0400] mhenrixon: not a big deal for me @coderanger I have to open up a VPN connection to reach my chef server
+[2014-03-10 20:37:27 -0400] RayS: coderanger: thanks
+[2014-03-10 20:37:27 -0400] Guest43450: did that
+[2014-03-10 20:37:33 -0400] coderanger: Guest43450: Okay, run this then
+[2014-03-10 20:37:33 -0400] coderanger: export SSL_CERT_FILE="$(brew --prefix curl-ca-bundle)/share/ca-bundle.crt"
+[2014-03-10 20:37:46 -0400] Guest43450: yep did that
+[2014-03-10 20:37:53 -0400] nightghos: Hey guys i have a question, what is the cleanest way to clean orphaned nodes from your chef server?
+[2014-03-10 20:37:59 -0400] mhenrixon: I've done it too and it doesn't help me at least
+[2014-03-10 20:38:01 -0400] coderanger: mhenrixon: That disable SSL verification for comms with the community API and other sources as well
+[2014-03-10 20:38:13 -0400] mhenrixon: oh damn that is not a good thing
+[2014-03-10 20:38:23 -0400] DFieldFL: I have a update I would like to request a pull for apache2. I'm new to chef and wanted to know the process. Do I need to write tests and such?
+[2014-03-10 20:38:34 -0400] coderanger: nightghos: No great way, easy solution is to check for anything that hasn't checked in to the server in X days and try SSHing/pinging
+[2014-03-10 20:38:37 -0400] mhenrixon: heh ignorance is all fun and games until someone gets hurt
+[2014-03-10 20:38:56 -0400] CPS: seeing some more weird template behavior. template erb had a field removed from it. runs successfully, but the file it generates contains the field that isn't supposed to be there anymore. in the log it says it creates a backup - that file is correct https://gist.github.com/anonymous/9473768
+[2014-03-10 20:39:19 -0400] nightghos: coderanger: we have a little sript that runs and check for orphan nodes and clean things up, i saw some pretty cool clean up procedure in vagrant
+[2014-03-10 20:41:13 -0400] coderanger: nightghos: Not sure what you mean
+[2014-03-10 20:44:21 -0400] gswallow: I have a question!
+[2014-03-10 20:45:04 -0400] gswallow: If I set an attribute using node.default in a role, it doesn't take effect unless I add that role to the node's run list.  Is that supposed to be the way it works?
+[2014-03-10 20:46:21 -0400] gswallow: e.g. I set node['monitor']['metric_handlers'] to [ 'graphite' ] in a role called "monitor".  But the "monitor" role is included in the "base" role.  If I take that out of the "monitor" role and add it to the "base" role, then it takes effect.  Otherwise not.
+[2014-03-10 20:50:51 -0400] coderanger: gswallow: Roles are expanded recursively
+[2014-03-10 20:51:08 -0400] coderanger: gswallow: However the node or node.default syntax isn't available in roles, so not sure what you mean
+[2014-03-10 20:52:47 -0400] gswallow: ugh.  I found it.  Never mind :)
+[2014-03-10 20:59:42 -0400] therealkoopa: coderanger: https://gist.github.com/anonymous/cd7338859b23c50bba67 This still doesn't seem to configure the sticky modules. Do you see anything obvious?
+[2014-03-10 21:11:38 -0400] CPS: how can i chef if a folder exists at chef run time, rather than compile time?
+[2014-03-10 21:11:47 -0400] CPS: how can i check*
+[2014-03-10 21:12:01 -0400] spheromak: ruby_block
+[2014-03-10 21:12:34 -0400] CPS: i'm trying to detect this inside a template declaration
+[2014-03-10 21:12:43 -0400] CPS: if the folder exists, use it as the source
+[2014-03-10 21:12:47 -0400] spheromak: pass a variable down to the template
+[2014-03-10 21:12:50 -0400] spheromak: from your recipe
+[2014-03-10 21:13:17 -0400] CPS: ?
+[2014-03-10 21:13:21 -0400] spheromak: >
+[2014-03-10 21:13:23 -0400] spheromak: ?
+[2014-03-10 21:13:42 -0400] CPS: passing a variable doesn't answer this question
+[2014-03-10 21:13:47 -0400] spheromak: http://docs.opscode.com/essentials_cookbook_templates.html#variables
+[2014-03-10 21:13:50 -0400] spheromak: yes it does
+[2014-03-10 21:14:06 -0400] spheromak: check if the dir exists in the recipe in a ruby_block, set a variable. pass that to the template
+[2014-03-10 21:14:08 -0400] coderanger: CPS: Thats really not a good way to write things
+[2014-03-10 21:14:12 -0400] spheromak: pull the logic out of the template
+[2014-03-10 21:14:13 -0400] coderanger: CPS: What are you trying to accomplish?
+[2014-03-10 21:14:40 -0400] CPS: i'm exporting an svn folder that may or may not contain a folder containing chef templates
+[2014-03-10 21:15:06 -0400] coderanger: CPS: That sounds very non-convergent :)
+[2014-03-10 21:15:07 -0400] CPS: the recipe exports it, and if the chef folder is inside it, i want to use it as the source directory for my template declarations
+[2014-03-10 21:15:40 -0400] coderanger: CPS: I'm confused, why would that not be handled within Chef?
+[2014-03-10 21:16:12 -0400] CPS: i'm having trouble getting it to use the folder
+[2014-03-10 21:16:33 -0400] CPS: if File.directory?(svn_chef_folder) always seems to evaluate to false
+[2014-03-10 21:16:37 -0400] CPS: so it uses cookbook files
+[2014-03-10 21:16:37 -0400] maruq: CPS: why not use a template block with an only_if condition?
+[2014-03-10 21:16:43 -0400] coderanger: CPS: Yes don't do that, just manage them via normal recipes
+[2014-03-10 21:16:57 -0400] CPS: not really an option in my situation
+[2014-03-10 21:17:02 -0400] CPS: need to pull them from svn
+[2014-03-10 21:17:07 -0400] coderanger: CPS: Can you illustrate why?
+[2014-03-10 21:17:14 -0400] CPS: maruq: how does only_if work?
+[2014-03-10 21:17:29 -0400] coderanger: CPS: Trying to handle file transports out-of-band will lead to much pain and edge cases
+[2014-03-10 21:17:36 -0400] dgarstang: I'm wondering why, with latest chef, 11.10.4, I'm getting 'cannot load such file -- chef/http'. Obviously I'm a moron.
+[2014-03-10 21:17:40 -0400] maruq: CPS: It will only execute the resource if the condition passes
+[2014-03-10 21:17:44 -0400] CPS: these files are xml configuration files for our application. the recipe installs a given version of the app, and versions have more/different xml fields
+[2014-03-10 21:17:54 -0400] CPS: using the wrong config will cause the application to fail to start
+[2014-03-10 21:18:00 -0400] maruq: CPS: one sec, I'll find the doc
+[2014-03-10 21:18:01 -0400] coderanger: dgarstang: Check the error traceback, ensure it is using the gem code you think it is
+[2014-03-10 21:18:23 -0400] coderanger: CPS: Okay, why can't you manage that entirely inside Chef?
+[2014-03-10 21:18:32 -0400] CPS: maruq: that's sort of what i need, but i want it to use the svn folder if it exists, and if not use the default cookbook files
+[2014-03-10 21:18:36 -0400] coderanger: CPS: Chef knows what version it just installed
+[2014-03-10 21:19:15 -0400] CPS: these files get updated a lot and I haven't found a clean way to have a dozen versions of the same file in chef
+[2014-03-10 21:19:15 -0400] maruq: CPS: see http://docs.opscode.com/resource_common.html#guards
+[2014-03-10 21:19:30 -0400] therealkoopa: Is there a way to see how chef is running the ./configure nginx command so I can see if it's sending my flag?
+[2014-03-10 21:19:33 -0400] CPS: they're in svn via an established process
+[2014-03-10 21:19:40 -0400] CPS: it's easier to pull them from there
+[2014-03-10 21:19:41 -0400] coderanger: CPS: I'll grant you that, but this is going to be plenty messy too ;-)
+[2014-03-10 21:19:43 -0400] dgarstang: Hm. "INFO: *** Chef 11.6.0 ***"
+[2014-03-10 21:20:05 -0400] coderanger: CPS: What version of Chef are you using?
+[2014-03-10 21:20:10 -0400] coderanger: CPS: If recent, you can do this
+[2014-03-10 21:20:20 -0400] CPS: 11.8.2
+[2014-03-10 21:20:50 -0400] CPS: all i need is a folder exists check that executes during the chef run, rather than the first compile step
+[2014-03-10 21:21:11 -0400] maruq: CPS: hmm... only_if & not_if would be one way
+[2014-03-10 21:21:29 -0400] CPS: maruq: that will be my fall back, thank you
+[2014-03-10 21:21:59 -0400] maruq: CPS: another might be to switch based on whether the directory exists...
+[2014-03-10 21:22:08 -0400] coderanger: CPS: http://hastebin.com/moyanoxura.rb
+[2014-03-10 21:22:09 -0400] dgarstang: Okidoki... why would /usr/bin/chef-client be 11.10.4, but when running vagrant with chef solo, it reports 11.6.0 ?
+[2014-03-10 21:22:22 -0400] maruq: but you said that the dir is always returning false?
+[2014-03-10 21:22:50 -0400] CPS: maruq: yes, the directory is created during the chef run and is deleted after
+[2014-03-10 21:23:00 -0400] CPS: it all hinges on when the line gets run
+[2014-03-10 21:23:10 -0400] CPS: coderanger: that looks nice and clean, i'll give that a go
+[2014-03-10 21:23:23 -0400] coderanger: dgarstang: Are you using vagrant-omnibus?
+[2014-03-10 21:23:37 -0400] maruq: CPS: hmm... I wonder if a subscribes / notifies approach might be better then?
+[2014-03-10 21:23:41 -0400] dgarstang: coderanger: I believe so.
+[2014-03-10 21:23:49 -0400] coderanger: dgarstang: What version is it set to?
+[2014-03-10 21:23:51 -0400] maruq: CPS: see http://docs.opscode.com/resource_common.html#notifications
+[2014-03-10 21:24:43 -0400] CPS: thanks guys
+[2014-03-10 21:24:56 -0400] dgarstang: coderanger: I shall to research how to find that out
+[2014-03-10 21:25:19 -0400] coderanger: dgarstang: The line you want to see is "config.omnibus.chef_version = :latest"
+[2014-03-10 21:25:36 -0400] dgarstang: coderanger: That's new. In Vagrant?
+[2014-03-10 21:26:04 -0400] coderanger: Thats the config to the vagrant-omnibubus plugin
+[2014-03-10 21:26:05 -0400] maruq: coderanger: won't setting it to true do the same thing?
+[2014-03-10 21:26:24 -0400] coderanger: maruq: Possibly, using :latest is way clearer though
+[2014-03-10 21:26:40 -0400] maruq: if you set it to a version, you'll get that version. setting to true pulls the latest
+[2014-03-10 21:26:55 -0400] maruq: coderanger: ah, yeah, I guess that makes sense then ;)
+[2014-03-10 21:32:16 -0400] therealkoopa: Any ideas why the --add-module flag isn't being added? https://gist.github.com/anonymous/b4cd54da2b52ff707a45
+[2014-03-10 21:33:07 -0400] coderanger: therealkoopa: Are you certain that recipe is being executed?
+[2014-03-10 21:33:43 -0400] therealkoopa: coderanger: Yea, it download sthe module and extracts it. I can verify that in /var/chef/cache
+[2014-03-10 21:34:27 -0400] therealkoopa: coderanger: And I just manually went into the nginx source in that directory and did a ./configure --add-module=../nginx_sticky<...> and it installed another copy in /usr/local/nginx because I didn't set hte prefix flag. And nginx -V shows add-module.
+[2014-03-10 21:34:28 -0400] coderanger: therealkoopa: How did you set it up to get called?
+[2014-03-10 21:34:53 -0400] therealkoopa: coderanger: It's a cookbook with a default.rb that I'm including in a role run-list.
+[2014-03-10 21:35:03 -0400] therealkoopa: At the bottom I'm including the nginx::source, but that might be the problem.
+[2014-03-10 21:35:13 -0400] coderanger: therealkoopa: Ahh, that won't work
+[2014-03-10 21:35:17 -0400] therealkoopa: I'm new to chef, so I'm not sure if that's how I should do it.
+[2014-03-10 21:35:24 -0400] therealkoopa: coderanger: That explains it...
+[2014-03-10 21:35:28 -0400] therealkoopa: coderanger: How should I do it?
+[2014-03-10 21:36:41 -0400] coderanger: therealkoopa: You would need to set node.override['nginx']['source']['modules']
+[2014-03-10 21:36:55 -0400] coderanger: therealkoopa: Set that to a list of recipes names to install the modules you want
+[2014-03-10 21:38:01 -0400] therealkoopa: coderanger: So create a recipe that does the nginx-sticky-sessions stuff?
+[2014-03-10 21:38:04 -0400] coderanger: therealkoopa: https://github.com/opscode-cookbooks/nginx/blob/ffbf353d57b51589a0a5d77be783e97bce32178b/attributes/source.rb#L38-L41 is the default
+[2014-03-10 21:38:12 -0400] coderanger: therealkoopa: Yes, which you already have
+[2014-03-10 21:38:20 -0400] coderanger: therealkoopa: Just remove hte include_recipe at the bottom
+[2014-03-10 21:38:43 -0400] therealkoopa: coderanger: Okay, that makes sense. Thanks a lot!
+[2014-03-10 21:41:35 -0400] coalbe: Whats the best way to install nginx 1.4.1, with nginx::source and setting an attribute for the source url?
+[2014-03-10 21:45:30 -0400] coalbe: i have a small cookbook with 'include nginx::source' and i have two attributes set, version = 1.4.1 and then source url to the nginx downloads page. it looks to download correctly, but after chef-solo is done running nginx -v returns 1.1.19. Im a little lost.
+[2014-03-10 21:54:05 -0400] flaccid_: hey guys, what was that orchestration type tool that you could use say with knife? it had a pretty basic dsl
+[2014-03-10 21:58:07 -0400] cheeseprocedure: flaccid_: ansible? fabric?
+[2014-03-10 21:58:42 -0400] coderanger: flaccid_: pushy?
+[2014-03-10 22:01:06 -0400] flaccid_: coderanger: negative. i thought it was named something like warden. for some reason i can't find whatever it was!
+[2014-03-10 22:01:30 -0400] coderanger: flaccid_: Rundeck?
+[2014-03-10 22:02:58 -0400] dgarstang: rundeck, yacmf
+[2014-03-10 22:03:11 -0400] dgarstang: I think they're HQ in San mateo. :)
+[2014-03-10 22:03:25 -0400] flaccid_: coderanger: rundeck might work, but this particular one was a basic ruby dsl file to drive it. i guess you can say i'm looking for a simple tool that can wait for deploy of something to complete before it does something else. async would be nice too
+[2014-03-10 22:06:01 -0400] drywheat: i'm looking for some best practices with regards to Chef libraries, specifically helper methods
+[2014-03-10 22:06:30 -0400] drywheat: anyone now a good resource besides the Chef docs on that topic?
+[2014-03-10 22:06:48 -0400] dgarstang: I'm doing something wrong obvously. Dropped a file called ssl_certificate into definitions/ and put in that define define :ssl_certificate do ... end and chef is complaining 'Undefined node attribute or method `define' on `node''
+[2014-03-10 22:09:07 -0400] sarkis: drywheat: something more basic, i came across this getting started guide that look sogod: http://gettingstartedwithchef.com/
+[2014-03-10 22:09:15 -0400] sarkis: looks good*
+[2014-03-10 22:10:24 -0400] drywheat: sarkis: thx, i think it may be a little basic for my needs
+[2014-03-10 22:12:20 -0400] sarkis: yea
+[2014-03-10 22:12:41 -0400] coderanger: drywheat: What are you trying to do?
+[2014-03-10 22:12:42 -0400] sarkis: let me know if you come across anything good for advancted topics
+[2014-03-10 22:13:01 -0400] coderanger: drywheat: As probably the single biggest abuser of lib files, I can probably answer things :)
+[2014-03-10 22:14:07 -0400] drywheat: coderanger: i've seen a couple different ways of (ab)using libraries online
+[2014-03-10 22:14:25 -0400] drywheat: 1. writing methods directly into the Chef::Recipe class
+[2014-03-10 22:14:57 -0400] drywheat: 2. into a nested class (e.g. Chef::Recipe::Karate)
+[2014-03-10 22:15:19 -0400] drywheat: 3. and into a separate module that gets included/extended
+[2014-03-10 22:15:46 -0400] drywheat: IMO, it makes sense to namespace methods and include them only in the recipes where they are needed
+[2014-03-10 22:16:10 -0400] drywheat: following a logical NM schema
+[2014-03-10 22:16:37 -0400] drywheat: module <org>::<ckbk>::mod_name
+[2014-03-10 22:16:52 -0400] dgarstang: Why would I get "Undefined node attribute or method `define' on `node'" trying to use a definition?
+[2014-03-10 22:17:21 -0400] drywheat: but then injecting into a recipe
+[2014-03-10 22:17:45 -0400] drywheat: Chef::Recipe.send(:include, ...)
+[2014-03-10 22:17:48 -0400] coderanger: drywheat: So lets rewind, how broadly used will this helper be?
+[2014-03-10 22:17:55 -0400] drywheat: feels nasty as hell
+[2014-03-10 22:18:09 -0400] coderanger: drywheat: Patching stuff into the global namespace should only be done in cases where you _really_ want something global
+[2014-03-10 22:18:09 -0400] drywheat: not very broad
+[2014-03-10 22:18:36 -0400] coderanger: drywheat: Okay, do you need access to the run context from inside this helper?
+[2014-03-10 22:18:48 -0400] drywheat: yes
+[2014-03-10 22:18:57 -0400] drywheat: specifically, the "node"
+[2014-03-10 22:20:55 -0400] coderanger: drywheat: Hmm, can you describe what this helper will do?
+[2014-03-10 22:21:34 -0400] drywheat: one example, dynamically build a path based on attributes
+[2014-03-10 22:22:00 -0400] coderanger: drywheat: Hmm, so theres a few options depending on how far down the rabbit hole you want to go
+[2014-03-10 22:22:14 -0400] drywheat: another, build db configs based on results of a chef search
+[2014-03-10 22:22:15 -0400] drywheat: ok
+[2014-03-10 22:22:34 -0400] coderanger: drywheat: The Best Way is to move most of your logic out of recipes and into resource classes, where these helpers can just be methods on the resource either via inheritance or class mixins
+[2014-03-10 22:22:53 -0400] coderanger: But thats a pretty heavyweight change
+[2014-03-10 22:23:23 -0400] coderanger: on the other end of the spectrum is to just make your own namespace and define some functions that take a node as the first (only?) arg
+[2014-03-10 22:23:34 -0400] coderanger: Thats a bit annoying because you have to manually pass the node object in each time
+[2014-03-10 22:24:32 -0400] coderanger: A middle ground is to put all your helpers as instance methods of a utility object, and then inject a single method into Recipe to create that object and pass in the run context
+[2014-03-10 22:24:41 -0400] coderanger: So helpers would look like my_utils.whatever
+[2014-03-10 22:24:59 -0400] coderanger: I can go into more detail on any of those if they seem to fit your needs :)
+[2014-03-10 22:25:27 -0400] daxroc: Like the utils.*
+[2014-03-10 22:25:37 -0400] drywheat: i think the last example will probably be the quickest to implement that doesn't pollute the global NS
+[2014-03-10 22:25:43 -0400] drywheat: quick question
+[2014-03-10 22:26:07 -0400] daxroc: What's the best way to make these global to all of my/your cookbooks /
+[2014-03-10 22:26:27 -0400] drywheat: if one cookbook book injects the method #yaddah() into the Chef::Recipe class, is that method available to other cookbooks in the run?
+[2014-03-10 22:26:31 -0400] coderanger: daxroc: Anything injected into Recipe is global, like it or not
+[2014-03-10 22:26:48 -0400] drywheat: i see that ab(use) a lot and have always wondered
+[2014-03-10 22:27:01 -0400] daxroc: hym, can see that being potentially evil
+[2014-03-10 22:27:13 -0400] coderanger: Yeah, thats why its best to keep the global exposure to a single method
+[2014-03-10 22:27:26 -0400] drywheat: jeez, that's foul
+[2014-03-10 22:27:34 -0400] coderanger: and yes, changes to the DSL have to be done with care
+[2014-03-10 22:27:46 -0400] coderanger: It can be totally legit, like in citadel, but it can also be used for great evil
+[2014-03-10 22:29:11 -0400] daxroc: I've 4 devs watching my every commit, Have had a few situations where i've done do what I say not what I do ..
+[2014-03-10 22:29:15 -0400] drywheat: coderanger: if i understood you correctly above, i could create a small class with instance methods on it, say DeployUtil
+[2014-03-10 22:29:37 -0400] drywheat: then inject an instance into my current recipe and use the methods defined therein?
+[2014-03-10 22:29:54 -0400] daxroc: *were all at various levels of new, both chef and ruby
+[2014-03-10 22:29:57 -0400] drywheat: i guess i would have to inject the context on instantiation
+[2014-03-10 22:29:57 -0400] coderanger: drywheat: let me make an example, sec
+[2014-03-10 22:30:02 -0400] drywheat: chur
+[2014-03-10 22:30:37 -0400] coderanger: drywheat: Actually https://github.com/balanced-cookbooks/citadel/blob/master/libraries/default.rb is already a pretty good example
+[2014-03-10 22:31:05 -0400] coderanger: drywheat: Just instead of def[] you would have your own helper stuffs
+[2014-03-10 22:32:25 -0400] drywheat: ok, so that's what I gathered from your description
+[2014-03-10 22:33:19 -0400] drywheat: i think this is much better than global (NS) terror, but ultimately a LWRP will probably be a better way to wrap up the logic since it is localized
+[2014-03-10 22:33:33 -0400] drywheat: coderanger: high-five dude, thx
+[2014-03-10 22:33:56 -0400] coderanger: drywheat: I would use a class-based resource instead of an LWRP, but similar idea
+[2014-03-10 22:34:18 -0400] drywheat: oh, a so-called heavy resource?
+[2014-03-10 22:34:32 -0400] coderanger: drywheat: I don't like that term, but yes
+[2014-03-10 22:34:46 -0400] coderanger: drywheat: With poise you get almost all the same DSL-y bits as an LWRP
+[2014-03-10 22:35:27 -0400] daxroc: coderanger: poise cookbook?
+[2014-03-10 22:35:51 -0400] coderanger: daxroc: My highly undocumented set of helpers for writing good resources
+[2014-03-10 22:39:42 -0400] daxroc: on the todo list, get stuck in this weekend
+[2014-03-10 22:40:28 -0400] daxroc: I've been wanting to create a utils cookbook for common tools for our systems, might be the perfect learning task
+[2014-03-10 22:49:36 -0400] martinisoft: Anyone else running into dependency resolver errors with hosted chef?
+[2014-03-10 22:49:53 -0400] martinisoft: Just got "Dependency solver overloaded. Try again later."
+[2014-03-10 23:04:45 -0400] clodeindustrie: hey can I include only a definition from a cookbook into another?
+[2014-03-10 23:06:32 -0400] coderanger: clodeindustrie: Not sure what you mean, defs are global
+[2014-03-10 23:07:39 -0400] clodeindustrie: so I have that nginx_web_app definition in one of my cookbook, I could use it in another cookbook's recipe as long as they are loaded?
+[2014-03-10 23:14:40 -0400] coderanger: clodeindustrie: Yes, put "depends 'nginx'" in your cookbok's metadata.rb
+[2014-03-10 23:16:09 -0400] clodeindustrie: coderanger: ok right I must have been missing this, vagrant allows you to specify a run list but then you need to resolve dependencies in the recipes themselves
+[2014-03-10 23:16:43 -0400] coderanger: clodeindustrie: Yes, cookbooks define what other cookbooks they depend on
+[2014-03-10 23:18:18 -0400] clodeindustrie: it's doing my head in, it's not very easy to use together third parties cookbooks and custom ones
+[2014-03-10 23:18:58 -0400] coderanger: clodeindustrie: What language are you most familiar with, I can use that for metaphors
+[2014-03-10 23:19:07 -0400] clodeindustrie: ruby
+[2014-03-10 23:19:23 -0400] coderanger: Okay, cookbooks are packages like gems
+[2014-03-10 23:19:31 -0400] coderanger: the metadata.rb is the same as teh gemspec
+[2014-03-10 23:19:38 -0400] coderanger: and the Berksfile is the same as the Gemfile
+[2014-03-10 23:19:46 -0400] clodeindustrie: fair enough
+[2014-03-10 23:19:57 -0400] flaccid_: coderanger: first time i looked at rundeck. actually looks pretty sweet
+[2014-03-10 23:23:19 -0400] coderanger: flaccid_: heh, guess what I'm deploying this week
+[2014-03-10 23:25:10 -0400] flaccid_: coderanger: deckrun?
+[2014-03-10 23:25:14 -0400] coderanger: :)
+[2014-03-10 23:25:21 -0400] flaccid_: hehe
+[2014-03-10 23:25:29 -0400] coderanger: Currently neck deep in the existing cookbook and debating if I'm better off writing my own
+[2014-03-10 23:25:30 -0400] flaccid_: wonder if you can white label that logo top left
+[2014-03-10 23:25:45 -0400] flaccid_: this is for the rundeck server?
+[2014-03-10 23:25:54 -0400] coderanger: flaccid_: Yeah
+[2014-03-10 23:26:03 -0400] flaccid_: is it broken?
+[2014-03-10 23:26:13 -0400] coderanger: No idea yet, still reading
+[2014-03-10 23:26:24 -0400] coderanger: I have rather  particular sensibilities about good cookbooks though
+[2014-03-10 23:26:47 -0400] coderanger: And I have some security concerns about this cookbook
+[2014-03-10 23:26:52 -0400] coderanger: specifically how it creates users
+[2014-03-10 23:28:26 -0400] flaccid_: for a dev guy like you i guess its almost always going to be the big question of maintain/contribute or re-write
+[2014-03-10 23:29:39 -0400] coderanger: flaccid_: https://github.com/priestjim/chef-rundeck/blob/master/providers/user.rb#L33-L35 thats some not cromulent code >_<
+[2014-03-10 23:30:30 -0400] flaccid_: coderanger: oh, shouldn't it manage that conf file as a template or something
+[2014-03-10 23:30:39 -0400] flaccid_: worse case, chef-edit
+[2014-03-10 23:30:49 -0400] coderanger: Either of those would be better
+[2014-03-10 23:31:42 -0400] flaccid_: if the poc here works out with rundeck as suitable, i guess the next step would be chef or puppet to deploy and manage the server
+[2014-03-10 23:40:52 -0400] cheeseprocedure: flaccid_: the logo can be customized in rundeck-config.properties (e.g. "rundeck.gui.logo = company_logo.png")
+[2014-03-10 23:41:24 -0400] cheeseprocedure: my employer started using Rundeck pretty heavily a few months back - happy to rant about it out of band if you're ever looking for another opinion
+[2014-03-10 23:42:02 -0400] coderanger: cheeseprocedure: Any tl;drs you can share?
+[2014-03-10 23:42:24 -0400] flaccid_: cheeseprocedure: thanks very much. i assume in the workflow it can do 1. wait for something to be done before doing something else 2. async jobs
+[2014-03-10 23:44:34 -0400] cheeseprocedure: we're still on 1.6.1, but: be careful when you're editing multiple jobs. or rather, don't edit multiple jobs simultaneously, period, assuming the same issue exists in 2.0+...
+[2014-03-10 23:44:47 -0400] cheeseprocedure: the job definition is stored in session data that can get clobbered if you're editing job A and job B simultaneously, save one, then save the other
+[2014-03-10 23:44:59 -0400] coderanger: cheeseprocedure: Are you not storing jobs in Chef?
+[2014-03-10 23:45:26 -0400] flaccid_: cheeseprocedure: ok, but can it do the 1. and 2. ?
+[2014-03-10 23:45:30 -0400] cheeseprocedure: coderanger: hahahaha. not yet ;) but getting there.
+[2014-03-10 23:45:57 -0400] cheeseprocedure: flaccid_: 1. yes, you can have it wait 2. depends on what you mean by async.
+[2014-03-10 23:46:06 -0400] cheeseprocedure: can you describe a workflow you want to build?
+[2014-03-10 23:48:02 -0400] flaccid_: cheeseprocedure: thanks. do job A and job B at the same time, there is no wait needed
+[2014-03-10 23:48:43 -0400] flaccid_: cheeseprocedure: i guess its a multi tier HA setup. e.g. don't provision application servers until the LB is provisioned (they need to had themselves to the pool once lb is ready)
+[2014-03-10 23:48:57 -0400] flaccid_: had=add
+[2014-03-10 23:49:01 -0400] cheeseprocedure: ah i see
+[2014-03-10 23:54:08 -0400] flaccid_: cheeseprocedure: do-able right?
+[2014-03-10 23:54:35 -0400] cheeseprocedure: sorry, down a man today and juggling a bit
+[2014-03-10 23:54:40 -0400] cheeseprocedure: in short, do-able, but fugly
+[2014-03-10 23:55:05 -0400] cheeseprocedure: rundeck doens't handle true parallel execution inside single workflows, at least not in 1.6 and not from what i see of 2.0
+[2014-03-10 23:56:40 -0400] cheeseprocedure: you *can* run multiple instances of the same workflow targetting different nodes, or run shell commands that get disown'ed and immediately return or something (but you'd lose logging of stdout/stderr inside Rundeck itself)
+[2014-03-10 23:57:33 -0400] flaccid_: thats a weird oversight, because if exiting would need to work out a way to check for state
+[2014-03-10 23:57:51 -0400] flaccid_: plug n pray i want to avoid
+[2014-03-10 23:58:16 -0400] cheeseprocedure: yeah, i hear you. one related annoyance is the inability to pass output from workflow step to workflow step
+[2014-03-10 23:59:00 -0400] cheeseprocedure: most of a time you've got a central service to track state in, so that's okay, but it's occasionally frustrating if you just want to bolt a few simple scripts together for someone and need to write out to /tmp or something
+[2014-03-10 23:59:33 -0400] flaccid_: strange, because as a interface it seems all pretty sweet there

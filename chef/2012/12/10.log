@@ -1,0 +1,722 @@
+[2012-12-10 00:07:29 -0500] ashp: Actually this might be a nice time to ask a kind of design question
+[2012-12-10 00:07:49 -0500] coderanger: Go for it :)
+[2012-12-10 00:08:03 -0500] ashp: right now I rely heavily on hiera in puppet, we have sitewide defaults, and then based on ec2 tags we override those settings in a hierarchy.  so I have environment settings, variant settings, role specific settings
+[2012-12-10 00:08:10 -0500] ashp: and it works up the hierarchy to pick the most specific
+[2012-12-10 00:08:28 -0500] ashp: Is there a good way to do something similar based on overriding attributes based off ec2 tags?
+[2012-12-10 00:11:11 -0500] coderanger: Sure, make a little ohai plugin http://wiki.opscode.com/display/chef/Writing+Ohai+Plugins
+[2012-12-10 00:12:09 -0500] coderanger: We already grab them too I think https://github.com/opscode/ohai/blob/master/lib/ohai/mixin/ec2_metadata.rb
+[2012-12-10 00:12:46 -0500] ashp: So there's a way to override attribute in some kind of hierarchy or something of the like?
+[2012-12-10 00:12:47 -0500] coderanger: So you could also just do it in a cookbook's attributes file if you wanted
+[2012-12-10 00:12:50 -0500] ashp: I've only seen node level attributes
+[2012-12-10 00:12:57 -0500] coderanger: Yes, there is a hierarchy on each node
+[2012-12-10 00:13:12 -0500] coderanger: defaut < normal < override < automatic
+[2012-12-10 00:13:19 -0500] ashp: well one reason we are using hiera in puppet is that we can provide cookbook defaults and then keep private hiera overrides in a different repo
+[2012-12-10 00:13:28 -0500] coderanger: roles and enviroments feed into those
+[2012-12-10 00:13:29 -0500] ashp: so our devs can use the recipes without having access to the conf data
+[2012-12-10 00:13:46 -0500] ashp: OK, I think I'll have to just read up on data and attributes more to get my head around how it works
+[2012-12-10 00:14:11 -0500] coderanger: and then cookbook attr files can do just about anything you can think of
+[2012-12-10 00:14:20 -0500] coderanger: since at that point its just Ruby code setting values
+[2012-12-10 00:14:31 -0500] ashp: I thought maybe databags were the thing I would need for this
+[2012-12-10 00:14:56 -0500] ashp: I really wish opscode would write a 'chef for puppet users' thing that helped you map the core concepts over :)
+[2012-12-10 00:15:38 -0500] coderanger: data bags could definitely be used for this kind of thing
+[2012-12-10 00:16:00 -0500] ashp: In my case I'll want role specific overrides, and then further overrides based on the environment, and then another tag for even more specific additions when needed
+[2012-12-10 00:16:25 -0500] coderanger: but databags don't tie directly into the attribute system, they just sit off to the side
+[2012-12-10 00:16:26 -0500] ashp: we use this for stuff like 'make an array of users to create on the machine, starting with default users and working up to specific users in a 'variant'
+[2012-12-10 00:16:42 -0500] ashp: So i'm on every box but devs are only on stuff in env=sandbox, that kind of thing
+[2012-12-10 00:17:00 -0500] ashp: I probably just have to play with attributes until I figure out an appropriate chef equiv
+[2012-12-10 00:17:05 -0500] coderanger: Basically you can totally do what you are describing, there is just nothing built in for it, just write the 5 lines of ruby code that covers exactly what you want :)
+[2012-12-10 00:17:15 -0500] ashp: that works too :)
+[2012-12-10 00:17:29 -0500] coderanger: Probably node attributes with optional merged overrides from data bags it sounds like
+[2012-12-10 00:18:45 -0500] amagee: hey I've just added a new template to a recipe, and i want to test it without running the rest of the recipe, so I thought I'd use shef.  Only problem is that shef can't seem to find the template source, I'm guessing because it's not looking in the right cookbook path.  Can anyone help?
+[2012-12-10 00:23:57 -0500] jtimberman: ashp: :-)
+[2012-12-10 00:24:41 -0500] ashp: wjat
+[2012-12-10 00:24:47 -0500] ashp: argh, mashing the keyboard ineptly
+[2012-12-10 00:25:09 -0500] ashp: I was going to ask what the difference between default and override attributes is (I mean I get that one overrides the other but it seems like you can set both at say, the environment level)
+[2012-12-10 00:25:20 -0500] ashp: Is it just the case that only an override attribute will replace a default attribute?
+[2012-12-10 00:26:01 -0500] ashp: i'm not even gonna ask about 'normal' attributes :/
+[2012-12-10 00:26:26 -0500] jtimberman: ashp: http://docs.opscode.com/essentials_cookbook_attribute_files_attribute_precedence.html
+[2012-12-10 00:26:53 -0500] ashp: Ah ok, so it's just to do with precedence, ok
+[2012-12-10 00:26:57 -0500] ashp: that's what I was assuming :)
+[2012-12-10 00:27:38 -0500] jtimberman: Yup
+[2012-12-10 00:27:41 -0500] ashp: Figuring out how to model this will be a pain, we want to use auto-scaling groups so I don't think I'll ever be able to rely on node attributes
+[2012-12-10 00:27:48 -0500] ashp: only role, environment, and then tags for anything else
+[2012-12-10 00:27:51 -0500] jtimberman: different places, different priorities because different people have different needs :)
+[2012-12-10 00:28:16 -0500] jtimberman: I personally wouldn't rely on node attributes, as that is a tendency to make snowflakes ;)
+[2012-12-10 00:29:06 -0500] ashp: I can see how to handle env/role attributes which covers a good 90% of what I need
+[2012-12-10 00:29:30 -0500] ashp: the only thing we do beyond that is set another bit of metadata we can use for even more specific stuff than env/role, without dropping to node level
+[2012-12-10 00:29:35 -0500] ashp: so I'm sure I can find a way to add that in
+[2012-12-10 00:42:10 -0500] ssd7:  Ohai Chefs!
+[2012-12-10 00:52:50 -0500] double_z: alright silly question. anyone have any thoughts on how to grab the network/mask in a recipe?
+[2012-12-10 00:52:54 -0500] double_z: specifically i need to populate the network resource in nfs_export lwrp i.e  network "192.168.1.0/24" but as a variable
+[2012-12-10 00:53:42 -0500] double_z: ohai gives me this:          "192.168.1.250": {            "family": "inet",            "prefixlen": "24",            "netmask": "255.255.255.0",            "broadcast": "192.168.1.255",           "scope": "Global"         },
+[2012-12-10 00:54:26 -0500] double_z: obviously there's the prefixlen, but not the network
+[2012-12-10 01:06:16 -0500] githubble: hi, still getting errors with sudo gem install knife-ec2 any assistance would be great
+[2012-12-10 01:07:58 -0500] ssd7: githubble: Can you post the error you are getting to something like gist or pastebin?
+[2012-12-10 01:08:13 -0500] githubble: sure thing
+[2012-12-10 01:10:51 -0500] githubble: ssd7 https://gist.github.com/4247822
+[2012-12-10 01:14:29 -0500] ssd7: You need to install the build dependencies.  Namely that error indicates you need libxml2-dev
+[2012-12-10 01:14:31 -0500] githubble: ssd7 have gone here http://nokogiri.org/tutorials/installing_nokogiri.html and installed libxslt-dev and libxml2-dev
+[2012-12-10 01:15:40 -0500] ssd7: Hrmm.  And this is on ubuntu I am assuming?
+[2012-12-10 01:16:11 -0500] githubble: ssd7 yes
+[2012-12-10 01:16:48 -0500] githubble: ssd7 its fetching and installing fog knife-ec2 it seems
+[2012-12-10 01:20:51 -0500] ssd7: githubble: So, just to be clear, are you still getting that exact same error now that you have libxml2-dev installed?
+[2012-12-10 01:22:11 -0500] githubble: ssd ... slowly installing
+[2012-12-10 01:22:37 -0500] ssd7: cool
+[2012-12-10 01:23:42 -0500] githubble: ssd7 ok so its installed ... do I need to put my AWS keys in the knife.rb, prior to running knife ec2 server create ?
+[2012-12-10 01:24:19 -0500] ssd7: githubble: Either that or pass them via command line arguments.
+[2012-12-10 01:24:34 -0500] githubble: oooh cool
+[2012-12-10 01:25:08 -0500] githubble: knife ec2 server --help?
+[2012-12-10 01:26:11 -0500] githubble: ssd7 how do I pass the AWS key parameters in at the CLI?
+[2012-12-10 01:26:41 -0500] ssd7: githubble: knife ec2 server create --help
+[2012-12-10 01:27:05 -0500] ssd7: -A and -K look like what you want.
+[2012-12-10 01:27:30 -0500] githubble: ssd7 you legend .... extra xmas present under the tree for you
+[2012-12-10 01:28:44 -0500] ssd7: :)
+[2012-12-10 01:29:55 -0500] githubble: ssd7 actually, I would prefer to have the credentials etc. stored in the knife.rb .... is there a good example of a knife.rb file somewhere I can clone?
+[2012-12-10 01:46:05 -0500] Clem2: ohai!
+[2012-12-10 01:49:20 -0500] jsh: githubble, I'll post a gist of some lines from mine, if you're still around and interested
+[2012-12-10 02:25:34 -0500] githubble: jsh do you have some lines for me ... < that sounds so wrong
+[2012-12-10 02:26:09 -0500] jsh: heh, yeah...prod issue came up just after I wrote that earlier
+[2012-12-10 02:28:25 -0500] jsh: https://gist.github.com/aee783d659c2fbc0716a
+[2012-12-10 02:29:28 -0500] githubble: jsh sooo my knife.rb hides over in .... /var/lib/gems/1.8/gems/chef-10.16.2/lib/chef/knife.rb
+[2012-12-10 02:29:35 -0500] githubble: jsh is that correct?
+[2012-12-10 02:30:09 -0500] githubble: jsh I thought everything was in my chef-repo folders ... but it seems not
+[2012-12-10 02:30:23 -0500] jsh: mine lives in .../chef-repo/.chef/knife.rb
+[2012-12-10 02:30:28 -0500] jsh: aka, the usual place
+[2012-12-10 02:30:33 -0500] jsh: but you have to create it
+[2012-12-10 02:30:47 -0500] githubble: hmmm let me check ... how do I know which knife.rb it is using?
+[2012-12-10 02:31:20 -0500] jsh: if you've got time to watch some videos, nathen harvey just recorded some stuff that covers this really well
+[2012-12-10 02:31:34 -0500] githubble: jsh ... yes please post the link
+[2012-12-10 02:31:35 -0500] jsh: I tweeted a link a bit ago, let's see
+[2012-12-10 02:32:09 -0500] githubble: jsh ... scrolled up can't see it
+[2012-12-10 02:32:10 -0500] jsh: jeremiahshirk: Excellent step-by-step videos on learning Chef from @nathenharvey with @mulpat http://t.co/bUY9MYdA
+[2012-12-10 02:33:59 -0500] joonas: peepcode has a couple of nice videos on chef too
+[2012-12-10 02:34:02 -0500] githubble: jsh thanks .... with the ssh_user + attribute, how do I know what these are if I automate?
+[2012-12-10 02:34:03 -0500] joonas: though they cost $$$
+[2012-12-10 02:35:08 -0500] jsh: githubble: in that gist, the values for knife[:ssh_user] and knife[:attribute] aren't placeholders, those are literally the values in my file
+[2012-12-10 02:36:17 -0500] githubble: jsh I understand thanks .... however aren't I creating an automated AWS instance... if so how will I know what the ssh_user and attribute will be? ... appreciate all of your help so far
+[2012-12-10 02:37:17 -0500] jsh: all of my ec2 nodes are ubuntu, and I have a user called ubuntu on all of them...ymmv, though you could certainly pick some other standard user to provision on all of your hosts
+[2012-12-10 02:38:04 -0500] jsh: I have a role I call "base" assigned to all of my nodes, so I'd put it in there
+[2012-12-10 02:39:42 -0500] jsh: and actually, you can skip knife[:ssh_user] and knife[:attribute] altogether, though they make using 'knife ssh' easier with ec2 hosts
+[2012-12-10 02:40:07 -0500] githubble: jsh is the role in the knife.rb as well?
+[2012-12-10 02:41:48 -0500] jsh: nope, roles are defined in .../chef-repo/roles/* though the conventional wisdom on whether to use roles at all is currently a topic of some debate
+[2012-12-10 02:42:21 -0500] jsh: for my stuff, it works well enough, and it's what you'll find in the current docs
+[2012-12-10 02:43:25 -0500] jsh: http://wiki.opscode.com/display/chef/Roles
+[2012-12-10 02:44:42 -0500] githubble: jsh > when I run knife ec2 server create I get ... ERROR: You did not provide a valid 'Image' value. ERROR: You did not provide a valid 'AWS SSH Key Id' value.
+[2012-12-10 02:47:28 -0500] jsh: githubble: maybe not finding your knife.rb? "Knife's configuration file is named knife.rb. Unless directly passed the configuration file location via the -c command line option, Knife searches for this configuration by searching for .chef/knife.rb, starting at the current working directory and moving upward. If no configuration is found ~/.chef/knife.rb is used if it exists."
+[2012-12-10 02:50:10 -0500] githubble: jsh it's definitely using my /chef-repo/.chef/knife.rb file, but the 4 parameters you gave me are not enought :)
+[2012-12-10 03:15:37 -0500] githubble: jsh getting further .... waits on sshd .... but the server is built in aws :)
+[2012-12-10 03:23:28 -0500] githubble: hi when I run knife ec2 server create it is trying to find my aws.pem file ..... and is stalling .... I presume my knife.rb is looking for the pem file.... if so where does it need to be stored?
+[2012-12-10 03:33:06 -0500] jtnz: Hi, I've seen somewhere a way to abort a recipe for whatever reason (say wrong OS type of version), anyone know what that is?
+[2012-12-10 03:39:52 -0500] jsh: githubble: do you have the .pem from AWS in your ~/.ssh directory, with correct permissions?
+[2012-12-10 03:40:54 -0500] githubble: jsh do I need a security group setup with ssh inbound permissions for ssh as well?
+[2012-12-10 03:41:14 -0500] jsh: yep
+[2012-12-10 03:51:26 -0500] githubble: jsh whats the knife.rb parameter for security group?
+[2012-12-10 04:04:02 -0500] jsh: githubble: I don't put it in there, always use the -G option
+[2012-12-10 04:04:17 -0500] jsh: s/always/I always/
+[2012-12-10 04:10:36 -0500] githubble: jsh I am using the knife.rb not from cli to build my server on AWS .. is there a list of all the subcommands somewhere (more than what is on https://github.com/opscode/knife-ec2) ?
+[2012-12-10 04:12:05 -0500] jsh: knife help list
+[2012-12-10 04:12:58 -0500] githubble: jsh thanks so far ... I have waiting for sshd ..................... timing out
+[2012-12-10 04:13:09 -0500] jsh: I have no clue what you mean by "not from CLI" though...afaik, the CLI is the only way to use the knife-ec2 plugin
+[2012-12-10 04:13:26 -0500] jsh: security groups, I'd guess
+[2012-12-10 04:14:14 -0500] jsh: if you allow 0.0.0.0/0 to tcp port 22 in the group "default" it might make for a good test, if not for a good permanent config
+[2012-12-10 04:18:46 -0500] githubble: jsh when I run knife ec2 create server --help it gives me all the switches (e.g. -G -I -N etc.)  however for the knife.rb I need to use the convention knife [:flavor] etc.  where is the full list of the knife.rb parameters?
+[2012-12-10 04:20:41 -0500] githubble: jsh .... ooooh found this .... http://wiki.opscode.com/display/chef/EC2+Bootstrap+Fast+Start+Guide
+[2012-12-10 04:34:41 -0500] githubble: hi I have got a step further by opening up the default AWS security group for AWS ....however error:  Waiting for sshd......done Bootstrapping Chef on ec2-54-243-2-207.compute-1.amazonaws.com Failed to authenticate root - trying password auth Enter your password:  ERROR: Net::SSH::AuthenticationFailed: root@ec2-54-243-2-207.compute-1.amazonaws.com
+[2012-12-10 04:37:09 -0500] aruntomar: githubble: which ami r you using?
+[2012-12-10 04:37:29 -0500] githubble: ami-7000f019
+[2012-12-10 04:37:50 -0500] aruntomar: githubble: is that amazon ami or ubuntu or centos?
+[2012-12-10 04:37:59 -0500] githubble: amazon ami
+[2012-12-10 04:38:17 -0500] githubble: aruntomar ... I think
+[2012-12-10 04:38:31 -0500] aruntomar: githubble: i know for sure that for the ubuntu ami, the user is always ubuntu@<instance>
+[2012-12-10 04:38:53 -0500] githubble: aruntomar just checked its from the instance store
+[2012-12-10 04:39:53 -0500] githubble: aruntomar > when I try to ssh into the ec2 box with ubuntu I get Permission denied (publickey).
+[2012-12-10 04:41:06 -0500] jsh: githubble: you should have a pem file (one or more) for ssh associated with your AWS account
+[2012-12-10 04:41:33 -0500] jsh: for testing, tell ssh specifically to use it with -i foo.pem
+[2012-12-10 04:41:33 -0500] githubble: jsh I do and its in .ssh
+[2012-12-10 04:42:10 -0500] jsh: hmm, in that case, try adding -vv to the ssh command, look for an error regarding permission on that file...that's a common error
+[2012-12-10 04:42:27 -0500] jsh: I usually chmod all my private ssh keys to 0600
+[2012-12-10 04:43:52 -0500] githubble: jsh ..... I am up to aws box number 5 now (have terminated the last 4) :)
+[2012-12-10 04:44:22 -0500] jsh: heh, once you get this going, you'll have been through hundreds before you know it
+[2012-12-10 04:44:40 -0500] githubble: jsh ... ok its bootstrapping aand failed to authenticate root - trying root password auth Enter your password
+[2012-12-10 04:49:51 -0500] aruntomar: githubble: do one one. goto aws web mgmt console. select your instance. action => instance management => connect. choose the ssh standalone section. that will give you the info on how to connect to your instance and what user to use.
+[2012-12-10 04:52:23 -0500] githubble: aruntomar it says ssh -i chef-ec2.pem root@ec2 .....
+[2012-12-10 04:53:52 -0500] githubble: aruntomar keeps saying permission denied (publickey) when I try to login
+[2012-12-10 04:55:40 -0500] aruntomar: githubble: ok, so i finally found your ami. it's ubuntu 10.04 i386, haven't used it. can you try the latest ami from ubuntu.
+[2012-12-10 04:57:27 -0500] githubble: sure, whats the ami?
+[2012-12-10 04:57:38 -0500] aruntomar: githubble: i normally use this ami for ubuntu instances: ami-3d4ff254. it's ubuntu 12.04 64bit and the username is ubuntu
+[2012-12-10 04:57:59 -0500] aruntomar: githubble: r u working from a *unix system?
+[2012-12-10 04:58:09 -0500] githubble: ubuntu to ubuntu
+[2012-12-10 04:59:42 -0500] aruntomar: another issue that i faced was for auth is the pem files. what you need to do is load the pem file in the ssh-keychain. this is how you do it. ssh-add <your pem file>
+[2012-12-10 04:59:57 -0500] aruntomar: ssh-add -l to check whether you pem is there in the list or not
+[2012-12-10 05:00:10 -0500] aruntomar: then fire your knife commands, that should work
+[2012-12-10 05:00:23 -0500] githubble: aruntomar ... just a moment
+[2012-12-10 05:01:58 -0500] aruntomar: after my pem file is loaded this is what i normally use. knife ec2 server create -I ami-3d4ff254 -x ubuntu -f <eg: m1.small> -N <node name > -r "<roles/recipes>" -g <security group>
+[2012-12-10 05:04:42 -0500] githubble: aruntomar ... trying with the 12.04 build
+[2012-12-10 05:06:35 -0500] githubble: I might create a brand new pem on aws and see how that goes
+[2012-12-10 05:26:53 -0500] aruntomar: githubble: ok
+[2012-12-10 05:29:31 -0500] khimera: hey everyone, i am compiling php from source, for some odd reason its taking forever to compile (using vagrant). If i ssh and configure it takes a few seconds. has anyone ran into similar issue?
+[2012-12-10 05:33:04 -0500] aruntomar: khimera: if you don't mind sharing the odd reason? do you want to have multiple versions of php etc?
+[2012-12-10 05:33:44 -0500] khimera: no. trying figure out why it takes 5minutes to compile but when i ssh it takes a few seconds-1min
+[2012-12-10 05:33:51 -0500] khimera: 5min+ that is
+[2012-12-10 05:34:15 -0500] khimera: I am not completely sure if its a vagrant or chef issue.
+[2012-12-10 05:38:10 -0500] githubble: aruntomar .... new Key Pair created .... ran new knife ec2 server create ....... I'M IN!!
+[2012-12-10 05:38:27 -0500] githubble: aruntomar ..... now how do I get my chef cookbooks to load :)
+[2012-12-10 05:40:44 -0500] githubble: aruntomar .... oops premature ......it built the box and got past the sshd step, but now I can't login :(
+[2012-12-10 05:40:46 -0500] khimera: githubble:  you can create a role and do knife ex2 server create "role[some-role]" ...
+[2012-12-10 05:40:56 -0500] khimera: ec2*
+[2012-12-10 05:42:28 -0500] githubble: so I am trying to connect to my first created aws instance : ssh -i chef-aws.pem root@ec2-67-202-7-179.compute-1.amazonaws.com : however I get ... Warning: Identity file chef-aws.pem not accessible: No such file or directory. Permission denied (publickey).
+[2012-12-10 05:43:34 -0500] khimera: are you in the same dir as chef-aws.pem
+[2012-12-10 05:43:50 -0500] khimera: otherwise -i /dir/to/chef-aws.pem
+[2012-12-10 05:44:46 -0500] githubble: khimera .... I"M IN!!!! :):):):) just cp chef-aws.pem > ~/chef-repo/.chef all good
+[2012-12-10 05:45:10 -0500] githubble: khimeara ..... so how do I get my cookbooks to install :) assistance please
+[2012-12-10 05:45:27 -0500] khimera: are you using hosted chef?
+[2012-12-10 05:46:10 -0500] githubble: khimera yes
+[2012-12-10 05:47:05 -0500] khimera: did you upload your cookbooks?
+[2012-12-10 05:47:32 -0500] aruntomar: khimera: well, you can run your chef-client in debug mode to figure out what's going wrong while compiling
+[2012-12-10 05:47:46 -0500] khimera: when you boot server w/ knife    knife ec2 server create --run-list [recipes]
+[2012-12-10 05:47:58 -0500] khimera: or create a role
+[2012-12-10 05:48:31 -0500] khimera: aruntomar, why don't you use vagrant to test?
+[2012-12-10 05:49:02 -0500] githubble: ok so my command is knife ec2 create server ..... however all of my cookbooks are in /chef-repo/cookbooks
+[2012-12-10 05:49:35 -0500] khimera: it will pull from your hosted chef
+[2012-12-10 05:49:52 -0500] githubble: I have been using vagrantfile locally, but now I am pushing to ec2 with knife ec2 create server .... would love love love to push cookbooks to my ec2 boxes that I create
+[2012-12-10 05:50:23 -0500] aruntomar: khimera: i mostly use kvm, as that is what we run on production. so if my vm's are already running on kvm, then vagrant which run's on virtualbox doesn't start.
+[2012-12-10 05:50:24 -0500] khimera: upload your cookbooks to your hosted chef server
+[2012-12-10 05:50:42 -0500] khimera: and the server will pull the cookbooks
+[2012-12-10 05:51:25 -0500] githubble: khimera .. I am not too concerned with vagrant at this stage... tell me more about --run-list
+[2012-12-10 05:52:03 -0500] khimera: knife ec2 server create -r "role[some-role"],recipe[nginx]"
+[2012-12-10 05:52:52 -0500] githubble: khimera explain [some-role] .... where do I create it?
+[2012-12-10 05:52:58 -0500] githubble: khimera I'm soooo close
+[2012-12-10 05:53:11 -0500] khimera: you need to create roles int our role directory
+[2012-12-10 05:53:17 -0500] khimera: what recipe are you trying to run?
+[2012-12-10 05:53:20 -0500] khimera: if you don't have roles
+[2012-12-10 05:53:37 -0500] githubble: nginx as a start is good
+[2012-12-10 05:54:12 -0500] khimera: knife ec2 server create -r "recipe[nginx]"
+[2012-12-10 05:54:29 -0500] khimera: the server will pull the nginx cook recipe
+[2012-12-10 05:54:33 -0500] khimera: and install it
+[2012-12-10 05:55:08 -0500] khimera: you need to upload the cookbook to your chef server w/  knife cookbook upload nginx
+[2012-12-10 05:55:22 -0500] githubble: ok what if I want to update a server instead of create?
+[2012-12-10 05:56:43 -0500] khimera: you will need to use knife node edit [node-name]
+[2012-12-10 05:57:32 -0500] khimera: knife node run_list add node-name "recipes"
+[2012-12-10 05:57:48 -0500] khimera: will add the recipes to the run list for all those nodes
+[2012-12-10 06:00:22 -0500] aruntomar: what's the suggested cookbook for installing rvm on per user basis?
+[2012-12-10 06:00:51 -0500] githubble: khimera .... how do I know if it has installed nginx?
+[2012-12-10 06:01:51 -0500] khimera: log in check if /etc/nginx exist
+[2012-12-10 06:02:25 -0500] khimera: or ps -auxw | grep nginx
+[2012-12-10 06:02:32 -0500] khimera: to see if runnning
+[2012-12-10 06:02:41 -0500] khimera: you can prob use this cookbook: https://github.com/fnichol/chef-rvm
+[2012-12-10 06:03:00 -0500] khimera: it supports per user basis
+[2012-12-10 06:04:20 -0500] githubble: khimeara nginx is definitely running ..... now to add another cookbook without creating .... knife node edit
+[2012-12-10 06:05:19 -0500] khimera: yea you can knife node list to see the what you have running
+[2012-12-10 06:05:53 -0500] khimera: then just do knife node run_list add NODENAME "recipes..."
+[2012-12-10 06:05:54 -0500] BryanWB_: ohai chefs!
+[2012-12-10 06:07:49 -0500] githubble: khimera ...hmmmm node name
+[2012-12-10 06:08:52 -0500] githubble: khimera ... the server i just created is not in my node list
+[2012-12-10 06:10:45 -0500] aruntomar: githubble: i guess, you'll need to do some more reading :) http://docs.opscode.com/
+[2012-12-10 06:11:08 -0500] githubble: aruntomar ... thanks for all of your help today
+[2012-12-10 06:13:48 -0500] jeep: hi
+[2012-12-10 06:13:48 -0500] khimera: githubble you need node_name in client.rb or create node and use those to boot your servers.i  have to run good luck!
+[2012-12-10 06:14:02 -0500] khimera: http://wiki.opscode.com/display/chef/Managing+Nodes+With+Knife may help
+[2012-12-10 06:14:16 -0500] jeep: mmm
+[2012-12-10 06:14:19 -0500] jeep: could help me?
+[2012-12-10 06:14:29 -0500] jeep: i have a problem now on run chef-client
+[2012-12-10 06:15:24 -0500] aruntomar: githubble: it was a bit confusing at first for me also, but once i read through the docs and understood how things work, it was easy after that.
+[2012-12-10 06:15:59 -0500] githubble: aruntomar .... I am confused as I was using vagrantfile to run it all, but now I am using knife ec2 so its a mindshift for me
+[2012-12-10 06:16:02 -0500] githubble: but I will get there
+[2012-12-10 06:18:00 -0500] aruntomar: githubble: when u use vagrantfile, it's basically chef-solo. but when you use hosted chef, u r working on chef-server. both have some differences. read about them from the link that i've given.
+[2012-12-10 06:18:36 -0500] aruntomar: jeep: what's the problem?
+[2012-12-10 06:19:24 -0500] khimera: githubble: you can use chef client instead of solo to test w/ nodes which will be same as ec2
+[2012-12-10 06:20:34 -0500] githubble: khimera ... ok I'm lost a little .... I think I need to get my aws servers into hosted-chef somehow
+[2012-12-10 06:21:57 -0500] githubble: khimera I really liked how vagrantfile talked to hosted-chef and installed the recipes
+[2012-12-10 06:23:04 -0500] khimera: why don't you create a node, and edit the file
+[2012-12-10 06:23:36 -0500] khimera: knife node create NODENAME
+[2012-12-10 06:23:54 -0500] githubble: khimera ... I can ....what do I put in the file?
+[2012-12-10 06:23:54 -0500] khimera: and edit the run list
+[2012-12-10 06:24:06 -0500] khimera: you will see json code
+[2012-12-10 06:24:16 -0500] khimera: in your run list just add the recipes,roles etc
+[2012-12-10 06:26:50 -0500] githubble: khimera, I have added the node (aws public dns name) and can see it when I run knife node list
+[2012-12-10 06:26:54 -0500] khimera: then when you boot with knife ec2 server create pass -N node-name
+[2012-12-10 06:29:42 -0500] githubble: khimera when I run knife node edit ec2-50-17-67-174.compute-1.amazonaws.com I get : ERROR: You must set your EDITOR environment variable or configure your editor via knife.rb
+[2012-12-10 06:30:01 -0500] khimera: export EDITOR=vi
+[2012-12-10 06:30:58 -0500] githubble: khimera ... nice :) I have added some recipes ... how to I apply them to my instance?
+[2012-12-10 06:33:35 -0500] khimera: check and see if what you did ran it
+[2012-12-10 06:38:31 -0500] githubble: khimera ... when I run knife node run_list "recipe[bluepill]" add ec2-50-17-67-174.compute-1.amazonaws.com ....I get .... ERROR: URI::InvalidURIError: bad URI(is not URI?): https://api.opscode.com/organizations/sbox/nodes/recipe[bluepill]
+[2012-12-10 06:38:53 -0500] khimera: did you upload
+[2012-12-10 06:39:13 -0500] githubble: the cookbokes are all in opscode hosted-chef
+[2012-12-10 06:40:48 -0500] githubble: I can see on  hosted-chef bluepill is in the run list position o
+[2012-12-10 06:41:06 -0500] khimera: did you upload the cookbook?
+[2012-12-10 06:41:25 -0500] githubble: to hosted-chef? it is already there
+[2012-12-10 06:41:26 -0500] khimera: knife cookbook upload bluepill
+[2012-12-10 06:42:30 -0500] githubble: ok uploading now
+[2012-12-10 06:42:53 -0500] githubble: its uploaded but still get the error ERROR: URI::InvalidURIError: bad URI(is not URI?): https://api.opscode.com/organizations/sbox/nodes/recipe[bluepill]
+[2012-12-10 06:43:03 -0500] githubble: when I run knife node run_list "recipe[bluepill]" add ec2-50-17-67-174.compute-1.amazonaws.com
+[2012-12-10 06:43:11 -0500] khimera: knife node run_list add node-name 'recipe[bluepill']
+[2012-12-10 06:43:26 -0500] githubble: ok gotta fly chat tomorrow
+[2012-12-10 06:43:45 -0500] khimera: good luck.
+[2012-12-10 08:56:40 -0500] machi: hai any one can help me
+[2012-12-10 08:57:05 -0500] machi: where i can get the source code for create a security group in aws or openstack
+[2012-12-10 09:20:26 -0500] Tensibai: Hi there, before fighting with my OS chef server, does the private chef documentation to auth with ldap applies to it or not ?
+[2012-12-10 10:04:13 -0500] masterkorp: hello chefs
+[2012-12-10 10:12:03 -0500] aruntomar: hello masterkorp
+[2012-12-10 10:12:53 -0500] masterkorp: good morang
+[2012-12-10 10:14:17 -0500] Tensibai: Hum ... does soemone have a pointer to how to configure chef-webui to auth with pam (or ldap)
+[2012-12-10 10:14:34 -0500] Tensibai: ?
+[2012-12-10 10:14:43 -0500] aruntomar: masterkorp: for me it's almost evening :)
+[2012-12-10 10:16:04 -0500] Tensibai: or any way to bulk import users
+[2012-12-10 10:16:30 -0500] masterkorp: aruntomar: good day anywas ? :p
+[2012-12-10 10:17:05 -0500] aruntomar: masterkorp: :)
+[2012-12-10 10:23:09 -0500] aruntomar: i'm writing a cookbook for installing gitlabhq : https://github.com/gitlabhq/gitlabhq/blob/stable/doc/install/installation.md, but i keep getting this error.  https://gist.github.com/6522e0d02308eab63229
+[2012-12-10 10:25:40 -0500] Tensibai: aruntomar: running the command by hand wotks well ?
+[2012-12-10 10:25:59 -0500] Tensibai: s/wotks/works/
+[2012-12-10 10:26:37 -0500] aruntomar: Tensibai: yes
+[2012-12-10 10:27:10 -0500] Tensibai: I'm not an expert with git, maybe an env var missing (like TERM) ?
+[2012-12-10 10:27:19 -0500] aruntomar: i've tried to run this properly using ruby_blocks, script, bash, execute etc
+[2012-12-10 10:28:08 -0500] Tensibai: or maybe there's a problem somewhere as git suer
+[2012-12-10 10:28:11 -0500] Tensibai: user*
+[2012-12-10 10:28:41 -0500] Tensibai: aruntomar: Sorry to ask but: did you try to su as git user to launch the command ?
+[2012-12-10 10:32:49 -0500] aruntomar: Tensibai: yes, i'm running command as git user
+[2012-12-10 10:36:31 -0500] Tensibai: aruntomar:  nothing more usefull with -l debug ?
+[2012-12-10 10:58:03 -0500] Virunga: Hi everyone
+[2012-12-10 10:58:44 -0500] Virunga: During the installation on recipe[mysql::server] i get this error http://pastie.org/5505962
+[2012-12-10 10:59:08 -0500] Virunga: Does anyone know the problem and want to help me?
+[2012-12-10 11:00:41 -0500] benner: show /var/chef/cache/chef-stacktrace.out content
+[2012-12-10 11:05:50 -0500] aruntomar: Tensibai: nothing extra with -l debug
+[2012-12-10 11:13:05 -0500] Virunga: benner: are you writing to me?
+[2012-12-10 11:16:51 -0500] Virunga: benner: in case, here it is http://pastie.org/5506022
+[2012-12-10 11:18:06 -0500] Virunga: No, that's the trace after i tried to rerun the installation
+[2012-12-10 11:19:01 -0500] aruntomar: Virunga: from the error it seems that your mysql server is not started
+[2012-12-10 11:19:25 -0500] Virunga: But i'm doing the installation on another machine and it's stuck in the same spot, i think i'll be able to post the stacktrace soon
+[2012-12-10 11:26:17 -0500] Virunga: aruntomar: do you mean from the stacktrace? I think the installation didn't complete (the service shut down but didn't restarted) and so when i re-run gives that error.
+[2012-12-10 11:27:34 -0500] aruntomar: Virunga: yes, from the stacktrace STDERR: ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (2)
+[2012-12-10 11:28:22 -0500] Virunga: aruntomar: benner the other machine gave the same error, here the staketrace http://pastie.org/5506053
+[2012-12-10 11:28:39 -0500] Virunga: *stack
+[2012-12-10 11:29:56 -0500] Virunga: It can't restart mysql, what could be the problem? (I'm a mysql noob :()
+[2012-12-10 11:31:07 -0500] aruntomar: Virunga: try starting mysql manually, and check for errors
+[2012-12-10 11:31:34 -0500] aruntomar: Virunga: /var/log/syslog  and /var/log/mysql/*.log
+[2012-12-10 11:35:40 -0500] Virunga: aruntomar: ok, thanks.
+[2012-12-10 11:56:30 -0500] shraddha: hi guys,
+[2012-12-10 11:56:47 -0500] shraddha: m facing some issue in chef-solo cmd
+[2012-12-10 11:56:57 -0500] shraddha: while accesng cookbooks through URL
+[2012-12-10 11:59:08 -0500] shraddha: chef-solo  -c  c:\cmf\chef\solo.rb -r %cookbook_url% -j c:\cmf\chef\node.json
+[2012-12-10 11:59:29 -0500] shraddha: this cmnd i am using
+[2012-12-10 11:59:53 -0500] shraddha: n @ place of %cookbook_url% m giving url address
+[2012-12-10 12:00:16 -0500] shraddha: n i have placed cookbooks in .tgz format
+[2012-12-10 12:00:42 -0500] shraddha: bt m geting error in getng those cookbooks
+[2012-12-10 12:00:54 -0500] shraddha: i hav chekd for internet conection also
+[2012-12-10 12:01:08 -0500] shraddha: manualy that lync is accesible
+[2012-12-10 12:01:35 -0500] shraddha: bt still through -r option m not able to run it successfully
+[2012-12-10 12:09:32 -0500] shraddha: ?
+[2012-12-10 12:09:32 -0500] shraddha: ?
+[2012-12-10 12:09:33 -0500] shraddha: ?
+[2012-12-10 13:23:57 -0500] Tensibai: aruntomar: I've read something with git about version not commited before calling gitoline, does it apply ot absolutly not ?
+[2012-12-10 13:30:46 -0500] masterkorp: I fucking hate printers
+[2012-12-10 13:31:44 -0500] gchristensen: my 3d printer is easier to interface with than this dell garbage
+[2012-12-10 13:33:59 -0500] leifmadsen: masterkorp: +1
+[2012-12-10 13:34:06 -0500] masterkorp: gchristensen: can you actually make usable stuff with it ?
+[2012-12-10 13:34:30 -0500] masterkorp: gchristensen: like i would totally buy one if i can make a steardy plastic piece
+[2012-12-10 13:34:39 -0500] gchristensen: depends what you're hoping to make
+[2012-12-10 13:34:53 -0500] masterkorp: i want to make a mount for my toughbook on my jeep
+[2012-12-10 13:35:03 -0500] leifmadsen: case for my yet-to-be-purchased raspberry pi :)
+[2012-12-10 13:35:19 -0500] gchristensen: masterkorp: I don't think it would be the right tool for that job
+[2012-12-10 13:35:26 -0500] masterkorp: leifmadsen: and how will you screw it in ? :p
+[2012-12-10 13:35:37 -0500] leifmadsen: masterkorp: very carefully!
+[2012-12-10 13:35:51 -0500] leifmadsen: or contact cement :)
+[2012-12-10 13:35:55 -0500] masterkorp: gchristensen: yeah, so i am doing some parts in CNC
+[2012-12-10 13:36:02 -0500] masterkorp: leifmadsen: lol @ noscrewholes
+[2012-12-10 13:36:22 -0500] leifmadsen: or I suppose you could make a slot in the edge that holds it in that way :)  the possibilities!
+[2012-12-10 13:36:23 -0500] masterkorp: i actually considered it for the navigation system of my jeep
+[2012-12-10 13:36:42 -0500] masterkorp: but its too weak and i need to waterproof it
+[2012-12-10 13:37:17 -0500] leifmadsen: my wife's shop has an awesome routing machine that is connected to CAD, so I just get them to make me up stuff when I need it :)
+[2012-12-10 13:38:12 -0500] masterkorp: yeah i have a cheap CNC mill
+[2012-12-10 13:38:23 -0500] gchristensen: masterkorp: the things I make are less than 6"x6"
+[2012-12-10 13:38:32 -0500] gchristensen: I can go as tall as about 8"
+[2012-12-10 13:38:51 -0500] masterkorp: gchristensen: would be enough for the base
+[2012-12-10 13:38:58 -0500] masterkorp: of the toughbook
+[2012-12-10 13:39:17 -0500] masterkorp: the problem is that it needs to be super resistent
+[2012-12-10 13:39:30 -0500] masterkorp: (offroad use)
+[2012-12-10 13:39:47 -0500] gchristensen: I don't think that 3d printing is the right tool for that job
+[2012-12-10 13:39:58 -0500] gchristensen: at least, nothing I've ever come across
+[2012-12-10 13:40:33 -0500] gchristensen: you can 3d print metal now, I'm sure you could do *something*.
+[2012-12-10 13:41:10 -0500] masterkorp: yeah an alternative would be awesome
+[2012-12-10 13:41:18 -0500] masterkorp: 3d printing can be awesome
+[2012-12-10 13:41:44 -0500] masterkorp: i had to restore my 1974 Opel Kadett dashboard all by hand
+[2012-12-10 13:41:54 -0500] masterkorp: more than 300 hours on small pieces
+[2012-12-10 13:42:08 -0500] masterkorp: with 3d printing would be under 20
+[2012-12-10 13:42:16 -0500] masterkorp: plus being able to share the cads
+[2012-12-10 13:54:03 -0500] _dumfries: afternoon gents
+[2012-12-10 15:37:10 -0500] bourke: Wondering what's the best way to remove attributes from a node?  It seems if I delete them using knife node edit they reappear on the next chef run
+[2012-12-10 15:37:30 -0500] awgross: bourke: what kind of attributes?
+[2012-12-10 15:38:14 -0500] awgross: bourke: for default/override attributes, removing them from the cookbook/role/env they are declared in will remove them
+[2012-12-10 15:38:25 -0500] bourke: that's what I thought
+[2012-12-10 15:38:44 -0500] awgross: bourke: for "normal" attributes (also includes node.set()) you can remove them with knife, because they will stick around even when their cookbook references are removed
+[2012-12-10 15:39:03 -0500] awgross: bourke: as for things generated by ohai, they will never go away, they get regenerated and set every chef run
+[2012-12-10 15:39:14 -0500] bourke: specifically, I had a mysql role applied to a node's run_list, which added some mysql{ ... } attributes to the node.  I the removed the role from the run_list, and deleted the mysql block
+[2012-12-10 15:39:38 -0500] bourke: s/the/then
+[2012-12-10 15:39:53 -0500] bourke: So trying to find out why they keep reappearing
+[2012-12-10 15:40:17 -0500] AikiLinux: hello, i've encountered an odd behaviour on my testing chef server,when i do cookbook upload  for some changes the chef recipe not updated on the server after and shows the data as missing
+[2012-12-10 15:40:19 -0500] awgross: bourke: the mysql cookbook has a bunch of stuff that does "set[:blah]" in its attributes.rb file
+[2012-12-10 15:40:41 -0500] awgross: bourke: those should act like normal attributes, so they should be deletable, if they are coming back something is still resetting them
+[2012-12-10 15:41:04 -0500] AikiLinux: i've compared it to the role specified versions , and the metadata and the role definitions numbers match
+[2012-12-10 15:41:24 -0500] AikiLinux: has anyone encountered something like that ?
+[2012-12-10 15:52:10 -0500] flashingpumpkin: ehm, guys. quick question, is couchdb doing compaction?
+[2012-12-10 15:52:38 -0500] flashingpumpkin: I've noticed our couch db size is expanding quite quickly, with not that many nodes
+[2012-12-10 15:57:10 -0500] flashingpumpkin: ah, got it. http://wiki.opscode.com/display/chef/CouchDB+Administration+for+Chef+Server
+[2012-12-10 16:11:41 -0500] aruntomar: suppose, that there is no init script to start a service. with so many choices to start the service either create init script or use bluepill or monit, or runit etc. what does our chef community prefer?
+[2012-12-10 17:31:47 -0500] breckognize: Chef newb here. Can anyone give me some advice on a work flow for testing changes to a cookbook? If I branch the repository that has my recipe in it, how can I deploy it without it affecting my production servers?
+[2012-12-10 17:32:31 -0500] spox: breckognize: environment based version constraints?
+[2012-12-10 17:32:34 -0500] spox: breckognize: http://wiki.opscode.com/display/chef/Version+Constraints
+[2012-12-10 17:33:58 -0500] breckognize: thank you spox
+[2012-12-10 17:44:46 -0500] jtimberman: aruntomar: Personally I prefer runit.
+[2012-12-10 17:45:08 -0500] jtimberman: aruntomar: for managing services, because I know it well and its really solid.
+[2012-12-10 17:45:36 -0500] sfb: jtimberman: Runit?
+[2012-12-10 17:46:15 -0500] atomic-penguin: on deb platforms
+[2012-12-10 17:46:24 -0500] sfb: This thing? http://smarden.org/runit/
+[2012-12-10 17:46:29 -0500] jtimberman: atomic-penguin: there are other platforms? :)
+[2012-12-10 17:46:32 -0500] jtimberman: sfb: yes
+[2012-12-10 17:46:37 -0500] atomic-penguin: it doesn't really work on rhel plats
+[2012-12-10 17:46:49 -0500] atomic-penguin: ...last time I checked
+[2012-12-10 17:47:03 -0500] yfeldblum: jtimberman, not any that are supported by opscode cookbooks, so i hear
+[2012-12-10 17:47:09 -0500] jtimberman: is it more that there isn't a package available in some "official" capacity (epel or something)
+[2012-12-10 17:48:01 -0500] jtimberman: i'd totally add runit support on rhel platforms if there were a package in epel or ius
+[2012-12-10 17:48:04 -0500] jtimberman: :)
+[2012-12-10 17:48:18 -0500] atomic-penguin: Don't know what ius is, and don't want to add it
+[2012-12-10 17:48:53 -0500] c_t: ohai
+[2012-12-10 17:49:06 -0500] yfeldblum: jtimberman, lulz ... not talking about opscode's runit cookbook only ... more like the whole of github/opscode-cookbooks
+[2012-12-10 17:49:13 -0500] atomic-penguin: For the most part, the rhel init system doesn't fight me like upchuck^H^H^H^H^Hstart
+[2012-12-10 17:49:33 -0500] c_t: took an impromptu road trip to Berkeley with my daughter this weekend for the office Christmas party
+[2012-12-10 17:49:36 -0500] awgross: from anyone using the library cookbook + application cookbook style, how do you indicate which type is which?  Namespacing? Separate repos?
+[2012-12-10 17:51:22 -0500] jtimberman: yfeldblum: we use system-level init scripts for services on rhel when available :)
+[2012-12-10 17:52:21 -0500] yfeldblum: awgross, it should be pretty obvious which cookbook is of which kind, shouldn't it?
+[2012-12-10 17:53:00 -0500] awgross: yfeldblum: once you look inside, but I am working with a lot of devs who dont have a ton of experience with chef
+[2012-12-10 17:53:20 -0500] awgross: yfeldblum: i'd like to present them with "look here for 'libraries'"
+[2012-12-10 17:53:53 -0500] awgross: yfeldblum: curious how others may have done it
+[2012-12-10 17:57:42 -0500] dan_: awgross: we use different namespace for a similar bifurcation
+[2012-12-10 17:58:23 -0500] awgross: dan_: ok, are you currently using berkshelf or librarian chef, or just everything in one big repo
+[2012-12-10 17:58:50 -0500] dan_: awgross: monolithic repo of monstrositiness
+[2012-12-10 17:59:21 -0500] awgross: dan_: gotcha, thanks.  Just moving away from that myself, much saner now
+[2012-12-10 17:59:49 -0500] dysinger: What are people using in super-dynamic environments to make sure chef-platform is up to date as nodes are "retired" or surprise-resigned or terminated outside knife ec2 ?
+[2012-12-10 18:00:18 -0500] dysinger: we are thinking about building a cron job to do this but it would be awesome if this was already out there
+[2012-12-10 18:00:26 -0500] dysinger: seeing as it's probably a pretty common need
+[2012-12-10 18:00:47 -0500] awgross: dysinger: 3 things.  A script to remove a server from AWS/Chef (and clean up if any one of these is already missing)
+[2012-12-10 18:01:14 -0500] awgross: dysinger: that one is run by people or a one off job, not automated to run at any specific time
+[2012-12-10 18:01:18 -0500] cwj: we use rake tasks
+[2012-12-10 18:01:34 -0500] awgross: dysinger: then we have 2 cron jobs to run scripts to remove extraneous resources (unused volumes, extra github keys etc)
+[2012-12-10 18:01:38 -0500] devonjones: we have automated node deployment, with boxes coming and going all the time
+[2012-12-10 18:01:47 -0500] dysinger: we need something that checks ec2 like every minute & makes certain chef-platform is correct
+[2012-12-10 18:01:47 -0500] devonjones: (I work with dysinger)
+[2012-12-10 18:02:01 -0500] devonjones: we need stuff to not be manual
+[2012-12-10 18:02:03 -0500] dysinger: I wish ec2 would publish to SQS
+[2012-12-10 18:02:29 -0500] awgross: dysinger: what trouble are you having with reconciling EC2/chef
+[2012-12-10 18:02:54 -0500] dysinger: no trouble.  we just need it to be automatic & pretty current
+[2012-12-10 18:03:01 -0500] awgross: dysinger: cant you just have a job that runs every 15 minutes or so than cleanups up any machines/nodes older that X minutes without proper EC2/Node/Client pairings?
+[2012-12-10 18:03:02 -0500] devonjones: we're trying to automate nagios
+[2012-12-10 18:03:10 -0500] dysinger: 15 min is too long
+[2012-12-10 18:03:11 -0500] devonjones: 15 minutes is too slow
+[2012-12-10 18:03:22 -0500] awgross: devonjones: haha ok
+[2012-12-10 18:03:29 -0500] devonjones: that means someone gets woken up by the nagios alert that the box is dead
+[2012-12-10 18:03:49 -0500] dysinger: we are thinking of creating a script that checks ec2 every minute and updates chef-platform if needed & triggers a run on nagios of chef-client if stuff changes
+[2012-12-10 18:03:52 -0500] awgross: devonjones: i say 15 minutes because that is usually the upper bound on how long a fresh machine w/ chef will take to run
+[2012-12-10 18:04:33 -0500] awgross: dysinger: you are using chef-client to tell your nagios server what nodes are up?
+[2012-12-10 18:05:47 -0500] awgross: using chef search?
+[2012-12-10 18:10:37 -0500] mattray: yfeldblum: took your advice on the spiceweasel syntax
+[2012-12-10 18:12:15 -0500] fauncybillups: Is there a way to set the retries on a given resource globally?.. IOW, I want to every yum_package resource to retry downloading the package 3 times before failing and I'd rather not have to explicitly set that every time I use yum_package
+[2012-12-10 18:12:20 -0500] fauncybillups: ..does chef have support for this?
+[2012-12-10 18:15:19 -0500] senthilr: dysinger: checkout edda from netflix
+[2012-12-10 18:15:28 -0500] dysinger: ack
+[2012-12-10 18:15:32 -0500] dysinger: thx
+[2012-12-10 18:15:33 -0500] senthilr: it does not provide everything you need, but you can start from there
+[2012-12-10 18:18:38 -0500] yfeldblum: mattray, cool
+[2012-12-10 18:19:14 -0500] mattray: yfeldblum: 2.0 will be more explicit, use hashes
+[2012-12-10 18:25:45 -0500] dysinger: how far back does omnibus chef go on ubuntu ?
+[2012-12-10 18:25:56 -0500] dysinger: we have boxes that are stupid old
+[2012-12-10 18:26:03 -0500] dysinger: ubuntu 8.04
+[2012-12-10 18:26:06 -0500] dysinger: (ducks)
+[2012-12-10 18:27:46 -0500] dysinger: was being lazy
+[2012-12-10 18:28:37 -0500] dysinger: 9.10 is the oldest
+[2012-12-10 18:50:52 -0500] jtimberman: dysinger: the 10.04 package *might* work?
+[2012-12-10 18:55:26 -0500] miah: herp
+[2012-12-10 18:58:11 -0500] occupant: anyone know of a monitoring system with good chef integration for adding/removing hosts automatically?
+[2012-12-10 18:59:51 -0500] btm: Opscode Chef code review: join https://plus.google.com/hangouts/_/0d691bff41d52e26b0fdee12291ae382aad17a1a, watch: http://youtu.be/G4_XLIbSr74
+[2012-12-10 19:00:34 -0500] miah: all should do that. even with nagios it will get removed automatically. but it will depend on a chef-client run to update its configuration and restart it. slightly easier with sensu since its just a REST request.
+[2012-12-10 19:06:52 -0500] leifmadsen: btm: not sure if you're just triaging, or potentially setting expectations on issues, but I'd like to request a review of CHEF-3667
+[2012-12-10 19:10:19 -0500] occupant: miah: I'm using zenoss right now and the chef cookbook is old, seemingly not in development right now, and doesn't handle deletions.
+[2012-12-10 19:11:11 -0500] jtimberman: occupant: sensu?
+[2012-12-10 19:11:47 -0500] ranjibd: +1 for sensu if you are starting fresh
+[2012-12-10 19:12:15 -0500] ranjibd: but Nagios might be having the widest use with chef also
+[2012-12-10 19:13:37 -0500] miah: occupant: update it?
+[2012-12-10 19:16:07 -0500] miah: i have never used zenoss. not sure i could assist, but if you need help updating the cookbook please ask.
+[2012-12-10 19:16:17 -0500] occupant: yeah, I
+[2012-12-10 19:16:24 -0500] occupant: 'm pondering that right now.
+[2012-12-10 19:18:32 -0500] sfb: occupant: Provisioning nodes into Zenoss?
+[2012-12-10 19:21:54 -0500] sfb: occupant: I'm starting to do this with OpenNMS.
+[2012-12-10 19:23:35 -0500] sfb: jtimberman: Sensu's website is tricky. I didn't realize it was open source until the 15 match was github.
+[2012-12-10 19:23:38 -0500] sfb: haha
+[2012-12-10 19:24:23 -0500] jtnz: Hi, I've seen somewhere a way to abort a recipe for whatever reason (say wrong OS type of version), anyone know what that is?
+[2012-12-10 19:24:24 -0500] miah: github.com/sensu
+[2012-12-10 19:26:21 -0500] sfb: Neat concept.
+[2012-12-10 19:29:00 -0500] mattray: occupant: if you really want to use Zenoss go to #zenoss and ping cluther, Hackman238 or ask around in that channel. The cookbook is quite dated, but I know Zenoss folks are using Chef and have an updated version
+[2012-12-10 19:29:16 -0500] sfb: It seems sort of like if you took the way Nagios performs checks and got rid of the stupid stuff like NRPE and replaced it with Rabbit.
+[2012-12-10 19:29:24 -0500] mattray: occupant: but starting from scratch? Look at Sensu
+[2012-12-10 19:30:09 -0500] binjured: i'm getting a strange error trying to run the default python recipe: NameError: python_pip[virtualenv] (python::virtualenv line 23) had an error: NameError: Cannot find
+[2012-12-10 19:30:10 -0500] binjured: a resource for converge_by on ubuntu version 12.04
+[2012-12-10 19:30:36 -0500] binjured: any idea how to track this down? Google wasn't being helpful.
+[2012-12-10 19:31:38 -0500] gchristensen: I accidentally deleted my node's client from the web interface, so I recreated the node and setup the new client.pem on the server. the server can now run chef-client and query the server, but when its trying to save the node data its failing with an exception: https://gist.github.com/5a21d3d9b01d98192f8e - do I need to bust some cache or something? or is this a bug? how can I recover from this issue?
+[2012-12-10 19:32:15 -0500] addisonj: gchristensen: kill your chef-client for that host
+[2012-12-10 19:32:28 -0500] gchristensen: I don't run it continuously, I only run it from the commandline manually
+[2012-12-10 19:32:59 -0500] addisonj: gchristensen: yeah, I mean the client on the web interface
+[2012-12-10 19:33:29 -0500] gchristensen: so delete the node's client again? that's how I got into this issue.
+[2012-12-10 19:34:16 -0500] addisonj: gchristensen: its weird thing that happens, you create a node and a corresponding client, only that client can save to that node and vice-versa
+[2012-12-10 19:34:17 -0500] binjured: do i maybe have the wrong chef version? i'm running 0.10.10
+[2012-12-10 19:34:33 -0500] addisonj: if you go look closely at permissions, you see that your client doesn't have permissions to write to that node
+[2012-12-10 19:34:43 -0500] addisonj: (you could just give it permissions)
+[2012-12-10 19:34:54 -0500] binjured: it's weird that there's literally no google result for anything related to 'cannot find resource for converge_by'
+[2012-12-10 19:35:04 -0500] gchristensen: OH! I see, thank you addisonj!
+[2012-12-10 19:35:04 -0500] binjured: i can't be the only person to see this problem
+[2012-12-10 19:35:14 -0500] barnacles_: binjured: there's always a first ;)
+[2012-12-10 19:35:58 -0500] binjured: barnacles_: sucks to be the first, then :P
+[2012-12-10 19:36:32 -0500] gchristensen: addisonj: it does seem to have all permissions on that host though.
+[2012-12-10 19:36:40 -0500] gchristensen: according to the client edit page
+[2012-12-10 19:37:15 -0500] ohlol: https://gist.github.com/995c046e27da9526483d wat?
+[2012-12-10 19:37:21 -0500] binjured: seems like any recipe that does not use this "convergence" stuff works fine.
+[2012-12-10 19:39:55 -0500] addisonj: gchristensen: it took me a few minutes to track that down when it happened a few weeks ago, the UI for that whole thing is just plain bad, I think it is under the node permissions and you have to allow the client to set on the node
+[2012-12-10 19:41:56 -0500] binjured: man this is super infuriating. spend 2 hours getting all this hosted stuff setup and it can't even run a simple recipe :-/
+[2012-12-10 19:42:55 -0500] fujin_: binjured: pretty broad statement? care to provide any info so we can help?
+[2012-12-10 19:43:02 -0500] fujin_: binjured: hosted chef has opscode commercial support too
+[2012-12-10 19:44:06 -0500] binjured: fujin: explained issue above: recipe blows up with exception `Cannot find a resource for converge_by on ubuntu version 12.04'
+[2012-12-10 19:44:21 -0500] luckymike: binjured: which recipe?
+[2012-12-10 19:44:22 -0500] fujin: show full stack trace on a gist with -ldebug
+[2012-12-10 19:44:31 -0500] binjured: luckymike: python default
+[2012-12-10 19:44:32 -0500] jroberts: I am trying to update the "Tags" attribute from a cookbook.  Look at  the docs, "tag('mytag') should work.  I also tried "tag.set('mytag').   THis is in chef 10
+[2012-12-10 19:44:48 -0500] fujin: binjured: smells like, old chef-client version
+[2012-12-10 19:44:58 -0500] fujin: binjured: pre why-run chef-client, cookbook has why-run support.
+[2012-12-10 19:45:02 -0500] binjured: fujin: says 0.10.10
+[2012-12-10 19:45:07 -0500] fujin: 10.16.2 is current
+[2012-12-10 19:45:17 -0500] fujin: 0.10.10 was pre-why-run so I was correct
+[2012-12-10 19:45:21 -0500] binjured: ah ha
+[2012-12-10 19:45:25 -0500] binjured: so is there a recipe to fix that? :P
+[2012-12-10 19:46:04 -0500] jroberts: I need to walk away.  I'll repost my question again later.
+[2012-12-10 19:46:48 -0500] fujin: binjured: a recipe to fix what? upgrading your cllient? How did you install it?
+[2012-12-10 19:46:58 -0500] fujin: if you're using omnibus, heavywater has an omnibus_updater cookbook for updating the installs.
+[2012-12-10 19:46:59 -0500] luckymike: binjured: gem update chef :)
+[2012-12-10 19:47:13 -0500] fujin: if you're not using omnibus, you need to figure out how you installed and upgrade that ;)
+[2012-12-10 19:47:22 -0500] binjured: fujin: it's via vagrant
+[2012-12-10 19:47:48 -0500] fujin: then your basebox / vagrant box probably has an old version of chef packaged inside of it.
+[2012-12-10 19:51:03 -0500] gchristensen: addisonj: remarkable.
+[2012-12-10 19:52:05 -0500] gchristensen: addisonj: that did it. funny that I had to grand the node access to the client, nad the client access to the node.
+[2012-12-10 19:52:20 -0500] gchristensen: thank you addisonj
+[2012-12-10 19:52:45 -0500] addisonj: yeah, its kinda annoying, np
+[2012-12-10 19:55:08 -0500] jtimberman: binjured: Opscode makes base boxes available with Chef installed. Currently have 10.14.4 installed and we'll get 10.16.2 boxes out soon.
+[2012-12-10 19:55:25 -0500] binjured: jtimberman: where can i find those?
+[2012-12-10 19:56:29 -0500] mattupstate: is it possible to see what roles the current node has within a recipe?
+[2012-12-10 19:56:41 -0500] mattupstate: guessing its just a node attribute
+[2012-12-10 19:56:48 -0500] mattupstate: but not sure where it is?
+[2012-12-10 19:57:33 -0500] jtimberman: binjured: links are here: https://github.com/opscode/bento
+[2012-12-10 19:57:47 -0500] jtimberman: mattupstate: node['roles']
+[2012-12-10 19:58:00 -0500] binjured: jtimberman: ah. tried that one. for whatever reason, it never booted.
+[2012-12-10 19:58:12 -0500] mattupstate: figuresbasically i'm just trying to see if the current node has a specified role, otherwise search for it
+[2012-12-10 19:59:58 -0500] luckymike: binjured: vagrant ssh then sudo gem update chef should work too
+[2012-12-10 20:00:59 -0500] binjured: jtimberman: hmmm, worked that time. weird. now i'm getting a forbidden error from the chef server?
+[2012-12-10 20:01:08 -0500] binjured: luckymike: yeah, that's pretty hacky though
+[2012-12-10 20:01:31 -0500] jtimberman: binjured: make sure you delete the API client and node objects from the server.
+[2012-12-10 20:01:38 -0500] abetterlie: Anyone know if minitest-chef-handler requires a minimum version of chef? We're running 10.8 and 10.10
+[2012-12-10 20:01:57 -0500] luckymike: agreed it's not a long term solution, but it would quickly help you determine if that's your issue
+[2012-12-10 20:03:08 -0500] leifmadsen: abetterlie: ya, it basically required 10.12 before things work correctly
+[2012-12-10 20:03:34 -0500] leifmadsen: abetterlie: due to some bugs in chef and changes to the way things got accessed -- I reported and fixed a couple of bugs in the minitest-chef-handler stuff
+[2012-12-10 20:03:34 -0500] kevinburke: Hey everyone, I have a Centos VM for work that I destroy / bring up a fair amount
+[2012-12-10 20:03:46 -0500] btm: @opscode Cookbook Review: join http://bit.ly/X1ghAm, watch: http://youtu.be/JROPwQWd3vE
+[2012-12-10 20:03:50 -0500] abetterlie: leifmadsen: thanks man, guess we can finally force that chef_server upgrade
+[2012-12-10 20:04:05 -0500] leifmadsen: abetterlie: it most has to do with the client side than the server side :)
+[2012-12-10 20:04:22 -0500] kevinburke: It has to pull down a lot of packages over the network every time. I am wondering if anyone's had luck with an rpm cache on their host machine?
+[2012-12-10 20:04:31 -0500] leifmadsen: abetterlie: I'd suggest chef 10.14.0 or greater if you plan to make heavy use of it
+[2012-12-10 20:04:57 -0500] leifmadsen: abetterlie: per --> https://github.com/calavera/minitest-chef-handler/blob/master/lib/minitest-chef-handler/resources.rb#L20
+[2012-12-10 20:04:58 -0500] abetterlie: leifmadsen: yeah I figured as much, but the reason we're running such an old version on clients is because some other folks at my org don't want to upgrade the server and are afraid of client-server version mismatch
+[2012-12-10 20:05:51 -0500] leifmadsen: abetterlie: that's a fair fear :)  basically I started using minitest-chef-handler around 10.8.0, somethings worked, then 10.10, other things worked, 10.12, closer, then 10.14.0 worked except for a bug in minitest-chef-handler in 0.6.3, but is fixed in 0.604
+[2012-12-10 20:05:53 -0500] leifmadsen: 0.6.4*
+[2012-12-10 20:07:45 -0500] abetterlie: leifmadsen: do you rmember what version you were using with 10.8?
+[2012-12-10 20:08:06 -0500] binjured: jtimberman: what do i have to do to avoid deleting that stuff every time? for instance, i don't want individual developers to create their own nodes, they should all be able to use the same one.
+[2012-12-10 20:09:34 -0500] abetterlie: leifmadsen: I think we're gonna go fight the upgrade battle. Thanks al lot.
+[2012-12-10 20:10:02 -0500] binjured: maybe just save /etc/chef/client.pem?
+[2012-12-10 20:10:10 -0500] binjured: and move it into place as the first thing. i dunno.
+[2012-12-10 20:10:20 -0500] jtnz: Does anyone have any advice for unzipping a file on a Linux node?
+[2012-12-10 20:10:55 -0500] barnacles: Question: I'm using a template resource within an LWRP. The LWRP is being called from another cookbook. How do I change the template source to look at the LWRP cookbook rather than the cookbook that is calling the LWRP?
+[2012-12-10 20:10:58 -0500] ekristen: has anyone experienced rabbitmq just stopping randomly with a private chef?
+[2012-12-10 20:12:02 -0500] barnacles: Essentially it's looking for the source erb file within another cookbook rather than the LWRP cookbook
+[2012-12-10 20:14:20 -0500] barnacles: or, an easier question: How do I get the name of a cookbook within the cookbook recipe?
+[2012-12-10 20:39:45 -0500] C0nfused_Ch3f: I have a question for all experienced chef users. I'm using food critic to check for syntax changes that will break when i upgrade to chef 11 are there rules already open sourced out there for this?
+[2012-12-10 20:49:14 -0500] programmerq: so I'm looking at knife block since we want to have one open source chef server per dev environment (and one org per environment for some of our envs that we want to use with our private chef license)
+[2012-12-10 20:49:22 -0500] programmerq: it looks like knife block only manages the knife.rb files
+[2012-12-10 20:49:39 -0500] programmerq: but doesn't have provisions for namespacing the validation.pem files for each env
+[2012-12-10 20:49:55 -0500] programmerq: so I'm guessing I will just script it myself outside of knife block?
+[2012-12-10 20:50:18 -0500] programmerq: so I'll end up with knife-staging.rb that references validation-staging.pem and programmerq-staging.pem
+[2012-12-10 20:50:26 -0500] awgross: programmerq: you can create separate knife.rb files and pass them in with -c
+[2012-12-10 20:50:39 -0500] awgross: programmerq: we do something similar here to deal with multiple private chef accounts
+[2012-12-10 20:50:55 -0500] awgross: programmerq: alternatively you can write pure ruby code into knife.rb to do it intelligently
+[2012-12-10 20:51:07 -0500] programmerq: awgross: so you're saying I should do knife -c ~/.chef/knife-staging.rb ?
+[2012-12-10 20:51:27 -0500] awgross: programmerq: pretty much
+[2012-12-10 20:51:41 -0500] awgross: knife cookbook upload my_cookbook -c staging/knife.rb
+[2012-12-10 20:51:45 -0500] awgross: is pretty much what we have
+[2012-12-10 20:53:35 -0500] programmerq: interesting
+[2012-12-10 20:53:47 -0500] programmerq: do you put your knife.rb and associated keys inside your repo?
+[2012-12-10 20:54:03 -0500] programmerq: along with your nodes, roles, envs?
+[2012-12-10 20:54:04 -0500] awgross: programmerq: for now, its not ideal
+[2012-12-10 20:54:11 -0500] programmerq: hmmm
+[2012-12-10 20:54:13 -0500] awgross: nodes we dont
+[2012-12-10 20:55:17 -0500] awgross: roles, envs, data_bags
+[2012-12-10 20:55:26 -0500] awgross: and a few other misc scripts
+[2012-12-10 20:55:37 -0500] programmerq: where do your nodes come in to play?
+[2012-12-10 20:55:59 -0500] awgross: programmerq: all the node data is stored soleley on the chef server and manipulated by knife
+[2012-12-10 20:57:41 -0500] makerbreakr: ping danryan
+[2012-12-10 20:57:47 -0500] programmerq: awgross: that's interesting.
+[2012-12-10 20:57:59 -0500] programmerq: I'm at a big company so our nodes are pretty static
+[2012-12-10 20:58:08 -0500] programmerq: so we're going to be storing them in our repo :/
+[2012-12-10 20:58:09 -0500] makerbreakr: is read_key_file deprecated from the Spice gem?
+[2012-12-10 20:58:37 -0500] awgross: programmerq: we dont modify the node properties too much, we just destroy then rebuild
+[2012-12-10 20:59:21 -0500] miah: saving node data means you still see nodes as individual and unique snow flakes
+[2012-12-10 21:00:27 -0500] miah: which.. is ok in some worlds. but i think we should all work on moving past it.
+[2012-12-10 21:01:10 -0500] sfb: http://www.youtube.com/watch?v=4X2AvfSTi6Q
+[2012-12-10 21:01:44 -0500] danryan: makerbreakr: pong
+[2012-12-10 21:02:08 -0500] miah: sfb: fact =)
+[2012-12-10 21:16:06 -0500] jmickle: hi does anyone know if a new chef-client version was released on friday
+[2012-12-10 21:16:15 -0500] jmickle: and if so was /etc/init.d/chef removed from that build?
+[2012-12-10 21:18:18 -0500] whilp: jmickle: i don't see a new omnibus
+[2012-12-10 21:18:33 -0500] jmickle: hmm
+[2012-12-10 21:20:09 -0500] miah: this is why its always important to manage all of your required resources in your configuration management system. rather than relying on packaging to provide that functionality. you never know whats going to change in packages. if you allow random upgrades things can easily fall out from under your feet.
+[2012-12-10 21:20:42 -0500] miah: fwiw. 10.16.2 October 26, 2012
+[2012-12-10 21:23:46 -0500] makerbreakr: danryan, is read_key_file depracated?
+[2012-12-10 21:24:05 -0500] jtnz: Is the conditional execution of a resource (e.g. not_if, only_if) determined if the action for the resource is :nothing?
+[2012-12-10 21:24:22 -0500] makerbreakr: imm getting an undefined method, when I call it in irb/rails serer
+[2012-12-10 21:25:08 -0500] spox: jtnz: no, it is checked when an action will be run, and only allowed to run if the condition is met
+[2012-12-10 21:25:22 -0500] jmickle: I agree miah, but the problem is the bootstrap downloads based on the install.sh
+[2012-12-10 21:25:46 -0500] jtnz: spox, cool, thanks
+[2012-12-10 21:27:43 -0500] spox: jmickle: --bootstrap-version VERSION  The version of Chef to install
+[2012-12-10 21:28:15 -0500] miah: jmickle: you are free to modify install.sh, write your own bootstrap completely, and host your own builds of the omnibus, gems, or packages.
+[2012-12-10 21:28:34 -0500] miah: infact. you really should at least locally host anything you rely on like this
+[2012-12-10 21:28:38 -0500] jmickle: thanks spox
+[2012-12-10 21:28:46 -0500] jmickle: i agree miah, it was an inherited design
+[2012-12-10 21:28:50 -0500] miah: ya
+[2012-12-10 21:28:52 -0500] jmickle: so thats the future of it
+[2012-12-10 21:28:56 -0500] miah: awesome
+[2012-12-10 21:29:03 -0500] jmickle: right now I'm at the mercy of "please don't do another breaking update"
+[2012-12-10 21:29:04 -0500] jmickle: haha
+[2012-12-10 21:29:07 -0500] miah: ya =)
+[2012-12-10 21:29:25 -0500] miah: its amazing how many people just allow their systems to upgrade packages at random
+[2012-12-10 21:30:00 -0500] jmickle: so heres a question I'm trying to solve on this infrastructure
+[2012-12-10 21:30:08 -0500] jmickle: the design of it was that they do package deploys through chef
+[2012-12-10 21:30:13 -0500] jmickle: based on an environment variable
+[2012-12-10 21:30:24 -0500] jmickle: the recipes have a bad habit of killing the process
+[2012-12-10 21:30:27 -0500] jmickle: downloading form s3
+[2012-12-10 21:30:28 -0500] jmickle: restarting
+[2012-12-10 21:30:30 -0500] jmickle: on every run
+[2012-12-10 21:30:34 -0500] jmickle: (it drives me nuts)
+[2012-12-10 21:30:38 -0500] bluepojo: miah: was talking to a guy who had to convince some admins running Arch Linux on a server was a bad idea.
+[2012-12-10 21:30:50 -0500] spox: lol
+[2012-12-10 21:30:52 -0500] bluepojo: that is a distro that loves to update your packages out from under you
+[2012-12-10 21:30:56 -0500] bluepojo: XD
+[2012-12-10 21:31:04 -0500] bluepojo: I believe the docs also say "don't run this on a server"
+[2012-12-10 21:31:05 -0500] jmickle: as a result we can't run chef-client continuously
+[2012-12-10 21:31:24 -0500] jmickle: id like to get us to a point of not worrying about that
+[2012-12-10 21:31:31 -0500] jmickle: how do you guys handle deploys with environment variables
+[2012-12-10 21:31:36 -0500] miah: bluepojo: yes definitely.
+[2012-12-10 21:31:55 -0500] miah: i like many aspects of Arch, but that is one that scares me. thats why i worked with the archserver team
+[2012-12-10 21:32:09 -0500] jmickle: yeah arch linux is not awesome haha
+[2012-12-10 21:32:23 -0500] bluepojo: I remember when they were like "everyone gets python 3.0!"
+[2012-12-10 21:32:27 -0500] jmickle: haha
+[2012-12-10 21:32:29 -0500] bluepojo: that broke a lot of things
+[2012-12-10 21:33:06 -0500] miah: ya. the overall problem with any distro is the assumption that the maintainers know better than the users, and know what versions of software you should be running as well as how to run them.
+[2012-12-10 21:33:55 -0500] miah: i want my distro to provide me with stability, but not opinion. i want the flexibility to make my changes and not worry that they are going to change my init system to some other new contraption on the next release
+[2012-12-10 21:34:22 -0500] matticulous: getting the "FATAL: 1 node found, but do not have the required attribute to stablish the connection." error when trying to use knife ssh. can someone point me in the right direction?
+[2012-12-10 21:34:31 -0500] stum: has anyone ever worked with a mail server called JAMES (apache)?
+[2012-12-10 21:34:37 -0500] matticulous: just trying to do a simple 'uptime' or other acid test at this point.
+[2012-12-10 21:35:53 -0500] miah: matticulous: knife node show <node>
+[2012-12-10 21:35:56 -0500] miah: see if it has hostname / fqdn.
+[2012-12-10 21:36:10 -0500] miah: seems like you'd get that error if it was unable to find how what address to contact
+[2012-12-10 21:36:45 -0500] matticulous: there is an fqdn (which is not resolvable).
+[2012-12-10 21:36:55 -0500] matticulous: public ip is also listed
+[2012-12-10 21:37:10 -0500] matticulous: in the past, i thought I just idd a '-a [actual public ip address]'
+[2012-12-10 21:37:17 -0500] matticulous: but that isn't working
+[2012-12-10 21:38:01 -0500] miah: i think it uses fqdn by default
+[2012-12-10 21:38:01 -0500] makerbreakr: -a ipaddress 123.123.123.123
+[2012-12-10 21:38:15 -0500] makerbreakr: and yes, it uses fqdn by default
+[2012-12-10 21:39:01 -0500] miah: i dont think you have to do '123..' in that example. try just doing -a ipaddress
+[2012-12-10 21:39:13 -0500] makerbreakr: no, i mean, that is the actual ip
+[2012-12-10 21:39:28 -0500] makerbreakr: you need -a ipaddress IPADDRESS
+[2012-12-10 21:39:29 -0500] matticulous: that worked perfectly
+[2012-12-10 21:39:30 -0500] miah: right. but -a is to specify the attribute. so just specify '-a ipaddress'
+[2012-12-10 21:39:34 -0500] miah: oh really
+[2012-12-10 21:39:41 -0500] matticulous: that's the piece i was missingthe attribute name
+[2012-12-10 21:39:45 -0500] makerbreakr: right
+[2012-12-10 21:39:48 -0500] matticulous: i was just doing -a 123.123.123.123
+[2012-12-10 21:39:53 -0500] makerbreakr: thats what tells it what to search
+[2012-12-10 21:39:58 -0500] makerbreakr: -by default it is
+[2012-12-10 21:40:02 -0500] makerbreakr: -a fqdn domain
+[2012-12-10 21:40:36 -0500] miah: my inner dyslexia is having a hard time differentiating your nicks =)
+[2012-12-10 21:41:34 -0500] matticulous: is there an attribute list somewhere?
+[2012-12-10 21:41:50 -0500] miah: matticulous: try 'ohai' for all of the automatic attributes
+[2012-12-10 21:41:56 -0500] makerbreakr: ^
+[2012-12-10 21:42:23 -0500] miah: the others will be a result of convergence and attribute precedence
+[2012-12-10 21:42:36 -0500] matticulous: perfect! thank you so much for your help
+[2012-12-10 21:44:25 -0500] danryan: makerbreakr: Nope, shouldn't be. Is spice in your Gemfile?
+[2012-12-10 21:44:34 -0500] makerbreakr: yes
+[2012-12-10 21:44:44 -0500] makerbreakr: I can run Spice.methods
+[2012-12-10 21:44:52 -0500] makerbreakr: and Spice.class, and it returns the correct stuff
+[2012-12-10 21:44:59 -0500] danryan: huh
+[2012-12-10 21:45:17 -0500] makerbreakr: even Spice.connect! but anything else ie..Spice.clients fails with no method
+[2012-12-10 21:45:46 -0500] eka: hi, is there a way to disable an init.d service with chef? or should I run bash commands to do it?
+[2012-12-10 21:45:52 -0500] danryan: Hrm, working for me :/ https://gist.github.com/134d61e7a24c51e86dc5
+[2012-12-10 21:46:07 -0500] danryan: makerbreakr: what version of spice, rails and ruby?
+[2012-12-10 21:46:20 -0500] danryan: I want to see if I can duplicate it
+[2012-12-10 21:46:36 -0500] makerbreakr: latest spice, ruby 1.9.3p0
+[2012-12-10 21:46:58 -0500] makerbreakr: gem 'rails', '3.2.0.rc2'
+[2012-12-10 21:47:37 -0500] makerbreakr: i Installing spice (1.0.0)
+[2012-12-10 21:48:07 -0500] danryan: ahh HM. Latest spice is v1.0.6
+[2012-12-10 21:48:19 -0500] makerbreakr: ya, i just noticed.  I just update rails also Installing rails (3.2.9)
+[2012-12-10 21:48:27 -0500] makerbreakr: let me see what that does
+[2012-12-10 21:49:39 -0500] danryan: kk
+[2012-12-10 21:51:29 -0500] makerbreakr: danryan, that fixed it
+[2012-12-10 21:51:31 -0500] makerbreakr: not sure why
+[2012-12-10 21:51:57 -0500] danryan: makerbreakr: sweet. Yeah, 1.0.0 was not a good release :)
+[2012-12-10 21:52:32 -0500] makerbreakr: im still on 1.0.0, it was the rails update that did it
+[2012-12-10 22:00:27 -0500] danryan: ah interesting...
+[2012-12-10 22:01:29 -0500] makerbreakr: im developing a web interface, to set up machines, input network settings and domain
+[2012-12-10 22:02:00 -0500] makerbreakr: how would you guys bootstrap that server?
+[2012-12-10 22:02:43 -0500] makerbreakr: essentially, on my chef server, I have a representation of a non-existant server, via databags and a not-really-create node
+[2012-12-10 22:03:08 -0500] makerbreakr: I then want a machine to pick those settings up, upon OS install etc
+[2012-12-10 22:03:44 -0500] makerbreakr: (physical machines)
+[2012-12-10 22:03:50 -0500] miah: orchaestration is tricky
+[2012-12-10 22:03:58 -0500] makerbreakr: ya
+[2012-12-10 22:04:22 -0500] makerbreakr: I did it with VMs, with no trouble, but it could all be done in redis jobs and I could communicate between jobs properly
+[2012-12-10 22:04:25 -0500] makerbreakr: this is tougher
+[2012-12-10 22:04:39 -0500] miah: have you seen crowbar / cobbler ? they might have some interesting ideas on how to solve this idea. but it would probably live outside of chef. at the very least it might be educational.
+[2012-12-10 22:06:34 -0500] makerbreakr: if I setup a node via software, on Monday and then on Friday setup the physical server what attributes need to be set for it to work properly?
+[2012-12-10 22:06:35 -0500] miah: the source of truth issue is a fun one. right now we end up with over 9000 different sources that want to spread the truth and they are all only partially right
+[2012-12-10 22:06:37 -0500] makerbreakr: just fqdn?
+[2012-12-10 22:09:25 -0500] makerbreakr: hrm, I think I got it.  User puts settings into the rails APP, the rails app doesnt communicate with the chef server, until they click an "activate" button, which then writes those settings to the chef server, upon next checkin, the settings are deployed to the server
+[2012-12-10 22:09:50 -0500] makerbreakr: or even a job to SSH in and manually run chef-client
+[2012-12-10 22:10:00 -0500] sunil_: anyone used the ephemeral option with knife ec2 command?  server creation seems to hang when passing options to use 2 ephemeral devices.
+[2012-12-10 22:16:22 -0500] binjured: i've been using chef-solo before and have switched to client/server, now i'm a bit confused as to how to proceed. I have my node and recipes setup and so forth but i'm not sure where to go in terms of customization.
+[2012-12-10 22:16:56 -0500] binjured: for instance, where do i specify, say, python packages to install? create a new recipe within the cookbook? data bag? some JSON DSL thingy?
+[2012-12-10 22:17:26 -0500] binjured: i've been poking around the docs site but nothing is really jumping out.
+[2012-12-10 22:17:41 -0500] bluepojo: binjured: how did you do it in chef-solo?
+[2012-12-10 22:18:53 -0500] binjured: bluepojo: just manually played with the recipes.
+[2012-12-10 22:18:59 -0500] bluepojo: oh I see
+[2012-12-10 22:19:33 -0500] bluepojo: well, each component on your system will be managed by a cookbook (eg: python cookbook)
+[2012-12-10 22:19:52 -0500] bluepojo: applications that depend on said component, will include the recipe from that cookbook to install it
+[2012-12-10 22:20:00 -0500] bluepojo: eg: include_recipe "python"
+[2012-12-10 22:20:06 -0500] bluepojo: in their own cookbooks
+[2012-12-10 22:20:39 -0500] bluepojo: then, when you want to install application A, you run the A recipe and it includes all of it's dependencies and boom, you get a properly configured server
+[2012-12-10 22:21:01 -0500] bluepojo: search the opscode community cookbook site to find cookbooks that install various components that you can use to build your application cookbooks
+[2012-12-10 22:21:10 -0500] bluepojo: read the Opscode Fast Start guide to get up and running
+[2012-12-10 22:21:36 -0500] bluepojo: read this guide on cookbook development for a practical example: vialstudios.com/guide-authoring-cookbooks.html
+[2012-12-10 22:22:09 -0500] binjured: okay. so if i'm understanding correctly, i've got my myapp-chef repo that has some checkouts of generic cookbooks (python, etc.) and i should create new cookbooks, like 'python_myapp' and create recipes within there?
+[2012-12-10 22:23:25 -0500] binjured: or just "myapp" then include whatever i need?
+[2012-12-10 22:23:43 -0500] binjured: that seems more reasonable than more or less sub-classing each individual cookbook.
+[2012-12-10 22:33:26 -0500] dougireton: is there anyway I can run "knife cookbook test" from within a cookbook repo? I'm trying to create a git pre-commit hook.
+[2012-12-10 22:38:46 -0500] yann2: can I use use a template from one module in another module?
+[2012-12-10 22:38:56 -0500] yann2: (sorry, forget to say hi o/)
+[2012-12-10 22:39:19 -0500] ssd7: dougireton: Maybe something like: knife cookbook test COOKBOOK_NAME -o '../'
+[2012-12-10 22:41:22 -0500] githubble: hi, so I have my knife ec2 server running nicely, however it is not in my knife node list currently on hosted-chef  .... how do I get it into my list?
+[2012-12-10 22:50:29 -0500] dougireton: ssd7: knife cookbook test COOKBOOK_NAME -o '../' works. Thanks!
+[2012-12-10 23:13:56 -0500] githubble: hi, so I have my knife ec2 server running nicely with nginx, how do I update it with bluepill easily?
+[2012-12-10 23:19:58 -0500] mhalligan: It seems there are many ways to skin the Percona cat. Any suggestion as to which cookbookk makes the most sense before I dive in?
+[2012-12-10 23:32:31 -0500] miah: mhalligan: david and i hacked on this before our departure: https://github.com/scribd/percona-install/
+[2012-12-10 23:40:00 -0500] ssd7: dougireton: Great!
+[2012-12-10 23:44:12 -0500] mhalligan: oh sweet I didn't even notice that one, thanks miah :)

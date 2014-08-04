@@ -1,0 +1,85 @@
+[2013-03-04 06:08:48 -0500] spheromak: what replaced moneta in chef client ? anyhting ?
+[2013-03-04 12:28:55 -0500] renchap: https://speakerdeck.com/renchap/sysadmin-4-chef-at-fotolia presentation (in french) i made last week with nico
+[2013-03-04 13:34:33 -0500] laurent\: renchap: nice. are they the photos of you and your coworkers ? :)
+[2013-03-04 13:34:40 -0500] renchap: hehe
+[2013-03-04 13:34:55 -0500] renchap: it is useful to have a website that sells pictures to make presentations
+[2013-03-04 13:34:55 -0500] renchap: :D
+[2013-03-04 13:35:15 -0500] laurent\: :)
+[2013-03-04 14:40:19 -0500] laurent\: renchap: are you going to chefconf 2013 ?
+[2013-03-04 15:03:19 -0500] renchap: laurent\: nope
+[2013-03-04 15:39:34 -0500] jeevandongre: #ubuntu whats irc???
+[2013-03-04 16:58:18 -0500] kallistec: spheromak: we just ripped it out.
+[2013-03-04 16:58:42 -0500] spheromak: kallistec: thats what i thought.
+[2013-03-04 16:58:49 -0500] kallistec: only place we really needed it was to speed up syntax checks for upload, replacement for that use case is here: https://github.com/opscode/chef/blob/master/lib/chef/cookbook/syntax_check.rb#L29
+[2013-03-04 16:58:54 -0500] spheromak: is there any cache handling class in there  ?
+[2013-03-04 16:59:00 -0500] spheromak: awesome
+[2013-03-04 16:59:08 -0500] spheromak: I have a search cache helper i want to make work.
+[2013-03-04 16:59:28 -0500] kallistec: spheromak: that probably won't do what you need
+[2013-03-04 16:59:37 -0500] spheromak: yea
+[2013-03-04 16:59:44 -0500] spheromak: i want a short lived mem cache
+[2013-03-04 17:00:03 -0500] spheromak: no worries ill just get the cook to install a gem
+[2013-03-04 17:00:16 -0500] spheromak: just wanted to make sure i wasn't passing something up in chef internals. thanks
+[2013-03-04 17:00:27 -0500] kallistec: you could use the node.run_state hash
+[2013-03-04 17:00:49 -0500] kallistec: if you only want to cache results within a chef run
+[2013-03-04 17:01:03 -0500] spheromak: yes
+[2013-03-04 17:01:09 -0500] spheromak: its what i did already
+[2013-03-04 17:01:18 -0500] spheromak: setup a moneta memcache in the run_state
+[2013-03-04 17:01:41 -0500] spheromak: and refrenced that. to cache searches for things like repo server and the like.
+[2013-03-04 17:02:38 -0500] kallistec: spheromak: the moneta bit is probably overkill for that, you can probably just do
+[2013-03-04 17:02:41 -0500] spheromak: I guess i can write a couple methods to handle invalidation/timeout
+[2013-03-04 17:02:48 -0500] spheromak: yea
+[2013-03-04 17:02:51 -0500] kallistec: node.run_state[:searches] || = {}
+[2013-03-04 17:03:02 -0500] spheromak: heh yea verry basic, but i do want timeouts
+[2013-03-04 17:03:06 -0500] kallistec: node.run_state[:searches][QUERY] = result
+[2013-03-04 17:03:20 -0500] spheromak: yea i hear ya.
+[2013-03-04 17:03:46 -0500] spheromak: prob what ill do to get it working again at least
+[2013-03-04 17:04:00 -0500] kallistec: what kind of timeout are you using?
+[2013-03-04 17:04:19 -0500] kallistec: run_state is wiped for every chef run
+[2013-03-04 17:04:43 -0500] spheromak: couple minutes
+[2013-03-04 17:04:47 -0500] spheromak: runs can take many minutes
+[2013-03-04 17:05:02 -0500] kallistec: are you doing searches in ruby_block or something?
+[2013-03-04 17:05:12 -0500] spheromak: iirc i was caching for ~45s
+[2013-03-04 17:05:13 -0500] kallistec: otherwise the searches all happen at compile time
+[2013-03-04 17:05:22 -0500] spheromak: no just from search but theres some methods like  "repo_server
+[2013-03-04 17:05:27 -0500] spheromak: that are backed by the cache.
+[2013-03-04 17:05:36 -0500] spheromak: and are used many many times in various recipes
+[2013-03-04 17:05:49 -0500] spheromak: its the topology lokup stuff
+[2013-03-04 17:06:11 -0500] kallistec: right, but unless you're using them in ruby_block or template code, it's all happening during compile
+[2013-03-04 17:06:18 -0500] spheromak: really ?
+[2013-03-04 17:06:28 -0500] spheromak: this implementation of cached results sped up th eruns
+[2013-03-04 17:06:30 -0500] spheromak: *the runs
+[2013-03-04 17:06:40 -0500] spheromak: Its implemted in library code. and the calls are in recipes
+[2013-03-04 17:06:43 -0500] kallistec: yeah, I'd expect the cache to be a good thing
+[2013-03-04 17:06:46 -0500] spheromak: they aren't in raw blocks
+[2013-03-04 17:06:59 -0500] kallistec: but I would think you wouldn't actually hit a stale cache
+[2013-03-04 17:07:06 -0500] spheromak: also partials almost make this thing a non issue
+[2013-03-04 17:07:13 -0500] spheromak: i see what your saying
+[2013-03-04 17:07:24 -0500] spheromak: so in this case all i would need is manual invalidation (just overwrite)
+[2013-03-04 17:07:25 -0500] kallistec: unless you're doing things that take a long time during compile
+[2013-03-04 17:07:45 -0500] spheromak: nah i t shouldn't be
+[2013-03-04 17:08:02 -0500] spheromak: I see what your saying and it makes total sense that searches are compile time. I just never thought about it like that
+[2013-03-04 17:08:11 -0500] spheromak: or really looked into when they were firing.
+[2013-03-04 17:08:17 -0500] spheromak: cool ill just do raw hash on run_state
+[2013-03-04 17:08:31 -0500] spheromak: ah time to get on a plane. Thanks kallistec
+[2013-03-04 17:08:40 -0500] kallistec: np
+[2013-03-04 17:12:30 -0500] teukka_: kallistec: do you have idea what is the problem here? https://gist.github.com/tmatilai/bd14fd15688389fd146b
+[2013-03-04 17:17:14 -0500] kallistec: teukka_: I think mixlib-cli wants :boolean => true, not sure how much that will help
+[2013-03-04 17:17:35 -0500] teukka_: kallistec: I tried but it didn't help
+[2013-03-04 17:17:50 -0500] teukka_: based on the code it seems to me that it is not even used anymore
+[2013-03-04 17:18:11 -0500] kallistec: teukka_: also, the proc thing is a hack that doesn't work very well in practice
+[2013-03-04 17:18:52 -0500] kallistec: in chef 11, values from Chef::Config[:knife] get merged in automatically in the right order
+[2013-03-04 17:19:10 -0500] kallistec: if you need to support Chef 10, then you need to do some ugliness
+[2013-03-04 17:19:11 -0500] teukka_: I know, but that is the easiest way to get the same to chef 10
+[2013-03-04 17:19:43 -0500] teukka_: and it works fine if there are no booleans, or one of the pairs is nil
+[2013-03-04 17:20:23 -0500] kallistec: in the knife-ec2 stuff, we do this: http://docs.opscode.com/breaking_changes_chef_11.html#knife-configuration-parameter-changes
+[2013-03-04 17:20:39 -0500] kallistec: (the locate_config_value bits)
+[2013-03-04 17:22:09 -0500] teukka_: that locate_config_value also fails with `--no-options`. I think it should be something like `config[key] || (config[key].nil? && Chef::Config[:knife][key])`
+[2013-03-04 17:23:38 -0500] teukka_: for example: https://github.com/rmoriz/knife-digital_ocean/commit/28a997e3e984fa6f429e825349077c0e9745442e
+[2013-03-04 17:32:23 -0500] teukka_: kallistec: I tried to follow knife/mixlib-cli code but failed to understand where that gets overridden. but now I know that limitation so I can avoid it. and wait that chef 10 support can be dropped :)
+[2013-03-04 17:38:02 -0500] kallistec: teukka_: cool. Chef 11 situation should be much better now
+[2013-03-04 17:39:42 -0500] teukka_: but that was driving me crazy as the proc thing works on all other cases. hopefully I am the only one hitting it ;)
+[2013-03-04 18:31:08 -0500] teukka_: kallistec: actually the `locate_config_value` should be `config[key].nil? ? Chef::Config[:knife][key] : config[key]
+[2013-03-04 18:31:48 -0500] teukka_: my previous suggestion would return `false` insted of `nil` in some cases
+[2013-03-04 19:31:35 -0500] github-bawt: [kitchen-ec2] mattray opened pull request #2: additional ec2 debugging (master...master)  http://git.io/fyAJLw
+[2013-03-04 23:33:25 -0500] gnrhxni: hey does anyone know how to install chef 11 with rabbitmq on a different port?
+[2013-03-04 23:33:37 -0500] gnrhxni: just so it doesn't overlap with my current rabbitmq install

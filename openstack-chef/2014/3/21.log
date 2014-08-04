@@ -1,0 +1,93 @@
+[2014-03-21 00:08:13 -0400] openstackgerrit: Luis A. Garcia proposed a change to stackforge/cookbook-openstack-block-storage: Generalize control_exchange attribute  https://review.openstack.org/81946
+[2014-03-21 03:49:53 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-block-storage: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81978
+[2014-03-21 06:05:43 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-compute: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81993
+[2014-03-21 06:18:48 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-dashboard: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81997
+[2014-03-21 06:30:01 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-identity: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82001
+[2014-03-21 06:49:33 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-image: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82006
+[2014-03-21 07:05:44 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-network: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82008
+[2014-03-21 07:21:18 -0400] openstackgerrit: Zhiwei Chen proposed a change to stackforge/cookbook-openstack-orchestration: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82009
+[2014-03-21 09:06:50 -0400] nacer: okay srenatus :)
+[2014-03-21 09:08:53 -0400] srenatus: nacer: just noticed I had my reply there forgotten in "draft" state...
+[2014-03-21 09:09:18 -0400] nacer: srenatus: It work ok awith the openstack fix
+[2014-03-21 09:09:52 -0400] srenatus: nacer: cool, thanks for testing
+[2014-03-21 09:10:12 -0400] srenatus: nacer: have you found where it's used in nova's code?
+[2014-03-21 09:10:20 -0400] nacer: srenatus: i have a DEV openstack cluster with dev vm
+[2014-03-21 09:10:35 -0400] nacer: srenatus: non
+[2014-03-21 09:10:37 -0400] nacer: srenatus: no
+[2014-03-21 09:13:07 -0400] nacer: srenatus: 1/ Creating swap disk
+[2014-03-21 09:13:20 -0400] nacer: redrobot: 2 / i think snapshoot too
+[2014-03-21 09:13:23 -0400] srenatus: nacer: did it change anything? from looking at the code, rbd_user seems to be used only here: https://github.com/openstack/nova/blob/master/nova/virt/libvirt/volume.py#L217-L228
+[2014-03-21 09:14:13 -0400] srenatus: nacer: and these settings would be provided by cinder, as part of netdisk_properties
+[2014-03-21 09:14:36 -0400] nacer: srenatus: yeah it work
+[2014-03-21 09:14:47 -0400] nacer: srenatus: i can create vm with swapfile now
+[2014-03-21 09:14:55 -0400] srenatus: nacer: plus, getting those settings from cinder allows for separate different cinder rbd pools as backends
+[2014-03-21 09:15:06 -0400] nacer: srenatus: because it's not  cinder how create swap disk, it's the compute
+[2014-03-21 09:15:32 -0400] nacer: rbd -p volumes ls
+[2014-03-21 09:15:32 -0400] nacer: instance-00000044_disk.swap
+[2014-03-21 09:15:48 -0400] srenatus: nacer: a volume as swap?
+[2014-03-21 09:16:02 -0400] srenatus: nacer: I'm still not convinced this is rbd-for-block-storage related
+[2014-03-21 09:16:18 -0400] srenatus: nacer: are you using images_type = rbd, too?
+[2014-03-21 09:16:27 -0400] srenatus: nacer: that would be swap-related, but totally different
+[2014-03-21 09:18:15 -0400] nacer: srenatus: yeah i use images_type rbd
+[2014-03-21 09:18:45 -0400] nacer: the compute node created this disk
+[2014-03-21 09:18:46 -0400] srenatus: nacer: and you use cinder's cephx credentials for that, too?
+[2014-03-21 09:18:57 -0400] nacer: srenatus: yes
+[2014-03-21 09:19:14 -0400] srenatus: because "instance-00000044_disk.swap" is not what a volume rbd image would look like, i.e. volume-$ID
+[2014-03-21 09:19:32 -0400] nacer: srenatus: i have volume-* too
+[2014-03-21 09:19:40 -0400] srenatus: nacer: hehe you've been so right btw
+[2014-03-21 09:19:45 -0400] srenatus: rbd_user is used for image_type=rbd
+[2014-03-21 09:19:52 -0400] srenatus: and hence should be in the conditional after all
+[2014-03-21 09:20:05 -0400] nacer: srenatus: \o/ :)
+[2014-03-21 09:20:13 -0400] nacer: srenatus: it's in the ceph + openstack doc
+[2014-03-21 09:21:10 -0400] srenatus: nacer: I'll fix the change
+[2014-03-21 09:21:37 -0400] nacer: srenatus: so next problem
+[2014-03-21 09:22:28 -0400] nacer: i have two attr that seem to tell the same thing
+[2014-03-21 09:22:31 -0400] nacer:           "volume_backend": "rbd",
+[2014-03-21 09:22:31 -0400] nacer:           "images_type": "rbd",
+[2014-03-21 09:22:43 -0400] srenatus: no no no
+[2014-03-21 09:22:48 -0400] srenatus: not the same thing
+[2014-03-21 09:22:58 -0400] srenatus: for example, we use images_type=lvm with volume_backend=rbd
+[2014-03-21 09:23:05 -0400] nacer: oh images is for the source and volumes destination
+[2014-03-21 09:23:07 -0400] nacer: ok ok
+[2014-03-21 09:23:10 -0400] srenatus: different things.  images_type is where the ephemeral disks will end up
+[2014-03-21 09:23:11 -0400] nacer: sound good
+[2014-03-21 09:23:11 -0400] nacer: :)
+[2014-03-21 09:26:26 -0400] srenatus: oh dear. this calls for another data bag secret...
+[2014-03-21 09:26:34 -0400] nacer: yeah
+[2014-03-21 09:27:18 -0400] srenatus: I'm not convinced that this feature (of nova) makes sense at all... when you can boot from a volume, why not do that? ;)  can you put swap on a volume?
+[2014-03-21 09:27:53 -0400] nacer: srenatus: because openstack only copy the content of image -> volume
+[2014-03-21 09:29:22 -0400] nacer: we should have image for swap and nova should ask for a swap volume
+[2014-03-21 09:29:28 -0400] nacer: at cinder
+[2014-03-21 09:38:50 -0400] srenatus: nacer: this needs another libvirt-secret-define, too...
+[2014-03-21 09:39:25 -0400] srenatus: nacer: before I copy the stuff needed for that, it might be better to create a LWRP for libvirt secrets?  Others probably need that, too.
+[2014-03-21 09:41:07 -0400] srenatus: nacer: since right now, there's no way to use different users for cinder/nova rbd images anyway, I think I'll refrain from introducing a proper separation now
+[2014-03-21 09:41:11 -0400] srenatus: doesnt make much sense.
+[2014-03-21 09:52:33 -0400] srenatus: hmm just noticed that the issue is resolved in nova/master
+[2014-03-21 09:52:57 -0400] nacer: link ?
+[2014-03-21 09:54:28 -0400] srenatus: https://github.com/openstack/nova/blob/c15dff2e9978fe851c73e92ab7f9b46e27de81ba/nova/virt/libvirt/imagebackend.py#L436-L438
+[2014-03-21 09:54:41 -0400] srenatus: It's not CONF.rbd_user but CONF.libvirt.rbd_user
+[2014-03-21 09:55:04 -0400] srenatus: ha nevermind
+[2014-03-21 09:55:09 -0400] srenatus: it's the same in volume.py/master
+[2014-03-21 10:01:30 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-compute: Add rbd_* settings to nova.conf when images_type=rbd  https://review.openstack.org/81838
+[2014-03-21 10:02:42 -0400] srenatus: ugh use less move in attributes
+[2014-03-21 10:02:56 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-compute: Add rbd_* settings to nova.conf when images_type=rbd  https://review.openstack.org/81838
+[2014-03-21 11:21:00 -0400] openstackgerrit: Stephan Renatus proposed a change to stackforge/cookbook-openstack-block-storage: Add ceph-common to cinder_ceph_packages  https://review.openstack.org/82071
+[2014-03-21 16:05:39 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-block-storage: Add ceph-common to cinder_ceph_packages  https://review.openstack.org/82071
+[2014-03-21 17:24:49 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-dashboard: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81997
+[2014-03-21 17:25:24 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-orchestration: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82009
+[2014-03-21 17:26:45 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-identity: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82001
+[2014-03-21 17:28:11 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-image: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82006
+[2014-03-21 17:34:37 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-compute: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81993
+[2014-03-21 17:35:51 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-network: Fix DB2 ODBC driver installation issue  https://review.openstack.org/82008
+[2014-03-21 17:40:19 -0400] openstackgerrit: A change was merged to stackforge/cookbook-openstack-block-storage: Fix DB2 ODBC driver installation issue  https://review.openstack.org/81978
+[2014-03-21 18:04:22 -0400] mrodden: anyone know Chris Dearborn's IRC nick?
+[2014-03-21 18:04:35 -0400] mrodden: have some questions about https://blueprints.launchpad.net/openstack-chef/+spec/increase-ip-binding-flexibility
+[2014-03-21 18:50:05 -0400] openstackgerrit: Luis A. Garcia proposed a change to stackforge/cookbook-openstack-block-storage: Remove duplicate rpc_backend property  https://review.openstack.org/82169
+[2014-03-21 21:55:39 -0400] openstackgerrit: Mathew Odden proposed a change to stackforge/cookbook-openstack-compute: Use openstack-common VNC endpoint information  https://review.openstack.org/82220
+[2014-03-21 21:57:16 -0400] mrodden: markvan: ^
+[2014-03-21 22:36:05 -0400] openstackgerrit: Mathew Odden proposed a change to stackforge/cookbook-openstack-compute: Do not default to deprecated VIF driver  https://review.openstack.org/82239
+[2014-03-21 22:43:49 -0400] openstackgerrit: Mark Vanderwiel proposed a change to stackforge/cookbook-openstack-compute: Add compute and ec2 api ip and port configuration  https://review.openstack.org/81341
+[2014-03-21 22:59:22 -0400] markvan: mrodden: I see you'll have to convince Richard for https://review.openstack.org/82220  on where to get the port...
+[2014-03-21 23:00:48 -0400] mrodden: markvan: i'm not even touching the identity-api?
+[2014-03-21 23:00:50 -0400] mrodden: weird
+[2014-03-21 23:20:03 -0400] openstackgerrit: Mathew Odden proposed a change to stackforge/cookbook-openstack-compute: Use openstack-common VNC endpoint information  https://review.openstack.org/82220

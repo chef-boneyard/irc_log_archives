@@ -1,0 +1,1093 @@
+[2014-07-14 00:07:43 -0400] sam_: Is there a way to load attributes in my aplication cookbook before my dependency cookbook? Issue is I have a case statement in my depedency cookbook which sets some attributes based on a type but dependency attributes load before my aplication cookbook so it doesnt set the attributes based on my override
+[2014-07-14 02:46:46 -0400] Toger: What is the syntax in ChefSpec for asserting the value of a node attribute? I get        undefined local variable or method `node' for #<RSpec::ExampleGroups::ConsulInstallSource:0x00000006a50ce8>
+[2014-07-14 03:41:02 -0400] bricker`LA: I'm trying to set an attribute on another node with the following: backups.set["backups"]["server"]["ssh_keys"][node.name] = key.chomp . However, it never writes the attribute back to chef-server. If I call `backups.save`, it works. Shouldn't it automatically save at the end of the run? This is inside of a ruby_block
+[2014-07-14 03:46:41 -0400] shlant: sam_: if you stillare looking for an answer: http://docs.opscode.com/essentials_cookbook_attribute_files.html#attribute-file-ordering
+[2014-07-14 04:06:36 -0400] shlant: jkeiser: any way to make sure one machine finishes it's chef run before moving on?
+[2014-07-14 04:07:03 -0400] jkeiser: shlant: put it explicitly in a machine_batch
+[2014-07-14 04:07:14 -0400] jkeiser: shlant: machine_batch do ... end
+[2014-07-14 04:07:24 -0400] jkeiser: shlant: a machine batch with just one machine will only do that one machine
+[2014-07-14 04:08:04 -0400] shlant: jkeiser: alright! thank you kindly
+[2014-07-14 04:08:22 -0400] jkeiser: shlant: what a lot of people do is have an initial machine_batch with ALL their machines in it and just the base role.  That gets everything set up in parallel Then they do machine_batch do <database machine> end, then machine_batch do <web servers> end.
+[2014-07-14 04:08:44 -0400] jkeiser: shlant: the latter two, they add the database and mysql recipes into the machines
+[2014-07-14 04:09:11 -0400] shlant: ah
+[2014-07-14 04:09:13 -0400] shlant: smart
+[2014-07-14 04:09:18 -0400] jkeiser: shlant: this way, everything gets set up parallel (minimum time possible), then only the stuff that *has* to be set up serially gets set up serially
+[2014-07-14 04:09:51 -0400] jkeiser: shlant: in fact, you can go so far as to have your db machine install mysql (but not configure it) and your web machines install apache (but not configure / start)
+[2014-07-14 04:10:16 -0400] jkeiser: (Just using "db machine must exist before web machines" as a canonical example)
+[2014-07-14 04:15:40 -0400] bricker`LA: Not related to chef, but #unix never has traffic... is an empty iptables secure by default? Or should I add a reject rule in there?
+[2014-07-14 04:24:09 -0400] chefgirl: has anybody used s3fs utility
+[2014-07-14 04:24:10 -0400] chefgirl: ??
+[2014-07-14 04:33:39 -0400] shlant: chefgirl: I attempted to
+[2014-07-14 04:33:45 -0400] shlant: had more luck with lsyncd
+[2014-07-14 04:34:07 -0400] chefgirl: I have mounted that but fac9ing an issue shlant
+[2014-07-14 04:34:11 -0400] chefgirl: shlant :
+[2014-07-14 04:34:13 -0400] shlant: jkeiser: what is the difference between :setup and :converge?
+[2014-07-14 04:34:28 -0400] chefgirl: I have few queries :
+[2014-07-14 04:34:35 -0400] shlant: chefgirl: yea I ran into problems with it mounting properly and gave up :p
+[2014-07-14 04:34:43 -0400] chefgirl: If I mount a S3 bucket on EC2 instance do I need to make any entry to the fstab. If I mount a S3 bucket on EC2 instance then the I can see the files and folders in the mount device like /s3mnt but I am not able to see the contents on the S3 bucket. Does the content disappears from the bucket??
+[2014-07-14 04:35:33 -0400] jkeiser: shlant: setup just installs chef-client, converge actually runs it.  It's worth having an initial machine_batch that goes all the way to converge (just not with recipes that depend on other machines existing).  This will fill in the ohai data and get them going in parallel
+[2014-07-14 04:36:11 -0400] shlant: jkeiser: alright, thanks
+[2014-07-14 04:36:37 -0400] shlant: chefgirl: I'm not a good person to answer those questions, sorry
+[2014-07-14 04:36:41 -0400] shlant: might wanny try ##aws
+[2014-07-14 04:36:59 -0400] shlant: I know paul_uk was trying to get that working
+[2014-07-14 04:37:24 -0400] chefgirl: shlant : thanks a bunch is this the forum for aws users ??
+[2014-07-14 04:37:49 -0400] jkeiser: shlant: https://gist.github.com/jkeiser/7c1d690b5c612e9e3b01 has a recipe with multiple machine_batches that contain the same machines (i.e. multi-stage converge).  Basically, "recipe" is additive: each time you run the machine and put a recipe on it, it adds that recipe to the run_list and re-converges the machine (and doesn't delete other stuff).
+[2014-07-14 04:37:54 -0400] shlant: ##aws is the aws irc, yes
+[2014-07-14 04:38:33 -0400] shlant: jkeiser: what is happening when I see something like remove normal.rbenv
+[2014-07-14 04:39:15 -0400] jkeiser: shlant: that means it is removing the attribute "rbenv" from the node.  If you meant to keep that attribute in, your recipe might be removing attributes too broadly
+[2014-07-14 04:40:05 -0400] jkeiser: This is how attributes {} vs. attribute 'foo', { ... } vs. attrbute [ 'foo', 'child_attribute' ], 'value' becomes important
+[2014-07-14 04:40:23 -0400] jkeiser: attributes { ... } will set any attributes in the hash, and destroy all other attributes
+[2014-07-14 04:41:17 -0400] jkeiser: attribute 'blah', { ... } will set any attributes in blah.x, blah.y, and remove anything else under blah that isn't specified; but it will leave other top-level attributes (rbenv, etc.) alone
+[2014-07-14 04:41:41 -0400] jkeiser: attribute [ 'foo', 'child_attribute' ], 'value' will set foo.child_attribute, and will leave all other attributes alone (even foo.x and foo.y)
+[2014-07-14 04:54:59 -0400] fclausen: hey all - how can I use knife search to query attributes with dots in the name? Square brackets and quoting don't seem to work.
+[2014-07-14 06:19:38 -0400] sam_: @shlant thanks I looked at that link for attribute ordering but it doesn't load the attribute file again if it has already loaded when trying to load my dependencies
+[2014-07-14 07:11:53 -0400] jrwesolo: Hello everyone. I was curious if anyone knew why http://www.getchef.com/downloads/chef-dk/mac/ does not have the latest version of chefdk (0.2.0 or even 0.1.1)? Is this intentional?
+[2014-07-14 07:24:35 -0400] coderanger: jrwesolo: Guessing its a manual process and no one has gotten to it yet
+[2014-07-14 07:36:07 -0400] LeShadow: so I have the following question
+[2014-07-14 07:36:36 -0400] LeShadow: if I pass on some json data with chef.json { php => { php_ver => 5.4 } }
+[2014-07-14 07:36:41 -0400] LeShadow: how do I read that out in a recipe?
+[2014-07-14 07:37:01 -0400] coderanger: LeShadow: node['php']['php_ver']
+[2014-07-14 07:37:14 -0400] LeShadow: well, I tried that, I get this error:
+[2014-07-14 07:37:20 -0400] LeShadow: ==> default: undefined method `[]' for nil:NilClass
+[2014-07-14 07:37:37 -0400] LeShadow: when i try to do this in the recipe:
+[2014-07-14 07:37:46 -0400] LeShadow: ==> default:  10>> if node['php']['php_ver'] == "5.4"
+[2014-07-14 07:37:57 -0400] coderanger: Are you certain your node JSON is being used?
+[2014-07-14 07:38:53 -0400] LeShadow: what do you mean?
+[2014-07-14 07:39:38 -0400] coderanger: LeShadow: That error usually means node['php'] isn't set
+[2014-07-14 07:40:01 -0400] LeShadow: im a noob in this >.< started using this last week
+[2014-07-14 07:40:01 -0400] coderanger: From your question I'm guessing you are using vagrant + chef-solo
+[2014-07-14 07:40:06 -0400] LeShadow: how do I set it?
+[2014-07-14 07:40:07 -0400] LeShadow: yeah I am
+[2014-07-14 07:40:11 -0400] coderanger: can you pastebin your vagrantfile?
+[2014-07-14 07:40:25 -0400] coderanger: also, are you using `vagrant provision` or running solo yourself?
+[2014-07-14 07:40:49 -0400] LeShadow: vagrant provision
+[2014-07-14 07:41:15 -0400] LeShadow: coderanger
+[2014-07-14 07:41:15 -0400] LeShadow: https://gist.github.com/LeShadow/ea65fa11081e214d4652
+[2014-07-14 07:41:44 -0400] coderanger: LeShadow: So you are overriding things below
+[2014-07-14 07:41:49 -0400] coderanger: https://gist.github.com/LeShadow/ea65fa11081e214d4652#file-gistfile1-txt-L52
+[2014-07-14 07:41:54 -0400] ssd7: Ohai Chefs
+[2014-07-14 07:41:55 -0400] coderanger: That overwrites the PHP settings
+[2014-07-14 07:42:01 -0400] coderanger: ssd7: g'morn
+[2014-07-14 07:42:13 -0400] coderanger: ssd7: Did you survive the football crazies?
+[2014-07-14 07:42:20 -0400] LeShadow: yeah but coderanger the php settings should be used above that?
+[2014-07-14 07:42:30 -0400] LeShadow: and after that it overrides them, or doesnt it work like that?
+[2014-07-14 07:42:44 -0400] coderanger: LeShadow: They don't get merged if thats what you mean
+[2014-07-14 07:42:49 -0400] coderanger: you could write the code that way
+[2014-07-14 07:42:51 -0400] coderanger: but you haven't :)
+[2014-07-14 07:42:52 -0400] ssd7: Heh, I was actualy surprised.  People seemed rather uninterested overall, I guess because England was out.
+[2014-07-14 07:43:24 -0400] coderanger: ssd7: I would imagine a lot of people were glad to see Argentina lose still, no love lost there
+[2014-07-14 07:43:27 -0400] LeShadow: coderanger: I mean, doesnt it first process the php json data, so it wouldnt mind if it gets overridden?
+[2014-07-14 07:43:49 -0400] jrwesolo: coderanger: Gotcha. Thank you.
+[2014-07-14 07:44:14 -0400] coderanger: LeShadow: No, the whole vagrant config gets processed and then handed off to chef solo
+[2014-07-14 07:44:23 -0400] LeShadow: aaah okay, now I get it
+[2014-07-14 07:44:25 -0400] coderanger: LeShadow: And because of the = in there, it is a full overwrite
+[2014-07-14 07:44:45 -0400] LeShadow: thanks for the information, Ill rewrite my vagrant file then :)
+[2014-07-14 07:44:55 -0400] coderanger: LeShadow: You could something like this
+[2014-07-14 07:44:58 -0400] coderanger: chef.json = {}
+[2014-07-14 07:45:13 -0400] coderanger: if php; chef.json.merge!{'php' => ....
+[2014-07-14 07:45:17 -0400] coderanger: and similarlly for mysql
+[2014-07-14 07:45:22 -0400] coderanger: so that they get merged together
+[2014-07-14 07:45:29 -0400] coderanger: (at least at the top level)
+[2014-07-14 07:46:27 -0400] LeShadow: now that is interesting, thanks for the information coderanger
+[2014-07-14 07:46:32 -0400] LeShadow: lots of <3 to you now
+[2014-07-14 07:48:55 -0400] LeShadow: coderanger: strange, I still get an error
+[2014-07-14 07:49:20 -0400] coderanger: Whats the vagrantfile look like now?
+[2014-07-14 07:50:07 -0400] LeShadow: https://gist.github.com/LeShadow/ea65fa11081e214d4652
+[2014-07-14 07:50:10 -0400] LeShadow: like this
+[2014-07-14 07:51:07 -0400] LeShadow: what
+[2014-07-14 07:51:12 -0400] LeShadow: two wrong brackets
+[2014-07-14 07:51:15 -0400] LeShadow: well two wrong (
+[2014-07-14 07:51:47 -0400] LeShadow: nvm coderanger it was my bad, I had some wrong ()
+[2014-07-14 07:51:51 -0400] LeShadow: lets see if it runs now
+[2014-07-14 07:52:12 -0400] LeShadow: I gtg now, but thanks for all the help <3
+[2014-07-14 08:35:57 -0400] ambientsound: is there any way to get a local Supermarket instance to index cookbooks from a Chef server, the same way as Berkshelf-API server does?
+[2014-07-14 08:37:57 -0400] coderanger: ambientsound: No, you would need a "real" berks API server
+[2014-07-14 08:38:13 -0400] coderanger: ambientsound: But in a future release, chef-server will have its own /universe/ endpoint making this moot
+[2014-07-14 08:41:42 -0400] ambientsound: coderanger: I'm having problems with the berks API server. It's leaking memory.
+[2014-07-14 08:41:54 -0400] coderanger: ambientsound: Yep, it does that
+[2014-07-14 08:43:11 -0400] coderanger: ambientsound: I just set it to restart weekly and moved on
+[2014-07-14 08:43:29 -0400] ambientsound: weekly? You're lucky.
+[2014-07-14 08:43:39 -0400] ambientsound: only lasts about 2 days here before feeding me DOS
+[2014-07-14 08:44:04 -0400] ambientsound: haven't tried 2.0.0, though, maybe that'll work better.
+[2014-07-14 08:44:35 -0400] ssd7: ambientsound: Def try 2.0.  Something we also did was put nginx in from of it so that when it goes down your users get served the last good result until it comes back up.
+[2014-07-14 08:44:49 -0400] ambientsound: IMO Berkshelf should be usable for behind-the-firewall setups without needing any extra infrastructure, it could look in ~/.chef/knife.rb and determine the Chef server URL, and look there for cookbooks.
+[2014-07-14 08:45:01 -0400] ambientsound: but this is probably the wrong channel for that discussion
+[2014-07-14 08:45:05 -0400] coderanger: ambientsound: There are Good Reasons that berks-api exists
+[2014-07-14 08:45:15 -0400] coderanger: They are going away, but at the time it was needed
+[2014-07-14 08:45:39 -0400] coderanger: It will continue to be needed for people that use github as an artifact repo, but fortunately thats a tiny minority
+[2014-07-14 08:46:24 -0400] jonlives: ohai chefs
+[2014-07-14 08:47:07 -0400] ssd7: ohai
+[2014-07-14 08:49:59 -0400] ambientsound: okay, thanks guys. I'll try 2.0 and set up a restart cron. *shudders*
+[2014-07-14 08:50:16 -0400] ambientsound: is there any place I can subscribe to get updates on this particular issue?
+[2014-07-14 08:51:38 -0400] coderanger: ambientsound: Not really
+[2014-07-14 09:07:33 -0400] acoulton: Hi, it looks like a change on supermarket.getchef.com since Saturday has entirely broken Berkshelf.
+[2014-07-14 09:07:57 -0400] jrwesolo: Just ran into that too: https://github.com/berkshelf/berkshelf/pull/1258
+[2014-07-14 09:08:00 -0400] acoulton: Requests for all cookbooks are returning a 301, and Berkshelf currently treats that as an error.
+[2014-07-14 09:08:10 -0400] jrwesolo: The fix is in master, but not tagged as a release yet.
+[2014-07-14 09:08:34 -0400] jrwesolo: Gist for monkey patch: https://gist.github.com/hirose31/7f934f5e21917200f056
+[2014-07-14 09:09:33 -0400] coderanger: acoulton: What version of berks are you on?
+[2014-07-14 09:09:46 -0400] acoulton: 3.1.3
+[2014-07-14 09:10:06 -0400] coderanger: acoulton: Then yeah, just need to wait at the moment
+[2014-07-14 09:10:28 -0400] coderanger: cwebber: ^^
+[2014-07-14 09:10:36 -0400] coderanger: (I'm sure he is asleep by now though)
+[2014-07-14 09:11:08 -0400] coderanger: acoulton: Oh wait, whats your source set to
+[2014-07-14 09:11:15 -0400] coderanger: acoulton: make sure it is https, not http
+[2014-07-14 09:11:20 -0400] cwebber: coderanger: i am on the east coast, so up and awake :-D
+[2014-07-14 09:11:25 -0400] cwebber: looking now
+[2014-07-14 09:11:31 -0400] coderanger: cwebber: It is only 5AM there :P
+[2014-07-14 09:11:39 -0400] acoulton: coderanger: Yep, have tried with https://api.berkshelf.com and https://supermarket.getchef.com
+[2014-07-14 09:12:12 -0400] acoulton: coderanger: The downloads are being redirected from https to http, so I think it may be an issue at opscode
+[2014-07-14 09:12:25 -0400] cwebber: acoulton: Can you gist your Berksfile?
+[2014-07-14 09:12:43 -0400] cwebber: acoulton: hold up
+[2014-07-14 09:12:52 -0400] cwebber: let me go look at what you are talking about
+[2014-07-14 09:12:57 -0400] acoulton: coderanger: I used exactly same berkshelf and pretty similar berksfile on a different project on Saturday, no problem.
+[2014-07-14 09:13:01 -0400] jrwesolo: cwebber: I believe it is related to https://github.com/berkshelf/berkshelf/pull/1258
+[2014-07-14 09:13:49 -0400] cwebber: wtf
+[2014-07-14 09:13:50 -0400] cwebber: ok
+[2014-07-14 09:13:52 -0400] siXy: the requests are actually being redirected from http to https, which is a lot more reasonable :)
+[2014-07-14 09:14:12 -0400] cwebber: so yeah, the offending behavior is on our side as far as I can tell
+[2014-07-14 09:16:07 -0400] siXy: fwiw it looks like that got merged into master a few days ago
+[2014-07-14 09:16:34 -0400] cwebber: basically, what it looks like is that /universe is returning http instead of https urls, which is bad"
+[2014-07-14 09:16:47 -0400] thorduri: coderanger: about chef-server /universe/ is there a ticket / discussion anywhere?
+[2014-07-14 09:17:41 -0400] acoulton: siXy, cwebber: apologies yes I misread the two lines in my debug output, I specified https api server, but package requests were then going over http and being redirected back to https.
+[2014-07-14 09:17:43 -0400] coderanger: thorduri: It has been talked about on chef-dev a few times in the past month-ish, no solid plans that I know of though
+[2014-07-14 09:17:54 -0400] thorduri: coderanger: aight, ty
+[2014-07-14 09:18:24 -0400] cwebber: acoulton: can you give things a try?
+[2014-07-14 09:19:17 -0400] acoulton: cwebber: yes, thanks - the cookbooks  are now being requested https and downloading with a 200
+[2014-07-14 09:19:33 -0400] cwebber: acoulton: awesome
+[2014-07-14 09:20:08 -0400] cwebber: coderanger: thanks for the ping
+[2014-07-14 09:20:26 -0400] acoulton: cwebber: thanks very much for the quick resolution.
+[2014-07-14 09:20:38 -0400] ambientsound: cwebber: thanks! started working here, too.
+[2014-07-14 09:20:47 -0400] coderanger: cwebber: o7 o7
+[2014-07-14 09:22:11 -0400] cwebber: for background i am not sure what is causing it but the urls that are presented by /universe are getting cached as http and not https
+[2014-07-14 09:23:01 -0400] cwebber: the problem is that the http libs do the right thing and wont redirect https -> http because that is "bad"
+[2014-07-14 09:23:15 -0400] cwebber: so when I cleared the cache, it fixed it
+[2014-07-14 09:27:23 -0400] coderanger: cwebber: Might want to post something to the status feed
+[2014-07-14 09:27:54 -0400] cwebber: coderanger: i was just grabbing a cup of coffee and thinking that
+[2014-07-14 09:29:54 -0400] thorduri: coderanger: https://github.com/opscode/supermarket/pull/431
+[2014-07-14 09:30:25 -0400] coderanger: thorduri: thats for supermarket, not chef-server
+[2014-07-14 09:30:34 -0400] thorduri: i'm on drugs
+[2014-07-14 09:31:32 -0400] thorduri: thought i was browsing the chef repo
+[2014-07-14 09:33:12 -0400] Eddie_Catflap: Hi all - can I ask whether, for a new (open source) chef installation whether it's recommended to go the 'traditional' chef client route, or is everyone installing chef DK on their workstations these days?
+[2014-07-14 09:33:57 -0400] ambientsound: Eddie_Catflap: I'm very happy with the Chef DK package.
+[2014-07-14 09:35:01 -0400] ambientsound: ssd7: berks API seems very aggressive when it comes to updating the cache - once every 10 seconds?!
+[2014-07-14 09:35:43 -0400] jrwesolo: ambientsound: What version of chefdk are you running? It seems that the install page has 0.1.0, but there has been a release of 0.1.1 and 0.2.0 since then.
+[2014-07-14 09:35:56 -0400] ambientsound: jrwesolo: 0.1.0.
+[2014-07-14 09:36:50 -0400] jrwesolo: ambientsound: Ok cool. I wonder when the download links for the newer version will be released (currently just tags on github).
+[2014-07-14 09:39:20 -0400] Eddie_Catflap: ambientsound: thanks - the chef documentation confused me as it still points to chef client, but it would seem better to have berkshelf et all installed in the one place.
+[2014-07-14 09:53:44 -0400] coderanger: Eddie_Catflap: chefdk is still very early on, lots of old docs still pointing to a multitude of older ways
+[2014-07-14 09:57:05 -0400] Eddie_Catflap: @coderanger: indeed. I wasn't sure whether chefdk was something people were just using in development/local testing, or whether they were actually using it for production work. Do others tend to have a 'production' workstation in environments with limited access?
+[2014-07-14 09:57:40 -0400] coderanger: Eddie_Catflap: That is generally not recommended, your workstation should be your real workstation, like the thing where the box is under your desk
+[2014-07-14 10:01:53 -0400] Eddie_Catflap: @coderanger - thanks. Suspect in our environment where PCI is a concern we'll have to have a dedicated VM within the environment and hop onto it though. Thanks for the feedback
+[2014-07-14 10:02:20 -0400] coderanger: Eddie_Catflap: PCI requires no such thing, I assure you
+[2014-07-14 10:02:52 -0400] coderanger: Eddie_Catflap: in fact that would likely be in violation of PCI as there would be less audit trail about who performed operations and where
+[2014-07-14 10:07:20 -0400] Eddie_Catflap: @coderanger: I understand where you're coming from but audit trail would be from access into environment by 2 factor auth, then logging into VM as own user. It's just the way this particular environment/client tends to work
+[2014-07-14 10:07:54 -0400] coderanger: Eddie_Catflap: ::shrug:: I've used Chef is several PCI environments using just the standard workflows :)
+[2014-07-14 10:08:30 -0400] jonlives: Eddie_Catflap: so anecdotally, we use separate laptops for PCI access.
+[2014-07-14 10:08:43 -0400] jonlives: still a local machine, just not the one we use for everyday stuff :p
+[2014-07-14 10:17:56 -0400] Eddie_Catflap: Thanks folks, interesting to see the different options in use. @coderanger: jonlives: you both use chefdk in these environments?
+[2014-07-14 10:18:21 -0400] coderanger: Eddie_Catflap: This predates ChefDK, but effectively the same, yes
+[2014-07-14 10:18:41 -0400] jonlives: Eddie_Catflap: same here - that setup predates ChefDk so we haven't moved to it yet
+[2014-07-14 10:32:06 -0400] juperala: Hi all. I am doing my first Chef server setup and ran into problems on running the chef-server-ctl test for the system. I installed the chef version chef-server-11.1.3-1.el6.x86_64.rpm on clean Centos6 server, opened ports 80 and 443 on iptables and run chef-server-ctl reconfigure. Everything went ok and chef server gui is accessible via browser remotely, but when running the tests I get 4 test
+[2014-07-14 10:32:06 -0400] juperala: failures (502 Bad Gateway) as shown in here: http://pastebin.com/PAeVhJkp
+[2014-07-14 10:33:04 -0400] juperala: Any ideas what to fix? Tried to cleanse chef installation and reconfigure, but keep getting same test failures.
+[2014-07-14 11:07:14 -0400] chandra: ================================================================================ Chef encountered an error attempting to load the node data for "ngpnodeserver.scep.com" ================================================================================   Invalid Request Data: --------------------- The data in your request was invalid (HTTP 400).    Server Response: ----------------    [2014-07-14T16:35:37+05:30] FATAL: Stacktrace dumped to
+[2014-07-14 11:07:28 -0400] chandra: anyone has idea about this error ?
+[2014-07-14 11:07:43 -0400] chandra: getting this error while runiing chef-client
+[2014-07-14 11:07:49 -0400] chandra: ================================================================================ Chef encountered an error attempting to load the node data for "ngpnodeserver.scep.com" ================================================================================   Invalid Request Data: --------------------- The data in your request was invalid (HTTP 400).    Server Response: ----------------    [2014-07-14T16:35:37+05:30] FATAL: Stacktrace dumped to
+[2014-07-14 11:11:11 -0400] zts: chandra: does the stacktrace it mention have any more details?  (Don't paste it here please, use gist.github.com or a pastebin)
+[2014-07-14 11:11:54 -0400] double_p: http/400 typical for http to https port (or other way round)
+[2014-07-14 11:13:41 -0400] ssd7: juperala: Yours looks like bookshelf might be down
+[2014-07-14 11:14:26 -0400] chandra: https://gist.github.com/anonymous/73dbd0f3254b9fa6a043
+[2014-07-14 11:15:50 -0400] ssd7: chandra: I would check on double_p's suggestion.  Are you trying to talk the http to an https port, or vice versa?
+[2014-07-14 11:16:42 -0400] ssd7: chandra: Also, if you run with debug logging and then post the whole log, it's a lot easier for us to help.  You can run with debug logging like so: chef-client -ldebug
+[2014-07-14 11:16:48 -0400] chandra: i am not sure about that  to which ports it points . can you tel me where to check all these
+[2014-07-14 11:17:23 -0400] chandra: i just updated proxy in .bashrc, /etc/profile, /etc/apt/apt.conf
+[2014-07-14 11:17:37 -0400] chandra: ok
+[2014-07-14 11:17:43 -0400] chandra: let me run again
+[2014-07-14 11:17:48 -0400] ssd7: OIC, that could very well be it.  So you are using an http proxy?
+[2014-07-14 11:18:45 -0400] chandra: export http_proxy=http://<username>:<password>@<proxy>:<port>/ export https_proxy=https://<username>:<password>@<proxy>:<port>/ export ftp_proxy=ftp://<username>:<password>@<proxy>:<port>/ export no_proxy=localhost, 127.0.0.0/8
+[2014-07-14 11:18:53 -0400] chandra: i just added those
+[2014-07-14 11:19:52 -0400] ssd7: chandra: Yeah, I would take a look at the debug log.  It should shed some light onto whether the 400 is coming from your proxy or the actual chef server, etc
+[2014-07-14 11:20:37 -0400] chandra: let me paste the whole log
+[2014-07-14 11:25:59 -0400] chandra: https://gist.github.com/anonymous/8bd9eda760b1ebf8b5b8
+[2014-07-14 11:27:17 -0400] ssd7: chandra: I don't see an error there, it looks like your run completely successfully
+[2014-07-14 11:27:35 -0400] ssd7: https://gist.github.com/anonymous/8bd9eda760b1ebf8b5b8#file-chandra-txt-L589
+[2014-07-14 11:29:42 -0400] chandra: how come ? But i can see exception on my node machine
+[2014-07-14 11:29:52 -0400] chandra: https://gist.github.com/anonymous/73dbd0f3254b9fa6a043
+[2014-07-14 11:30:01 -0400] chandra: what about this ?
+[2014-07-14 11:30:35 -0400] chandra: Generated at 2014-07-14 16:35:37 +0530 Net::HTTPServerException: 400 "Bad Request" /opt/chef/embedded/lib/ruby/1.9.1/net/http.rb:2633:in `error!'
+[2014-07-14 11:32:25 -0400] double_p: just that there is no URL in that trace
+[2014-07-14 11:33:53 -0400] miguelcnf: folks is there a # to discuss foodcritic stuff? trying to do some hacking with it and could use some help.
+[2014-07-14 11:48:59 -0400] LeShadow: has anyone inhere heard of the bento projects?
+[2014-07-14 11:49:03 -0400] LeShadow: *bento project
+[2014-07-14 12:00:29 -0400] [ilin]: how can i get list of all nodes in a chef recipe?
+[2014-07-14 12:05:35 -0400] tomoyuki28jp: I'm trying to setup chef with vagrant to deploy rails app. What's the right way to install bundled gems from Gemfile?
+[2014-07-14 12:06:28 -0400] double_p: [ilin]: search? http://docs.opscode.com/essentials_search.html - note that this wont work with -solo
+[2014-07-14 12:08:50 -0400] juperala: @ssd7: You are right, bookself seems to fail to start.
+[2014-07-14 12:09:38 -0400] [ilin]: double_p: thanks
+[2014-07-14 12:12:11 -0400] juperala: On the /var/log/chef-server/bookshelf/current log I can see: "Cannot allocate 125829120 bytes of memory (of type "port_tab")."
+[2014-07-14 12:13:50 -0400] phelms: Hey - how can I get the chef API to let me put a new attribute into the system
+[2014-07-14 12:17:51 -0400] juperala: Seems that I need to upgrade my VPS to one with a larger memory (tried with one having 768MB). Thanks for pointing to right direction.
+[2014-07-14 12:21:23 -0400] ssd7: juperala: np.
+[2014-07-14 12:21:32 -0400] ssd7: chandra: sorry for dropping off, looking back at that now
+[2014-07-14 12:22:19 -0400] ssd7: chandra: Are the debug log and that stack trace from different machines?  If so, please try to get the debug log from the node that is experiencing the error
+[2014-07-14 12:23:18 -0400] ssd7: LeShadow: Bento is an opscode project of vagrant box definitions, anything in particular you were wondering about?
+[2014-07-14 12:23:44 -0400] ssd7: [ilin]: In addition to search, if you just need the *names* of the nodes, it is a bit more efficient to do something like Chef::Node.list
+[2014-07-14 12:23:50 -0400] ssd7: or to use partial search
+[2014-07-14 12:24:24 -0400] ssd7: phelms: What do you mean?
+[2014-07-14 12:24:25 -0400] [ilin]: ssd7: i actually need fqdn and ip
+[2014-07-14 12:25:20 -0400] LeShadow: ssd7: Well they already helped me on github, but still thank you for your answer :)
+[2014-07-14 12:25:57 -0400] ichilton: Is there any risk to a chef server or other nodes, if someone compromises a chef-client node?
+[2014-07-14 12:26:15 -0400] phelms: ssd7: I am building an API that will pull information from Chef - I want to put an attribute from it
+[2014-07-14 12:26:41 -0400] ssd7: ichilton: That depends on how you use Chef.  Someone who compromises a chef client node has access to any information that node has access to via the Chef server and can make authenticated API requests against the server
+[2014-07-14 12:27:29 -0400] ichilton: ssd7: so what kind of implications - can any node (client) see data about other nodes?
+[2014-07-14 12:27:32 -0400] ssd7: ichilton: If you keep sensitive data about other servers in a way that any node can read them, then an attacker could use that information
+[2014-07-14 12:27:34 -0400] phelms: ssd7: when I build it I get "Field 'default' is not a hash"
+[2014-07-14 12:27:45 -0400] ichilton: the other things that spring to mind are validation.pem and the encrypted data bag secret
+[2014-07-14 12:27:50 -0400] ssd7: ichilton: By default, nodes can see the node data for other nodes, data bg data, etc
+[2014-07-14 12:27:56 -0400] ichilton: is it good practice to delete validation.pem after bootstrap?
+[2014-07-14 12:28:03 -0400] ssd7: ichilton: Yes, we recommend you delete the validation.pem
+[2014-07-14 12:28:18 -0400] nulleric: ichilton: the chef-client cookbook can do that for you too
+[2014-07-14 12:28:29 -0400] ichilton: ah, cool - i'll check that out
+[2014-07-14 12:28:34 -0400] ssd7: phelms: Got a code example, having a bit of a hard time parsing what that looks like
+[2014-07-14 12:28:38 -0400] ichilton: presumably only the chef server should have validation.pem?
+[2014-07-14 12:29:18 -0400] ssd7: ichilton: the chef-server and the work stations of trusted users
+[2014-07-14 12:29:21 -0400] ichilton: so if you remove validation.pem and make sure anything sensitive is in encrypted data bags, that should be ok?
+[2014-07-14 12:30:06 -0400] ssd7: ichilton: Note that encrypted data bags only help you if you manage keys well such that a node can only decrypt information that it needs.
+[2014-07-14 12:30:15 -0400] ssd7: ichilton: One popular solution to this is chef-vault
+[2014-07-14 12:30:27 -0400] ssd7: ichilton: https://github.com/Nordstrom/chef-vault
+[2014-07-14 12:30:36 -0400] phelms: ssd7: https://gist.github.com/Phelms215/4f98889fadb69d7afde0 - There is the relavent code..in PHP.
+[2014-07-14 12:30:37 -0400] ichilton: am I right in saying that by default, the secret for encrypted data bags go to all nodes?
+[2014-07-14 12:30:40 -0400] ichilton: brb
+[2014-07-14 12:33:07 -0400] ssd7: phelms: OK, so you want to get a node, change one of the attributes, and then put the node back?
+[2014-07-14 12:33:16 -0400] phelms: Yup
+[2014-07-14 12:33:26 -0400] phelms: ssd7: Preferably make a new attribute
+[2014-07-14 12:33:35 -0400] phelms: or update if needed
+[2014-07-14 12:35:56 -0400] chefgirl: can anybody answe this : http://stackoverflow.com/questions/24736420/how-do-i-configure-amazon-aws-elastic-beanstalk-services
+[2014-07-14 12:36:33 -0400] ssd7: phelms: So, that error message to me looks like you are failing the server's validation of the JSON you are passing.  I would start by logging what you are actually putting out over the wire.
+[2014-07-14 12:37:35 -0400] ssd7: chefgirl: Perhaps somewhere here can because we have people with lots of different skills, but you might try a more AWS specific forum since that doesn't seem to have to do with Chef.
+[2014-07-14 12:40:43 -0400] phelms: ssd7: I figured it out! I was putting the attributes directly in rather than using the [normal] nest
+[2014-07-14 12:43:48 -0400] nulleric: ichilton: It doesnt automatically go to all nodes, you must put it there, it's a pre-shared secret. Though bootstrap can copy a secret file over too during the boostrap process.
+[2014-07-14 12:43:48 -0400] tomoyuki28jp: What's the right way to install sets of gems from Gemfile?
+[2014-07-14 12:44:55 -0400] ssd7: phelms: Cool.  In case you are interested, the server-side validation rules for various objects are in the chef_objects repo on github
+[2014-07-14 12:44:59 -0400] ssd7: for example, for nodes: https://github.com/opscode/chef_objects/blob/master/src/chef_node.erl#L71-L83
+[2014-07-14 12:45:12 -0400] ssd7: it's all erlang so it can take a sec to find your way around
+[2014-07-14 12:46:20 -0400] phelms: ssd7: Thanks - I will check that out..since if you don't pass the put right it wipes everything out (at least until chef-client runs again)
+[2014-07-14 12:47:20 -0400] ssd7: tomoyuki28jp: Do you mean via Chef, or just in general?
+[2014-07-14 12:47:49 -0400] tomoyuki28jp: ssd7: via Chef.
+[2014-07-14 12:48:24 -0400] tomoyuki28jp: I found gem_package http://docs.opscode.com/resource_gem_package.html, but wondering if I can do that from Gemfile.
+[2014-07-14 12:48:42 -0400] tomoyuki28jp: ssd7: Just writing custom cookbook to run `bundle install` command?
+[2014-07-14 12:49:24 -0400] ssd7: tomoyuki28jp: I think that (using an execute or bash reosurce to run bundle install) is what most people do currently
+[2014-07-14 12:49:33 -0400] ssd7: as far as I know, there isn't a resource that does that for you
+[2014-07-14 12:49:51 -0400] tomoyuki28jp: ssd7: Thanks a lot for the info.
+[2014-07-14 12:50:32 -0400] ssd7: np
+[2014-07-14 12:56:01 -0400] ichilton: , door bell
+[2014-07-14 12:56:06 -0400] ichilton: sorry, door bell
+[2014-07-14 12:56:24 -0400] ichilton: ah yes, I use bootstrap so that will be putting it there
+[2014-07-14 12:56:42 -0400] ichilton: so if someone can get root on a node, they can decrypt any data bag
+[2014-07-14 12:57:08 -0400] ichilton: thanks for the info
+[2014-07-14 12:57:25 -0400] nulleric: ichilton: yes, but if someone has root and you're using chef-vault they can still decrypt the data bag
+[2014-07-14 12:57:46 -0400] nulleric: if someone has root they can read the memory of the machine. it's really hard to keep secrets from root
+[2014-07-14 12:58:32 -0400] nulleric: vault/encrypted data bags protect you if your chef-server is compromised
+[2014-07-14 13:13:50 -0400] ssd7: nulleric: Well, chef-vault also helps solve the problem of making it easier to encrypt some items for some nodes and not others
+[2014-07-14 13:14:15 -0400] ssd7: so if you have a peice of data that was only encrypted for database servers, you webserver nodes can't get it because it isn't encrypted for their key
+[2014-07-14 13:23:29 -0400] chandra: https://gist.github.com/anonymous/786e3c71bdc841b76e28
+[2014-07-14 13:24:39 -0400] chandra: i added one more node to my chef server. But bootstrapping fails with unauthorized exception
+[2014-07-14 13:24:54 -0400] chandra: whts missing exactly
+[2014-07-14 13:24:54 -0400] chandra: ?
+[2014-07-14 13:25:29 -0400] someara: delete the node. the bootstrap process will register it
+[2014-07-14 13:26:13 -0400] chandra: if i specify node's ip only ?
+[2014-07-14 13:32:39 -0400] __julien: Hello, Is it possible to set the default value of an attribute equel to a node attribute in a LWRP, while still being able to modify this node attribute before calling the LWRP (when I do that the modification I made to the node attribute are ignored by the LWRP) ?
+[2014-07-14 13:32:48 -0400] __julien: -equal
+[2014-07-14 13:35:18 -0400] LeShadow|work: so is it possible to pass an array of data to chef with chef.json?
+[2014-07-14 13:35:45 -0400] yruss972: Hi, I'm installing php extensions. If I'm installing them for php-fpm I want to notify the services for restart. If I'm installing them for php-cli,  I don't have the fpm service installed.
+[2014-07-14 13:35:47 -0400] __julien: Also in my (maybe wrong) memories I think I remember doing that about a year ago whith an older version of chef, and that it was working
+[2014-07-14 13:36:12 -0400] yruss972: Is there an elegant way to use the same code to install the modules but not get errors trying to use a service that doesn't exist?
+[2014-07-14 13:40:58 -0400] zts: yruss972: I'm not sure I'd describe it as elegant, but you can do something like this: https://github.com/zts/cookbook-mcollective/blob/master/recipes/common.rb#L45-L47
+[2014-07-14 13:41:44 -0400] zts: note that that assumes the service is declared before that recipe is compiled - it won't work if the service is declared in a later recipe
+[2014-07-14 13:42:04 -0400] yruss972: zts: it's better than what I had before.
+[2014-07-14 13:43:16 -0400] zts: ...which isn't true of that service and that recipe, so clearly my tests are not up to snuff on that cookbook
+[2014-07-14 13:43:42 -0400] yruss972: I was thinking about a dummy service provider, so when declaring the service, if fpm is installed, declare a real service, else declare a dummy service
+[2014-07-14 13:44:37 -0400] yruss972: then it would be transparent for the rest of the code
+[2014-07-14 13:44:58 -0400] yruss972: I haven't a clue how to do something like that though
+[2014-07-14 13:47:48 -0400] yruss972: I guess I take something like: Chef::Provider::Service::Simple and set all the commands to /bin/true?
+[2014-07-14 13:50:32 -0400] george_mcfly: how can I configure my kitchen.yml to test against a windows machine? so far I have it provisioning a windows box in openstack but after that it tries to SSH into it ... :/
+[2014-07-14 13:57:55 -0400] someara: georgy_mcfly there's experimental windows support in a branch somewhere.... sec
+[2014-07-14 13:58:18 -0400] someara: https://gist.github.com/afiune/aefda6e085eb8e524039#file-tk-windows-cookbook-test
+[2014-07-14 14:06:55 -0400] george_mcfly: thx someara
+[2014-07-14 14:12:47 -0400] phelms: Is there a way to "refresh" a nodes attributes in a recipe ?
+[2014-07-14 14:17:45 -0400] LeShadow|work: what is wrong with the following line?:
+[2014-07-14 14:17:46 -0400] LeShadow|work:         chef.json.merge!{JSON.parse(File.read(vagrant_dir + "/settings.json"))}
+[2014-07-14 14:23:25 -0400] MrHeavy: I'm trying to use Chef 11.12.8 to manage users on OSX 10.8 (Mountain Lion) and whatever it's doing, the users aren't usable (aren't visible via 'id', etc.). Any idea what might be going wrong?
+[2014-07-14 14:27:04 -0400] MrHeavy: If I dscl -l . /Users/<username> it shows up, but the system apparently doesn't know about it
+[2014-07-14 14:38:04 -0400] cwebber: MrHeavy: are you using a cookbook or just the user resource straight up?
+[2014-07-14 14:38:30 -0400] MrHeavy: User resource
+[2014-07-14 14:40:48 -0400] MrHeavy: Never mind, looks like it flat-out doesn't work unless you have manage_home set, all good now
+[2014-07-14 15:11:34 -0400] jperry: hey chefs.  wanted to get others thoughts on renaming a cookbook and what others have done in the past.  have you just renamed the cookbook but left the attribute namespace untouched?  This is for a cookbook that has existed for some time and my worry is that if its renamed we run the risk of overrides no longer working
+[2014-07-14 15:12:22 -0400] jperry: basically taking a cookbook and prefixing it with the company name
+[2014-07-14 15:12:22 -0400] MrHeavy: If you do a major version bump, there should be no expectation for an informed end-user that things will work seamlessly
+[2014-07-14 15:12:57 -0400] MrHeavy: But there's a few ways to approach this, on a sliding scale of relative ease vs. user hostility
+[2014-07-14 15:13:29 -0400] jperry: say for example I have a java cookbook that I want to rename to acme_java
+[2014-07-14 15:13:42 -0400] MrHeavy: In the recipes, you could force the new attributes to the values of the old attributes if the old attributes are set
+[2014-07-14 15:13:43 -0400] jperry: or acme_nagios
+[2014-07-14 15:13:48 -0400] MrHeavy: That works pretty well if you don't have tons of attributes
+[2014-07-14 15:14:08 -0400] MrHeavy: Best practice is to also issue a deprecation warning if you do that
+[2014-07-14 15:14:16 -0400] Stones: Hi needs some help with the powershell_script
+[2014-07-14 15:14:29 -0400] Stones: I can't see to find a way to execute a powershell file
+[2014-07-14 15:14:52 -0400] jperry: MrHeavy: yeah I think if it is a highly used cookbook and it will require a major migration the deprecation might be a better approach
+[2014-07-14 15:15:03 -0400] jperry: this might have to be decided on a case by case basis
+[2014-07-14 15:16:15 -0400] MrHeavy: Be aware that <companyname>_<appname> is a pattern typically associated with wrapper cookbooks
+[2014-07-14 15:16:41 -0400] MrHeavy: So if this thing is for public distribution and does actual app things you might consider a different name
+[2014-07-14 15:17:01 -0400] hanskreuger: fwiw: here's a deprecation warning example https://github.com/opscode-cookbooks/build-essential/blob/master/libraries/timing.rb
+[2014-07-14 15:18:57 -0400] jperry: MrHeavy: the cookbook is not for public consumption only internal use
+[2014-07-14 15:19:38 -0400] jperry: we are prefixing all our company cookbooks with the company abbreviation so we can distinguish between ours and community
+[2014-07-14 15:19:47 -0400] jperry: especially when on the server
+[2014-07-14 15:20:11 -0400] jperry: it also allows us to not have conflicts if we have a company specific cookbook that has the same name as a community one that we dont want to use
+[2014-07-14 15:20:19 -0400] MrHeavy: Also a common pattern, yeah
+[2014-07-14 15:20:25 -0400] phelms: Stones: Make sure you are not using the command block for powershell
+[2014-07-14 15:21:16 -0400] jperry: MrHeavy: my only concern is the attributes and whether they should get renamed as well
+[2014-07-14 15:21:39 -0400] jperry: but will have to review each cookbook accordingly and decide
+[2014-07-14 15:21:56 -0400] MrHeavy: Unless I'm doing something in a company-specific namespace, or using some weird de facto community flag like :dev_mode, I 100% of the time have the attribute namespace match the cookbook that it affects
+[2014-07-14 15:21:59 -0400] jperry: if its a cookbook that is an application within our company keeping the name or renaming I dont think is a big deal
+[2014-07-14 15:22:18 -0400] MrHeavy: But if you're talking about updating node data for hundreds of nodes, obviously that gets to be a pain in the ass too
+[2014-07-14 15:22:20 -0400] phelms: Is there a way to reload the node attributes mid recipe (from the chef server)?
+[2014-07-14 15:22:43 -0400] MrHeavy: phelms: I think you might have the wrong idea of how Chef works with the compilation and execution phase
+[2014-07-14 15:22:52 -0400] jperry: MrHeavy: yeah my worry is that I would have to rename a shit ton of things
+[2014-07-14 15:23:13 -0400] Stones: phelms: I was trying to use the flags attribute to pass in the -File "blah.ps1"
+[2014-07-14 15:23:15 -0400] MrHeavy: phelms: I think ytechnically can but in most cases it's not going to do what you expect
+[2014-07-14 15:23:20 -0400] MrHeavy: I think you technically can*
+[2014-07-14 15:23:32 -0400] jperry: I think if its an easy change and doesnt cause much impact Ill try to keep them the same
+[2014-07-14 15:24:19 -0400] phelms: Stones: I believe you will need to use the code attribute
+[2014-07-14 15:24:52 -0400] phelms: however I have not yet examined that source code to see how it handles it
+[2014-07-14 15:25:59 -0400] phelms: MrHeavy: I am doing something unique and integrating Chef into my custom system to give us a one stop solution. The problem is that custom system is using the API to create an attribute on the Chef server (whcih works fine) the problem is the recipe then resets it away when it saves the data
+[2014-07-14 15:26:14 -0400] phelms: I would prefer to not have the recipe enter this particular data (security keys)
+[2014-07-14 15:26:56 -0400] phelms: so I know you can do something like node.from_file but i'm wondering if a node.from_db or something exists
+[2014-07-14 15:27:21 -0400] MrHeavy: phelms: You probably want to look at either encrypted data bags or something like chef-vault
+[2014-07-14 15:27:48 -0400] phelms: I looked - they dont contain the data I'm looking to store (per node)
+[2014-07-14 15:27:54 -0400] MrHeavy: Otherwise, Chef recipes are just Ruby, you can get the data however you want
+[2014-07-14 15:27:55 -0400] phelms: unique auth keys
+[2014-07-14 15:28:30 -0400] phelms: basically I need a way to "refresh" the node object
+[2014-07-14 15:28:37 -0400] phelms: or at least its attributes from the database
+[2014-07-14 15:28:56 -0400] phelms: without that I have to guarantee that all systems are in BOTH before chef does anything which sounds stupid
+[2014-07-14 15:52:34 -0400] tech356: Is there a way to have the chef sever ignore the case of hostnames?
+[2014-07-14 16:29:46 -0400] stormerider: so i'm writing a script using Net::SSH::Multi to fix up chef nodes that havent had a clean chef run in too long, and i'm using "Net::SSH::Multi.start(:on_error => :warn) do |session|", but it still throws a trace and dies if it can't connect to a host... any suggestions?
+[2014-07-14 16:46:37 -0400] zaargy: what do you mean by fix up?
+[2014-07-14 16:46:40 -0400] zaargy: just use knife ssh?
+[2014-07-14 16:56:57 -0400] holoway: tech356: depends on what you are using it for
+[2014-07-14 16:58:12 -0400] tech356: holoway: when joining a domain, some windows machines switch their hostnames to uppercase
+[2014-07-14 16:59:09 -0400] holoway: tech356: so your issue is about the client name?
+[2014-07-14 16:59:26 -0400] tech356: holoway: yea I assume so.
+[2014-07-14 16:59:33 -0400] holoway: tech356: ie - you register, then it joins the domain, all the sudden the fqdn is wrong, and you get auth errors?
+[2014-07-14 16:59:45 -0400] tech356: holoway: correct
+[2014-07-14 17:02:53 -0400] holoway: tech356: you can set the node_name in your client.rb
+[2014-07-14 17:03:11 -0400] tech356: holoway: the fqdn is the same other then the hostname. ie: NODE.example.com vs node.example.com
+[2014-07-14 17:03:56 -0400] tech356: holoway: is it possible to do that dynamically, like node['fqdn'].downcase?
+[2014-07-14 17:04:43 -0400] holoway: tech356: when it comes to auth, you have to set it earlier than the ohai data has been gathered
+[2014-07-14 17:04:58 -0400] holoway: tech356: you could load ohai in your client.rb, grab the fqdn, lowercase it manually
+[2014-07-14 17:05:45 -0400] holoway: tech356: perhaps you could write an ohai plugin?
+[2014-07-14 17:07:21 -0400] tech356: holoway: alright. I think that'll give me a solution. or at least a starting place. Thanks.
+[2014-07-14 17:08:13 -0400] holoway: tech356: my pleasure
+[2014-07-14 17:12:09 -0400] duallain: I'm getting an error running the ssh-keys cookbook. Option owner's value  does not match regular expression, which seems to be caused by the ohai attribute current_user being empty.  Has anyone else seen a delay on ohai registering attributes, and how did you deal with it?
+[2014-07-14 17:35:23 -0400] Eulipion: is there a way to set the ruby version in application_ruby?
+[2014-07-14 17:44:08 -0400] jtimberman: Eulipion: the general assumption is that you'd have a recipe in your node's run list somewhere that installs the ruby you want to use for your application.
+[2014-07-14 17:45:43 -0400] c_t: hmm
+[2014-07-14 17:45:53 -0400] Eulipion: jtimberman: its installed, but its using the wrong version.  im not sure how to set which version to run with
+[2014-07-14 17:45:54 -0400] c_t: there should be a cookbook that installs a random version of ruby for you
+[2014-07-14 17:46:03 -0400] Eulipion: heh
+[2014-07-14 17:46:09 -0400] c_t: will it work? Maybe...
+[2014-07-14 17:48:17 -0400] qsalt1: Anyone here use the whitelist-node-attrs cookbook to limit what node attributes are sent back to the chef-server?  I am getting this error when trying to use it:
+[2014-07-14 17:48:18 -0400] qsalt1: "Undefined node attribute or method `<<' on `node'. To set an attribute, use `<<=value' instead."
+[2014-07-14 17:48:18 -0400] qsalt1: Everything works fine when I do not have whitelist-node-attrs included it in the metadata.rb dependency list.  Any help would be be appreciated.
+[2014-07-14 17:49:34 -0400] failshell: how do you expose a variable generated inside a ruby_block?
+[2014-07-14 17:51:47 -0400] tequilarista: assign it to a node attr?
+[2014-07-14 17:51:48 -0400] qsalt1: I'm running chef-server 11.1.0-1 if that is relevant at all
+[2014-07-14 17:52:06 -0400] juliancdunn: qsalt1: you have a line number for that error? or a stacktrace?
+[2014-07-14 17:59:07 -0400] qsalt1: Generated at 2014-07-14 17:45:21 +0000
+[2014-07-14 17:59:07 -0400] qsalt1: NoMethodError: Undefined node attribute or method `<<' on `node'. To set an attribute, use `<<=value' instead.
+[2014-07-14 17:59:08 -0400] qsalt1: /opt/chef/embedded/lib/ruby/gems/1.9.1/gems/chef-11.12.4/lib/chef/node/attribute_collections.rb:177:in `method_missing'
+[2014-07-14 17:59:08 -0400] qsalt1: /opt/chef/embedded/lib/ruby/gems/1.9.1/gems/chef-11.12.4/lib/chef/node.rb:255:in `loaded_recipe'
+[2014-07-14 17:59:09 -0400] qsalt1: /opt/chef/embedded/lib/ruby/gems/1.9.1/gems/chef-11.12.4/lib/chef/run_context.rb:163:in `load_recipe'
+[2014-07-14 18:00:04 -0400] qsalt: juliancdunn: error from the chef-client run:
+[2014-07-14 18:00:04 -0400] qsalt: NoMethodError
+[2014-07-14 18:00:04 -0400] qsalt: -------------
+[2014-07-14 18:00:05 -0400] qsalt: Undefined node attribute or method `<<' on `node'. To set an attribute, use `<<=value' instead.
+[2014-07-14 18:00:29 -0400] double_p: qsalt: stop it
+[2014-07-14 18:00:45 -0400] gchristensen: qsalt: -> pastebin
+[2014-07-14 18:00:56 -0400] juliancdunn: or gist, please
+[2014-07-14 18:01:58 -0400] qsalt: sorry, i'm not the most experienced using IRC.  How do I use pastebin?
+[2014-07-14 18:02:20 -0400] juliancdunn: qsalt: go to www.pastebin.com and paste in the stack trace
+[2014-07-14 18:02:50 -0400] double_p: spaghetti.. http://www.youtube.com/watch?v=MZjAantupsA
+[2014-07-14 18:02:58 -0400] double_p: just do that with pastebin :)
+[2014-07-14 18:03:12 -0400] qsalt: thanks, sorry for the spam i'll use pastebin going forward
+[2014-07-14 18:03:41 -0400] anthonyacquanita: knife-ec2 is acting odd with a gateway.  I have ssh keys working but it keeps prompting for a root password, if I hit enter it continues
+[2014-07-14 18:04:05 -0400] double_p: anthonyacquanita: man ssh_config
+[2014-07-14 18:05:12 -0400] anthonyacquanita: I don't think 'man ssh_config' is going to tell why ruby code thinks I need a pw.
+[2014-07-14 18:05:40 -0400] double_p: ehm, yah?
+[2014-07-14 18:05:51 -0400] anthonyacquanita: I have ssh set up, ssh-agent -L shows all the keys.  I can ssh into the gateway box and the new ec2 box with no pw prompting
+[2014-07-14 18:06:37 -0400] double_p: ssh -A?
+[2014-07-14 18:07:00 -0400] anthonyacquanita: got that too
+[2014-07-14 18:07:24 -0400] qsalt: juliancdunn:
+[2014-07-14 18:07:24 -0400] qsalt: http://pastebin.com/JGjpCPjq
+[2014-07-14 18:07:45 -0400] double_p: anthonyacquanita: ask the remote end, it's not a chef problem.
+[2014-07-14 18:07:46 -0400] anthonyacquanita: it's only when using a gateway and the crazy part is it asks for a root password and hitting enter works
+[2014-07-14 18:08:02 -0400] double_p: well
+[2014-07-14 18:08:48 -0400] anthonyacquanita: be great if the fog lib printed ssh connection info
+[2014-07-14 18:09:05 -0400] double_p: anthonyacquanita: what?
+[2014-07-14 18:09:22 -0400] anthonyacquanita: knife ec2 uses the fog library to do the SSH work
+[2014-07-14 18:09:41 -0400] double_p: oh, cant tell a shit about that
+[2014-07-14 18:10:32 -0400] double_p: but i know the basic ssh a "bit" :P
+[2014-07-14 18:11:23 -0400] double_p: anyway.. http://www.youtube.com/watch?v=eGPhUr-T6UMn :)
+[2014-07-14 18:19:50 -0400] tier: can i delete orgs from a demo hosted enterprise chef account?
+[2014-07-14 18:21:16 -0400] tier: i gave knife opc a whirl but get permissions errors despite authenticating successfully.
+[2014-07-14 18:42:35 -0400] juliancdunn: qsalt: what's in /var/chef/cache/chef-stacktrace.out ?
+[2014-07-14 18:43:25 -0400] juliancdunn: tier: you can't delete orgs from HEC, you'll need to contact support for that
+[2014-07-14 18:46:20 -0400] tier: juliancdunn: figured as much. thanks.
+[2014-07-14 18:54:05 -0400] gchristensen: yes
+[2014-07-14 18:54:07 -0400] gchristensen: oops
+[2014-07-14 18:56:29 -0400] qsalt: juliancdunn: so I have narrowed down the error is in my database recipe, running that in the runlist and not as an import provided the same error with more useful information about where it is occurring.  Though it still references the web recipe as having the problem, it will run fine so long as the database recipe is not on the runlist. Here is a link to the error and then stacktrace, respectively:
+[2014-07-14 18:58:09 -0400] qsalt: http://pastebin.com/GaKCVuFH
+[2014-07-14 18:58:09 -0400] qsalt: http://pastebin.com/u97pbVde
+[2014-07-14 19:01:08 -0400] j^2: btm: office hours?
+[2014-07-14 19:02:40 -0400] juliancdunn: qsalt: so if you grep any suspect recipes for '<<' do you find anything?
+[2014-07-14 19:03:48 -0400] btm: j^2: momentairly.
+[2014-07-14 19:03:52 -0400] j^2: k
+[2014-07-14 19:04:19 -0400] btm: Developer Office Hours: Join: bit.ly/1qaJgWy Watch: bit.ly/1qaJgWx
+[2014-07-14 19:04:41 -0400] stormerider: does chef store the client version in the node attributes on the chef server?
+[2014-07-14 19:06:35 -0400] dermusikman: related - does anyone know how to browse/inspect node attributes?
+[2014-07-14 19:07:59 -0400] btm: stormerider: node[:chef_packages][:chef][:version]
+[2014-07-14 19:08:09 -0400] stormerider: @btm: thanks!
+[2014-07-14 19:09:34 -0400] dermusikman: that is, live ones. "What attributes does this node have live?"
+[2014-07-14 19:10:23 -0400] jtimberman: dermusikman: if you're using a chef server, you can retrieve the node object from the server, knife node show NODENAME -l (small ell) will return all the attributes the node has.
+[2014-07-14 19:10:49 -0400] dermusikman: danke
+[2014-07-14 19:11:23 -0400] jtimberman: you can also run 'ohai' on the node itself to get the attributes that are automatically detected on a node.
+[2014-07-14 19:13:35 -0400] zebrarag_: hey all is there an example of merging an additional attribute into a hash from another cookbooks attribute file?
+[2014-07-14 19:13:49 -0400] zebrarag_: I assumed it was possible but can't get it to work
+[2014-07-14 19:17:23 -0400] qsalt: juliancdunn:  the only thing I can find is in the mysql community cookbook when i grep -r '<<'. http://pastebin.com/sqSBBav6
+[2014-07-14 19:20:48 -0400] zebrarag_: nvm just had the attribute priority too low, thanks!
+[2014-07-14 19:22:58 -0400] coredump: guys, are definitions deprecated already?
+[2014-07-14 19:23:04 -0400] coredump: as in not working
+[2014-07-14 19:24:03 -0400] Damm: they should work
+[2014-07-14 19:24:09 -0400] juliancdunn: they are not deprecated
+[2014-07-14 19:24:20 -0400] Damm: even if they were deprecated making them not work
+[2014-07-14 19:24:26 -0400] Damm: would be a major chef client version
+[2014-07-14 19:24:29 -0400] Damm: I hope
+[2014-07-14 19:24:35 -0400] Damm: pretty fundamental change
+[2014-07-14 19:24:41 -0400] juliancdunn: qsalt: yeah I dunno, I'm kind of out of ideas then
+[2014-07-14 19:24:49 -0400] juliancdunn: there's nothing in the whitelist cookbook that does a '<<' either, I looked
+[2014-07-14 19:24:55 -0400] Damm: qsalt, how about your web cookbook?
+[2014-07-14 19:25:03 -0400] Damm: qsalt, one of the stack traces looked like it started from 'web'
+[2014-07-14 19:25:43 -0400] Damm: although that mysql libraries/helper.rb could be relevent
+[2014-07-14 19:25:51 -0400] Damm: thank god i use percona
+[2014-07-14 19:25:52 -0400] Damm: lol
+[2014-07-14 19:26:12 -0400] coredump: godammit. I add a role to the node, client says the run list is empty. I add a different role, it works. What's wrong with that specific role? grrrr
+[2014-07-14 19:27:04 -0400] qsalt: Damm: Yeah the stacktrace says it is my web recipe, but if my runlist is just my web recipe everything runs fine.  As soon as i through my database cookbook in the mix it throws the stack trace error.
+[2014-07-14 19:27:22 -0400] Damm: qsalt, hmm how old is your mysql cookbook?
+[2014-07-14 19:27:44 -0400] Damm: https://github.com/opscode-cookbooks/mysql/blob/master/metadata.rb
+[2014-07-14 19:27:47 -0400] Damm: doesn't have that << bit
+[2014-07-14 19:27:53 -0400] Damm: well that version of mysql
+[2014-07-14 19:28:20 -0400] qsalt: maybe I just need to get the newest versions of database and mysql community cookbooks
+[2014-07-14 19:28:28 -0400] Damm: that's possible hope that's easy
+[2014-07-14 19:28:29 -0400] qsalt: i'll try that out and report back (if you guys are interested)
+[2014-07-14 19:28:39 -0400] Damm: I almost never fork a cookbook now
+[2014-07-14 19:28:55 -0400] Damm: so you can just pull in the latest and greatest and run it through t-k and see how badly you burn
+[2014-07-14 19:29:13 -0400] qsalt: lol yeah same, my database wrapper cookbook basically is just pulling the password attributes from an encrypted data bag and then importing the community cookbooks.
+[2014-07-14 19:29:21 -0400] Damm: yep
+[2014-07-14 19:29:27 -0400] Damm: i have a infra_percona cookbook that does that for me
+[2014-07-14 19:29:47 -0400] Damm: someday we'll actually have CI around our t-k but just knowing we can test is still powerful
+[2014-07-14 19:39:11 -0400] shlant: jkeiser: if I had something like attribute 'chef_environment', node.chef_environment would I reference the chef_environment on the machine with node.chef_environment or would I have to do node['chef_environment']? is there even a difference?
+[2014-07-14 19:39:45 -0400] jkeiser: node.chef_environment is the same as machine 'x' do chef_environment 'blah' end
+[2014-07-14 19:39:48 -0400] jkeiser: not attribute
+[2014-07-14 19:40:00 -0400] jkeiser: Also with_chef_environment 'blah' machine 'x' do ... end
+[2014-07-14 19:40:10 -0400] shlant: ahh
+[2014-07-14 19:40:19 -0400] shlant: I should have known you would have thought of that ;)
+[2014-07-14 19:40:21 -0400] shlant: thnaks
+[2014-07-14 19:48:15 -0400] jhulten: Hey. Running chef-server-ctl reconfigure, but need to provide some overrides from the defaults. Can I pass parameters to the chef run that is internal to that process?
+[2014-07-14 19:49:19 -0400] aujt74: You sure can, /etc/chef-server/chef-server.rb: http://docs.opscode.com/config_rb_chef_server.html
+[2014-07-14 19:49:29 -0400] aujt74: jhulten ^^
+[2014-07-14 20:05:22 -0400] shlant: what are the benefits of TK over minitest? other than multi OS testing
+[2014-07-14 20:05:37 -0400] shlant: or are they even comparable?
+[2014-07-14 20:09:49 -0400] aujt74: shlant: they aren't comparable. you'd probably want to compare minitest to say chefspec for unit testing. TK is integration testing.
+[2014-07-14 20:10:48 -0400] chip-: Well wait
+[2014-07-14 20:10:58 -0400] chip-: are you talking about minitest, or chef-minitest-handler?
+[2014-07-14 20:11:44 -0400] shlant: chef-minitest-handler
+[2014-07-14 20:11:47 -0400] chip-: OK.
+[2014-07-14 20:12:01 -0400] juliancdunn: most people are converging on using serverspec as post-converge verification rather than minitest
+[2014-07-14 20:12:02 -0400] chip-: Are you familiar with chef-minitest-handler?
+[2014-07-14 20:12:38 -0400] shlant: I am currently using minitest for post run coverage
+[2014-07-14 20:12:44 -0400] shlant: TK doesn't have that function?
+[2014-07-14 20:12:59 -0400] shlant: it's more of an overall test frameowkr?
+[2014-07-14 20:13:02 -0400] chip-: OK. I just want to clarify: chef-minitest, chef-minitest-handler, & minitest are three different things.
+[2014-07-14 20:13:18 -0400] juliancdunn: they are three different things
+[2014-07-14 20:13:29 -0400] shlant: I am currently using minitest-chef-handler
+[2014-07-14 20:13:30 -0400] someara: actually minitest would be integration testing
+[2014-07-14 20:13:40 -0400] shlant: it runs tests at the end of runs
+[2014-07-14 20:13:45 -0400] shlant: can TK do that?
+[2014-07-14 20:13:52 -0400] someara: test-kitchen can run bats/minitest/serverspec *out of band* of chef
+[2014-07-14 20:13:52 -0400] shlant: or would chefspec be ther alternative?
+[2014-07-14 20:13:57 -0400] shlant: ah ok
+[2014-07-14 20:14:01 -0400] someara: so no minitest handler / run list hacking needed
+[2014-07-14 20:14:17 -0400] shlant: so TK is more for cookbook testing as a whole
+[2014-07-14 20:14:26 -0400] chip-: Chef-minitest, a framework on top of minitest, typically run by chef-minitest-handler, happens as a chef post-run handler at the end of your chef-client run. It happens in the same memory space as chef-client because it's part of the run, and lets you make assertions about both the state of the node object and the converged system, without being clear about differentiating when it does which.
+[2014-07-14 20:14:46 -0400] someara: video of me explaining all this with a cold last month: http://vimeo.com/98938732
+[2014-07-14 20:14:49 -0400] chip-: It's good, but IMHO better alternatives have appeared.
+[2014-07-14 20:15:22 -0400] shlant: someara: thanks, I'l take a look
+[2014-07-14 20:15:28 -0400] chip-: test-kitchen does a couple of things: First it wraps Vagrant (or your cloud provider here) and lets you define multiple test scenarios, each with its own run_list and attributes, as well as multiple platforms, giving you a test matrix.
+[2014-07-14 20:15:56 -0400] chip-: But at the end of a run, it has what are called "bussers," which do much the same job as chef-minitest-handler: They let you make assertions about the state of the converged system, and then verify those assertions.
+[2014-07-14 20:16:12 -0400] chip-: The busser everyone (including me) seems to like best is the Serverspec busser.
+[2014-07-14 20:16:25 -0400] shlant: chip-: so TK is more commonly used in a CI pipeline?
+[2014-07-14 20:16:48 -0400] chip-: I use it for straight dev. "kitchen converge" = "vagrant provision."
+[2014-07-14 20:16:55 -0400] chip-: "kitchen verify" = run busser without converging again.
+[2014-07-14 20:17:05 -0400] chip-: "kitchen test" = run everything and tear down the guest if it all passes.
+[2014-07-14 20:17:10 -0400] chip-: But it works in both scenarios.
+[2014-07-14 20:21:51 -0400] chip-: shlant: The deps in this are a bit old, but if you want to kick the tires clone this and bundle install. I wrapped Rake tasks around everything. https://github.com/charlesjohnson/demo-framework/
+[2014-07-14 20:22:25 -0400] chip-: shlant: It installs vim to ubuntu 12 & centos 6, then runs a verify test in Serverspec.
+[2014-07-14 20:24:19 -0400] shlant: chip-: thanks!
+[2014-07-14 20:26:50 -0400] viglesias: jkeiser: you around? getting the PR ready for setting endpoints in chef-metal-fog, can you explain the use case of knowing the account id?
+[2014-07-14 20:27:18 -0400] mati_ctes_user: Hello Team. Can someone tell me a wiki on how to use this cookbook https://supermarket.getchef.com/cookbooks/hostsfile Thanks in advance .
+[2014-07-14 20:27:31 -0400] viglesias: from the code it looks like wed like to have a better way to find it than catching an exception and parsing it
+[2014-07-14 20:28:14 -0400] coderanger: mati_ctes_user: I don't think there is a wiki
+[2014-07-14 20:28:27 -0400] coderanger: mati_ctes_user: Just the readme as you can see on that page
+[2014-07-14 20:28:45 -0400] jkeiser: viglesias: awesome!  The reason for having the account id is so that if 2 different users create machines in the same AWS account, they can still access each others' machines (because the fog: URL is the same)
+[2014-07-14 20:29:09 -0400] jkeiser: viglesias: basically I wanted an identifier--any identifier at all--that will always be the same no matter who is accessing the AWS account.  Identifies the account, not the user
+[2014-07-14 20:29:18 -0400] viglesias: how about access key id
+[2014-07-14 20:29:22 -0400] viglesias: ah nm
+[2014-07-14 20:29:26 -0400] viglesias: kept reading
+[2014-07-14 20:29:58 -0400] jkeiser: yeah :)  I searched for a while for some identifier or some way to get the account ID, but I'm new
+[2014-07-14 20:30:07 -0400] viglesias: jkeiser: it comes back in the run request
+[2014-07-14 20:30:12 -0400] viglesias: but that is too late methinks
+[2014-07-14 20:30:18 -0400] viglesias: i will keep thinking on that part
+[2014-07-14 20:30:21 -0400] jkeiser: viglesias: note, 99% of the time you get the account id just fine if you ask for your record
+[2014-07-14 20:30:41 -0400] jkeiser: viglesias: the exception parsing is for when you are an IAM user who doesn't have access to his own user record
+[2014-07-14 20:30:47 -0400] viglesias: ah ic
+[2014-07-14 20:31:32 -0400] viglesias: jkeiser: is there a particular branch youd like to see the PR against? im going against master right now
+[2014-07-14 20:33:29 -0400] jkeiser: viglesias: master is it :)
+[2014-07-14 20:33:48 -0400] mati_ctes_user: @coderanger I see the readme is not much of a Help. Actually following the readme, and a test on my node says No resource or method named `hostsfile_entry' for `Chef::Recipe "default"'
+[2014-07-14 20:34:24 -0400] viglesias: thanks jkeiser should have something done by the end of the week (code is done just need to test it)
+[2014-07-14 20:34:32 -0400] coderanger: mati_ctes_user: Does your wrapper/app cookbook have 'depends "hostfile"' in its metadata.rb?
+[2014-07-14 20:34:50 -0400] phelms: I am begining to see chef scripts in my dreams.. I don't think that is healthy
+[2014-07-14 20:35:12 -0400] viglesias: phelms: welcome to the club
+[2014-07-14 20:36:04 -0400] mati_ctes_user: @coderanger no. I will include let me test it.
+[2014-07-14 20:41:37 -0400] mati_ctes_user: @coderanger same error No resource or method named `hostsfile_entry' for `Chef::Recipe "default"'
+[2014-07-14 20:42:20 -0400] coderanger: mati_ctes_user: Run with `-l debug` and make sure you see the cookbook loading
+[2014-07-14 20:42:26 -0400] coderanger: it probably isn't, which is the issue
+[2014-07-14 20:43:38 -0400] gyoza: sooo over the weekend some emails went out cause a couple cookbooks had some failures but they emailed administrator@(mydomain.com).com like uhh, where is this set?
+[2014-07-14 20:43:50 -0400] gyoza: i cant figure out where its pulling this info from..
+[2014-07-14 20:45:33 -0400] ambientsound: gyoza: hostname -f perhaps?
+[2014-07-14 20:45:36 -0400] mati_ctes_user: @coderanger Yes the cookbook is loading i'm prety sure. I dont know how this cookbook work.
+[2014-07-14 20:45:50 -0400] coderanger: mati_ctes_user: Please pastebin the debug trace
+[2014-07-14 20:45:54 -0400] gyoza: nah i dont think so..
+[2014-07-14 20:46:15 -0400] coderanger: gyoza: is it from inside a handler?
+[2014-07-14 20:46:22 -0400] gyoza: no
+[2014-07-14 20:46:32 -0400] coderanger: Whats actually sending the emails
+[2014-07-14 20:46:33 -0400] gyoza: Stacktrace output log
+[2014-07-14 20:46:50 -0400] gyoza: its basically a copy of a failed chef-client log
+[2014-07-14 20:47:07 -0400] coderanger: Yes but what is sending that as an email?
+[2014-07-14 20:47:08 -0400] coderanger: cron?
+[2014-07-14 20:47:19 -0400] gyoza: oh yea look at that
+[2014-07-14 20:47:19 -0400] gyoza: cron
+[2014-07-14 20:47:22 -0400] gyoza: lol
+[2014-07-14 20:47:39 -0400] gyoza: thanks:)
+[2014-07-14 20:48:00 -0400] mati_ctes_user: @coderanger http://pastebin.com/TmzHkENn
+[2014-07-14 20:48:30 -0400] coderanger: gyoza: in cron, look for the MAILTO line
+[2014-07-14 20:48:51 -0400] coderanger: mati_ctes_user: Please run chef-client with `-l debug` on the command line and paste the full debug output
+[2014-07-14 20:51:16 -0400] mati_ctes_user: @coderanger thanks for the help. http://pastebin.com/7hudxp95 with -l debug
+[2014-07-14 20:51:35 -0400] coderanger: mati_ctes_user: You still don't have the depends line in the metadata
+[2014-07-14 20:51:46 -0400] coderanger: mati_ctes_user: Or if you added it locally, you didn't re-upload the cookbook on hte server
+[2014-07-14 20:52:00 -0400] coderanger: Also that isn't the full output
+[2014-07-14 20:52:34 -0400] mati_ctes_user: @coderanger I did Uploading hostsfile-master [2.4.5]
+[2014-07-14 20:53:38 -0400] coderanger: mati_ctes_user: Please pastebin the full output then
+[2014-07-14 20:57:51 -0400] mati_ctes_user: @coderanger I dont understand my cookbook is call hostsfile-master in that metadata.rb I need to add depends           "hostsfile-master" | or should I have other cookbook named hostfile
+[2014-07-14 20:58:06 -0400] coderanger: mati_ctes_user: You need depends "hostfile"
+[2014-07-14 20:58:23 -0400] coderanger: it is the dependency that makes it load the hostsfile cookbook
+[2014-07-14 20:58:29 -0400] coderanger: (or any other cookbook you want it to load
+[2014-07-14 21:09:45 -0400] mati_ctes_user: @coderanger Thnaks for the help. I will need to read and test it. Appreciatte the help.
+[2014-07-14 21:10:13 -0400] gyoza: hey guys
+[2014-07-14 21:10:17 -0400] gyoza: any D&D MTG nerds?
+[2014-07-14 21:10:18 -0400] gyoza: http://www.metmuseum.org/collection/the-collection-online/search/551072
+[2014-07-14 21:10:21 -0400] gyoza: check that out!
+[2014-07-14 21:11:33 -0400] coderanger: gyoza: http://archaeologicalmuseum.jhu.edu/the-collection/object-stories/archaeology-of-daily-life/childhood/knucklebones/ :)
+[2014-07-14 21:15:44 -0400] gyoza: those are cool too!
+[2014-07-14 21:15:52 -0400] gyoza: i like super old things:P
+[2014-07-14 21:22:32 -0400] shlant: jkeiser: any way to handle ssh user changes after bootstrapping the machine? or should I keep the ubuntu user?
+[2014-07-14 21:24:06 -0400] shlant: keeping ubuntu user as having root priv seems icky
+[2014-07-14 21:27:06 -0400] Death_Syn: knife ssh runs as your user unless you tell it otherwise
+[2014-07-14 21:30:24 -0400] coderanger: Death_Syn: He is asking about metal
+[2014-07-14 21:31:20 -0400] viglesias: shlant: you can use the bootstrap_option ssh_username
+[2014-07-14 21:32:31 -0400] Eulipion: what is the consensus on symbol vs string?
+[2014-07-14 21:32:49 -0400] shlant: symbol looks prettier in text editors :p
+[2014-07-14 21:33:02 -0400] Eulipion: shlant: i agree
+[2014-07-14 21:33:31 -0400] coderanger: Eulipion: Are you the only one that works on your cookbooks?
+[2014-07-14 21:33:45 -0400] coderanger: If yes, symbols are fine, otherwise generally use strings as they are clearer to non-ruby-devs
+[2014-07-14 21:34:09 -0400] Eulipion: at my company yes, but i do a bunch of comm. cb work and they mentioned that i swapped in symbols
+[2014-07-14 21:34:12 -0400] coderanger: Every language since C has used " for strings, so the syntax is as close to obvious as you can get
+[2014-07-14 21:34:13 -0400] gyoza: symbols??
+[2014-07-14 21:34:21 -0400] gyoza: <- dumb
+[2014-07-14 21:34:24 -0400] Eulipion: [:symbol]
+[2014-07-14 21:34:26 -0400] gyoza: oh
+[2014-07-14 21:34:30 -0400] coderanger: gyoza: node[:foo] vs. node['foo']
+[2014-07-14 21:34:35 -0400] gyoza: ehhhh
+[2014-07-14 21:34:46 -0400] gyoza: I'd say use quotes
+[2014-07-14 21:34:48 -0400] gyoza: :P
+[2014-07-14 21:34:52 -0400] gyoza: clearly cause i had no idea
+[2014-07-14 21:34:56 -0400] Eulipion: honestly, emacs makes the symbols special colors, so i like them
+[2014-07-14 21:35:06 -0400] gyoza: but you can tell any term to highlight :
+[2014-07-14 21:35:11 -0400] coderanger: strings are considered the standard, use symbols only if you know what you are doing enough to buck standards :)
+[2014-07-14 21:35:12 -0400] gyoza: editor
+[2014-07-14 21:35:28 -0400] Eulipion: gyoza: yea, learn some emacs-lisp and try again
+[2014-07-14 21:35:40 -0400] geggam: emacs is an OS
+[2014-07-14 21:36:01 -0400] Eulipion: its a kernel, close
+[2014-07-14 21:36:03 -0400] Eulipion: heh
+[2014-07-14 21:36:27 -0400] geggam: emacs is actually bigger in size than my favorite OS
+[2014-07-14 21:36:29 -0400] geggam: complete
+[2014-07-14 21:36:31 -0400] gyoza: Eulipion: my friend tried to convert me to emacs 15 years ago and it didnt work then
+[2014-07-14 21:36:32 -0400] Eulipion: haha
+[2014-07-14 21:36:34 -0400] gyoza: and its not gonna work now:P
+[2014-07-14 21:36:51 -0400] Eulipion: its got a huge learning curve, then ur hooked
+[2014-07-14 21:36:52 -0400] gyoza: i use joe
+[2014-07-14 21:36:56 -0400] gyoza: joe is the shitttz
+[2014-07-14 21:36:58 -0400] geggam: sublime
+[2014-07-14 21:37:01 -0400] shlant: "emacs is great OS, the only thing lacking being a decent text editor"
+[2014-07-14 21:37:05 -0400] geggam: vi for cli
+[2014-07-14 21:37:09 -0400] gyoza: well if we're talking GUI editors then sublime obviously
+[2014-07-14 21:37:18 -0400] shlant: aw yis sublime
+[2014-07-14 21:37:32 -0400] gyoza: joe has the best default highlighting
+[2014-07-14 21:37:36 -0400] Eulipion: emacs + cedet is a full IDE, but clearly ive just poked a beehive
+[2014-07-14 21:37:39 -0400] geggam: i think it has a backoff nag algorithm
+[2014-07-14 21:38:10 -0400] gyoza: Eulipion: emacs vs * will always be a hot issue
+[2014-07-14 21:38:13 -0400] Eulipion: u know what they say, never discuss politics, sex, or emacs vs vim
+[2014-07-14 21:38:17 -0400] gyoza: as everybody has a deep down love for their favorite editor...
+[2014-07-14 21:38:48 -0400] gyoza: personally, edit.com is the best
+[2014-07-14 21:38:52 -0400] gyoza: i dont know why you gusy ever left dos
+[2014-07-14 21:38:56 -0400] geggam: i usually run an ensure emacs package is not on a sytem to prevent developers from using the OS
+[2014-07-14 21:38:57 -0400] Eulipion: ha
+[2014-07-14 21:39:22 -0400] geggam: also make devs shell bash -n
+[2014-07-14 21:39:25 -0400] geggam: that is funny
+[2014-07-14 21:39:41 -0400] geggam: they get madz
+[2014-07-14 21:39:55 -0400] gyoza: "why cant i use fish shell
+[2014-07-14 21:39:56 -0400] gyoza: "
+[2014-07-14 21:40:06 -0400] shlant: coderanger: does the chef bootstrap user need root privilege? or just ssh access?
+[2014-07-14 21:40:12 -0400] gyoza: Fish is pretty sweet though btw
+[2014-07-14 21:40:22 -0400] coderanger: shlant: It either needs to be root or needs sudo
+[2014-07-14 21:40:30 -0400] Eulipion: i like to hijack my devs ssh sessions, hop on to their laptops, and start messing with the osx plists, like turning on the screensaver
+[2014-07-14 21:41:01 -0400] Eulipion: setting their desktop to hasselhoff is also fun
+[2014-07-14 21:41:15 -0400] shlant: coderanger: does it need full sudo or can I restrict it by command?
+[2014-07-14 21:41:17 -0400] Eulipion: and if they have an irssi sesh in screen, even better
+[2014-07-14 21:41:20 -0400] gyoza: arrange by penis
+[2014-07-14 21:41:42 -0400] gyoza: You guys saw that an application was made for that right?
+[2014-07-14 21:41:50 -0400] gyoza: based off "the website is down" penis desktop icons
+[2014-07-14 21:41:51 -0400] coderanger: shlant: I mean it needs to run chef-client so any restriction is 100% pointless
+[2014-07-14 21:42:04 -0400] coderanger: gyoza: Lets keep things PG
+[2014-07-14 21:42:08 -0400] gyoza: sorry:(
+[2014-07-14 21:42:17 -0400] shlant: coderanger: yea but then it can only run what I have in chef right ;)
+[2014-07-14 21:42:27 -0400] shlant: basically
+[2014-07-14 21:42:32 -0400] shlant: what I'm trying to figure out
+[2014-07-14 21:42:38 -0400] shlant: is what ot do with the default ubunut user
+[2014-07-14 21:42:46 -0400] gyoza: rm it
+[2014-07-14 21:42:55 -0400] coderanger: shlant: chef-client can have local overrides, so there is no way to functionally restrict things
+[2014-07-14 21:43:16 -0400] gyoza: shlant: you trying to not use it?
+[2014-07-14 21:43:18 -0400] gyoza: the default user?
+[2014-07-14 21:43:20 -0400] shlant: maybe I should pre bake a chef user into the AMI
+[2014-07-14 21:43:39 -0400] shlant: gyoza: I currently use the default user for the initial chef bootstrap
+[2014-07-14 21:43:45 -0400] shlant: but then I use the users cookbooks
+[2014-07-14 21:43:53 -0400] shlant: and it removes the sudo permissions
+[2014-07-14 21:43:53 -0400] gyoza: shlant: so have the userscookbook remove it
+[2014-07-14 21:44:04 -0400] shlant: meaning I can't run anymore
+[2014-07-14 21:44:16 -0400] gyoza: thats kind of how i do it
+[2014-07-14 21:44:33 -0400] gyoza: I have a the ec2-user and then i run our userbook which also updates the sudo files
+[2014-07-14 21:44:42 -0400] gyoza: and then i remove the user
+[2014-07-14 21:44:45 -0400] gyoza: original
+[2014-07-14 21:45:02 -0400] coderanger: shlant: You can just not use chef's bootstrap system at all though if you are concerned about security
+[2014-07-14 21:45:25 -0400] shlant: gyoza: yes, but chef-metal then tries to use that user
+[2014-07-14 21:45:29 -0400] shlant: and bonks
+[2014-07-14 21:45:33 -0400] gyoza: oh chef-metal?
+[2014-07-14 21:45:41 -0400] shlant: i think pre baked user might work best
+[2014-07-14 21:45:52 -0400] shlant: gyoza: haha yea sorry I have a specific use case
+[2014-07-14 21:46:00 -0400] gyoza: I am using baremetal machines
+[2014-07-14 21:46:08 -0400] gyoza: but i am not provisioning any new ones
+[2014-07-14 21:46:12 -0400] gyoza: thankfully!
+[2014-07-14 21:46:21 -0400] jkeiser: shlant: you can modify the "metal" attribute manually to make it use the new user; but this the last area I can think of that needs Deep Thought
+[2014-07-14 21:46:29 -0400] shlant: I am moving our entire infra from EY to AWS
+[2014-07-14 21:46:29 -0400] gyoza: boss straight up told me we're not spending a single dime on hardware
+[2014-07-14 21:46:30 -0400] jkeiser: i.e. this bit needs work
+[2014-07-14 21:46:34 -0400] Eulipion: i use a special cookbook to secure my boxes after the build run, in env=dev, it removes anything that someone with root can get (data bag key, ssl certs, deployment users, etc).  the cookbook gets added to the run_list after the base role has run
+[2014-07-14 21:47:00 -0400] Eulipion: its nice having that 1 run delay so the initial run can complete
+[2014-07-14 21:48:25 -0400] shlant: jkeiser: I have a packer.json already so I think I'll just throw a chef user in the AMI
+[2014-07-14 21:52:53 -0400] gyoza: did today fly by for anybody else?
+[2014-07-14 21:53:01 -0400] gyoza: i cant believ ethe day is almost over
+[2014-07-14 21:53:55 -0400] sentinal8473: hi, having nightmare with ubuntu 14.04, i add apt and build-essential to a role, when chef runs i keep getting Expected process to exit with [0], but received '100' on build-essential install, i am totally stuck as to why this happens, if you run the command manually, build-essential installs ok, has anyone see this before ??? logout put http://pastebin.com/U4VPtiEL
+[2014-07-14 21:54:34 -0400] coderanger: sentinal8473: Make sure apt is configured to run apt-get update at compile time
+[2014-07-14 21:54:37 -0400] viglesias: sentinal8473: looks like the repo info you have is borked
+[2014-07-14 21:55:33 -0400] coderanger: sentinal8473: node['apt']['compile_time_update'] should be true
+[2014-07-14 21:55:34 -0400] sentinal8473: @coderanger, yeah, i have compile_time = true set for build_essential )
+[2014-07-14 21:55:44 -0400] coderanger: sentinal8473: Indeed, but did you set it for apt as well
+[2014-07-14 21:56:08 -0400] sentinal8473: @viglesias thats what i though at first, however on the instance running apt-get update works.....puzzled
+[2014-07-14 21:56:45 -0400] sentinal8473: @coderanger, ah..missed that one, let me re try
+[2014-07-14 21:57:33 -0400] shlant: jkeiser: how does metal currently determine the bootstrap user if not specified? from the node metal was run on?
+[2014-07-14 21:57:54 -0400] jkeiser: shlant: it guesses, frankly.  And its guess is not always good
+[2014-07-14 21:58:17 -0400] Damm: shlant, moving off EY eh?
+[2014-07-14 21:58:28 -0400] Damm: there's so many of them
+[2014-07-14 21:58:53 -0400] gyoza: Whats EY?
+[2014-07-14 21:58:58 -0400] Damm: Engine Yard
+[2014-07-14 21:59:01 -0400] shlant: Damm: it's a cottage industry
+[2014-07-14 21:59:22 -0400] gyoza: Oh so Engine Yard is kind of like RightScale?
+[2014-07-14 21:59:26 -0400] Damm: shlant, using metal for docker?
+[2014-07-14 21:59:29 -0400] Damm: gyoza, nah
+[2014-07-14 21:59:47 -0400] Damm: speaking as an ex-employee it's a PaaS that was specialist in ruby on rails
+[2014-07-14 21:59:53 -0400] Damm: specialized*
+[2014-07-14 22:00:03 -0400] shlant: Damm: naw just straight chef all the way
+[2014-07-14 22:00:06 -0400] Damm: after I left their stack went dark as I understand and they are now releasing an Ubuntu beta
+[2014-07-14 22:00:10 -0400] Damm: to compete with the Gentoo drift
+[2014-07-14 22:00:13 -0400] gyoza: Damm: did you have to patch lots of gems everyday?
+[2014-07-14 22:00:20 -0400] gyoza: lol
+[2014-07-14 22:00:21 -0400] Damm: which really should have been able to move off 3 years ago really
+[2014-07-14 22:00:22 -0400] Damm: 3 years too late
+[2014-07-14 22:00:27 -0400] shlant: Damm: that's a step in the right direction
+[2014-07-14 22:00:33 -0400] Damm: nah
+[2014-07-14 22:00:38 -0400] Damm: ubuntu/gentoo does not matter
+[2014-07-14 22:00:49 -0400] Damm: you use a kernel; you are using a PaaS so you get what they have patched/setup for you
+[2014-07-14 22:01:10 -0400] shlant: matters if you are a sysadmin
+[2014-07-14 22:01:13 -0400] Damm: caring about what distro your PaaS runs is like caring what kind of car your brothers; friends; left hand man's old enemy drives
+[2014-07-14 22:01:34 -0400] Damm: because you shouldn't be using it like a server; I kinda agree that Heroku is the right direction
+[2014-07-14 22:01:41 -0400] shlant: this is the second role where I have migrated out of EY
+[2014-07-14 22:01:49 -0400] shlant: EY is just too restrictive
+[2014-07-14 22:01:50 -0400] Damm: letting customers run EC2 servers like metal; doing whatever they want is a recipe for disaster
+[2014-07-14 22:01:51 -0400] shlant: and costly
+[2014-07-14 22:01:53 -0400] Damm: impossible to support
+[2014-07-14 22:02:08 -0400] Damm: and trying to upgrade them while still trying to keep them stable
+[2014-07-14 22:02:12 -0400] Damm: is like impossible
+[2014-07-14 22:02:27 -0400] Damm: you have old ruby 1.8.6 customers who want old patchlevels; newer ones
+[2014-07-14 22:02:28 -0400] qsalt: I'm updating my community cookbooks for mysql and database and am wondering if anyone else has seen the "Undefined method or attribute `debian_before_squeeze?' on `node'" when running on a ubuntu 12.04 box
+[2014-07-14 22:02:46 -0400] gyoza: Damm: yea it seems like a nightmare with all the massive RoR exploits
+[2014-07-14 22:02:48 -0400] gyoza: coming out daily
+[2014-07-14 22:02:49 -0400] Damm: shlant, really you should have moved off EY years ago then before you started customizing
+[2014-07-14 22:03:11 -0400] Damm: I know of old EY clients who have their mysql servers in RDS (on their own account) with the app on ey
+[2014-07-14 22:03:11 -0400] shlant: Damm: I just got into this role a couple months ago ;)
+[2014-07-14 22:03:17 -0400] Damm: all sorts of insane problems
+[2014-07-14 22:03:22 -0400] shlant: i bet
+[2014-07-14 22:03:23 -0400] gyoza: so shalant is the smart guy
+[2014-07-14 22:03:29 -0400] Damm: no he's not
+[2014-07-14 22:03:29 -0400] gyoza: "oh god you guys are using EY"
+[2014-07-14 22:03:34 -0400] Damm: he took the job
+[2014-07-14 22:03:37 -0400] gyoza: LOL
+[2014-07-14 22:03:43 -0400] gyoza: man you cant blame him for that
+[2014-07-14 22:03:48 -0400] Damm: yes i can
+[2014-07-14 22:03:53 -0400] gyoza: nah man
+[2014-07-14 22:03:54 -0400] Damm: I worked for EY; I'd rather be broke
+[2014-07-14 22:04:11 -0400] gyoza: Ehh some people like spanging
+[2014-07-14 22:04:12 -0400] Damm: supporting it; doing all the things you can do in the world
+[2014-07-14 22:04:13 -0400] Damm: yikes
+[2014-07-14 22:04:16 -0400] shlant: wait huh?
+[2014-07-14 22:04:21 -0400] Damm: all from a distro built in 2008
+[2014-07-14 22:04:24 -0400] shlant: what is it you think I have chosen wrong?
+[2014-07-14 22:04:36 -0400] gyoza: shlant: im saying you're smart because you're moving off EY and damm says no cause you took the job in the first place
+[2014-07-14 22:04:45 -0400] sentinal8473: @coderanger thanks man, that has worked, now to uncomment the rest of my cookbook to see if it now works :)
+[2014-07-14 22:04:59 -0400] shlant: well if I've done it before then it only get easier right?
+[2014-07-14 22:05:01 -0400] shlant: haha
+[2014-07-14 22:05:04 -0400] Damm: typically when old EY customers email me asking for help I just offer them a sales pitch
+[2014-07-14 22:05:07 -0400] shlant: and I like a challenge
+[2014-07-14 22:05:09 -0400] Damm: and ask them how can I help them move off
+[2014-07-14 22:05:17 -0400] Damm: without trying to sound too much like a dick
+[2014-07-14 22:06:08 -0400] Damm: managed hosting; PaaS
+[2014-07-14 22:06:18 -0400] Damm: I find the burnout to be higher with the smarter more elitest companies
+[2014-07-14 22:07:58 -0400] Damm: ooold chef
+[2014-07-14 22:08:34 -0400] jespada: Any hint on how to solve this issue https://github.com/sethvargo/chefspec/issues/364
+[2014-07-14 22:15:55 -0400] coderanger: jespada: The ticket contains the solution, stub include_recipe
+[2014-07-14 22:17:07 -0400] jespada: coderanger, you have an example somewhere(gist) ?, did hit the same problem that jhx user describe there
+[2014-07-14 22:17:51 -0400] coderanger: jespada: Yes, look at the comment above that
+[2014-07-14 22:18:37 -0400] coderanger: jespada: If you just mean your test is failing, then yes, your test is failing
+[2014-07-14 22:19:21 -0400] jespada: coderanger, k tks
+[2014-07-14 22:19:26 -0400] doug1: So, i dunno if this is the right place, but I was just looking at OpsWorks... and my first thought is 'this sux'. It doesn't seem to do any cookbook dependancy resolution.
+[2014-07-14 22:19:40 -0400] coderanger: jespada: Make sure you only set the stub in your before block, not in the test itself like jhx is
+[2014-07-14 22:19:51 -0400] coderanger: doug1: Use the new berkshelf mode in opsworks
+[2014-07-14 22:20:00 -0400] coderanger: doug1: It is in stack options
+[2014-07-14 22:20:00 -0400] jespada: coderanger, gotcha
+[2014-07-14 22:20:10 -0400] doug1: coderanger: Oh. :-O
+[2014-07-14 22:20:29 -0400] Eulipion: do u have any docs on switching to berks, its been on my list for way too long?
+[2014-07-14 22:20:49 -0400] doug1: coderanger: it's already on. i'll do some reading
+[2014-07-14 22:21:10 -0400] coderanger: Eulipion: No, but I provide training and consulting services if you are interested :)
+[2014-07-14 22:22:12 -0400] Eulipion: heh, i'll keep that in mind.  gonna have to give it a try myself first
+[2014-07-14 22:23:20 -0400] jtimberman: Eulipion: I wrote this awhile ago - it's not updated for berkshelf 3, but the general idea is the same http://jtimberman.housepub.org/blog/2012/11/19/chef-repository-berkshelf-conversion/
+[2014-07-14 22:24:27 -0400] Eulipion: jtimberman: thx
+[2014-07-14 22:26:02 -0400] jtimberman: Eulipion: like, i'm using chefdk now, which comes with berkshelf, so no need to fool with a Gemfile (for me) :)
+[2014-07-14 22:27:32 -0400] Damm: oh poo gotta update berkshelf
+[2014-07-14 22:27:36 -0400] Damm: new community site broke for me
+[2014-07-14 22:27:38 -0400] Eulipion: jtimberman: how stable is dk?
+[2014-07-14 22:28:07 -0400] c_t: must be somewhat stable, since Chefco is pushing it pretty hard
+[2014-07-14 22:28:23 -0400] coderanger: It is as stable as the stuff in it, so its not a meaningful question
+[2014-07-14 22:28:25 -0400] c_t: (I haven't actually gotten around to trying it yet, bizarrely enough)
+[2014-07-14 22:28:29 -0400] Eulipion: im feelin ready to take the dk plunge
+[2014-07-14 22:29:15 -0400] Eulipion: so if i bring up a dk server, is there a way to import all my nodes and not have to rekey them?
+[2014-07-14 22:29:30 -0400] Damm: hmm is chefdk like a omnibus for the enduser then?
+[2014-07-14 22:29:39 -0400] Damm: with all the needs for development roughly?
+[2014-07-14 22:29:46 -0400] Damm: that's what it looks like
+[2014-07-14 22:30:16 -0400] lamont_oc: chefdk is both an omnibus bundle with tk+berkshelf+stuff, and its also the chef command line tool
+[2014-07-14 22:30:35 -0400] coderanger: Eulipion: There is no dk server, its just a workstation helper
+[2014-07-14 22:30:43 -0400] Damm: so yeah
+[2014-07-14 22:30:48 -0400] Eulipion: oh, cool
+[2014-07-14 22:30:48 -0400] Damm: nice
+[2014-07-14 22:32:34 -0400] joeh: Wonder if anyone can help me with this one, is it possible to set attributes via a ruby_block to replace a current attribute?
+[2014-07-14 22:32:54 -0400] coderanger: joeh: Sure, not usually a good idea though
+[2014-07-14 22:33:07 -0400] coderanger: joeh: Since you have to very carefully consider ordering
+[2014-07-14 22:33:20 -0400] lamont_oc: joeh:  yeah +1 you probably need to backup and look at what youre doing
+[2014-07-14 22:33:59 -0400] mhenrixon: joeh sounds like a case for run_state
+[2014-07-14 22:34:23 -0400] joeh: Thanks guys. So Im setting a json conf via attributes, with an if UUID set, pass else, set
+[2014-07-14 22:34:36 -0400] gyoza: This is your brain, http://i.imgur.com/R137Eyi.jpg.. this is your brain on office, http://i.imgur.com/oiSjN0h.jpg. Any questions?
+[2014-07-14 22:35:39 -0400] mhenrixon: you really don't want to using attributes for that due to the way those work. Recipe for disaster (pun intended)
+[2014-07-14 22:36:31 -0400] joeh: lol Thanks for the info
+[2014-07-14 22:36:42 -0400] mhenrixon: What type of conf joeh?
+[2014-07-14 22:37:01 -0400] joeh: Just json, nothing too complex
+[2014-07-14 22:37:09 -0400] lamont_oc: where does UUID get set?
+[2014-07-14 22:37:12 -0400] mhenrixon: so a json configuration file for what?
+[2014-07-14 22:37:57 -0400] mhenrixon: lamont_oc is right sounds like you might be right off if you are just going to write a value to the json file if it is missing
+[2014-07-14 22:37:58 -0400] joeh: How Im doing it now is .. file x do ... content JSON.pretty_generate(node['my_config']
+[2014-07-14 22:38:51 -0400] mhenrixon: question is how you work with that node['my_config'] joeh
+[2014-07-14 22:39:25 -0400] joeh: Its a json config file for a java app, if thats what you're asking?
+[2014-07-14 22:39:51 -0400] mhenrixon: How do you create the ruby hash is where the trouble is not where you write it to disk unless you don't want to write it to disk if the file is missing that UUID or is it the hash that is missing the UUID?
+[2014-07-14 22:41:24 -0400] joeh: The hash is a set of attributes, config.rb for example so node['config']['a'] = a, node['config']['b'] = b
+[2014-07-14 22:41:52 -0400] joeh: Which basically gives me a json config {"a":"a", "b": "b"}
+[2014-07-14 22:42:15 -0400] joeh: Apologies, I might be completely missing the point :/
+[2014-07-14 22:42:48 -0400] mhenrixon: No it's fine and it's one of those things I struggled with myself
+[2014-07-14 22:43:02 -0400] mhenrixon: There is a command to save stuff on the node
+[2014-07-14 22:43:10 -0400] mhenrixon: node.save
+[2014-07-14 22:43:30 -0400] lamont_oc: joeh: would something like this work? http://pastebin.com/gKXyZHxG
+[2014-07-14 22:43:32 -0400] mhenrixon: so you could say node['myid'] = 'some value' and then call node.save
+[2014-07-14 22:44:57 -0400] mhenrixon: Be careful so you don't save the entire config file on the node though. lamont_oc suggestion seems pretty close to what I would do joeh
+[2014-07-14 22:45:51 -0400] lamont_oc: i might be misunderstanding the problem completely but you should be able to assemble the node state from ohai and from your attributes file  and your attribute file can do conditional logic on node attributes to build them up  then your recipes ideally shouldnt mutate the node attributes and should just apply state based on them.
+[2014-07-14 22:46:30 -0400] damien: greetings!
+[2014-07-14 22:46:40 -0400] gyoza: oh no
+[2014-07-14 22:46:43 -0400] gyoza: its the devils son!
+[2014-07-14 22:46:50 -0400] damien: %D
+[2014-07-14 22:47:30 -0400] jtimberman: Eulipion: I've been using ChefDK as my primary chef + ruby environment for a couple months now http://jtimberman.housepub.org/blog/2014/04/30/chefdk-and-ruby/
+[2014-07-14 22:47:37 -0400] gyoza: damien: but hi yes:)
+[2014-07-14 22:47:45 -0400] jtimberman: i use the regular chef omnibus package for running chef-client on nodes.
+[2014-07-14 22:47:48 -0400] lamont_oc: and if node[my_config] doesnt need to be saved on the node, you might be able to make it into a local variable in the recipe (if no other recipe needs to use it and it doesnt need to be searched for, and you dont want to have it overridden as a node attr, you dont have to use a node attribute)
+[2014-07-14 22:47:52 -0400] damien: hey has anyone any experience working with redisio cookbook? Specifically how to handle restarting instances when config values change? The cookbook author states it needs to be done manually or via the LWRP, but the template in the install recipe doesn't provide for a notification when config values change....
+[2014-07-14 22:47:53 -0400] jtimberman: but chefdk for my local workstation environment.
+[2014-07-14 22:48:21 -0400] Eulipion: jtimberman: omg this looks great. goodbye rvm rbenv
+[2014-07-14 22:48:27 -0400] gyoza: im too noob to help damien sorry:(
+[2014-07-14 22:48:28 -0400] joeh: Thanks very much for the help guys, Ill have a go at what you suggested and see what works for me!
+[2014-07-14 22:48:40 -0400] damien: gyoza, it's all good, thanks though!
+[2014-07-14 22:48:49 -0400] damien: gyoza, your nick is making me hungry......
+[2014-07-14 22:48:55 -0400] gyoza: im sure you will get an answer though:P
+[2014-07-14 22:48:56 -0400] damien: need some chili oil and soysauce
+[2014-07-14 22:49:11 -0400] gyoza: I cant eat gyoza anymore... im a dumb pescatarian now..
+[2014-07-14 22:49:11 -0400] damien: ;)
+[2014-07-14 22:49:16 -0400] damien: ha
+[2014-07-14 22:49:24 -0400] damien: I bet you can get some nice shrimp gyoza
+[2014-07-14 22:49:28 -0400] gyoza: i've never seen em
+[2014-07-14 22:49:34 -0400] gyoza: always prok
+[2014-07-14 22:49:34 -0400] damien: I've even eaten veggie ones
+[2014-07-14 22:49:36 -0400] gyoza: pork.
+[2014-07-14 22:49:36 -0400] jtimberman: Eulipion: again not updated to the latest things, there's now a 'chef shell init' command that will give you shell things to use, but that didn't exist when i wrote the post :)
+[2014-07-14 22:49:56 -0400] jtimberman: see the chef-dk readme: https://github.com/opscode/chef-dk#chef-shell-init
+[2014-07-14 22:49:58 -0400] damien: yeah, you are right in a restaurant that is mostly true, seattle has had a veggie one I think somewhere I faintly remember
+[2014-07-14 22:50:33 -0400] damien: is there a generic way to listen to template / resource changes? i.e. from another cookbook?
+[2014-07-14 22:52:10 -0400] gyoza: http://i.imgur.com/9hyZk8q.gif <-- portland lastnight
+[2014-07-14 22:52:13 -0400] gyoza: pretty awesome
+[2014-07-14 22:52:48 -0400] damien: wow nice, yeah we had crazy orange in seattle last night, like halloween pumpkin on neon rave juice
+[2014-07-14 22:54:25 -0400] gyoza: i got a pic of that
+[2014-07-14 22:54:30 -0400] Eulipion: gyoza: i took this the other day in chicago on what became a 12 hr layover, http://imgur.com/dePRIKz
+[2014-07-14 22:54:43 -0400] gyoza: https://scontent-b.xx.fbcdn.net/hphotos-xfp1/t1.0-9/10386395_10152612115441474_8806959004225924219_n.jpg
+[2014-07-14 22:54:45 -0400] gyoza: seattle last night
+[2014-07-14 22:54:53 -0400] damien: oh wow yeah!
+[2014-07-14 22:54:54 -0400] gyoza: that is an amazing picture euli
+[2014-07-14 22:54:57 -0400] damien: holy cow! nice gyoza
+[2014-07-14 22:55:01 -0400] gyoza: damien: that wasnt me
+[2014-07-14 22:55:07 -0400] gyoza: I just have access to a "pic of that"
+[2014-07-14 22:55:08 -0400] gyoza: lol
+[2014-07-14 22:55:10 -0400] damien: still cool that you were able to find that :)
+[2014-07-14 22:55:10 -0400] damien: haha
+[2014-07-14 22:55:14 -0400] gyoza: Facebook feed
+[2014-07-14 22:55:15 -0400] damien: facuk yeah internet!
+[2014-07-14 22:55:25 -0400] damien: yeah that orange is wild
+[2014-07-14 22:55:29 -0400] gyoza: pretty intense
+[2014-07-14 22:55:49 -0400] damien: Eulipion, that is pretty hard core too, bet you were super excited to get back on the plane after seeing that! ;)
+[2014-07-14 22:56:32 -0400] Eulipion: i forgot what a great weekend i had at electric forest it was so painful
+[2014-07-14 22:59:48 -0400] gyoza: electric forest?
+[2014-07-14 23:00:03 -0400] Eulipion: its a music festival, im a concert photographer when im not dorking out
+[2014-07-14 23:00:05 -0400] gyoza: WAit, didnt asiz ansari talk about that place
+[2014-07-14 23:00:19 -0400] damien: looks amzing
+[2014-07-14 23:00:19 -0400] Eulipion: https://www.facebook.com/JakePlimackPhotography
+[2014-07-14 23:00:20 -0400] gyoza: and it was a bad idea
+[2014-07-14 23:00:22 -0400] gyoza: to do stuff
+[2014-07-14 23:00:49 -0400] gyoza: wow  you're probably one of the first "concert" photographers
+[2014-07-14 23:00:54 -0400] gyoza: who actually take real nice pictures
+[2014-07-14 23:00:58 -0400] Eulipion: thx
+[2014-07-14 23:01:02 -0400] gyoza: i hate most photographers
+[2014-07-14 23:01:03 -0400] damien: love that elephant one
+[2014-07-14 23:01:22 -0400] gyoza: https://www.flickr.com/photos/gamachan/
+[2014-07-14 23:01:24 -0400] gyoza: thats me
+[2014-07-14 23:01:32 -0400] gyoza: im mostly a night photographer
+[2014-07-14 23:01:35 -0400] gyoza: all my day shots suck
+[2014-07-14 23:01:35 -0400] gyoza: :P
+[2014-07-14 23:01:51 -0400] doug1: with opsworks, if I have this in my Berksfile, is opsworks gonna go grab it? cookbook "chef-solo-search", git: "https://github.com/edelight/chef-solo-search.git"
+[2014-07-14 23:02:07 -0400] gyoza: i wouldnt see why  not
+[2014-07-14 23:02:10 -0400] coderanger: doug1: Yes, or rather berks will download it
+[2014-07-14 23:02:55 -0400] doug1: coderanger: ok, cuz I'm getting 'No such cookbook: chef-solo-search' from opsworks
+[2014-07-14 23:02:55 -0400] Eulipion: gyoza: nice
+[2014-07-14 23:03:04 -0400] gyoza: Eulipion: i think we have similar styles:P
+[2014-07-14 23:03:45 -0400] doug1: wow, does opsworks start chef-zero on every instance? "INFO: Starting chef-zero on port 8889 with repository at repository at /opt/aws/opsworks/current"
+[2014-07-14 23:04:18 -0400] jkeiser: doug1: it's probably using local mode.  Don't worry, chef-zero doesn't really take up much in the way of memory or CPU
+[2014-07-14 23:04:39 -0400] gyoza: Eulipion: do you get paid to goto concerts for free?
+[2014-07-14 23:04:45 -0400] doug1: jkeiser: hope so or my douche bag boss will find a reason to bitch about it
+[2014-07-14 23:04:52 -0400] shlant: damien: are you using the redisio_install LWRP? could you not just throw a notifies onto it?
+[2014-07-14 23:05:05 -0400] shlant: or do you just, like me, have it in the run list?
+[2014-07-14 23:05:17 -0400] Eulipion: most of the time.  theres some stuff i do for free cause i love doing it.  ive been shooting for umphreys mcgee for 5 years, and they rarely pay.
+[2014-07-14 23:05:19 -0400] doug1: dunno why it complains it cant find chef-solo-search from github tho
+[2014-07-14 23:05:47 -0400] damien: shlant, exactly, I have it my run list, well, I actually made a wrapper cookbook for it, and am doing and include_recipe...
+[2014-07-14 23:06:14 -0400] damien: shlant: would the LWRP allow me to put a notify and would that get triggered if the template inside the install changed?
+[2014-07-14 23:06:18 -0400] gyoza: eulipoon: The Do Lab wanted to use my pictures they emailed me and everything and i was like "sure no problem, you can use any picture you want for 1 free ticket next year."
+[2014-07-14 23:06:27 -0400] gyoza: they responded with "oh sorry we cant do that"
+[2014-07-14 23:06:29 -0400] gyoza: lol wat??
+[2014-07-14 23:06:31 -0400] damien: shlant, if so, than that woudl definately meet my needs
+[2014-07-14 23:06:36 -0400] gyoza: you want to use my picture FOREEVER
+[2014-07-14 23:06:38 -0400] damien: I will give it a gry
+[2014-07-14 23:06:39 -0400] gyoza: and you cant give me a one time use??
+[2014-07-14 23:06:42 -0400] damien: *try
+[2014-07-14 23:06:53 -0400] gyoza: so i told them to pound sand.
+[2014-07-14 23:07:07 -0400] aslan: hey guys, I am getting an empty run list when the initial chef run fails on my clients, can anyone tell me what is going on here?
+[2014-07-14 23:07:07 -0400] shlant: damien: yea just find out the service name and try notifying it to restart
+[2014-07-14 23:07:14 -0400] Eulipion: i know those guys, i used to work with sunset promotions in SF.  just gotta get in the habbit of saying no to free shit for publicity.
+[2014-07-14 23:07:25 -0400] shlant: might be somehting like redis6379 by default
+[2014-07-14 23:07:32 -0400] damien: shlant, ah, k, I will give that a try, thanks for the suggestion!
+[2014-07-14 23:07:39 -0400] damien: yeah that sounds right
+[2014-07-14 23:07:51 -0400] gyoza: Eulipion: where do you live?
+[2014-07-14 23:07:58 -0400] Eulipion: now denver
+[2014-07-14 23:08:02 -0400] damien: I just didn't know if the install LWRP would bubble up a template change since it's embedded in it... but we'll find out :)
+[2014-07-14 23:08:02 -0400] gyoza: oh ok
+[2014-07-14 23:08:03 -0400] shlant: Eulipion: who were your favorite acts at electric forest/
+[2014-07-14 23:08:03 -0400] Eulipion: land of the free
+[2014-07-14 23:08:06 -0400] gyoza: lol
+[2014-07-14 23:08:11 -0400] gyoza: Eulipion: did you hear about Elements 11?
+[2014-07-14 23:08:21 -0400] gyoza: Some dude threw himself into the art installment that was onfire...
+[2014-07-14 23:08:26 -0400] shlant: damien: yea I don't know either but might as well try :p
+[2014-07-14 23:08:43 -0400] shlant: gyoza: yea sad stuff
+[2014-07-14 23:08:44 -0400] _pd_: hey ya'll, has anyone had a problem before where the deploy command failed with "fatal: Could not parse object  'de..' '"?
+[2014-07-14 23:09:19 -0400] Eulipion: umphreys, string cheese, lauren hill incident.
+[2014-07-14 23:09:22 -0400] damien: gyoza, seems like someone always doin that kinda thing....
+[2014-07-14 23:09:23 -0400] _pd_: seems like the git commit it's trying to pull is somehow missing, but if i clone a new repo and run the command that failed, it works
+[2014-07-14 23:09:24 -0400] Eulipion: no idea what elemets11 is
+[2014-07-14 23:09:31 -0400] damien: always one cooky one
+[2014-07-14 23:09:35 -0400] gyoza: yea he died
+[2014-07-14 23:09:39 -0400] damien: omg crazy
+[2014-07-14 23:09:42 -0400] damien: that is hard core
+[2014-07-14 23:09:45 -0400] gyoza: yes:(
+[2014-07-14 23:09:49 -0400] gyoza: dude must have had some problems.
+[2014-07-14 23:09:53 -0400] gyoza: anyway:)
+[2014-07-14 23:10:02 -0400] damien: yaup!
+[2014-07-14 23:10:16 -0400] gyoza: sorry to get so off topic guys
+[2014-07-14 23:10:31 -0400] shlant: gyoza: no worries, sometimes non-chef stuff is refreshing ahha
+[2014-07-14 23:10:47 -0400] gyoza: you can count on me then:P
+[2014-07-14 23:11:07 -0400] gyoza: Due to my ADD i am the off topic King.
+[2014-07-14 23:11:18 -0400] damien: haha roger that
+[2014-07-14 23:15:10 -0400] Eulipion: is there a chruby cookbook that uses ruby-install, ive been waiting hours on ruby-build?
+[2014-07-14 23:15:46 -0400] coderanger: Eulipion: ubuntu or centos?
+[2014-07-14 23:15:52 -0400] Eulipion: debian
+[2014-07-14 23:16:03 -0400] coderanger: Eulipion: poise-ruby
+[2014-07-14 23:16:24 -0400] Eulipion: as my old boss used to say "ubuntu is a old african word that means 'cant install debian'", and i later found out he couldnt install debian without a preseed file
+[2014-07-14 23:17:34 -0400] damien: Eulipion, lol
+[2014-07-14 23:17:37 -0400] Eulipion: coderanger: thx, this looks great
+[2014-07-14 23:18:09 -0400] gyoza: wow
+[2014-07-14 23:18:16 -0400] gyoza: i wonder if he can install slackwarE?
+[2014-07-14 23:18:48 -0400] Eulipion: haha.  i tried slack when i was like 12, and after months of not being able to startx, i gave up on linux for a few years
+[2014-07-14 23:18:57 -0400] gyoza: you know what i did instead of giving up?
+[2014-07-14 23:19:01 -0400] gyoza: Pirated acceleratedx
+[2014-07-14 23:19:21 -0400] gyoza: yea i was about 13 when i first started w/ slack
+[2014-07-14 23:19:25 -0400] gyoza: it was still on floppy
+[2014-07-14 23:19:57 -0400] monokrome: O_O
+[2014-07-14 23:20:26 -0400] monokrome: You could have used a zip drive, gyoza!
+[2014-07-14 23:20:34 -0400] gyoza: Man, i never owned one
+[2014-07-14 23:20:41 -0400] gyoza: I always wanted a Jazz drive also
+[2014-07-14 23:20:45 -0400] gyoza: never had one of those either..
+[2014-07-14 23:20:59 -0400] gyoza: now I am glad i never did
+[2014-07-14 23:21:07 -0400] gyoza: because i'd probably have all kinds of iomega crap laying around my apartment
+[2014-07-14 23:21:12 -0400] gyoza: with like "Day of the tenticle" written on it
+[2014-07-14 23:21:21 -0400] gyoza: etc etc:P
+[2014-07-14 23:21:22 -0400] damien: oh dang, them jazz drives soo rad
+[2014-07-14 23:21:46 -0400] gyoza: Sorry 1 z
+[2014-07-14 23:21:48 -0400] gyoza: Jaz
+[2014-07-14 23:21:49 -0400] monokrome: gyoza: rofl. I had a zip drive, but not jazz -- and I have a bunch of iOmega crap in my storage room now, too! -.-
+[2014-07-14 23:21:57 -0400] gyoza: monokrome: see!
+[2014-07-14 23:21:58 -0400] gyoza: :)
+[2014-07-14 23:22:05 -0400] gyoza: ok im going home guys ttyl!!
+[2014-07-14 23:23:24 -0400] damien: noight :)
+[2014-07-14 23:24:16 -0400] shlant: gyoza: peace
+[2014-07-14 23:25:46 -0400] shlant: if I install a SSL on an ELB, do the web servers not need the crt?
+[2014-07-14 23:25:54 -0400] doug1: seems like opsworks is ignoring Berksfile ?
+[2014-07-14 23:25:58 -0400] shlant: maybe I should ask ##aws
+[2014-07-14 23:25:59 -0400] coderanger: shlant: The two are unrelated
+[2014-07-14 23:26:15 -0400] Eulipion: is the ELB doing layer7 stuff?
+[2014-07-14 23:26:26 -0400] coderanger: shlant: If can do TLS client -> ELB and then plain text ELB -> backend
+[2014-07-14 23:26:36 -0400] coderanger: so in that case, yes, no TLS keys are needed on the server
+[2014-07-14 23:26:36 -0400] jbz: shlant:  If you're doing SSL termination on the ELBs, then no - traffic between the ELB and the web server will be over plain HTTP
+[2014-07-14 23:27:03 -0400] shlant: so if I want full HTTPS, I need the certs on ELB and web servers?
+[2014-07-14 23:27:17 -0400] coderanger: shlant: If you want TLS to the backend, yes
+[2014-07-14 23:27:34 -0400] coderanger: It will just be different certs in each place
+[2014-07-14 23:27:52 -0400] Eulipion: u dont really need the cert in the elb if ur doing it like that, but u will need a dedicated Ip for the ELB since it cant route vhosts without decrypting
+[2014-07-14 23:27:58 -0400] shlant: coderanger: so if I have a wilcard for *.company.com, where does that go?
+[2014-07-14 23:28:11 -0400] coderanger: shlant: Depends entirely on how you are setting up TLS
+[2014-07-14 23:28:20 -0400] aslan: coderanger: hi there, have a quick question. in my chef clients i read the role from instance data and put that in a file so client.rb can read and load the write run list. sometimes i see when the very first chef run fails for any reason the next run will set the run_list as null, and all cookbooks are removed. i have to login and manually run chef to fix it. any idea what is going on here?
+[2014-07-14 23:28:41 -0400] randeffects___: anyone know if you can run pushy or push-jobs on hosted chef or does it require an on-prem chef enterprise server?  I was not sure if enterprise chef was both private and hosted...
+[2014-07-14 23:28:58 -0400] shlant: aslan: are oyu bootstrapping?
+[2014-07-14 23:29:15 -0400] coderanger: aslan: So when you use chef-client -j for the initial run, it only saves to the server is it is successful
+[2014-07-14 23:29:16 -0400] aslan: shlant: no.
+[2014-07-14 23:29:32 -0400] coderanger: randeffects___: There are not plans I am aware of to offer it on HEC, but I don't work there
+[2014-07-14 23:30:13 -0400] coderanger: aslan: You could work around this by manually calling node.save earlier in your code
+[2014-07-14 23:30:19 -0400] coderanger: aslan: Or by not using -j
+[2014-07-14 23:30:36 -0400] aslan: coderanger: the initial chef-client which is managed by runit is usually successful. basically most of time it runs fine. but if and when it fails the first run the subsequent have null for run_list
+[2014-07-14 23:30:46 -0400] randeffects___: coderanger: thanks I'll check with HEC support
+[2014-07-14 23:31:19 -0400] coderanger: aslan: How are you setting the initial run list, is it via chef-client -j?
+[2014-07-14 23:31:35 -0400] doug1: oh. Berksfile has to go in root directory. Isn't this bad ju ju?
+[2014-07-14 23:31:51 -0400] jbarnard: I'm using AWS, and I'm new to Chef and trying to sort out how things work. Currently, I've got my bootstrap script to download and install chef, pull client.rb and validation.pem from S3. What I don't understand is how I classify those nodes so the proper things get applied to it. Ideally I'd like to tag the instance and read that in and use chef to target those tags. Does this make sense, can anyone point me at resources that explai
+[2014-07-14 23:32:38 -0400] aslan: coderanger: i read from ec2 instance data. client.rb does that actually. and parses a json file. and puts the runlist in client-config.json
+[2014-07-14 23:32:44 -0400] doug1: What's the opinion on the way Opsworks forces you to use chef?
+[2014-07-14 23:32:46 -0400] aslan: let me put this in a gist
+[2014-07-14 23:32:47 -0400] coderanger: aslan: So, yes
+[2014-07-14 23:33:15 -0400] coderanger: aslan: So what I was saying is that the json only works on the first run, and if that run fails it never saves to the server
+[2014-07-14 23:33:21 -0400] shlant: doug1: you're asking the wrong crown haha
+[2014-07-14 23:33:24 -0400] shlant: crowd
+[2014-07-14 23:33:42 -0400] doug1: shlant: well i dunno. if anyone has an opinion, it'd be the people here
+[2014-07-14 23:33:44 -0400] coderanger: doug1: the latest stack is mildly better, but their workflow is just unacceptable IMO
+[2014-07-14 23:34:11 -0400] doug1: coderanger: unfortantely my boss doesn't want anyone to have to learn chef, so he wants clicky pointy.
+[2014-07-14 23:34:48 -0400] aslan: coderanger: this is the client.rb https://gist.github.com/sv-deploy/0c8325130c1e995911a6
+[2014-07-14 23:34:51 -0400] coderanger: doug1: And their GUI workflow just doesn't work particularly well
+[2014-07-14 23:34:52 -0400] doug1: kinda bothers me I can't see the version numbers of cookbooks in the opsworks UI too
+[2014-07-14 23:35:01 -0400] n1ko: I architect from AWS told me that you shouldn't use opsworks if you know/have used 'real' chef :)
+[2014-07-14 23:35:15 -0400] doug1: n1ko: unless you have an idiot for a boss
+[2014-07-14 23:35:18 -0400] n1ko: and thats kinda the feeling i also got from looking at it a bit
+[2014-07-14 23:35:24 -0400] coderanger: aslan: Yes, same thing, if the first run fails it doesn't save the node data
+[2014-07-14 23:35:27 -0400] shlant: doug1: I would think trying to use OpsWorks without learning chef would be a dead end
+[2014-07-14 23:35:40 -0400] aslan: coderanger: what is the solution in this setup?
+[2014-07-14 23:35:52 -0400] doug1: shlant: he just wants people to press a button to deploy servers.
+[2014-07-14 23:36:01 -0400] n1ko: doug1: i wouldnt use it if you cant learn chef, and i wouldnt use it if you can :)
+[2014-07-14 23:36:09 -0400] shlant: doug1: beanstalk?haha
+[2014-07-14 23:36:16 -0400] coderanger: aslan: As I said, either don't use -j (or json_attribs, same difference) and set the node data directly in the server or call node.save early on in your code so that it forces a save, but make sure to only do that once
+[2014-07-14 23:36:18 -0400] doug1: n1ko: unless you don't have a choice
+[2014-07-14 23:36:30 -0400] shlant: n1ko: +1
+[2014-07-14 23:36:33 -0400] coderanger: jbarnard: There are many options
+[2014-07-14 23:36:48 -0400] doug1: the boss thinks that changing a package version number in an attribute file and then pushing that back to the chef server doesn't scale.
+[2014-07-14 23:36:49 -0400] coderanger: jbarnard: If are using cfn, you can use the cfn-init helpers for example
+[2014-07-14 23:36:57 -0400] n1ko: doug1: yes you do, use cloudformations
+[2014-07-14 23:37:10 -0400] doug1: n1ko: that has even more issues
+[2014-07-14 23:37:22 -0400] coderanger: doug1: Building a system like that is an investment of about $1M
+[2014-07-14 23:37:34 -0400] coderanger: doug1: If you are willing to spend that much, you can do it, if not, you can't
+[2014-07-14 23:37:47 -0400] doug1: coderanger: i did point out to him that we don't have the engineering resources of right scale, who he is trying to replace.
+[2014-07-14 23:38:06 -0400] doug1: *sigh*
+[2014-07-14 23:39:32 -0400] jbarnard: coderanger: I'm just using a shell script to bootstrap, I will look into cfn-init
+[2014-07-14 23:49:14 -0400] aslan: coderanger: when you say set the node data directly in the server, does that mean i have the run_list in my client.rb? and when you say node.save should be called early where exactly should that happen? in the client.rb?
+[2014-07-14 23:49:55 -0400] coderanger: aslan: You would have to build a much more complex initialization system
+[2014-07-14 23:50:00 -0400] coderanger: aslan: It isn't just a thing you can use
+[2014-07-14 23:51:52 -0400] aslan: coderanger: I wouldn't wan't you to explain a very complex "initialization system" here ,  but can you give me a link or something that i can follow?
+[2014-07-14 23:52:38 -0400] coderanger: aslan: No, just the API docs. Normally chef-client registers itself when it starts up but you could create the client and node object in your own script and then set the node data, and then start chef-client
+[2014-07-14 23:53:03 -0400] coderanger: since in that flow, even if it fails, the node data is still there
+[2014-07-14 23:54:21 -0400] aslan: coderanger: can i stuff the data to ohai? would chef read from there?
+[2014-07-14 23:54:27 -0400] coderanger: aslan: No
+[2014-07-14 23:55:36 -0400] aslan: coderanger: how does the node.save method work?
+[2014-07-14 23:57:12 -0400] coderanger: aslan: something like this http://hastebin.com/sijuqoyala.rb
+[2014-07-14 23:57:47 -0400] aslan: coderanger: and that goes into my client.rb?
+[2014-07-14 23:57:55 -0400] coderanger: aslan: no, that is recipe code
+[2014-07-14 23:58:10 -0400] coderanger: aslan: If you would like personalized help with this, I'm happy to discuss my consulting services
+[2014-07-14 23:58:30 -0400] aslan: coderanger: i might at some point how does that work?
+[2014-07-14 23:59:09 -0400] coderanger: aslan: There are many options, a screensharing session of skype might be apropos here
+[2014-07-14 23:59:30 -0400] coderanger: aslan: If you are interested, I can shoot you an email with details

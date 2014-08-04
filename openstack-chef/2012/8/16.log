@@ -1,0 +1,74 @@
+[2012-08-16 15:02:05 -0400] mattray: still debugging
+[2012-08-16 15:19:45 -0400] mattray: and rebooting makes things worse
+[2012-08-16 15:22:15 -0400] mattray: ok, reinstalling yet again, going to look for errors in the logs before trying to install an instance
+[2012-08-16 19:46:15 -0400] mattray: no errors there, everything fails when I add an instance. Something must be overlooked
+[2012-08-16 21:30:07 -0400] mattray: rpedde: wkelly: the mysql and database cookbooks just got a major overhaul.
+[2012-08-16 21:31:01 -0400] wkelly: mattray: hah!  looking now
+[2012-08-16 21:32:35 -0400] mattray: wkelly: Riot Games took most of the outstanding tickets and cleaned it all up with our guidance. If it doesn't pass the muster soon, we can start talking about a mysql-simple or something
+[2012-08-16 21:32:57 -0400] wkelly: mattray: yeah, looks like a lot has been cleaned up there
+[2012-08-16 21:33:17 -0400] wkelly: but there are some idempotency problems I should probably make bugs on
+[2012-08-16 21:33:42 -0400] mattray: we've got it hooked into TestKitchen internally, jtimberman and others are working hard to get that out
+[2012-08-16 21:33:50 -0400] wkelly: cool!
+[2012-08-16 21:35:39 -0400] mattray: wkelly: you have a minute to help me debug nova-network?
+[2012-08-16 21:36:00 -0400] mattray: my vms get IPs assigned to them, nothing comes up though
+[2012-08-16 21:37:53 -0400] mattray: I see an error message about "instance-00000001" in the nova-api-os-compute.log, but I have no idea where that comes from
+[2012-08-16 21:38:00 -0400] mattray: shows up before I create any vms
+[2012-08-16 21:38:43 -0400] mattray: no stack traces happen after I create a vm
+[2012-08-16 21:38:51 -0400] wkelly: hm!  I haven't run into that one before
+[2012-08-16 21:39:31 -0400] wkelly: check the task_state column in the instances database for one of the instances you tried to spin
+[2012-08-16 21:39:39 -0400] wkelly: sometimes that is helpful
+[2012-08-16 21:39:49 -0400] wkelly: er, instances table of the nova database
+[2012-08-16 21:41:19 -0400] mattray:  /var/log/libvirt/libvirtd.log was complaining about pm-is-supported, adding pm-utils
+[2012-08-16 21:41:25 -0400] mattray: lemme check that table
+[2012-08-16 21:47:52 -0400] mattray: "networking" for both
+[2012-08-16 21:50:38 -0400] wkelly: hm!
+[2012-08-16 21:50:59 -0400] wkelly: and you say they have ip addresses assigned
+[2012-08-16 21:51:13 -0400] wkelly: compute sends a request out to network, network responds, compute should proceed
+[2012-08-16 21:51:27 -0400] wkelly: so your problem is probably not nova-network at this point
+[2012-08-16 21:51:55 -0400] wkelly: unless it is silently deciding not to send things to rabbit
+[2012-08-16 21:52:17 -0400] mattray: yeah, here are my network settings: https://github.com/mattray/openstack-chef-repo/blob/essex/roles/os-networks.rb
+[2012-08-16 21:52:49 -0400] mattray: where my eth0 network is 10.0.111.x and I'm letting nova manage 10.0.111.130 and up
+[2012-08-16 21:52:58 -0400] mattray: is my 2 vms have 10.0.111.130 and 10.0.111.132
+[2012-08-16 21:56:11 -0400] mattray: nothing there
+[2012-08-16 21:56:20 -0400] mattray: I'm using the precise image out of the rackspace dvd
+[2012-08-16 21:57:38 -0400] mattray: looks like something in the upstart/nova-compute.log
+[2012-08-16 21:59:18 -0400] mattray: https://gist.github.com/ebafbe865a907036b0b9
+[2012-08-16 22:00:42 -0400] mattray: one of these days I'll get networking right
+[2012-08-16 22:02:45 -0400] wkelly: ah
+[2012-08-16 22:02:58 -0400] wkelly: neither nova nor our chefs will make a vlaned interface for you
+[2012-08-16 22:03:24 -0400] wkelly: set bridge_dev to some interface that exists or manually make the vlaned interface
+[2012-08-16 22:04:14 -0400] mattray: it's manual before the cookbooks run?
+[2012-08-16 22:04:31 -0400] mattray: or, at least assumed already setup beforehand/
+[2012-08-16 22:21:29 -0400] wkelly: mattray: that's correct--we don't touch interfaces at all with any of our chef recipes
+[2012-08-16 22:22:07 -0400] mattray: wkelly: do you have a doc somewhere of pre-reqs before applying Chef to an environment?
+[2012-08-16 22:22:28 -0400] mattray: I want to automate that in my lab-repo and point people to that so they have everything ready to go
+[2012-08-16 22:22:54 -0400] mattray: like me finding the sudoers.d thing yesterday
+[2012-08-16 22:23:48 -0400] wkelly: mattray: I do not have such a doc!  my suggestion would be to use a network definition with bridge_interface set to physical interfaces
+[2012-08-16 22:23:56 -0400] wkelly: one per interface
+[2012-08-16 22:24:00 -0400] wkelly: that will work with no setup
+[2012-08-16 22:24:08 -0400] mattray: what about any other OS prep?
+[2012-08-16 22:24:22 -0400] mattray: like packages?
+[2012-08-16 22:24:23 -0400] wkelly: that's really the big one
+[2012-08-16 22:24:50 -0400] mattray: I guess the sudoers.d thing was me using Chef's sudoers cookbook and not re-enabling a default :/
+[2012-08-16 22:24:51 -0400] wkelly: we do minimal installs of ubuntu-precise, slap on the chef client, set up our environment, and go
+[2012-08-16 22:25:01 -0400] mattray: yeah, me too (mostly)
+[2012-08-16 22:25:10 -0400] wkelly: no prep necessary except in the case of vlans
+[2012-08-16 22:25:23 -0400] mattray: anything in your preseed?
+[2012-08-16 22:25:39 -0400] wkelly: I install emacs ;P
+[2012-08-16 22:25:51 -0400] mattray: this is mine: https://github.com/opscode-cookbooks/pxe_dust/blob/master/templates/default/ubuntu-preseed.cfg.erb
+[2012-08-16 22:26:03 -0400] mattray: I should put emacs in there :)
+[2012-08-16 22:26:05 -0400] wkelly: haha
+[2012-08-16 22:26:38 -0400] wkelly: on my test environment, I use debootstrap to make a little kvm image without any crazy options
+[2012-08-16 22:27:26 -0400] mattray: that preseed is what I test with, then I throw https://github.com/mattray/lab-repo/blob/master/roles/lab-base.rb on top
+[2012-08-16 22:27:27 -0400] wkelly: it injects my ssh key, installs emacs, and maybe adds extra nics or disks according to my needs.  I have a post-install script that sshs in to install chef, and that is all
+[2012-08-16 22:28:10 -0400] wkelly: that should work fine!
+[2012-08-16 22:28:11 -0400] wkelly: hehe
+[2012-08-16 22:28:13 -0400] mattray: I've got this recipe setting up my nics, I need to put the bridge_interface in there https://github.com/mattray/lab-repo/blob/master/cookbooks/labsetup/recipes/default.rb
+[2012-08-16 22:28:43 -0400] wkelly: that'll work just fine
+[2012-08-16 22:29:09 -0400] wkelly: if you want to use vlans, you may need to install the 'vlan' package on ubuntu
+[2012-08-16 22:29:30 -0400] wkelly: our recipes will install it, but if your network config gets dropped in advance of that, nastiness may occur
+[2012-08-16 22:30:15 -0400] wkelly: but once that is installed, you could just drop in the config block in your interfaces config, and all will be well
+[2012-08-16 22:33:15 -0400] wkelly: mattray: three of us do our work using this: https://github.com/rpedde/fakecloud
+[2012-08-16 22:33:22 -0400] wkelly: three of us use vagrant / virtbox
+[2012-08-16 22:42:54 -0400] mattray: I'm out tomorrow, nova-network will continue to hate me
+[2012-08-16 22:48:25 -0400] wkelly: haha

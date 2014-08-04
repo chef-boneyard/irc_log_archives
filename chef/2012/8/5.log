@@ -1,0 +1,119 @@
+[2012-08-05 00:15:02 -0400] rayrod2030: greetings
+[2012-08-05 00:15:48 -0400] flaccid: sudo chef-solo -c ./examples/chef-solo/solo.rb produces Did not find config file: ./examples/chef-solo/solo.rb, using command line options.. does chef-solo not support relative path for configuration file option? it seemed to work ok for -j but not -c ?
+[2012-08-05 00:17:27 -0400] flaccid: wtf sudo chef-solo -c `pwd`/examples/chef-solo/solo.rb doesn't work either even though the path is correct
+[2012-08-05 00:22:49 -0400] yfeldblum: flaccid, does root have read access to that file?
+[2012-08-05 00:23:13 -0400] flaccid: yfeldblum: looks like i'm trying to be too dynamic. i don't think it likes me trying things like cookbook_path [ "/usr/src/chef-cookbooks/default" ]
+[2012-08-05 00:23:14 -0400] flaccid: json_attribs "#{File.read(File.join(Dir.pwd, '..', 'examples', 'chef-solo', 'node.json'))}"
+[2012-08-05 00:23:51 -0400] yfeldblum: flaccid, jfyi, using Dir.pwd there seems to me to be a programming mistake
+[2012-08-05 00:24:38 -0400] flaccid: yfeldblum: ok, how can i configure cookbook_path in the solo.rb to be relative to its pwd?
+[2012-08-05 00:24:44 -0400] yfeldblum: flaccid, instead, try `json_attribs Pathname(__FILE__).join("../../examples/chef-solo/node.json").read` (here i use Pathname because it makes things clearer, not because it's the fix)
+[2012-08-05 00:24:57 -0400] flaccid: kk one sec
+[2012-08-05 00:25:18 -0400] yfeldblum: flaccid, so the bugfix for you is `File.join(__FILE, '..', '..')` instead of `File.join(Dir.pwd, '..')`
+[2012-08-05 00:29:35 -0400] flaccid: what is __FILE ?
+[2012-08-05 00:30:01 -0400] yfeldblum: flaccid, that should be __FILE__
+[2012-08-05 00:30:58 -0400] flaccid: well for example if i try cookbook_path File.join(Pathname(__FILE__), '..', '..', 'cookbooks')
+[2012-08-05 00:31:14 -0400] flaccid: it will return FATAL: Chef::Exceptions::CookbookNotFound: No cookbook found in "examples/chef-solo/solo.rb/../../cookbooks", make sure cookbook_path is set correctly.
+[2012-08-05 00:31:43 -0400] flaccid: as i can use sudo chef-solo -c examples/chef-solo/solo.rb  this directive is technically the only dynamic one i need to set
+[2012-08-05 00:33:25 -0400] flaccid: yfeldblum: am i still being a big n00b here?
+[2012-08-05 00:34:40 -0400] yfeldblum: flaccid, try: `Pathname(__FILE__).join('../../cookbooks').expand_path` or `Pathname('../../cookbooks').expand_path(__FILE__)`
+[2012-08-05 00:36:51 -0400] flaccid: yfeldblum: they are returning FATAL: Chef::Exceptions::CookbookNotFound: No cookbook found in #<Pathname:/Users/flaccid/src/github/rightscale-blueprints/linux_server/examples/cookbooks>, make sure cookbook_path is set correctly.
+[2012-08-05 00:36:56 -0400] flaccid: should i interpolate it?
+[2012-08-05 00:37:20 -0400] flaccid: oh thats slightly wrong path, sec
+[2012-08-05 00:39:17 -0400] flaccid: yeah i dunno why using expand_path on __FILE__. relative to the pwd of running chef-solo, the solo.rb is in examples/chef-solo/ and cookbooks is in cookbooks/
+[2012-08-05 00:39:37 -0400] flaccid: its basically this https://github.com/rightscale-blueprints/linux_server/tree/master/examples/chef-solo
+[2012-08-05 00:40:10 -0400] flaccid: vagrant had no problem with my prior technique in Vagrantfile, https://github.com/rightscale-blueprints/linux_server/blob/master/vagrant/Vagrantfile
+[2012-08-05 00:43:57 -0400] flaccid: ah its relative differnetly
+[2012-08-05 00:44:00 -0400] flaccid: cookbook_path File.join(Dir.pwd, 'cookbooks') will work!
+[2012-08-05 00:44:15 -0400] flaccid: and yeah my bad on leaving that File.read in there. thanks for the help! i learnt some stuff
+[2012-08-05 00:53:12 -0400] flaccid: if you use -r with chef solo, is there a directive/option to tell chef solo that the cookbooks are in the cookbooks/ for the remote archive?
+[2012-08-05 00:54:31 -0400] flaccid: it seems smart enough i think
+[2012-08-05 00:58:29 -0400] rayrod2030: anybody use bryan_wb's log stash cookbook?
+[2012-08-05 00:59:07 -0400] flaccid: yfeldblum: thanks again. this shall do for now!! https://github.com/rightscale-blueprints/linux_server#chef-solo
+[2012-08-05 02:22:57 -0400] erratic_: man this place is dead on the weekend
+[2012-08-05 02:26:51 -0400] hoover_damm: why arn't you at seafair?
+[2012-08-05 02:26:53 -0400] hoover_damm: with the rest of the loosers?
+[2012-08-05 02:27:03 -0400] hoover_damm: I'd go but dang it's hot
+[2012-08-05 02:27:08 -0400] hoover_damm: feel like i'd melt
+[2012-08-05 04:37:46 -0400] rayrod2030: anybody ever have their cookbooks directory disappear while doing knife cookbook site vendor?
+[2012-08-05 04:43:34 -0400] kyank1: rayrod2030: Do a git branch in your chef-repo directory to see what branch it left you on.
+[2012-08-05 04:43:50 -0400] rayrod2030: yeah that's what I'm looking at.  that seems to be the issue.
+[2012-08-05 04:44:29 -0400] kyank: rayrod2030: Cool. site vendor creates a new branch for each cookbook you add, which it uses to track future changes to those cookbooks and merge them into your master branch, which contains all your cookbooks.
+[2012-08-05 04:45:11 -0400] kyank: rayrod2030: git checkout master should put you back in the saddle. Then Id re-try the site vendor command and see if I could spot any errors that were happening that might explain why you were left on a vendor branch.
+[2012-08-05 04:46:03 -0400] rayrod2030: for some reason when it switches back to master the cookbooks directory is missing.  so odd.
+[2012-08-05 04:46:39 -0400] rayrod2030: and when I checkout chef-vendor-logrotate it's there.
+[2012-08-05 04:49:45 -0400] rayrod2030: ok manually merged chef-vendor-logrotate to master.  let's see if that fixes it.
+[2012-08-05 08:04:19 -0400] nRyo: Can CHEF be used to automate things on Windows Server OS?
+[2012-08-05 09:31:15 -0400] drrk: ttp://wiki.opscode.com/display/chef/Installing+Chef+Client+on+Windows <- looks like it
+[2012-08-05 11:44:55 -0400] bahman2000: anyone alive :) ?
+[2012-08-05 11:45:25 -0400] bahman2000: i have a question about knife ec2 server creat for windows instances
+[2012-08-05 13:31:03 -0400] bahman2000: hurho?
+[2012-08-05 13:51:54 -0400] Liku: Hi can someone please advice how use array at attributes variables?Only condition I have is at result  to write it in a one line  in template erb file
+[2012-08-05 13:53:42 -0400] Liku: like I use default["test"]["rest"]=["one","two","three"] at attributes.rb
+[2012-08-05 13:54:51 -0400] Liku: what should I write at template to get at result array but in a one line like : one two three
+[2012-08-05 14:10:02 -0400] crftr: Liku it looks like you're really trying to use a Hash
+[2012-08-05 14:10:14 -0400] crftr: not an Array
+[2012-08-05 14:10:59 -0400] crftr: Liku for example, this would create your Hash:  default = {"test" => {"rest" => ["one", "two", "three"]}}
+[2012-08-05 14:11:29 -0400] crftr: Liku then to get your desired output, it would be: default["test"]["rest"].join(' ')
+[2012-08-05 14:14:07 -0400] yfeldblum: crftr, he's assigned an array in the attributes file just fine
+[2012-08-05 14:14:24 -0400] yfeldblum: Liku, <%= node["test"]["rest"].join(" ") %>
+[2012-08-05 14:15:40 -0400] crftr: 10-4
+[2012-08-05 14:19:19 -0400] Liku: got that, thanks,  trying
+[2012-08-05 14:35:52 -0400] Liku: crftr: how do I need to write that in a role file?   { "test" => { "rest" => ["one", "two", "three" ]}} ?
+[2012-08-05 14:36:35 -0400] Liku: if yes then I get an error: syntax error, unexpected '\n', expecting tASSOC
+[2012-08-05 14:38:53 -0400] crftr: Liku, according to yfeldblum, you shouldn't need to change the variable assignment.
+[2012-08-05 14:40:16 -0400] yfeldblum: Liku, in a *.rb role file: default_attributes({"test" => {"rest" => ["one", "two", "three"]}})
+[2012-08-05 14:40:44 -0400] yfeldblum: Liku, in a *.json role file: "default_attributes": {"test": {"rest": ["one", "two", "three"]}}
+[2012-08-05 14:44:18 -0400] Liku: got that, what kind of format is this:  at *.rb file   default_attributes :test => { ... }
+[2012-08-05 14:44:47 -0400] yfeldblum: Liku, it's Ruby code
+[2012-08-05 14:45:08 -0400] yfeldblum: Liku, it's calling the instance method #default_attributes, and passing in a single argument
+[2012-08-05 14:45:19 -0400] yfeldblum: Liku, this single argument is an instance of class Hash
+[2012-08-05 14:45:38 -0400] yfeldblum: Liku, this Hash that you're passing in has a single key, `:test`, and a single value corresponding to that key, `{ ... }`
+[2012-08-05 14:46:32 -0400] yfeldblum: Liku, in Ruby, you're allowed to call methods without having parentheses around the arguments, so long as it's unambiguous (in the case where there's ambiguity, you have to add parentheses around the arguments)
+[2012-08-05 14:46:47 -0400] allan_wind: Can you use node info in a role definition?
+[2012-08-05 14:47:07 -0400] yfeldblum: Liku, in Ruby, you're allowed to pass a Hash literal as the last argument to a method without enclosing the Hash literal in braces (i.e. { and } )
+[2012-08-05 14:47:25 -0400] Liku: where can I read more about that?
+[2012-08-05 14:47:30 -0400] yfeldblum: Liku, so that's equivalent code to: default_attributes({:test => { ... })
+[2012-08-05 14:47:48 -0400] yfeldblum: Liku, so that's equivalent code to: default_attributes({:test => { ... }})     (fixed)
+[2012-08-05 14:48:16 -0400] yfeldblum: Liku, but we get to skip the parentheses because it's unambiguous and we get to skip the braces because it's the last argument and again it's unambiguous
+[2012-08-05 14:48:45 -0400] yfeldblum: Liku,  http://en.wikibooks.org/wiki/Ruby_Programming/Syntax/Method_Calls
+[2012-08-05 14:48:53 -0400] yfeldblum: allan_wind, no
+[2012-08-05 14:49:55 -0400] yfeldblum: Liku, so it's just a normal method call syntax for Ruby, in the optional "Pretty Mode"
+[2012-08-05 14:50:03 -0400] Liku: yfeldblum: thank you, *reading*
+[2012-08-05 14:54:19 -0400] allan_wind: yfeldblum: hmm.... so I am writing an iptables cookbook, and I want to reference the IP address of my nagios and munin server.  The IP address change based on the where the particular server is located.  The way to do it then, I guess, is to have a role per environment instead of as planned a single config that picks up just the relevant IP addresses.
+[2012-08-05 14:55:12 -0400] railsraider: i need to install actove_record before a library file is loaded
+[2012-08-05 14:55:19 -0400] yfeldblum: allan_wind, that's one alternative; but this is software, so as long as we understand the abstractions correctly and so long as we understand the relationships between parts correctly, we should be able to do complicated things
+[2012-08-05 14:55:33 -0400] railsraider: my library is connecting to a database
+[2012-08-05 14:56:04 -0400] railsraider: but it's using active record, how can i install active record before it do the require 'active_record'
+[2012-08-05 14:56:39 -0400] allan_wind: yfeldblum: were you thinking of an alternative?
+[2012-08-05 14:57:16 -0400] yfeldblum: allan_wind, write a recipe which knows how to search for the nagios and munin servers
+[2012-08-05 14:59:00 -0400] allan_wind: yfeldblum: isn't it better to keep environment specific configuration in attributes instead of recipes?
+[2012-08-05 14:59:45 -0400] yfeldblum: allan_wind, do all environments have a nagios server and a munin server?
+[2012-08-05 15:01:38 -0400] allan_wind: allan_wind: I meant as in this particular company's network configuration.  There is one munin and nagios server, they are access the client hosts via different routes
+[2012-08-05 15:02:33 -0400] allan_wind: yfeldblum: while my iptables need to know about all servers seems like configuration dependency
+[2012-08-05 15:05:03 -0400] yfeldblum: allan_wind, so write a recipe in a cookbook just for that company that searches for the munin and nagios server, and changes the node attributes that the iptables cookbook listens for
+[2012-08-05 15:05:56 -0400] allan_wind: k
+[2012-08-05 15:06:05 -0400] allan_wind: thx again for your valuable insight
+[2012-08-05 15:50:59 -0400] rayrod2030: anybody using collected with graphite?
+[2012-08-05 17:43:01 -0400] bahman2000: hurho
+[2012-08-05 17:43:19 -0400] bahman2000: anyone alive ?
+[2012-08-05 17:44:10 -0400] bahman2000: having problems installing sql_server::server, anyone has any experience?
+[2012-08-05 23:37:17 -0400] r1chelt: Hello. I am bit confused about the chef installation. The "knife configure -i" is supposed to run on my workstation or the server? or both?
+[2012-08-05 23:46:28 -0400] r1chelt: anybody ? :)
+[2012-08-05 23:48:32 -0400] yfeldblum: r1chelt, on your workstation, usually
+[2012-08-05 23:49:11 -0400] yfeldblum: r1chelt, however, it appears you're asking a rather narrow question when you're actually wondering about something broader
+[2012-08-05 23:49:47 -0400] r1chelt: the wiki confuses me in the way that I never really know from the I should be running commands
+[2012-08-05 23:49:55 -0400] r1chelt: from where*
+[2012-08-05 23:50:36 -0400] yfeldblum: r1chelt, the wiki is indeed confusing
+[2012-08-05 23:50:46 -0400] yfeldblum: r1chelt, what are you stuck at?
+[2012-08-05 23:50:51 -0400] siezer: how do I supress stdout in mixlib-shellout?
+[2012-08-05 23:52:15 -0400] r1chelt: I was about to install chef-server on my ubuntu vps. To my understanding, my home pc is the working station. chef-server I install on my remote server. But I dont understand what chef-solo is
+[2012-08-05 23:53:21 -0400] siezer: chef-solo lets you use chef without a server... its a pain because you can't do search() and other fun stuff
+[2012-08-05 23:56:04 -0400] siezer: what is your third node (the one under managemenet?)
+[2012-08-05 23:56:06 -0400] siezer: ubuntu?
+[2012-08-05 23:56:07 -0400] bawt: ubuntu is ubuntu
+[2012-08-05 23:56:24 -0400] siezer: thanks bawt
+[2012-08-05 23:57:21 -0400] yfeldblum: r1chelt, http://wiki.opscode.com/display/chef/Chef+Solo
+[2012-08-05 23:57:44 -0400] yfeldblum: r1chelt, in a sense, chef-solo is a glorified script runner
+[2012-08-05 23:58:56 -0400] yfeldblum: r1chelt, you scp a set of cookbooks onto the server in question, update the node.json file with updated data, and run chef-solo to reconfigure the server based on the node.json and the cookbooks
+[2012-08-05 23:59:11 -0400] r1chelt: thx feldblum. well here is actually my client.log with my current errors http://pastebin.com/J459ea94
+[2012-08-05 23:59:37 -0400] yfeldblum: r1chelt, Connection refused connecting to chef.myhost.de:4000

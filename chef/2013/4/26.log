@@ -1,0 +1,469 @@
+[2013-04-26 00:15:39 -0400] mhalligan: has anyone run into "Ran rabbitmqctl set_permissions -p /sensu sensu "".*"" "".*"" "".*"" returned 1
+[2013-04-26 00:15:40 -0400] mhalligan: " with the sensu cookbook?
+[2013-04-26 00:17:57 -0400] jed_: sounds like something didn't go right with RabbitMQ, that command would probably fail if RabbitMQ were not running
+[2013-04-26 00:18:47 -0400] jed_: I don't know of many other ways it could fail, try the command verbatim and see if you can coerce output
+[2013-04-26 00:19:39 -0400] jed_: it's idempotent and safe to run more than once
+[2013-04-26 00:22:29 -0400] rava: anyone use the nagios cookbook?
+[2013-04-26 00:23:37 -0400] rava: if i set the nagios.host_name_attribute to "name" for a node attribute, it renders the templates with that variable as blank
+[2013-04-26 00:24:09 -0400] rava: does it require the value be a symbol?
+[2013-04-26 00:25:08 -0400] flaccid: hmm i assume node.recipes is only going to work with chef solo?
+[2013-04-26 00:28:03 -0400] flaccid: oops, i mean not work with chef solo!
+[2013-04-26 00:29:20 -0400] flaccid: ah yes it will; dw
+[2013-04-26 00:50:16 -0400] gansbrest: is it possible to access data bag from attribute file, getting - Undefined node attribute or method `data_bag_item' on `node'
+[2013-04-26 01:43:19 -0400] murphy_slaw: I believe I've found a bug in chef-client 11.4, can I get a sanity check?
+[2013-04-26 01:43:53 -0400] stormerider: murphy_slaw: what's up?
+[2013-04-26 01:44:26 -0400] murphy_slaw: it looks like if the client gets a server error when running in daemon mode, you can end up with a deadlock on the pidfile
+[2013-04-26 01:44:33 -0400] murphy_slaw: flow is like this:
+[2013-04-26 01:45:09 -0400] murphy_slaw: 1) client starts a run, flocks() chef-client-running.pid
+[2013-04-26 01:45:32 -0400] murphy_slaw: 2) client gets a server error, which throws an exception
+[2013-04-26 01:45:49 -0400] murphy_slaw: 3) rescue block doesn't close the filehandle to the pid or clear the lock
+[2013-04-26 01:46:04 -0400] jed_: 11.4.0?
+[2013-04-26 01:46:07 -0400] murphy_slaw: 4) chef sleeps for Chef::Config[:interval]
+[2013-04-26 01:46:19 -0400] murphy_slaw: 5. chef starts the run again
+[2013-04-26 01:46:52 -0400] stormerider: istr hearing something about that before and that it was patched already, not sure which release it's in though
+[2013-04-26 01:46:54 -0400] murphy_slaw: 6. chef tries to LOCK_EX the pidfile in blocking mode and blocks forever because of its own previous lock
+[2013-04-26 01:46:59 -0400] jed_: there was a bugfix for PID filing in 11.4.2
+[2013-04-26 01:47:07 -0400] murphy_slaw: jed_: yeah, 11.4.0
+[2013-04-26 01:47:24 -0400] jed_: I got an even cooler failure mode which was exponential forks (if you use --fork, it'll probably Do That)
+[2013-04-26 01:47:32 -0400] stormerider: 11.4.0 also has some SSL issues, 11.4.4 is what i had to upgrade to
+[2013-04-26 01:47:41 -0400] jed_: so 1 made 2, 2 made 4, 4 made 8, came back from lunch and had ~2500 clients running
+[2013-04-26 01:47:57 -0400] jed_: I'm qualing 11.4.4 now, suggest upgrade, =stormerider
+[2013-04-26 01:47:57 -0400] stormerider: jed_: eep!
+[2013-04-26 01:48:32 -0400] jed_: yeah, only thing that prevented it was 32 GB of RAM being exhausted
+[2013-04-26 01:49:14 -0400] jed_: murphy_slaw: I couldn't get --prerelease in `knife bootstrap` to use 11.4.2 or 11.4.4, so I grabbed 11.4.4's RPM, installed it manually, then ran `knife boostrap` which worked okay
+[2013-04-26 01:49:32 -0400] jed_: that's qualifying now, as I said, so I'd suggest try 11.4.4 and see if the issue repeats
+[2013-04-26 01:49:43 -0400] jed_: it seemed to be triggered by the chef-client cookbook needing to screw with the chef-client service
+[2013-04-26 01:49:44 -0400] murphy_slaw: k, i'll look at  the release notes of 11.4.2 & 11.4.4
+[2013-04-26 01:50:52 -0400] jed_: the actual bug I'm hinting at was the PID file being removed erroneously
+[2013-04-26 01:50:57 -0400] jed_: I'm not sure if they're related, but they might be, worth a try
+[2013-04-26 01:51:45 -0400] stormerider: even if its not the exact same bug, resolving one may have affected the other
+[2013-04-26 01:51:51 -0400] jed_: nod
+[2013-04-26 01:55:20 -0400] murphy_slaw: don't see anything in there about flock...
+[2013-04-26 01:56:25 -0400] murphy_slaw: yeah, i'll look at the code
+[2013-04-26 02:05:41 -0400] murphy_slaw: k, bug is still there in 11.4.4
+[2013-04-26 02:06:05 -0400] murphy_slaw: the problem is that if you get an error during register(), the lock doesn't get cleared
+[2013-04-26 02:06:08 -0400] jed_: lame
+[2013-04-26 02:06:33 -0400] murphy_slaw: because it's not in the block that ensures that the lock gets cleared and the filehandle gets closed
+[2013-04-26 02:26:35 -0400] murphy_slaw: http://tickets.opscode.com/browse/CHEF-4132 if anyone's interested :)
+[2013-04-26 02:43:19 -0400] flaccid: cole*slaw is yummy
+[2013-04-26 02:43:22 -0400] flaccid: thanks murphy_slaw
+[2013-04-26 03:39:17 -0400] kallistec: murphy_slaw: see CHEF-4010, fixed in master
+[2013-04-26 03:39:33 -0400] murphy_slaw: yep, saw it
+[2013-04-26 07:24:05 -0400] m4rcu5: good morning
+[2013-04-26 08:14:36 -0400] m4rcu5: im trying to get into the whole new chef 11 structure, but i keep hitting my head
+[2013-04-26 08:15:14 -0400] m4rcu5: what for example keeps chef 11 server running? there is no init script of sorts, and nothing in the chef-server cookbook which installs an init.d script of supervisor
+[2013-04-26 08:21:29 -0400] evxd: m4rcu5: everything is initialized and controlled via chef-server-ctl. check out this blog post for more info: http://www.opscode.com/blog/2013/03/11/chef-11-server-up-and-running/
+[2013-04-26 08:22:56 -0400] m4rcu5: evxd: ive read something about it, but how does it ensure chef gets started on a reboot without manual intervention?
+[2013-04-26 08:24:17 -0400] m4rcu5: on the client side you need to use the chef-client cookbook to get a init script of some sorts
+[2013-04-26 08:41:52 -0400] gor: Hi guys. I'm just getting started with chef, and I stumbled upon one question: Is there a way to set node-specific attributes via `knife node edit <fqdn>`?
+[2013-04-26 08:53:13 -0400] bluekelp: gor: yes. i don't recall the json keys for this but google should bring up an example
+[2013-04-26 09:29:42 -0400] johngouf: hey guys, when I run chef-server-ctl reconfigure I get the error STDERR: createdb: could not connect to database template1: could not connect to server: No such file or directory Is the server running locally and accepting connections on Unix domain socket "/tmp/.s.PGSQL.5432"? anyone else facing that?
+[2013-04-26 10:20:25 -0400] davent_: Anyone else have problems with private hosted chef saving attributes in environments?
+[2013-04-26 10:51:30 -0400] gor: davent_: try adding attributes through web interface
+[2013-04-26 10:52:13 -0400] shay-: hi, i want to install rpms with package ressource, but this fails due to dependencies. a rpm -Uhv clamav failes, but rpm -Uhv clamav clamav-db works. Is there a way to do that with package resource or do I have to do that with execute ressource?
+[2013-04-26 10:56:41 -0400] davent: got tried knife and web interface
+[2013-04-26 10:56:51 -0400] davent: Web says it has updated but nothing changes
+[2013-04-26 10:56:59 -0400] davent: Kife says "Object unchanged, not saving"
+[2013-04-26 11:52:18 -0400] masterkorp: RAWWWRRRR
+[2013-04-26 12:19:27 -0400] fclausen: hey all, I'm trying to use "knife ssh" but it always says auth failed even though I have my SSH keys setup. In knife.rb I have specified knife[:ssh_identity_file] and knife[:ssh_user] to specify my ssh private key and user name, respectively. What am I missing?
+[2013-04-26 12:19:36 -0400] fclausen: manual SSH works fine
+[2013-04-26 12:19:45 -0400] masterkorp: fclausen: try with -a ipaddress
+[2013-04-26 12:20:53 -0400] fclausen: masterkorp: I shall try that. I am initially trying with 'name:*partialhostname*' which can find the hosts but fails auth. I will try with -a and the ipaddress
+[2013-04-26 12:21:23 -0400] fclausen: masterkorp: Ah I see, that is an attribute to use IP instead of FQDN
+[2013-04-26 12:21:26 -0400] fclausen: trying...
+[2013-04-26 12:22:27 -0400] masterkorp: http://weknowgifs.com/wp-content/uploads/2013/03/its-magic-shia-labeouf-gif.gif
+[2013-04-26 12:24:31 -0400] fclausen: haha! nice gif
+[2013-04-26 12:24:49 -0400] masterkorp: fclausen: status report !
+[2013-04-26 12:24:59 -0400] masterkorp: is it a success ?
+[2013-04-26 12:25:13 -0400] fclausen: masterkorp: I did "-a ipaddress" and it now indeed uses the IP address but same result. Using regular ssh me@1.1.1.1 works
+[2013-04-26 12:26:14 -0400] masterkorp: fclausen: -x user too
+[2013-04-26 12:26:58 -0400] fclausen: masterkorp: I'll try although I already have the user specified in my knife.rb as "knife[:ssh_user]" and I see in the output that it is being used. By trying "-x user" too
+[2013-04-26 12:27:55 -0400] fclausen: masterkorp: weirdly, the /var/log/secure (RHEL host) just say "Connection closed by <the_ip>"
+[2013-04-26 12:28:24 -0400] fclausen: it's like it's not trying to authenticate; I'll try from some other host as a sanity check
+[2013-04-26 12:29:03 -0400] masterkorp: fclausen: maybe ssh pub key ?
+[2013-04-26 12:30:17 -0400] fclausen: masterkorp: the SSH key infra works well with a manual SSH. The logs on the remote server don't say auth failed or anything. Just "connection closed"
+[2013-04-26 12:31:00 -0400] fclausen: masterkorp: but when I do a manual SSH then the secure log shows that it accepts my key and logs me in
+[2013-04-26 12:31:31 -0400] masterkorp: sorry i am out of ideas
+[2013-04-26 12:31:43 -0400] fclausen: masterkorp: thanks for trying anyway!
+[2013-04-26 12:31:48 -0400] masterkorp: maybe you can kass the ssh -vvv option there will be more clues
+[2013-04-26 12:32:26 -0400] fclausen: masterkorp: I will try and see if I can get knife to sun ssh with -vvv
+[2013-04-26 12:33:55 -0400] fclausen: masterkorp: thanks again for the suggestions
+[2013-04-26 12:50:48 -0400] nebrera: helllo
+[2013-04-26 12:51:46 -0400] masterkorp: nebrera: o/
+[2013-04-26 12:51:51 -0400] masterkorp: how is it hanging ?
+[2013-04-26 12:51:59 -0400] masterkorp: on this lovely FRIDAY
+[2013-04-26 13:01:57 -0400] nebrera: I am getting error chef_sql,statements
+[2013-04-26 13:02:30 -0400] nebrera: http://pastebin.com/nSfKDEZf
+[2013-04-26 13:03:33 -0400] nebrera: and I am using this demo configuration
+[2013-04-26 13:03:33 -0400] nebrera: http://pastebin.com/YybHBLtU
+[2013-04-26 13:07:36 -0400] fclausen: masterkorp: for what it's worth - a colleague with unprotected SSH private key *is* able to use knife ssh. So knife ssh is not picking up the SSH agent stuff
+[2013-04-26 13:08:16 -0400] masterkorp: fclausen: are your env vars set ?
+[2013-04-26 13:08:44 -0400] fclausen: masterkorp: SSH_AGENT_PID and SSH_AUTH_SOCK are set.
+[2013-04-26 13:08:46 -0400] nebrera: the database postgres is created and I can connect to this ip with psql
+[2013-04-26 13:09:12 -0400] masterkorp: fclausen: are runing under bundler or anything like that ?
+[2013-04-26 13:09:28 -0400] fclausen: masterkorp: no, just plain knife ssh
+[2013-04-26 13:09:55 -0400] masterkorp: tried with the -p private_key option ?
+[2013-04-26 13:10:28 -0400] fclausen: masterkorp: the "knife ssh -p" option? Is that not for the port?
+[2013-04-26 13:11:01 -0400] fclausen: masterkorp: I tried "-i" specifying my ssh id_rsa but no joy
+[2013-04-26 13:11:17 -0400] masterkorp: that -i
+[2013-04-26 13:11:22 -0400] masterkorp: sorry i am out of ideas
+[2013-04-26 13:11:28 -0400] stormerider: are any of the opscode folks going to be at LinuxFest NorthWest? just curious
+[2013-04-26 13:11:40 -0400] fclausen: masterkorp: ah well, if I solve it I'll be sure to pass on what the solution was
+[2013-04-26 13:12:01 -0400] masterkorp: fclausen: that would be nice
+[2013-04-26 13:12:28 -0400] stormerider: yeah, -p is port, -i is identity file
+[2013-04-26 13:14:00 -0400] stormerider: i'd try knife ssh -i id_rsa -V -m "server1" "uptime" and see what happens, at the very least you'll see where the client sees the problem at in the workflow
+[2013-04-26 13:14:15 -0400] stormerider: and also check your ssh key permissions, too
+[2013-04-26 13:28:36 -0400] fromonesrc: can someone point me to a cookbook for collectd 5.1 (or greater)? I'm having the hardest time setting up a version of collectd more recent than 4.3 with chef on ubuntu
+[2013-04-26 13:36:48 -0400] adnichols: I've had reasonably good luck with https://github.com/miah/chef-collectd
+[2013-04-26 13:42:07 -0400] fromonesrc: adnichols I love you
+[2013-04-26 13:42:07 -0400] fromonesrc: thanks
+[2013-04-26 13:42:37 -0400] adnichols: you should love the people who made the cookbook - I just provided a link :)
+[2013-04-26 13:43:17 -0400] barefoot: as a messenger, its the best outcome you can hope for
+[2013-04-26 13:50:56 -0400] fromonesrc: adnichols what version of collectd are you running? I keep getting 4.10.1
+[2013-04-26 13:51:16 -0400] fromonesrc: the cookbook specifies 5.1.0 but apt-get is pulling down 4.10.1
+[2013-04-26 13:51:42 -0400] gyre007: so I can see that chef_gems have a massive priority in terms of being put on top of the resource queue during compile phase ?
+[2013-04-26 13:51:55 -0400] adnichols: fromonesrc if you install from pkg it'll do that
+[2013-04-26 13:52:06 -0400] adnichols: if you want newer you need to install from source
+[2013-04-26 13:52:07 -0400] bjensen: I have a roles file that includes a lot of attributes along with a run list. However the stuff in my run list isn't picking up on the attributes I'm setting..am I setting the attributes the wrong place?
+[2013-04-26 13:52:10 -0400] gyre007: what if one of those gems requires a library to be installed so that the gem can actually be compiled ?\
+[2013-04-26 13:52:12 -0400] gyre007: arrrgh
+[2013-04-26 13:52:26 -0400] fromonesrc: ah right, completely overlooked that
+[2013-04-26 13:52:38 -0400] adnichols: just override attributes
+[2013-04-26 13:52:55 -0400] adnichols: node[:collectd][:install_type] => "source"
+[2013-04-26 13:52:59 -0400] adnichols: & set version
+[2013-04-26 13:53:03 -0400] fclausen: stormerider: just saw your message above - I'll try "knife ssh -i id_rsa -V -m "server1" "uptime""
+[2013-04-26 13:53:09 -0400] adnichols: You will ned to host the tarball on your own - I stuck it up on s3
+[2013-04-26 13:53:59 -0400] adnichols: I also found on my ubuntu 12.04 setup I had to override     :plugin_dir => "/usr/lib/collectd"
+[2013-04-26 13:54:15 -0400] zts: gyre007: in that case, you'll need to force the library to be installed at compile time, before the chef_gem
+[2013-04-26 13:55:25 -0400] fromonesrc: adnichols any reason I can't point to the tarball on collectd.org?
+[2013-04-26 13:55:29 -0400] barefoot: bjensen: can you paste an example?
+[2013-04-26 13:55:35 -0400] adnichols: fromonesrc if you try you'll find out
+[2013-04-26 13:55:54 -0400] adnichols: fromonesrc yes, there is a reason :)
+[2013-04-26 13:55:57 -0400] fromonesrc: I did have problems with ark unpacking it yesterday
+[2013-04-26 13:56:15 -0400] adnichols: fromonesrc They've got a user-agent check & send back a nice message saying host it on your own
+[2013-04-26 13:56:37 -0400] fromonesrc: ah that's why it wasn't coming back as a valid tarball
+[2013-04-26 13:57:39 -0400] bjensen: barefoot: http://pastie.org/7724236
+[2013-04-26 13:57:48 -0400] bjensen: thats my app server.json roles file
+[2013-04-26 13:58:46 -0400] zts: gyre007: alternatively, you could use the normal gem_package resource but make sure to point to the gem binary used by your Chef install
+[2013-04-26 14:00:26 -0400] barefoot: bjensen: think you need to shove all the attrs under default_attributes: ""
+[2013-04-26 14:02:34 -0400] barefoot: bjensen: http://pastebin.com/6BwiWbaS
+[2013-04-26 14:02:49 -0400] bjensen: agh let me try it
+[2013-04-26 14:04:33 -0400] adnichols: fromonesrc https://github.com/miah/chef-collectd/issues/15
+[2013-04-26 14:04:57 -0400] bjensen: barefoot: works. Thanks man
+[2013-04-26 14:05:16 -0400] barefoot: np
+[2013-04-26 14:20:11 -0400] gyre007: zts yeah thats what i di
+[2013-04-26 14:57:21 -0400] hikeit: mornin'
+[2013-04-26 14:58:26 -0400] hikeit: anyone have any ideas we're using roles and environments for enterprise-wide vs environment specific attributes, and those attributes are getting pushed into a template to result in a file on the target node
+[2013-04-26 14:58:42 -0400] hikeit: not exactly a crazy idea, it seems most folks do this at some level
+[2013-04-26 14:59:00 -0400] hikeit: is there a way on a workstation to "generate" the resulting file, not on the node?
+[2013-04-26 14:59:39 -0400] hikeit: so that a dev could make changes to the template and to the environment files, then see what the end file will look like
+[2013-04-26 15:06:15 -0400] cburroughs: Is there any community consensus on knife-block vs chefvm vs something-else for handling multiple chef servers?  Both look sold but neither has updates in a few months
+[2013-04-26 15:08:21 -0400] zts: cburroughs: I use knife-block, which works the way it claims to, but I hadn't seen chefvm before
+[2013-04-26 15:08:26 -0400] davent: why does chef-clinet not merge attributes when you override the unList?
+[2013-04-26 15:08:54 -0400] zts: cburroughs: I like that chefvm explicitly keeps keys and things in a subdir per server though
+[2013-04-26 15:09:18 -0400] cburroughs: I also like the PS1 example cause I easily forget things
+[2013-04-26 15:09:32 -0400] cburroughs: thanks for the help, will try it out
+[2013-04-26 15:11:51 -0400] zts: np
+[2013-04-26 15:12:27 -0400] zts: davent: it wouldn't load attributes for things that were not on the overridden run list, but it should merge the things it knows about as normal
+[2013-04-26 15:12:46 -0400] whilp: davent: can you explain? where are you setting the attrs? how are you overriding run_list
+[2013-04-26 15:13:26 -0400] davent: I have role level attrs, calling a recipe using -o, need those attrs
+[2013-04-26 15:13:41 -0400] zts: you'll need to put the role in the overridden run list as well
+[2013-04-26 15:15:02 -0400] davent: zts: you can specify Roles in -o  ???
+[2013-04-26 15:15:18 -0400] zts: davent: absolutely
+[2013-04-26 15:15:26 -0400] davent: how?
+[2013-04-26 15:15:38 -0400] zts: -o "role[foo]"
+[2013-04-26 15:15:58 -0400] zts: ...it's early here, I sure hope I'm not lying
+[2013-04-26 15:16:13 -0400] zts: but the point of that feature is to specify a different run list, and it's meant to accept any run list items (so that's roles or recipes)
+[2013-04-26 15:16:45 -0400] davent: zts: ahhhhh square-brackets did it!
+[2013-04-26 15:16:50 -0400] davent: zts: thank you!
+[2013-04-26 15:17:02 -0400] zts: you're welcome :)
+[2013-04-26 15:17:15 -0400] davent: zts: same issue for environment attrs nowlol
+[2013-04-26 15:17:22 -0400] davent: zts: similar trick?
+[2013-04-26 15:17:54 -0400] davent: actually.....should chef.rb or -E take care of that?
+[2013-04-26 15:17:55 -0400] zts: davent: hm, you could try explicitly setting the environment with "-E whatever", though I would've expected that to do the right thing
+[2013-04-26 15:20:05 -0400] davent: zts: no....not getting the Environment attrs....odd
+[2013-04-26 15:24:07 -0400] cburroughs: chefvm seems nice btw
+[2013-04-26 15:24:42 -0400] patcon: Anyone have any advice on loading knife.rb config into Chef::Config from a separate script? Would have though `Chef::Config.from_file(filename)` would work, but that has odd results
+[2013-04-26 15:25:11 -0400] patcon: Basically want a rake task to have access the the knife.rb values
+[2013-04-26 15:25:51 -0400] davent: zts: ignore me...sorted it
+[2013-04-26 15:25:58 -0400] davent: zts: Thanks again for your help!
+[2013-04-26 15:26:35 -0400] zts: davent: you're welcome, glad it's sorted!  Was there a trick?
+[2013-04-26 15:26:56 -0400] davent: zts: Yeah...stop being a dick and check the Environment attributes are correct first
+[2013-04-26 15:27:18 -0400] zts: davent: hah!
+[2013-04-26 15:27:22 -0400] zts: patcon: have a look at https://github.com/zts/mcollective-chef-discovery/blob/master/discovery/chef.rb
+[2013-04-26 15:27:36 -0400] zts: patcon: important bits are the first two requires, and the load_chef_configuration
+[2013-04-26 15:28:05 -0400] zts: patcon: uh, I mean the first bits of the load_chef_configuration method
+[2013-04-26 15:28:06 -0400] zts: sorry
+[2013-04-26 15:29:10 -0400] patcon: zts: thanks man! That's a really interesting project too. I may or may not be in the process of heading down a rabbit hole... ;)
+[2013-04-26 15:31:54 -0400] zts: patcon: yeah, I need to do some more work on that when I get back from ChefConf :)
+[2013-04-26 15:41:19 -0400] paigeat_: http://www.ebay.com/itm/111060402577?ssPageName=STRK:MESELX:IT&_trksid=p3984.m1555.l2649
+[2013-04-26 15:58:48 -0400] AikiLinux: Is there a way to find the service declaration of a cookbook from another cookbook ?
+[2013-04-26 16:00:16 -0400] AikiLinux: for instance i want to control the generation of logrotate files and need to know what process the rotation needs to inform , but want it to be dynamic not hard coded in the attributes
+[2013-04-26 16:00:52 -0400] Majost_: does anyone know what ohai detects for node['kernel']['machine'] on 32 bit Windows variants?
+[2013-04-26 16:48:42 -0400] paigeat_: updated http://www.ebay.com/itm/111060402577?ssPageName=STRK:MESELX:IT&_trksid=p3984.m1555.l2649
+[2013-04-26 16:49:46 -0400] zts: paigeat_: what does that have to do with Chef?
+[2013-04-26 16:50:49 -0400] paigeat_: its hella good for developing for chef :)
+[2013-04-26 16:51:12 -0400] hikeit: inappropriate use of chan
+[2013-04-26 16:51:52 -0400] paigeat_: oh my gawd n0ez shouldn't you be at chef conf or something
+[2013-04-26 16:57:20 -0400] zts: translation: "lolz I can spam all I want, nobody with ops will be here today anyway"
+[2013-04-26 17:03:01 -0400] eherot: *tumbleweeds*
+[2013-04-26 17:04:51 -0400] rtsai123_: hi does anyone know how to add a existing node to an environent with using the editor?  I tried knife node edit <fqdn> -E production but it opened the editor
+[2013-04-26 17:05:40 -0400] damian__: i think your stuck with the editor or the chef-server web interface
+[2013-04-26 17:06:58 -0400] rtsai123_: oh that sux i also tried knife node edit <fqdn> -E production -d but that just gave ERROR: You specified the --disable_editing option, nothing to edit
+[2013-04-26 17:07:01 -0400] zts: you can set your EDITOR to sed
+[2013-04-26 17:07:14 -0400] zts: or there's a plugin to set the environment
+[2013-04-26 17:07:18 -0400] zts: https://gist.github.com/nstielau/961827
+[2013-04-26 17:07:38 -0400] damian__: yea, if you dont like the editor it drops you into just do 'export EDITOR=<editor of choice>'
+[2013-04-26 17:07:58 -0400] rtsai123_: oh great i'll try the plugin
+[2013-04-26 17:08:32 -0400] damian__: has anyone been able to get knife client/node bulk delete to actually take the -E <environment> flag?
+[2013-04-26 17:08:51 -0400] damian__: ive tried putting it in different places in the command, but it always just searches through all my nodes
+[2013-04-26 17:09:00 -0400] zts: rtsai123_: there's also this plugin: https://github.com/jonlives/knife-flip
+[2013-04-26 17:09:38 -0400] rtsai123_: thanks zts!
+[2013-04-26 17:10:00 -0400] zts: you're welcome!
+[2013-04-26 17:11:30 -0400] rtsai123_: @ zts that knife flip pluggin worked like a charm... thanks again!
+[2013-04-26 17:11:53 -0400] zts: rtsai123_: jonlives deserves the real thanks, I'm just the messenger :)
+[2013-04-26 17:12:30 -0400] jonlives: you're welcome :p
+[2013-04-26 17:19:26 -0400] rtsai123_: thank jonlives!!!
+[2013-04-26 17:49:49 -0400] snelly: Hi, what's the most "Chef-proper" way to make changes to an SYSV-style init script from within a cookbook?
+[2013-04-26 17:50:27 -0400] snelly: putting a modified version as a template seems like a bad idea.   the stock init script comes from the package as installed on the system
+[2013-04-26 17:51:48 -0400] yfeldblum: snelly, why change the init script rather than the config file?
+[2013-04-26 17:52:26 -0400] snelly: yfeldblum: that's what I'd like to do.   If I was doing this in the pre-Chef world, I would just create a patch for the init script
+[2013-04-26 17:53:20 -0400] snelly: I'm just not sure about the most proper way to do this
+[2013-04-26 17:54:15 -0400] yfeldblum: snelly, in the chef world, you could 1) have a correct/patched copy of the init-script in your cookbook; 2) make your own package with the patched init-script, and have chef install your package
+[2013-04-26 17:54:35 -0400] snelly: I see that others are using templates but those would inevitably fall behind the versions of the init scripts shipped with packages...plus you would have to deal with different versions for every distro
+[2013-04-26 17:54:56 -0400] snelly: yfeldblum: ok. I guess I will work with the template idea.
+[2013-04-26 17:55:00 -0400] yfeldblum: snelly, how many distros is your cookbook supporting?
+[2013-04-26 17:55:01 -0400] snelly: thanks
+[2013-04-26 17:55:36 -0400] gansbrest: hi. When I use Chef::EncryptedDataBagItem.load_secret('https://key-url') I'm getting this error during chef-client run FATAL: OpenSSL::SSL::SSLError: SSL_connect returned=1 errno=0 state=SSLv3 read server certificate B: certificate verify failed
+[2013-04-26 17:56:02 -0400] snelly: yfeldblum: honestly, just one for me....this is a change to the php-fpm cookbook and it would be cool to submit a PR upstream if I did the change in a useful, maintainable fashion
+[2013-04-26 17:56:36 -0400] yfeldblum: snelly, why not send the PR to the php-fpm package maintainers?
+[2013-04-26 17:57:19 -0400] snelly: i would.   if i implemented it in a cleaner fashion.   pushing init script templates for each distro is probably not something they want
+[2013-04-26 17:57:45 -0400] snelly: it will work for my needs, though.
+[2013-04-26 18:02:05 -0400] whatis: I'm using opscode hosted chef, v 10.12.0 and I'd like to upgrade to 10.24. How do I get the hosted server to upgrade to the newer version? We're not ready to upgrade to 11 at the moment.
+[2013-04-26 18:09:45 -0400] josephholsten_: whatis: did you figure it out?
+[2013-04-26 18:10:16 -0400] whatis: josephholsten_: I'm guessing I have to reference the bin file for where the chef gem is installed and do a "gem install -v=10.24"
+[2013-04-26 18:10:20 -0400] josephholsten_: we use http://community.opscode.com/cookbooks/omnibus_updater to keep clients up to date
+[2013-04-26 18:10:59 -0400] whatis: josephholsten_: our install is from the gem so we haven't upgraded to the omnibus installer
+[2013-04-26 18:11:10 -0400] knuckolls: whatis: omnibus is basically the new standard.
+[2013-04-26 18:11:25 -0400] knuckolls: whatis: i'd say you're just swimming upstream not migrating to it
+[2013-04-26 18:11:37 -0400] knuckolls: and it's quite simple.
+[2013-04-26 18:11:54 -0400] josephholsten_: I doubt you'll find other folks who can help with your setup, sorry
+[2013-04-26 18:12:10 -0400] whatis: and then you usually upgrade by just updating the version number in the config? override_attributes( :omnibus_updater => { :version => '10.16.2' } )
+[2013-04-26 18:12:21 -0400] josephholsten: especially with gem installation. we used the debs before.
+[2013-04-26 18:12:52 -0400] whatis: k, I'll give this a shot. Thanks josephholsten & knuckolls
+[2013-04-26 18:12:52 -0400] josephholsten: whatis: yep. when you're ready for omnibus, that's what I recomend
+[2013-04-26 18:12:56 -0400] knuckolls: whatis: here's the standard chef_full bootstrap template so you can see exactly how omnibus gets installed. https://github.com/opscode/chef/blob/master/lib/chef/knife/bootstrap/chef-full.erb
+[2013-04-26 18:13:02 -0400] barefoot: omnibus++
+[2013-04-26 18:14:09 -0400] whatis: to switch from the gem install to omnibus, can I just run this cookbook then? and just specify the version
+[2013-04-26 18:19:05 -0400] josephholsten: you definitely want to verify that it plays nice with your $PATH
+[2013-04-26 18:20:21 -0400] whatis: josephholsten: going to run it against a vagrant box first so shouldn't effect anything live
+[2013-04-26 18:38:34 -0400] monokrome: I have a cookbook that I wrote called application_brunch, but chef server says that it can't find a resource called "brunch". However, the same recipe works with chef-solo
+[2013-04-26 18:38:36 -0400] monokrome: Any ideas?
+[2013-04-26 18:38:38 -0400] monokrome: I have a cookbook that I wrote called application_brunch, but chef server says that it can't find a resource called "brunch". However, the same recipe works with chef-solo
+[2013-04-26 18:38:40 -0400] monokrome: Any ideas?
+[2013-04-26 18:39:42 -0400] a13x212: did you upload the cookbook to the chef-server?
+[2013-04-26 18:39:54 -0400] monokrome: yep
+[2013-04-26 18:40:00 -0400] monokrome: It shows up in the WebUI also
+[2013-04-26 18:40:51 -0400] monokrome: ls
+[2013-04-26 18:41:10 -0400] josephholsten: monokrome: does your cookbook's metadata.rb include 'depends "application_brunch"'?
+[2013-04-26 18:41:26 -0400] monokrome: yep
+[2013-04-26 18:42:48 -0400] monokrome: Oh, wait. Maybe I didn't upload that change yet, though.
+[2013-04-26 18:42:59 -0400] monokrome: The error says that it looked in applcation, application_brunch, brunch
+[2013-04-26 18:55:00 -0400] orospakr: silly question: can I use (and specify attribute settings to) other cookbooks inside my own cookbook recipes? or is this only true for cookbooks that expose resources?
+[2013-04-26 18:55:42 -0400] orospakr: for instance, I'd love to set up the nginx cookbook from inside my own recipe (ie., kind of like application_nginx, but I can't use it because application_ngix requires Search), rather than using role lists.
+[2013-04-26 18:58:00 -0400] rava: orospakr: you can specify attribute settings with or without the cookbook in a recipe or role
+[2013-04-26 18:58:02 -0400] gleam: include_recipe "whatever"
+[2013-04-26 18:58:30 -0400] gleam: mention it in metadata.rb too
+[2013-04-26 18:58:34 -0400] rava: or any of the logic/data containers (env, node, etc..)
+[2013-04-26 18:59:00 -0400] orospakr: rava, hm! how do I specify attribute settings for an included cookbook, syntax-wise?
+[2013-04-26 19:00:02 -0400] rava: reference it as a node attribute in the recipe, just make sure you have any dependent attributes setup before you include the cookbook recipe
+[2013-04-26 19:00:39 -0400] rava: or just standard attribute syntax in a role/env
+[2013-04-26 19:02:03 -0400] rava: but in a recipe, with the nagios cb for example, in myrecipe.rb: node.(default|override).nagios.some_attr = 'deez nutz'
+[2013-04-26 19:02:13 -0400] rava: then under it, the include
+[2013-04-26 19:02:43 -0400] orospakr: hm!
+[2013-04-26 19:02:53 -0400] orospakr: so, I should do include_cookbook *after* I override the attribute?
+[2013-04-26 19:03:24 -0400] rava: if the attribute isn't set in a role, prior recipe, env
+[2013-04-26 19:03:52 -0400] rava: though that's chef 11 syntax
+[2013-04-26 19:04:01 -0400] rava: chef 10 does weird shit with attributes
+[2013-04-26 19:04:15 -0400] rava: i've been fighting with it for the past 2 days to get attributes right
+[2013-04-26 19:04:46 -0400] orospakr: yeah, I'm using 11, thankfully.
+[2013-04-26 19:05:15 -0400] gleam: you can also do default![whatever][whatever] in the parent cookbook's attributes file
+[2013-04-26 19:05:56 -0400] gleam: (or override in there, too)
+[2013-04-26 19:05:59 -0400] gleam: (or normal)
+[2013-04-26 19:07:04 -0400] rava: i'm trying to get in the work flow of not touching the original cookbook
+[2013-04-26 19:07:16 -0400] gleam: yeah, i'm talking about the cookbook that include_recipes whatever
+[2013-04-26 19:07:20 -0400] rava: and trying to do what i can with an organization cookbook that references it
+[2013-04-26 19:07:27 -0400] rava: ah, yeah
+[2013-04-26 19:07:37 -0400] rava: that too, thanks forgot about doing it that way :)
+[2013-04-26 19:08:20 -0400] orospakr: I'm kind of bummed that there isn't some sort of nginx_site resource, which is what I actually want
+[2013-04-26 19:08:28 -0400] orospakr: or maybe there is, and I'm not finding it.
+[2013-04-26 19:08:39 -0400] rava: i'd be surprised if there wasn't one in the nginx cookbook
+[2013-04-26 19:08:40 -0400] gleam: there's a definition
+[2013-04-26 19:08:41 -0400] gleam: isn't there?
+[2013-04-26 19:08:41 -0400] gansbrest: is the a way to disable ssl verifiction on chef-client side?
+[2013-04-26 19:08:50 -0400] orospakr: gonna take another look...
+[2013-04-26 19:09:00 -0400] rava: there's likely a provider in there you can use
+[2013-04-26 19:09:04 -0400] gleam: https://github.com/opscode-cookbooks/nginx/blob/master/definitions/nginx_site.rb
+[2013-04-26 19:09:08 -0400] rava: and don't forget, you don't need to include the cookbook
+[2013-04-26 19:09:09 -0400] gleam: it's still a definition rather than a provider
+[2013-04-26 19:09:11 -0400] orospakr: oh, hey.
+[2013-04-26 19:09:14 -0400] rava: you can reference it in your metadata.rb
+[2013-04-26 19:09:29 -0400] gleam: it's just a wrapper for nxensite
+[2013-04-26 19:09:36 -0400] rava: and then use the providers. you only need the include syntax to actually execute any of the recipes
+[2013-04-26 19:09:43 -0400] orospakr: ah, and I'm just responsible for building my own (debianized, I guess?) site config file in sites-available/?
+[2013-04-26 19:09:53 -0400] gleam: yeah
+[2013-04-26 19:09:55 -0400] orospakr: I can do it as a template. that works great for me. :)
+[2013-04-26 19:09:56 -0400] orospakr: win.
+[2013-04-26 19:09:59 -0400] orospakr: thanks, guys.
+[2013-04-26 19:11:56 -0400] david415: miah: how to deep copy a nested mash?
+[2013-04-26 19:12:12 -0400] david415: dup doesn't work... it preserves the class type immutable_mash
+[2013-04-26 19:12:49 -0400] david415: this is in the context of trying to copy a attribute nested mash that we'd like to modify locally... and therefore not set override precedence
+[2013-04-26 19:22:50 -0400] drywheat: .
+[2013-04-26 19:43:42 -0400] cburroughs: nodes can only be in a single environment, correct?
+[2013-04-26 19:44:10 -0400] nlloyds: cburroughs: Correct
+[2013-04-26 19:50:39 -0400] yfeldblum: cburroughs, each node is "in" exactly one environment; mathematically, the environments form a partition of the set of nodes (http://en.wikipedia.org/wiki/Partition_of_a_set)
+[2013-04-26 19:52:58 -0400] josephholsten: yfeldblum: I do love the rigor and formalism you bring to the community.
+[2013-04-26 19:53:16 -0400] yfeldblum: :D
+[2013-04-26 19:53:46 -0400] cburroughs: Is there a nice math term for using a series for roles as ever small subsets to override atrributes?
+[2013-04-26 19:55:46 -0400] yfeldblum: cburroughs, not quite sure what you mean
+[2013-04-26 19:57:11 -0400] cburroughs: base role sets attribute foo=10, webserver-role sets foo=11, lamp-stack-x sets foo=12, behind-lb-x sets foo=13 etc.
+[2013-04-26 19:58:29 -0400] yfeldblum: cburroughs, i'm not aware of any nice math term for that
+[2013-04-26 19:58:33 -0400] josephholsten: sounds more related to cog-sci prototype theory than anything in maths
+[2013-04-26 20:26:03 -0400] Majost_: Is there some good Windows recipes out there I can use as a guideline? I am working on porting the openvpn cookbook, but not having written a Windows cookbook before I am a little perplexed on how to properly handle file permissions.
+[2013-04-26 20:26:28 -0400] Majost_: s/porting/patching/g
+[2013-04-26 20:34:01 -0400] nlloyds: Majost_: There's a few at https://github.com/Nordstrom
+[2013-04-26 20:35:28 -0400] Majost_: nlloyds, thanks! =)
+[2013-04-26 20:38:36 -0400] Majost_: nlloyds, any cookbook in particular which stands out in your mind?
+[2013-04-26 20:39:16 -0400] nlloyds: Majost_: I haven't used any actually, just heard those guys do lots of Chef with windows.
+[2013-04-26 20:40:38 -0400] nlloyds: Majost_: There was a good food fight show episode recently: http://foodfightshow.org/2013/01/windows-roundtable.html
+[2013-04-26 20:46:24 -0400] 16SABC7XV: Majost_: writing windows cookbooks is a lot less daunting than it seems.  What are you trying to do?
+[2013-04-26 20:47:57 -0400] josephholsten: ugh The server had a fatal error attempting to load the node data.
+[2013-04-26 21:23:09 -0400] cjerdonek: is there an easy way to make the application cookbook deploy from your local disk instead of a remote repo when using chef-solo?
+[2013-04-26 22:05:26 -0400] jforce: How can I mix helpers into my attributes/default.rb from my /libraries directory? Also, anybody know if I can get a binding.pry on a chef run on a vagrant where I'm doing the berkshelf+vagrant+chef `vagrant up` thing?
+[2013-04-26 22:07:26 -0400] jforce: should I just `class Chef::Node; include AppenvCookbook::AttributeHelpers; end`?
+[2013-04-26 22:07:51 -0400] jforce: Also, is it brutally disgusting to mix helpers into my node in an attributes file? :)
+[2013-04-26 22:11:09 -0400] rava_: can't seem to monkey out why this is: https://gist.github.com/ravaa/5493e56bc355b14ca747
+[2013-04-26 22:11:10 -0400] jforce: `extend AppenvCookbook::AttributeHelpers` seems cleaner. I'll go with that.
+[2013-04-26 22:11:54 -0400] rava_: i checked the type return by the search, just to be thorough, and looking at the fields of the object returned in the search... name is one of them
+[2013-04-26 22:12:10 -0400] rava_: node.name works
+[2013-04-26 22:12:15 -0400] rava_: but node['name'] returns nil
+[2013-04-26 22:12:19 -0400] rava_: the fuuuu?
+[2013-04-26 22:12:43 -0400] c_t: does node[:name] work?
+[2013-04-26 22:12:55 -0400] rava_: nay, tried that aswell
+[2013-04-26 22:13:08 -0400] c_t: huh
+[2013-04-26 22:13:40 -0400] c_t: sadly I'm a little foggy right now, or I might be more helpful
+[2013-04-26 22:13:43 -0400] jforce: rava_ are you A_RAVER from webtv? long shot, I know.
+[2013-04-26 22:13:50 -0400] rava_: hah, no
+[2013-04-26 22:14:00 -0400] c_t: end up staying up until 1:30am working on a sort of cool but useless little project
+[2013-04-26 22:14:08 -0400] c_t: (trying to get xiafs working with a modernish kernel)
+[2013-04-26 22:14:09 -0400] jforce: ok. haha! I knew a dude named Erik who went by A_RAVER and rava on webtv in like 1998. :)
+[2013-04-26 22:14:22 -0400] c_t: (anyone else old enough to remember that?)
+[2013-04-26 22:14:52 -0400] rava_: my name's erik, but i didn't start using rava as a handle until just after highschool
+[2013-04-26 22:16:23 -0400] rava_: pfft, the msn service? lol
+[2013-04-26 22:16:34 -0400] rava_: i remember it, but was too broke to afford it
+[2013-04-26 22:16:49 -0400] c_t: heh, no, xiafs
+[2013-04-26 22:17:44 -0400] jforce: WebTV was bought by Microsoft, but was initially its own thing. I was really into IRC on WebTV in 1998, which was in high school.
+[2013-04-26 22:17:52 -0400] c_t: although xiafs was dropped from the kernel around that time
+[2013-04-26 22:17:56 -0400] c_t: 1999 or so maybe
+[2013-04-26 22:18:10 -0400] c_t: don't think anyone used it much by then, obviously
+[2013-04-26 22:19:08 -0400] rava_: any ideas on how i can reference the node name using the node[<attr>] syntax?
+[2013-04-26 22:19:39 -0400] rava_: trying to have the nagios cookbook use something nicer hostname
+[2013-04-26 22:23:57 -0400] chip-: rava_: node.name and node.chef_environment are always methods.
+[2013-04-26 22:24:25 -0400] rava_: any way to get that attr data using the mash syntax?
+[2013-04-26 22:24:51 -0400] chip-: not afaik.
+[2013-04-26 22:25:57 -0400] rava_: hrm, any reason not to have a simple recipe in our org cookbook that creates an attribute and assigns it the value of node.name ?
+[2013-04-26 22:29:02 -0400] damian__: i dont think that would work, node.name is a global value
+[2013-04-26 22:29:14 -0400] damian__: o wait, i misread that hehe
+[2013-04-26 22:29:29 -0400] rava_: haha, confused the hell out of me for a second
+[2013-04-26 22:30:17 -0400] damian__: what are you trying to do that you cant use node.name for?  theres no reason why you couldnt assign it to a different attribute, just seems redundant
+[2013-04-26 22:30:51 -0400] rava_: i rather not, but the snippet in the gist a piece from the nagios cookbook
+[2013-04-26 22:31:34 -0400] rava_: that sets the value used in the hosts.cfg template for the host_name attribute of a host definition. to change you need to set node.nagios.host_name_attribute
+[2013-04-26 22:31:51 -0400] rava_: which is then referenced using the node[attr] syntax, which doesn't work for the node attribute
+[2013-04-26 22:31:54 -0400] rava_: ~name
+[2013-04-26 22:32:33 -0400] rava_: so just trying to avoid editing the cookbook directly
+[2013-04-26 22:32:43 -0400] damian__: thats really strange
+[2013-04-26 22:32:50 -0400] rava_: agreed
+[2013-04-26 22:32:53 -0400] damian__: personally, i would say screw it and just change the cookbook heh
+[2013-04-26 22:33:19 -0400] rava_: i'd be creating an attribute that i'd want to reference in some way anyway
+[2013-04-26 22:33:45 -0400] rava_: we use the term vhostname everywhere to reference the friendly name alias of our machines
+[2013-04-26 22:34:14 -0400] rava_: so it's not much of a stretch to just add that as an attribute that references node.name's return value
+[2013-04-26 22:34:59 -0400] damian__: i do this to populate a hosts file for my ejabberd hosts
+[2013-04-26 22:35:11 -0400] damian__: hosts = search(:node, "role:ejabberd AND app_environment:#{node[:app_environment]} NOT name:#{node.name}")
+[2013-04-26 22:35:11 -0400] damian__: template "/etc/hosts" do
+[2013-04-26 22:35:11 -0400] damian__:   source "hosts.erb"
+[2013-04-26 22:35:12 -0400] damian__:   owner "root"
+[2013-04-26 22:35:14 -0400] damian__:   group "root"
+[2013-04-26 22:35:16 -0400] damian__:   mode 0644
+[2013-04-26 22:35:18 -0400] damian__:   variables(
+[2013-04-26 22:35:20 -0400] damian__:             :myip => origip,
+[2013-04-26 22:35:22 -0400] damian__:             :hosts => hosts,
+[2013-04-26 22:35:24 -0400] damian__:             :hostname => node.name
+[2013-04-26 22:35:26 -0400] damian__:             )
+[2013-04-26 22:35:28 -0400] damian__: end
+[2013-04-26 22:35:35 -0400] damian__: is that what your trying to do?
+[2013-04-26 22:36:52 -0400] rava_: sort of
+[2013-04-26 22:37:36 -0400] rava_: this is the snippet from the cookbook that is giving me heartburn here: https://gist.github.com/ravaa/4dc1a03ca55696c07081
+[2013-04-26 22:37:48 -0400] rava_: what
+[2013-04-26 22:39:14 -0400] rava_: so without being able to reference node['name'] to get the label i want, don't see a way around it but to create the attribute in a recipe
+[2013-04-26 22:40:06 -0400] damian__: yea, thats prolly your best bet
+[2013-04-26 22:40:54 -0400] rava_: now if only i can find the proper syntax for setting attributes in a recipe that's chef 11 compatible
+[2013-04-26 22:43:09 -0400] rava_: node.default|override.attr.. etc is chef 11 syntax right?
+[2013-04-26 23:02:12 -0400] jed_: kallistec: I triggered the bug again, and I think I have a solid idea on how it happens
+[2013-04-26 23:02:26 -0400] jed_: so it might not be the same thing, or the PID thing might be a symptom
+[2013-04-26 23:03:15 -0400] kallistec: rava_: right, only node["foo"] = "bar" is gone
+[2013-04-26 23:03:21 -0400] kallistec: jed_: go on
+[2013-04-26 23:03:30 -0400] jed_: I changed chef-client attributes, which made the init template get rewritten, which deferred a service restart. everything seemed to work fine, but then I was left with two running chef-clients, a dirty /var/chef/cache/chef-client-running.pid
+[2013-04-26 23:03:37 -0400] jed_: and no PID file
+[2013-04-26 23:03:47 -0400] rava_: kallistec: cool beans, thanks for the confirm
+[2013-04-26 23:03:53 -0400] jed_: something in the deferred service restart in concert with --fork causes this behavior
+[2013-04-26 23:04:27 -0400] jed_: my change was to add, in runlist position 0, a recipe to deploy /usr/bin/chef-client-start which is basically a wrapper around chef-client that nices it
+[2013-04-26 23:04:41 -0400] rava_: though i got some wonkyness from using node.default.set('attr') in chef 10. couldn't then refernce it using node['attr']
+[2013-04-26 23:05:01 -0400] jed_: then I modified the chef-client bin attribute to reference /usr/bin/chef-client-start, which caused the init to get rewritten, which delayed a service restart (it seems?)
+[2013-04-26 23:05:07 -0400] rava_: setting node.default['attr'] worked though, but i think that's still broken in 11?
+[2013-04-26 23:05:10 -0400] jed_: somehow in the middle of that, I ended up in the bad state
+[2013-04-26 23:06:32 -0400] kallistec: rava_: in 10 you could also do node.something("value") to set, but that was very error prone
+[2013-04-26 23:06:38 -0400] kallistec: so that is gone as well
+[2013-04-26 23:07:04 -0400] rava_: hrm, so suggested syntax for this? trying to be as forward compatible as i can since i want to push for an upgrade to 11 asap
+[2013-04-26 23:07:16 -0400] rava_: it's worth it just for the predictable attribute behaviour
+[2013-04-26 23:08:48 -0400] kallistec: rava_: node.default["setting"] = "value" will work everywhere
+[2013-04-26 23:09:16 -0400] kallistec: and is generally the right thing
+[2013-04-26 23:09:32 -0400] rava_: savvy, i thought i remembered seeing somewhere that not using set() was bad juju
+[2013-04-26 23:10:30 -0400] kallistec: it's okay for certain uses. the tricky thing is that a value from node.set["setting"] = "value" gets remembered for the next chef-client run
+[2013-04-26 23:10:50 -0400] kallistec: which is different behavior than default or override
+[2013-04-26 23:10:57 -0400] rava_: indeed
+[2013-04-26 23:11:11 -0400] kallistec: it's useful if you autogenerate a password or something
+[2013-04-26 23:11:21 -0400] kallistec: since you'll want that next time
+[2013-04-26 23:11:27 -0400] rava_: thanks for the heads up, i wasn't aware that there was a mechanic for remembering attributes across runs
+[2013-04-26 23:18:16 -0400] kallistec: jed_: what do you mean "dirty /var/chef/cache/chef-client-running.pid" ?
+[2013-04-26 23:18:40 -0400] kallistec: rava_: np
+[2013-04-26 23:18:47 -0400] jed_: PID contained there was one of the existing, but the run was done
+[2013-04-26 23:19:09 -0400] jed_: no, sorry -- rereviewing my notes, PID contained there was not running
+[2013-04-26 23:19:30 -0400] jed_: suspect A forked B, which called service chef-client restart deferred, which started C, and I was left with A and C, and B was in chef-client-running.pid
+[2013-04-26 23:20:58 -0400] kallistec: jed_: yeah, there is a separate issue where fd for the chef-client-running file gets leaked. normally it doesn't matter because chef-client will release the lock at the end of the run unless it SEGVs or is kill -9'd
+[2013-04-26 23:21:15 -0400] jed_: does that freeze chef-client until cleaned up?
+[2013-04-26 23:21:24 -0400] kallistec: yeah
+[2013-04-26 23:21:45 -0400] jed_: I'm considering a cron to prevent this bug from multiplying, and I guess I could have that as part of its action
+[2013-04-26 23:22:02 -0400] jed_: if > 1 chef-clients found, killall -9, rm chef-client-running, service start
+[2013-04-26 23:22:45 -0400] jed_: if $(<chef-client-running) not running, killall -9, rm chef-client-running, service start, etc
+[2013-04-26 23:23:06 -0400] kallistec: you aren't doing any `exit!` or `exec` calls on your own?
+[2013-04-26 23:23:12 -0400] jed_: no, this is all base
+[2013-04-26 23:23:20 -0400] jed_: just chef-client with some attributes, and an otherwise empty runlist
+[2013-04-26 23:23:30 -0400] jed_: I haven't even qualed it for actual work yet
+[2013-04-26 23:25:08 -0400] jed_: crap, I need to run, I'll analyze this over the weekend
+[2013-04-26 23:25:12 -0400] jed_: thanks for the triage
+[2013-04-26 23:25:15 -0400] kallistec: sure
+[2013-04-26 23:33:27 -0400] CharlieSu: Anyone know if knife-ec2 supports  IAM profiles/roles?
+[2013-04-26 23:33:43 -0400] rava_: is there search syntax for finding nodes that don't have a value for a certain attribute?
+[2013-04-26 23:34:32 -0400] damian__: CharlieSu: what do you mean?  you can use IAM creds to run knife ec2 commands
+[2013-04-26 23:34:48 -0400] zts: CharlieSu: there's a PR to add that support, but I have been entirely shit about fixing tests so that it gets merged
+[2013-04-26 23:34:55 -0400] zts: CharlieSu: I'm planning to do that at the hack day tomorrow
+[2013-04-26 23:37:14 -0400] CharlieSu: zts: cool.  I'll just bootstrap after using the aws tools for now..
+[2013-04-26 23:38:57 -0400] rava_: wish this cookbook would use a default value if the provided attribute returns nil
+[2013-04-26 23:38:58 -0400] rava_: ugh
+[2013-04-26 23:39:39 -0400] CharlieSu: zts: are you the knife-ec2 maintainer?
+[2013-04-26 23:39:39 -0400] zts: CharlieSu: that's fairly sensible, you can watch this ticket if you want an update when I get my shit together - http://tickets.opscode.com/browse/KNIFE-154
+[2013-04-26 23:39:54 -0400] CharlieSu: zts: just found that ticket :)
+[2013-04-26 23:39:56 -0400] zts: CharlieSu: nah, opscode maintains it, I'm just the one who tried to add IAM support :)
+[2013-04-26 23:40:39 -0400] CharlieSu: ahh ok.
+[2013-04-26 23:40:53 -0400] zts: CharlieSu: and if you want to try it out, I've just rebased my PR against current master - you can find it here https://github.com/zts/knife-ec2/tree/KNIFE-154
+[2013-04-26 23:41:03 -0400] zts: CharlieSu: but yeah, check back next week is perhaps a better option :)

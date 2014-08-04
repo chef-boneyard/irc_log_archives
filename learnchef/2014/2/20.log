@@ -1,0 +1,108 @@
+[2014-02-20 12:43:08 -0500] dede: hello
+[2014-02-20 14:07:04 -0500] blune: Hi!  Anyone here who knows how to solve:     I have a bunch of packages to install..    and after the last package is installed I need to restart an service.      Often when I run the cookbook the restart of service is runned before it is installed by the packages.    Is there any way to "stop" execution of a recipe until you for surely know that all packages are installed?
+[2014-02-20 14:41:58 -0500] medieval1: blune: you would add a notifies :restart to your package LWRP
+[2014-02-20 14:42:11 -0500] medieval1: or notifies :start
+[2014-02-20 14:42:51 -0500] medieval1: and ensure you have your service LWPR setup as well. I tend to put those at the bottom of my recipes
+[2014-02-20 14:51:54 -0500] blune: medieval1: I do not really know.. I think I am doing something towards that direction. I am new to chef and have had a lot struggling with the concept. 
+[2014-02-20 14:52:09 -0500] blune: here you have the higligts what I want to accomplish:
+[2014-02-20 14:52:23 -0500] blune: # install postfix include_recipe 'package_installer'  # make some changes in config file conf_plain_file '/etc/postfix/master.cf' do   current_line '#submission inet n       -       -       -       -       smtpd'   new_line 'submission inet n       -       -       -       -       smtpd'   action   :replace end conf_plain_file '/etc/postfix/master.cf' do   current_line '#smtps     inet  n       -       -       -       -       smtpd'
+[2014-02-20 14:52:28 -0500] blune: bummer...
+[2014-02-20 14:52:36 -0500] blune: # install postfix
+[2014-02-20 14:52:46 -0500] blune: include_recipe 'package_installer'
+[2014-02-20 14:52:59 -0500] blune: # make some changes in config file
+[2014-02-20 14:53:08 -0500] blune: conf_plain_file '/etc/postfix/master.cf' do
+[2014-02-20 14:53:19 -0500] blune:   current_line '#submission inet n       -       -       -       -       smtpd'
+[2014-02-20 14:53:27 -0500] blune:   new_line 'submission inet n       -       -       -       -       smtpd'
+[2014-02-20 14:53:34 -0500] blune:   action   :replace
+[2014-02-20 14:53:41 -0500] blune: end
+[2014-02-20 14:53:49 -0500] blune: conf_plain_file '/etc/postfix/master.cf' do
+[2014-02-20 14:53:55 -0500] blune:   current_line '#smtps     inet  n       -       -       -       -       smtpd'
+[2014-02-20 14:54:03 -0500] blune:   new_line 'smtps     inet  n       -       -       -       -       smtpd'
+[2014-02-20 14:54:09 -0500] blune:   action   :replace
+[2014-02-20 14:54:12 -0500] blune: end
+[2014-02-20 14:54:19 -0500] blune: # restart Postfix service
+[2014-02-20 14:54:25 -0500] blune: service "postfix" do
+[2014-02-20 14:54:32 -0500] blune:   supports :restart => true
+[2014-02-20 14:54:41 -0500] blune:   action :restart
+[2014-02-20 14:54:45 -0500] blune: end
+[2014-02-20 14:54:58 -0500] blune: the code above works if you run it alone.
+[2014-02-20 14:55:38 -0500] blune: if I mix it with other cookbooks in a run list, then it crashes almost everytime.
+[2014-02-20 14:56:38 -0500] jbz: blune: why are you doing action :restart?  That will restart it every time chef runs - is that what you're trying to do?
+[2014-02-20 14:57:54 -0500] medieval1: yeah...was just going to point that out. Change to action [ :enable, :start]
+[2014-02-20 14:58:11 -0500] medieval1: then in your package "postfix" do LWRP add this:
+[2014-02-20 14:58:50 -0500] medieval1: notifies :restart, "service:postfix"
+[2014-02-20 15:00:50 -0500] blune: jbz: It's only the first time when changes in config file is made, thats when I want to restart the service. 
+[2014-02-20 15:01:00 -0500] blune: other times I do not have to do anything.
+[2014-02-20 15:01:17 -0500] blune: this notify thing is something I will try..
+[2014-02-20 15:01:41 -0500] blune: ..but can I do that when I am using package_installer cookbook?
+[2014-02-20 15:01:56 -0500] blune: I only makes a list of all packages I want to install:
+[2014-02-20 15:02:17 -0500] blune: default['package_installer']['packages'] = [  'postfix', ......... alot more packas ]
+[2014-02-20 15:02:35 -0500] jbz: blune: Use medieval1's suggestion.  That will make it only restart when changes are done.  As for the other, what type of system are you on?
+[2014-02-20 15:02:44 -0500] blune: after that it is pretty much up to package_installer cookbook to handle installering.
+[2014-02-20 15:02:54 -0500] jbz: I'm confused why you're using a package_installer *cookbook* when there are chef install providers for most cases...
+[2014-02-20 15:03:04 -0500] blune: I am on ubuntu.
+[2014-02-20 15:03:06 -0500] jbz: oh
+[2014-02-20 15:03:14 -0500] jbz: then you really should be using the package resource
+[2014-02-20 15:03:20 -0500] blune: jbz: I am open for suggestions :)
+[2014-02-20 15:03:36 -0500] blune: my first attempt to install a server with chef..
+[2014-02-20 15:03:39 -0500] jbz: To install a list of them, just use an array and loop to set up the necessary package resources
+[2014-02-20 15:03:41 -0500] jbz: sure
+[2014-02-20 15:03:42 -0500] jbz: no worry
+[2014-02-20 15:03:50 -0500] jbz: hang on, let me get a snippet to paste for you
+[2014-02-20 15:04:26 -0500] blune: thank you for taking time :)
+[2014-02-20 15:05:00 -0500] medieval1: ["foo", "bar", "hoopy", "postfix", apache"].each do |p|
+[2014-02-20 15:05:04 -0500] medieval1: package p do
+[2014-02-20 15:05:07 -0500] medieval1:   action :install
+[2014-02-20 15:05:08 -0500] medieval1: end
+[2014-02-20 15:05:46 -0500] jbz: heh medieval1 beat me to it again
+[2014-02-20 15:06:04 -0500] jbz: although
+[2014-02-20 15:06:17 -0500] medieval1: :)
+[2014-02-20 15:06:25 -0500] medieval1: that's just one way...typically how I do it.
+[2014-02-20 15:06:42 -0500] blune: but that code is like how package_installer cookbook handles it...
+[2014-02-20 15:06:44 -0500] jbz: I like to use %w as in the following:  https://gist.github.com/jbz/9115697
+[2014-02-20 15:07:06 -0500] medieval1: ruby FTW :)
+[2014-02-20 15:07:24 -0500] jbz: blune: if that's all it's doing, there's no need to use another cookbook and clutter up the attributes if the list of packages isn't going to change
+[2014-02-20 15:07:31 -0500] medieval1: don't have to worry about those pesky quotes and commas then
+[2014-02-20 15:08:03 -0500] jbz: if those packages will *always* need to be installed for your cookbook, then might as well just do it inline.  Quicker, safer, fewer cookbooks to manage.
+[2014-02-20 15:08:39 -0500] blune: aha, ok. will rewrite and try again :)
+[2014-02-20 15:08:45 -0500] medieval1: blune: and you can still use that attr (or similar)
+[2014-02-20 15:09:07 -0500] medieval1: node['package_installer']['packages'].each do |p|
+[2014-02-20 15:09:13 -0500] medieval1: package p do
+[2014-02-20 15:09:16 -0500] medieval1:   action :install
+[2014-02-20 15:09:16 -0500] medieval1: end
+[2014-02-20 15:09:47 -0500] blune: ok, and then I put in a notify there...   and it should work smoother?
+[2014-02-20 15:10:09 -0500] medieval1: but chances of your run list being *that* dynamic are pretty slim...thus having the list of packages in an attribute is just adding more moving parts for no real added benefit
+[2014-02-20 15:10:15 -0500] medieval1: yes
+[2014-02-20 15:11:05 -0500] medieval1: now...the thing to watch for...is that some packages (debs) will have post-install scripts that start the service
+[2014-02-20 15:11:12 -0500] medieval1: apache for instance I believe still does this
+[2014-02-20 15:11:16 -0500] medieval1: and some don't
+[2014-02-20 15:12:08 -0500] medieval1: Chef is the instantiation of DevOps..you still must have somewhat intimate knowledge of what you are effecting. As in, "when I install package X I know exactly what is going on"
+[2014-02-20 15:12:13 -0500] blune: I see your points about restarting services here and there....   but for now I have only installed new servers, so it has not become a problem...  yet :)
+[2014-02-20 15:12:44 -0500] medieval1: right...but you'll use Chef to manage/maintain those servers...with the same run_list
+[2014-02-20 15:12:46 -0500] jbz: blune: are you running chef regularly on your servers, or are you just running it once to set them up?
+[2014-02-20 15:13:35 -0500] blune: I think I will try to run them constantly.... 
+[2014-02-20 15:13:49 -0500] blune: we have not everything planned yet..
+[2014-02-20 15:14:17 -0500] blune: we are setting up a totally new infrastructure so we are testing around now.
+[2014-02-20 15:14:21 -0500] jbz: blune: excellent, Chef is best used as an ongoing management tool, not a one-off scripting engine. :-)  If you look at the 'chef-client' cookbook, it will set up chef as a running service on your ubuntu machines.
+[2014-02-20 15:15:40 -0500] blune: right now its a mess in my mind of all cookbooks and so on..   :)        have tried to reuse existing one as much as possible, but that seems to give other hickups now and then.
+[2014-02-20 15:16:09 -0500] blune: what are your opinions of berkshelf?
+[2014-02-20 15:17:15 -0500] blune: I gave it a quick test but I did not get its idea.. or, I got the idea but not how practically work with it..
+[2014-02-20 15:17:48 -0500] medieval1: same here...we do all of our testing on a dev AZ and with jenkins jobs
+[2014-02-20 15:17:49 -0500] blune: right now I keeping it basic with built in knife.
+[2014-02-20 15:18:04 -0500] jbz: berkshelf is an excellent tool for setting up a consistent Chef workflow with automated testing.  However, a full Chef workflow is more complex than you might want to tackle if you're first working with Chef.
+[2014-02-20 15:18:18 -0500] medieval1: indeed
+[2014-02-20 15:18:37 -0500] jbz: I would recommend (although I'm not really qualified to) that if possible, you learn Chef in non-production environments - experiment, play around, etc - using the basic tools so you know what Chef is doing
+[2014-02-20 15:19:07 -0500] jbz: but remind yourself that you're not going to put Chef into full production until you know how it works, and how your team is going to use it and handle multiple people working on the same cookbook stack
+[2014-02-20 15:19:47 -0500] jbz: once you start running into the normal problems of keeping your Chef server in sync with your source control, when there are multiple people working on it and you are modifying your own cookbooks regularly, then Berkshelf and test-kitchen will make much more sense
+[2014-02-20 15:21:05 -0500] jbz: Once you've spent some time working with cookbooks and multiple-cookbook roles, I recommend you watch this video:  http://www.getchef.com/blog/chefconf-talks/the-berkshelf-way-jamie-winsor/
+[2014-02-20 15:21:23 -0500] jbz: It does a very good job of explaining Berkshelf and that particular use pattern
+[2014-02-20 15:21:25 -0500] medieval1: agree
+[2014-02-20 15:21:41 -0500] jbz: and with that, I'll stop pontificating. :-) :-)
+[2014-02-20 15:21:44 -0500] medieval1: heh
+[2014-02-20 15:22:21 -0500] medieval1: also ensure you have a good SCM in place. And use it as the "source" as opposed to Chef Server. Makes recovery much simpler to deal with.
+[2014-02-20 15:22:22 -0500] blune: I have looked at that webcast and liked it....   thats why I got somewhat frustrated with the "face plant" at first attempt using berkshelf...
+[2014-02-20 15:22:33 -0500] medieval1: with the added bonus of multiple folks working on same code streams
+[2014-02-20 15:23:52 -0500] blune:  medieval1, jbz:  thank you for all your tips/hints.  I will try them out and repost the progress later :)
+[2014-02-20 15:24:08 -0500] medieval1: (thumbsup)
+[2014-02-20 15:24:19 -0500] jbz: Good luck!
+[2014-02-20 22:42:41 -0500] jakekdodd: Has anybody ever experienced knife ec2 server create hanging up after "Private IP Address" has been printed in the shell? I've confirmed in the AWS console that the instance has been created, but knife ec2 server create seems to stop at this point

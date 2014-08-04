@@ -1,0 +1,604 @@
+[2014-03-06 00:00:04 -0500] Otterley: I mean, I want to invoke a method in Chef::Client against the client object that is being used.
+[2014-03-06 00:00:36 -0500] Otterley: like node.method, except client.method.
+[2014-03-06 00:00:37 -0500] coderanger: Otterley: Which method?
+[2014-03-06 00:00:59 -0500] coderanger: Clients aren't really a concrete object most of the time
+[2014-03-06 00:01:05 -0500] Otterley: policy_builder
+[2014-03-06 00:01:08 -0500] coderanger: They just exist implicitly
+[2014-03-06 00:01:45 -0500] coderanger: Otterley: Ohhh, you mean chef::client, not api_client
+[2014-03-06 00:01:47 -0500] coderanger: very different :)
+[2014-03-06 00:01:56 -0500] Otterley: that's what I said...
+[2014-03-06 00:02:05 -0500] coderanger: Otterley: Erm, why? The policy builder stuff isn't actually used for anything that I know of
+[2014-03-06 00:02:32 -0500] Otterley: I want to use it to determine whether I should re-save the node to the server or not.
+[2014-03-06 00:02:50 -0500] coderanger: How is that related to the policy_builder system
+[2014-03-06 00:03:10 -0500] Otterley: read the code for save_updated_node in lib/chef/client.rb.
+[2014-03-06 00:03:41 -0500] Otterley: Chef client's behavior changed recently; it doesn't do an automatic re-save if an override run list is provided.
+[2014-03-06 00:03:51 -0500] coderanger: Yes, that is correct
+[2014-03-06 00:03:56 -0500] Otterley: I have an Ohai plugin that I thought was supposed to help, but apparently even automatic attributes aren't put back.
+[2014-03-06 00:04:18 -0500] coderanger: Otterley: Indeed, nothing is saved since doing so is entirely invalid and dangerous
+[2014-03-06 00:04:31 -0500] shanlar: is it possible to use knife ssh and only connect to servers with a specific nested attribute? like virtualization['role'] = guest?
+[2014-03-06 00:04:44 -0500] coderanger: shanlar: role:guest
+[2014-03-06 00:04:50 -0500] Otterley: So, I have some code that will re-load the node from the server, update some attributes, and re-save it, but I only want to invoke it during the middle of the run if Chef wouldn't save it itself.  Otherwise I'm saving the node twice for no good reason.
+[2014-03-06 00:04:58 -0500] shanlar: really? dont need to specific the main attribute?
+[2014-03-06 00:05:05 -0500] coderanger: shanlar: You can' but you don't have to
+[2014-03-06 00:05:18 -0500] coderanger: shanlar: I think it should also work with virtualization__role:guest
+[2014-03-06 00:05:22 -0500] shanlar: do you know how to do it if i needed to?
+[2014-03-06 00:05:25 -0500] Otterley: only 1 underscore is needed
+[2014-03-06 00:05:28 -0500] coderanger: but I might be off on the number of underscores
+[2014-03-06 00:05:30 -0500] coderanger: yeah, that
+[2014-03-06 00:05:37 -0500] Otterley: so, back to my question, coderanger
+[2014-03-06 00:05:51 -0500] shanlar: coderanger: ty you are like a god to me
+[2014-03-06 00:05:52 -0500] Otterley: you'd think it would be accessible via node.run_context, but it doesn't appear to be
+[2014-03-06 00:05:54 -0500] shanlar: both methods worked
+[2014-03-06 00:05:59 -0500] awc737: Hey, I want to provide a config for a user to set VHOSTS variables, and loop for each, using web_app.conf
+[2014-03-06 00:06:01 -0500] coderanger: Otterley: Basically if you want to monkey patch chef, just do that, override that method with an unqualified node.save
+[2014-03-06 00:06:07 -0500] awc737: Where would be the best place to put that config
+[2014-03-06 00:06:18 -0500] Otterley: Monkey-patching Chef is out of the question.
+[2014-03-06 00:06:29 -0500] coderanger: Otterley: What are you going to do then?
+[2014-03-06 00:07:08 -0500] Otterley: well, if I can get access to the client object, I can predicate my save on client.policy_builder.temporary_policy?
+[2014-03-06 00:07:27 -0500] Otterley: otherwise, I guess I can re-save it every time, but that seems wasteful.
+[2014-03-06 00:07:28 -0500] coderanger: Otterley: Thats functionally equivalent
+[2014-03-06 00:07:44 -0500] Otterley: how so?
+[2014-03-06 00:08:16 -0500] coderanger: Otterley: Just check for Chef::Config[:override_runlist]
+[2014-03-06 00:08:20 -0500] coderanger: Thats what you actually mean
+[2014-03-06 00:08:35 -0500] Otterley: okie dokie.
+[2014-03-06 00:08:48 -0500] coderanger: Otterley: But again, this is actively restoring broken behavior
+[2014-03-06 00:08:52 -0500] coderanger: Consider yourself warned
+[2014-03-06 00:09:00 -0500] Otterley: not really, as it's not a partial save.
+[2014-03-06 00:09:12 -0500] Otterley: it's a load/modify/save operation.
+[2014-03-06 00:09:37 -0500] coderanger: ::shrug:: Anything dependent on cookbooks would be broken
+[2014-03-06 00:09:46 -0500] Otterley: I don't understand
+[2014-03-06 00:10:00 -0500] coderanger: Any cookbooks not given in the override_runlist aren't loaded, so their attrs aren't loaded
+[2014-03-06 00:10:26 -0500] Otterley: that hasn't been my experience.
+[2014-03-06 00:10:35 -0500] Otterley: I'm doing a get_rest and modifying it and saving it
+[2014-03-06 00:10:55 -0500] coderanger: Heh, in addition to other isuses, thats race-condition-tastic
+[2014-03-06 00:11:05 -0500] Otterley: chef itself is race-condition-tastic.  it's no worse.
+[2014-03-06 00:11:17 -0500] coderanger: Indeed, don't use Chef to store state
+[2014-03-06 00:11:18 -0500] coderanger: :)
+[2014-03-06 00:11:32 -0500] Otterley: that's like saying "don't use Chef."
+[2014-03-06 00:11:35 -0500] coderanger: If you need to record state data off a node, put it somewhere real
+[2014-03-06 00:11:40 -0500] coderanger: No, config != state
+[2014-03-06 00:12:15 -0500] Otterley: I can't waste time arguing that here.  But thanks for the tip.
+[2014-03-06 00:19:59 -0500] awc737: Where would be the best place to put that config
+[2014-03-06 00:20:04 -0500] awc737: I want to provide a config for a user to set VHOSTS variables, and loop for each, using web_app.conf
+[2014-03-06 00:22:34 -0500] awc737: anyone know an example like this?
+[2014-03-06 00:28:23 -0500] awc737: So do site-cookbooks override cookbook attibutes, and environment attributes override those?
+[2014-03-06 00:33:43 -0500] awc737: can I associate config files with each environment?
+[2014-03-06 00:34:59 -0500] mattupstate: awc737: yes, in a sensegiven a cookbook with a config file in it, you can pin a version of that cookbook to an environment
+[2014-03-06 00:36:11 -0500] awc737: hmm
+[2014-03-06 00:36:26 -0500] mjuszczak: coderanger: OK, thank you.
+[2014-03-06 00:36:41 -0500] awc737: I don't really follow that process mattupstate :/
+[2014-03-06 00:37:19 -0500] awc737: my cookbook has no config file, only my environment
+[2014-03-06 00:37:35 -0500] awc737: but in my coookbook, I have web_app "thing-x" do, for example
+[2014-03-06 00:37:46 -0500] awc737: but if the environmet = dev1, I want that line to be web_app "thing-y" do
+[2014-03-06 00:41:04 -0500] awc737: so my condition must be if node.chef_environment = X, for each site (from where?)
+[2014-03-06 00:41:05 -0500] Ben__: I get this error whenever I create a new vagrant box ERROR: execute[generate-module-list] (apache2::default line 68) had an error: Errno::ENOENT: No such file or directory - /usr/local/bin/apache2_module_conf_generate.pl
+[2014-03-06 00:41:18 -0500] awc737: where is the best place for the user to put those sites is my question
+[2014-03-06 00:41:28 -0500] Ben__: But running vagrant provision afterwards works fine, and everything is good
+[2014-03-06 00:41:43 -0500] Ben__: It's not a huge issue, there is a workaround, but it's pretty frustrating all the same
+[2014-03-06 00:42:50 -0500] awc737: MattMaker:is data bags the correct place?
+[2014-03-06 00:47:28 -0500] mattupstate: awc737: i dont fully understand your problem, i guess
+[2014-03-06 00:47:47 -0500] mattupstate: but a config file does not belong in an environment
+[2014-03-06 00:48:02 -0500] mattupstate: and when i say config file, i mean an actual file, or template that renders a file
+[2014-03-06 00:48:09 -0500] mattupstate: which is in a cookbook
+[2014-03-06 00:48:42 -0500] awc737: does a config file belong in data bags?
+[2014-03-06 00:48:54 -0500] mattupstate: not
+[2014-03-06 00:48:55 -0500] mattupstate: *no
+[2014-03-06 00:49:01 -0500] mattupstate: are you looking to define a list of "sites" that can be enabled in a given environment?
+[2014-03-06 00:49:15 -0500] awc737: I basically just have a LAMP cookbook. I Want developers to clone it, then update *some* config, with a list of VHOSTS they want created
+[2014-03-06 00:49:38 -0500] awc737: but, I also want them to be able to specify VHOSTS for each environment, so for their local environment
+[2014-03-06 00:49:42 -0500] awc737: or if they add some stage environment
+[2014-03-06 00:49:53 -0500] mattupstate: i dont really follow that
+[2014-03-06 00:49:56 -0500] mattupstate: sorry
+[2014-03-06 00:51:12 -0500] awc737: ok, say we have multiple stage servers, I will have dev1 environment and dev2
+[2014-03-06 00:51:22 -0500] awc737: well, my recipe has a snip like this to create a VHOST
+[2014-03-06 00:55:19 -0500] awc737: OK mattupstate does this make sense now
+[2014-03-06 00:55:21 -0500] awc737: http://laravel.io/bin/bWqX
+[2014-03-06 00:55:51 -0500] awc737: I want my users able to specify vhosts, and their parameters, based on which environment they are provisioning
+[2014-03-06 02:27:40 -0500] TrinitronX: I'm getting what I assume is a very common error after trying to bootstrap a node with the same name as an old one: "Your validation client is not authorized to create the client"
+[2014-03-06 02:27:59 -0500] jbz: Yes
+[2014-03-06 02:28:00 -0500] TrinitronX: but even after 'knife node delete old-node-name'  I still can't name a node the same thing?
+[2014-03-06 02:28:06 -0500] jbz: did you delete both the node and the client?
+[2014-03-06 02:28:08 -0500] micgo: TrinitronX: You have to delete the client of the same name
+[2014-03-06 02:28:19 -0500] TrinitronX: Ah, Under /clients
+[2014-03-06 02:28:19 -0500] jbz: Registering a node creates two entities, the node record and the client which is empowered to converge it
+[2014-03-06 02:29:23 -0500] TrinitronX: Ok, I think I get it... so during bootstrap we have the validator cert which is used to set up a new client with cert for authentication
+[2014-03-06 02:29:34 -0500] TrinitronX: then the node is setup also and converged?
+[2014-03-06 02:30:56 -0500] TrinitronX: Wow... looking at the list of clients in my chef server has a bunch of old crufty ones lying around... @jbz thanks for alerting me of this
+[2014-03-06 02:31:09 -0500] jbz: TrinitronX: yeah, it's a common issue :-)
+[2014-03-06 02:31:12 -0500] TrinitronX: Didn't think to look there, usually I just forget about that page for the most part
+[2014-03-06 02:31:33 -0500] jbz: I usually script a deprovisioner that kills both the node and client at the same time
+[2014-03-06 02:33:04 -0500] TrinitronX: I gotcha
+[2014-03-06 02:33:48 -0500] TrinitronX: Is there a knife plugin for that, or just simple bash script with: 'knife node delete my-node; knife client delete my-node;' ?
+[2014-03-06 02:34:27 -0500] jbz: I use the latter :-)
+[2014-03-06 02:34:53 -0500] jbz: I think I added it to the end of script to terminate EC2 nodes
+[2014-03-06 02:42:09 -0500] TrinitronX: That's a good idea ;-)
+[2014-03-06 07:27:05 -0500] makhan: Is there a problem with hosted chef?
+[2014-03-06 07:27:17 -0500] makhan: I've just started receiving errors every time I try to run knife
+[2014-03-06 07:27:18 -0500] makhan: ERROR: Failed to authenticate to https://api.opscode.com/organizations/my_organization as my_organization with key /Users/me/.ssh/my_organization-chef.pem
+[2014-03-06 07:27:21 -0500] makhan: Response:  Invalid signature for user or client 'my_organization'
+[2014-03-06 07:27:59 -0500] makhan: I thought my key might have become corrupted for some reason, so I regenerated the key on chef site and substituted them but keep getting the same error message
+[2014-03-06 07:30:07 -0500] makhan: nevermind...
+[2014-03-06 07:30:18 -0500] makhan: There is an open Hosted Chef bug that user names and client names cannot be the same within an org. You can workaround this by deleting the client with the same name as your user:
+[2014-03-06 09:50:51 -0500] gnagno: hello all
+[2014-03-06 09:51:19 -0500] gnagno: is it possible to use binding.pry from knife solo ?
+[2014-03-06 10:24:00 -0500] ShadySQL: guys one question
+[2014-03-06 10:24:05 -0500] ShadySQL: I am new to chef first
+[2014-03-06 10:24:28 -0500] ShadySQL: I am trying to install .net 4.5 on windows
+[2014-03-06 10:24:36 -0500] ShadySQL: I added the receipt to the run list
+[2014-03-06 10:24:44 -0500] ShadySQL: and then I bootstrapped the node
+[2014-03-06 10:24:49 -0500] ShadySQL: It ran it
+[2014-03-06 10:24:58 -0500] ShadySQL: and actually downloaded the exe
+[2014-03-06 10:25:03 -0500] ShadySQL: and placed it in
+[2014-03-06 10:25:38 -0500] ShadySQL: C:\chef\cache
+[2014-03-06 10:25:42 -0500] ShadySQL: but did not install it
+[2014-03-06 10:25:53 -0500] ShadySQL: how can I go about to install it automatically?
+[2014-03-06 11:28:25 -0500] chef088: hi
+[2014-03-06 11:28:45 -0500] chef088: how to install jboss 7 using chef cookbook?
+[2014-03-06 11:28:51 -0500] chef088: is their any recipe for that
+[2014-03-06 12:17:03 -0500] slicknick: seeking suggestions using chef over shell/perl/etc script for the following scenario- take the file created by a cron job of sql dump, output of a command, maybe strip a field from a csv > dynamic file name; move it to a repo/staging/transfer point &&/|| push/commit to git
+[2014-03-06 12:17:45 -0500] sandGorgon: hi guys - I'm new to chef, but have mucked about with ansible. Is there a way to provision a remote server using chef recipes on my laptop (over ssh) without needing opsworks or chef servers or anything like that ?
+[2014-03-06 12:20:19 -0500] ocholetras: hi guys
+[2014-03-06 12:20:41 -0500] ocholetras: does foodcritic identify lazy variables on a template like an unkown attribute?
+[2014-03-06 12:20:45 -0500] ocholetras: FC009: Resource attribute not recognised: ./recipes/default.rb:39
+[2014-03-06 12:21:12 -0500] ocholetras: the attribute is "variables lazy {{ hash }}
+[2014-03-06 12:21:21 -0500] ocholetras: is that a wrong way ?
+[2014-03-06 12:28:34 -0500] omphe: sandGorgon: You want to have a look at chef-solo
+[2014-03-06 12:39:14 -0500] chef032: hi
+[2014-03-06 12:39:36 -0500] chef032: while installing the jboss on the chef-client i am getting error
+[2014-03-06 12:39:46 -0500] n1ko: ok
+[2014-03-06 12:39:59 -0500] chef032: ERROR: 404 "Object Not Found"
+[2014-03-06 13:18:19 -0500] trilitheus: Hi -today long standing recipe has started failing
+[2014-03-06 13:18:31 -0500] trilitheus: directory 'd40' do action :create end
+[2014-03-06 13:18:47 -0500] trilitheus: just started complaining that the directory already exists and chef_run fails
+[2014-03-06 13:19:10 -0500] trilitheus: there is no :create_if_missing action so not sure why this just cropped up
+[2014-03-06 13:30:59 -0500] trilitheus: Mystery solved:  the d40 directory is an NFS mountpoint and the mountpoint had become stale - presuming this messed with the idempotency
+[2014-03-06 13:59:28 -0500] lewiz: Can anybody suggest a clever way to get a unique, incrementing ID back via Chef?  My plan is to fetch a unique id and store it in the node for future use.  I'm using it for my.cnf server-id which must be unique
+[2014-03-06 14:07:13 -0500] thom: lewiz: stuff the number into a databag
+[2014-03-06 14:07:36 -0500] lewiz: thom: I just read that databags are not atomic :/
+[2014-03-06 14:08:38 -0500] lewiz: thom: But I'm thinking it might be worth the risk anyway :-)  I can always clear up any conflicts by hand.
+[2014-03-06 14:16:27 -0500] thom: lewiz: it's true, but really how often do you spin mysql nodes
+[2014-03-06 14:19:57 -0500] lewiz: thom: I'll be spinning up 32 in parallel tomorrow :-)
+[2014-03-06 14:21:16 -0500] claudex: hello
+[2014-03-06 14:23:28 -0500] claudex: I'm using chef-vault to encrypt my passwords but I don't understand how to use the opscode mysql cookbook without storing the passwords in cleartext in a attribute that can be read by all the nodes
+[2014-03-06 14:41:04 -0500] trilitheus: claudex, I'm stuggling with the same thing - it's difficult to do with the default root, replication and maintenance passwords (assuming ubuntu here) but you should be able to hae any appliaction passwords just assigned to a variable for the duration of the chef run (of course it is all dependant on what you need to do)
+[2014-03-06 15:00:55 -0500] mhenrixon: guys could someone please suggest what postgresql cookbook to use if I need streaming replication
+[2014-03-06 15:36:36 -0500] shlant: anyone know how to temporarily disable the chef-server ?
+[2014-03-06 15:36:52 -0500] shlant: chef-server-ctl stop <service> is useless
+[2014-03-06 15:37:09 -0500] obryan: service chef-server stop ?
+[2014-03-06 15:37:24 -0500] shlant: chef-server: unrecognized service
+[2014-03-06 15:37:35 -0500] obryan: how about /etc/init.d/chef-server stop?
+[2014-03-06 15:38:10 -0500] shlant: command not found
+[2014-03-06 15:38:40 -0500] claudex: trilitheus: for now, I have patched the mysql cookbook to read the passwords from chef-vault but it is not very useful to follow the upgrade
+[2014-03-06 15:39:01 -0500] obryan: shlant, is there a chef-server entry in the init.d dir?
+[2014-03-06 15:39:36 -0500] shlant: nope
+[2014-03-06 15:39:57 -0500] shlant: fuck why doesn't chef-server-ctl stop <service> just work
+[2014-03-06 15:40:40 -0500] obryan: what happens when you run it?
+[2014-03-06 15:40:44 -0500] obryan: error or just not found?
+[2014-03-06 15:42:52 -0500] kristianpaul: chef-metal is so cool
+[2014-03-06 15:43:15 -0500] tscanausa: is there a way to get the current cook book verison?
+[2014-03-06 15:43:27 -0500] tscanausa: from with in a recipe
+[2014-03-06 15:44:43 -0500] shlant: obryan: it says the service is stopped, but it really isn't
+[2014-03-06 15:44:56 -0500] shlant: at least accoding to chef-server-ctl service-list
+[2014-03-06 15:45:18 -0500] kristianpaul: i saw a example with chef zero for vagrant, those uses chef metal in the background?
+[2014-03-06 15:52:01 -0500] shlant: anyone see a reason why I can't set node['authorization']['sudo']['include_sudoers_d'] in a recipe for http://community.opscode.com/cookbooks/sudo?
+[2014-03-06 15:52:06 -0500] shlant: starting to get really frustrated
+[2014-03-06 15:52:38 -0500] shlant: if it's set in attributes in sudo then having it a recipe should take precedence
+[2014-03-06 15:52:40 -0500] shlant: but it's not
+[2014-03-06 15:59:37 -0500] mjuszczak: coderanger: Can you elaborate a bit more on the cookie thing with regards to using something like corp.net for public infrastructure DNS and corp-int.net for private?  Perhaps an example of how that could become a mess if you used corp.net vs int.corp.net?
+[2014-03-06 16:10:27 -0500] jidar: what's the erb config to say, if a attribute is defined, write these values and text?
+[2014-03-06 16:10:54 -0500] jidar: this doesn't quite work
+[2014-03-06 16:10:56 -0500] jidar: <%= "elasticsearch_discovery_zen_ping_unicast_hosts = " node[:graylog2][:elasticsearch_discovery_zen_ping_unicast_hosts] if node[:graylog2][:elasticsearch_discovery_zen_ping_unicast_hosts] -%>
+[2014-03-06 16:13:59 -0500] jidar: ok, think I got it
+[2014-03-06 16:21:39 -0500] jhayden: if you are building an ec2 with user-data, how does node.chef-environment get set ahead of time?
+[2014-03-06 16:22:21 -0500] jhayden: ie: if my chef recipe depends on node.chef-environment == "qa" how is this set before initial run?
+[2014-03-06 16:26:10 -0500] kbarry: i am trying to use templates for the first time but getting an error.
+[2014-03-06 16:26:11 -0500] kbarry: http://pastebin.com/9YRM1YzA
+[2014-03-06 16:27:39 -0500] kbarry: I don't know where to begin to troubleshoot this.
+[2014-03-06 16:27:55 -0500] kbarry: I am unsure what might be causing the problem.
+[2014-03-06 16:34:32 -0500] kbarry: nevermind :) forgot to upload my modified environment.
+[2014-03-06 16:34:52 -0500] jbz_: kbarry: Is that attribute getting defined anywhere *else*?  You're defining it as default, there - if it's being defined elsewhere at higher precedence, it might only be being set as a single string
+[2014-03-06 16:34:55 -0500] jbz_: ah
+[2014-03-06 16:35:21 -0500] jbz_: kbarry: so you've found a weakness, though - you probably want to test if it's actually an array before using the .each method...
+[2014-03-06 16:35:28 -0500] kbarry: my clue was when i changed the order of the 2 listed domains, and they error didnt change.
+[2014-03-06 16:35:50 -0500] kbarry: Apparently you can't use "each" unless its an awway :)
+[2014-03-06 16:36:00 -0500] kbarry: right.
+[2014-03-06 16:36:05 -0500] kbarry: So, i have another question.
+[2014-03-06 16:36:18 -0500] kbarry: so the syntax i have, it creates a new line
+[2014-03-06 16:36:28 -0500] chef403: hey guys just looking for a bit of insight into the usage of roles. I recently was pointed in the direction of a few pages which seem to declare the usage of roles as an 'anti-pattern' and was wondering on the general consensus http://dougireton.com/blog/2013/02/16/chef-cookbook-anti-patterns/
+[2014-03-06 16:36:30 -0500] kbarry: with search [namenumber1]
+[2014-03-06 16:36:41 -0500] kbarry: then the next is search [namenumber2]
+[2014-03-06 16:36:48 -0500] kbarry: what i'd really like is more like
+[2014-03-06 16:36:57 -0500] kbarry: search [namenumber1] [namenumber2]
+[2014-03-06 16:44:34 -0500] mjuszczak: chef403: I'm dumping roles
+[2014-03-06 16:44:36 -0500] kbarry: any ideas?
+[2014-03-06 16:44:49 -0500] mjuszczak: chef403: there's been a shift, look into the "berkshelf" method.  Roles can't be versioned.
+[2014-03-06 16:44:57 -0500] mjuszczak: chef403: but some folks swear by roles, it's really up to you
+[2014-03-06 16:48:50 -0500] chef403: ok but berkshelf (and im only skimming it now thanks for the link) doesn't use wrapper cookbooks as such
+[2014-03-06 16:49:46 -0500] isleshocky77: Does a node have to be a single machine (vm)? Can you have multiple nodes on the same hardware? i.e. I have multiple deployments on one ec2 instance, I would like to automate the creation of new deployments as well as upgrading those deployments. Would chef be a good match for that use-case? Or should I be looking at something else?
+[2014-03-06 16:57:32 -0500] pcn: Does anyone know if you can use knife-vsphere to launch a VM from a .ova file (which has a .ovf template as part of it)?
+[2014-03-06 16:57:40 -0500] awc737: Hello, I want a different variable used in my recipe, dependent on the environment
+[2014-03-06 16:57:46 -0500] awc737: something like this: http://laravel.io/bin/bWqX#
+[2014-03-06 16:58:39 -0500] awc737: where would I put a file like that?
+[2014-03-06 17:00:17 -0500] cwj: awc737: in the chef environment definition, perhaps? http://docs.opscode.com/essentials_environments.html
+[2014-03-06 17:04:09 -0500] awc737: cwj: an array like that in the environment def?
+[2014-03-06 17:05:03 -0500] cwj: your pastebin looks like a hash to me, I would prefer a hash over an array myself
+[2014-03-06 17:05:38 -0500] cwj: but yes, you can set attributes at the environment level, similar to how they can be set at the cookbook, role and node level
+[2014-03-06 17:05:55 -0500] cwj: http://docs.opscode.com/essentials_node_object.html#attribute-precedence
+[2014-03-06 17:06:01 -0500] awc737: my goal is to make it very easy for the person cloning the repo
+[2014-03-06 17:06:10 -0500] awc737: to edit a config file, and put their own VHOST variables
+[2014-03-06 17:06:28 -0500] awc737: so that my recipe will loop them, but only if the environment is correct
+[2014-03-06 17:08:43 -0500] kbarry: we use environment files this way
+[2014-03-06 17:08:45 -0500] kbarry: stage
+[2014-03-06 17:08:47 -0500] kbarry: dev
+[2014-03-06 17:08:48 -0500] kbarry: prod
+[2014-03-06 17:09:17 -0500] kbarry: the environment definition file contains attributes for things that need to change per the environment,
+[2014-03-06 17:09:56 -0500] awc737: right, i mostly have that part down
+[2014-03-06 17:10:02 -0500] awc737: but I want a dynamic VHOST piece
+[2014-03-06 17:10:22 -0500] awc737: because this is a pretty generic LAMP server, I want devs to be able to specify their apps and reload it
+[2014-03-06 17:11:23 -0500] pcn: anyone use knife-vsphere?
+[2014-03-06 17:14:51 -0500] awc737: Where is the best place to put config files? data bags?
+[2014-03-06 17:21:44 -0500] pcn: awc737: there are lots of types of config files.  Files that are used verbatim should be cookbook_files in the cookbook
+[2014-03-06 17:22:02 -0500] pcn: awc737: Files that need to be programatically manipulated/massaged/created by chef should be templates
+[2014-03-06 17:22:25 -0500] pcn: awc737: data_bags should be data, not file contents (as long as you can avoid it, that is)
+[2014-03-06 17:22:42 -0500] awc737: well this one needs to be edited by user
+[2014-03-06 17:22:47 -0500] awc737: but it's not data
+[2014-03-06 17:23:43 -0500] pcn: So, normally in that situation a second chef run will overwrite the changes that the user made.
+[2014-03-06 17:23:47 -0500] awc737: where would you recommend for this? just want dynamic user specified vhosts...
+[2014-03-06 17:24:11 -0500] awc737: it could be in site-cookbooks as an override
+[2014-03-06 17:24:35 -0500] pcn: So you're using a debian-like system of including a directory of vhosts?
+[2014-03-06 17:25:00 -0500] awc737: yeah
+[2014-03-06 17:25:21 -0500] pcn: How much control do you give users over what they can put in a vhost config?
+[2014-03-06 17:25:59 -0500] awc737: As much as possible
+[2014-03-06 17:26:10 -0500] awc737: something like this https://github.com/MiniCodeMonkey/Vagrant-LAMP-Stack/blob/master/site-cookbooks/app/templates/default/web_app.conf.erb
+[2014-03-06 17:26:56 -0500] hairyhenderson: hi folks, I'm using the Server API to search for nodes... I'm using the GET /search/node?q=... method, and my query is too large so chef is rejecting it
+[2014-03-06 17:27:09 -0500] awc737: pcn: Here is one example, on line 36 https://github.com/r8/vagrant-lamp/blob/master/cookbooks/vagrant_main/recipes/default.rb
+[2014-03-06 17:27:19 -0500] awc737: they loop sites, but it's in data bags
+[2014-03-06 17:27:32 -0500] hairyhenderson: the API docs on the POST /search/node method are a little confusing - can someone tell me if I can put a query in the POST body?
+[2014-03-06 17:27:45 -0500] pcn: awc737: If it's completely free-form, then data bags are probably your best option, yeah.
+[2014-03-06 17:28:30 -0500] pcn: awc737: I'm not usually in that situation, so I shy away from it, but I can understand how it's valid.
+[2014-03-06 17:28:39 -0500] hairyhenderson: the POST docs talk about POST being used for "partial search" which isn't what I want... I want a full search, but with a massive query string (11 kB in my case)
+[2014-03-06 17:29:11 -0500] awc737: yeah, I'm thinking of just having each item in the sites databag be the actual VHOST conf file
+[2014-03-06 17:29:15 -0500] pcn: awc737: If you can be cautious and validate that the vhost in the data bag doesn't cause apache2 to crash, though, you[ll be a lot happier
+[2014-03-06 17:29:27 -0500] awc737: and then copy those files exactly
+[2014-03-06 17:29:31 -0500] awc737: unfortunately I don't know ruby lol
+[2014-03-06 17:29:43 -0500] awc737: meh, i know it well enough
+[2014-03-06 17:29:48 -0500] pcn: awc737: if you know c, perl, or python it'll be simple
+[2014-03-06 17:30:00 -0500] awc737: yeah exactly, it's readable
+[2014-03-06 17:30:03 -0500] pcn: just lean on the resources and providers that chef gives you
+[2014-03-06 17:31:34 -0500] pcn: E.g. use the file resource with the content attribute
+[2014-03-06 17:31:57 -0500] awc737: pcn: is it OK practice to use the hostname as the environment name
+[2014-03-06 17:36:49 -0500] shlant: anyone know a better way to test sudo access? I'm new-ish to minitest: https://gist.github.com/MrMMorris/9eeec18e726c0595708c
+[2014-03-06 17:40:14 -0500] awc737: Is it good practice to use the hostname as the chef_environment name?
+[2014-03-06 17:48:22 -0500] xhae: no.
+[2014-03-06 17:49:21 -0500] isleshocky77: Does a node have to be a machine? Or can you have multiple nodes on a single machine?
+[2014-03-06 17:51:52 -0500] cheeseprocedure: isleshocky77: you could have multiple Chef client.rb configurations on one machine that explicitly define the node name, but if they all converge differently, why would you want to do it?
+[2014-03-06 17:52:39 -0500] cheeseprocedure: or do you mean something differently by "machine?" are you talking about a single physical box or the logical instances running inside it?
+[2014-03-06 17:52:52 -0500] xhae: cheeseprocedure: they might be application-only, making no modifications to the system. there's no reason that a chef client _must_ run as root.
+[2014-03-06 17:53:23 -0500] xhae: isleshocky77: as cheeseprocedure says you'd have to separate them with careful client.rb
+[2014-03-06 17:53:31 -0500] cheeseprocedure: xhae: true! though i'm having trouble thinking of a reason to do so
+[2014-03-06 17:53:49 -0500] coderanger: mjuszczak: If there is a security issue on foo.int.corp.net, you can set cookies (and possibly read them if you aren't careful) on corp.net
+[2014-03-06 17:53:56 -0500] isleshocky77: cheeseprocedure: Currently I have many application installations sharing one box (ec2 instance) as vhosts; when the need arises I turn them into their own ec2 instance. I would like to automate creating new installations on the single ec2 instance as well as the process of spinning up standalone instances.
+[2014-03-06 17:54:09 -0500] xhae: cheeseprocedure: some people still do multitenant hosting without virtualization, though your guess is as good as mine as to why
+[2014-03-06 17:54:39 -0500] xhae: isleshocky77: the tl;dr answer is "you probably don't need to do that"
+[2014-03-06 17:55:12 -0500] isleshocky77: xhae: Price. 75 installs on a single instance is way cheaper than 75 individual instances which don't yet require their own instance
+[2014-03-06 17:55:24 -0500] awc737: xhae:why not?
+[2014-03-06 17:58:13 -0500] xhae: isleshocky77: you can manage all 75 applications with one instance of chef client
+[2014-03-06 18:04:42 -0500] isleshocky77: xhae: Sorry if this seems like elementary questions; however, I'm trying to figure out what will be the best solution for me to implement and I'm having a hard time tracking down documentation that helps me better understand this. But would each of the 75 applications be separate nodes? Would I be able to write easy scripts to "promote" them to their own machines as well as automate upgrading all 75 of the applications?
+[2014-03-06 18:05:43 -0500] cheeseprocedure: isleshocky77: something simple like persisting your application config in e.g. node['app_configs'] and moving those configs between Chef nodes would be easy to automate when you're ready to spin up more isntances?
+[2014-03-06 18:05:55 -0500] cheeseprocedure: er, scratch that question mark
+[2014-03-06 18:06:24 -0500] xhae: you might define applications or groups of them as roles and apply those roles to one or more servers
+[2014-03-06 18:06:31 -0500] isleshocky77: cheeseprocedure: Thanks
+[2014-03-06 18:07:21 -0500] isleshocky77: xhae: Perfect! So chef would react to me changing the role of one from say "free" to "enterprise" to move it from the grouped instance to it's own instance?
+[2014-03-06 18:08:19 -0500] xhae: isleshocky77: applying the role 'customer1' to your new node would cause another instance of the application to be deployed there. then when you've switched the DNS or whatever, you can remove that role from the old node
+[2014-03-06 18:09:00 -0500] isleshocky77: xhae: Ok. Thanks.
+[2014-03-06 18:09:09 -0500] isleshocky77: Now Now i have some playing to do.
+[2014-03-06 18:16:31 -0500] shanlar: https://tickets.opscode.com/browse/CHEF-5103
+[2014-03-06 18:16:41 -0500] shanlar: can anyone confirm they also see this issue?
+[2014-03-06 18:17:00 -0500] awc737: Does this syntax look correct?
+[2014-03-06 18:17:01 -0500] awc737: web_app "#{site['name']}.#{node['precise64-lamp']['hostname']}" do
+[2014-03-06 18:33:06 -0500] jmickle: :-)
+[2014-03-06 18:33:09 -0500] jmickle: good day everyone
+[2014-03-06 18:33:34 -0500] mjuszczak: coderanger: ahhh, okay, gotcha
+[2014-03-06 18:38:36 -0500] awc737: what is wrong with this syntax?
+[2014-03-06 18:38:36 -0500] awc737: chef.json = {
+[2014-03-06 18:38:37 -0500] awc737:       "precise64-lamp": {
+[2014-03-06 18:38:43 -0500] mjuszczak: Anyone here use knife spork with the berks method, or simply the berks method?
+[2014-03-06 18:39:46 -0500] awc737: unexpected ':', expecting =>
+[2014-03-06 18:39:49 -0500] awc737: I thought this was json...
+[2014-03-06 18:41:20 -0500] awc737: I would use :, but I don't think I can with a -
+[2014-03-06 18:41:24 -0500] awc737: hyphen
+[2014-03-06 18:41:30 -0500] pcn: awc737: that looks like you're defining json in a ruby script?
+[2014-03-06 18:42:01 -0500] awc737: pcn: yeah, http://laravel.io/bin/939v
+[2014-03-06 18:42:42 -0500] pcn: You need to quote the document so that it's defined as a string.  Currently you're getting that interpreted as a ruby hash because it's not quoted.
+[2014-03-06 18:44:18 -0500] awc737: ok thanks
+[2014-03-06 18:44:43 -0500] pcn: You may want to use a here doc: http://en.wikibooks.org/wiki/Ruby_Programming/Here_documents
+[2014-03-06 18:53:25 -0500] grggls: i'm trying to upload a new version of a cookbook to my chef server.  i've updated the version number in metadata.rb.  but knife keeps uploading the old version, not the new one.
+[2014-03-06 18:53:32 -0500] grggls: has anyone see this behavior befor?
+[2014-03-06 18:54:27 -0500] mjuszczak: How do folks handle multiple chef servers in different data centers/regions?
+[2014-03-06 18:55:29 -0500] Cope: using gloves, those servers can have sharp corners.
+[2014-03-06 18:55:34 -0500] Cope: also they can get really really hot.
+[2014-03-06 18:56:37 -0500] gkra: ugh
+[2014-03-06 18:56:50 -0500] gkra: is there any doc that helps you un-fuck a chef server after /var fills up?
+[2014-03-06 18:57:43 -0500] gkra: specifically rabbitmq?
+[2014-03-06 19:13:16 -0500] awc737: anyone know this error?
+[2014-03-06 19:13:17 -0500] awc737: http://laravel.io/bin/0k2R
+[2014-03-06 19:15:44 -0500] awc737: I added the code and Stacktrace
+[2014-03-06 19:15:44 -0500] awc737: http://laravel.io/bin/7lE2
+[2014-03-06 19:17:43 -0500] awc737: do you see me using an array as string?
+[2014-03-06 19:18:07 -0500] therealkoopa: Should each node have its own client?
+[2014-03-06 19:20:40 -0500] awc737: Wait, here is the error  33>> sites = data_bag("sites")
+[2014-03-06 19:20:46 -0500] awc737: how is that an array to string conversion?
+[2014-03-06 19:21:43 -0500] awc737: nvm, I forgot data_bags_path
+[2014-03-06 19:26:27 -0500] dgarstang: Anyone using the chef-ssl-certificates cookbook? How do I paste the keys into the data bag??
+[2014-03-06 19:28:22 -0500] gleam: you probably need to change the literal newlines to '\n'
+[2014-03-06 19:29:46 -0500] dgarstang: gleam: That's one bit I wasn't sure about, yeah.
+[2014-03-06 19:31:58 -0500] dgarstang: gleam: wasn't sure what went in 'pem': either
+[2014-03-06 19:32:43 -0500] gleam: maybe dh-params? i dunno.
+[2014-03-06 19:33:18 -0500] gleam: or maybe private key + all certs in one
+[2014-03-06 19:34:11 -0500] gleam: really you could put whatever you want in there
+[2014-03-06 19:34:35 -0500] gleam: or you could leave it blank
+[2014-03-06 19:35:00 -0500] dgarstang: same applies to bundle
+[2014-03-06 19:35:41 -0500] doomviking: yeah pem is for nginx I think
+[2014-03-06 19:36:31 -0500] gkra: oh COME ON
+[2014-03-06 19:37:18 -0500] dgarstang: kk
+[2014-03-06 19:42:09 -0500] gkra: okay, where do I start with this?
+[2014-03-06 19:42:13 -0500] gkra: [2014-03-06T19:41:48+00:00] DEBUG: Sending HTTP Request via PUT to chef-01w.aw.active.tan:443//nodes/bastion-01w
+[2014-03-06 19:42:16 -0500] gkra: [2014-03-06T19:41:54+00:00] DEBUG: ---- HTTP Status and Header Data: ----
+[2014-03-06 19:42:19 -0500] gkra: [2014-03-06T19:41:54+00:00] DEBUG: HTTP 1.1 500 Internal Server Error
+[2014-03-06 19:45:17 -0500] gkra: interesting
+[2014-03-06 19:45:27 -0500] gkra: erchef errors...
+[2014-03-06 19:46:30 -0500] gkra: https://gist.github.com/gkra/6391f2503a9d93de0557
+[2014-03-06 19:51:03 -0500] wtcross: hi, if i set a node object attribute to null, does that still take precedence over default attributes?
+[2014-03-06 19:51:22 -0500] wtcross: ex { "foo": null }
+[2014-03-06 19:51:47 -0500] gkra: hmm... looks lke erchef is hosed and keeps restarting
+[2014-03-06 19:52:01 -0500] gkra: hmm... looks lke erchef is hosed and keeps restarting
+[2014-03-06 19:57:02 -0500] jbellone: Hullo :)
+[2014-03-06 20:03:25 -0500] CPS: does chef collect any information that would allow me to tell a physical node from a vm?
+[2014-03-06 20:03:26 -0500] coderanger: CPS: A lot
+[2014-03-06 20:03:26 -0500] coderanger: CPS: What virtualization system do you use?
+[2014-03-06 20:03:27 -0500] CPS: citrix xenserver
+[2014-03-06 20:03:27 -0500] CPS: these are windows nodes, i should note
+[2014-03-06 20:03:28 -0500] coderanger: CPS: Hmm, somewhat less sure then, but just run "ohai" on them and see
+[2014-03-06 20:03:29 -0500] CPS: the only thing i've noticed from digging around in the web ui is the xen kernel module
+[2014-03-06 20:03:29 -0500] CPS: but i was hoping for something more definitive in case we switch to something else
+[2014-03-06 20:08:23 -0500] dgarstang: This, "Data Bag Items must contain a Hash or Mash!" I don't get
+[2014-03-06 20:09:06 -0500] dgarstang: the chef-ssl-certificates recipe is failing at "cert = Chef::EncryptedDataBagItem.load("ssl_certificates", id)". There's no mention in the docs of it needing to be encrypted.
+[2014-03-06 20:09:12 -0500] btm: Knife Code Review: Join: bit.ly/NBW6vx watch: bit.ly/NBW4na
+[2014-03-06 20:15:33 -0500] dgarstang: chef-ssl-certificates. Anyone?
+[2014-03-06 20:27:15 -0500] dgarstang: What are people using to manage ssl certificates?
+[2014-03-06 20:28:52 -0500] EJC_: figured I'd ask here - super quick - anyone using chef provisioner in vagrant using the chef.custom_config_file option?
+[2014-03-06 20:29:20 -0500] EJC_: I can't tell what's legal in there, trying to allow a ~/ config file to override what's in the SOP Vagrant file that comes in the repo...
+[2014-03-06 20:31:21 -0500] davidordave: sorry for the newb question, but does every lwrp inherently support 'action :nothing'? Trying to get a command from the jenkins cookbook to fire only after a template is laid down :)
+[2014-03-06 20:36:16 -0500] tony_n: good afternoon all, i've been using chef and chef server (open source) for about a week, and it's been going well.  Today, in the server, when I click Clients, logged in as admin, i get this error: Could not list clients: 403 "Forbidden" , can someone point me in the right direction to figure out what I broke?
+[2014-03-06 20:38:16 -0500] gkra: what's the magic incantation to completely stop every single chef-server process on a box?
+[2014-03-06 20:42:16 -0500] gkra: and why does chef-server poop data in /var? why? pandas are crying now.
+[2014-03-06 20:42:49 -0500] davidordave: @gkra 'chef-server-ctl stop' ?
+[2014-03-06 20:43:36 -0500] gkra: davidordave: yeah, but I want all the runit processes dead, too
+[2014-03-06 20:43:47 -0500] gkra: come to think of it, I can't even see what the heck started runit (centos6)
+[2014-03-06 20:43:53 -0500] gkra: installed via omnibus...
+[2014-03-06 20:51:04 -0500] gkra: damnit, they keep running in single-user?
+[2014-03-06 20:51:36 -0500] gleam: haha
+[2014-03-06 20:51:57 -0500] gleam: look at SV:123456:respawn:/opt/chef-server/embedded/bin/runsvdir-start in /etc/inittab
+[2014-03-06 20:52:03 -0500] EJC_: gkra "sudo shutdown now" then set it on fire
+[2014-03-06 20:52:18 -0500] dgarstang: What are people using to manage ssl certificates?
+[2014-03-06 20:52:30 -0500] gleam: i have an in-house ssl cert cookbook that uses lwrps and encrypted data bags
+[2014-03-06 20:52:40 -0500] gleam: it's basically the same as the one you linked but with lwrp instead of def
+[2014-03-06 20:52:55 -0500] coderanger: dgarstang: citadel
+[2014-03-06 20:53:06 -0500] dgarstang: gleam: it seems like chef-ssl-certificates is abandonware. ssl-cookbook seemed more current
+[2014-03-06 20:53:08 -0500] dgarstang: and has better docs
+[2014-03-06 20:53:45 -0500] dgarstang: coderanger: I wasn't after the signer
+[2014-03-06 20:54:06 -0500] gkra: gleam: nothing there
+[2014-03-06 20:54:25 -0500] gkra: seriously, wtf is starting chef-server, and how do I kill it all so I can umount the damned fs?
+[2014-03-06 20:55:31 -0500] gleam: try initctl stop chef-server-runsvdir?
+[2014-03-06 20:55:40 -0500] coderanger: gkra: debian or rhel?
+[2014-03-06 20:55:46 -0500] gkra: centos6
+[2014-03-06 20:56:31 -0500] gkra: oh god
+[2014-03-06 20:56:34 -0500] gkra: what is this initctl beast?
+[2014-03-06 20:56:40 -0500] gleam: upstart
+[2014-03-06 20:57:32 -0500] coderanger: gkra: I don't have a CentOS machine to check, but on debianoids the master service control script is /etc/init/chef-server-runsvdir.conf
+[2014-03-06 20:59:05 -0500] dgarstang: well, I give up on chef ssl certs
+[2014-03-06 21:04:17 -0500] gkra: coderanger: all this so i can resize a couple filesystems :)
+[2014-03-06 21:04:33 -0500] coderanger: gkra: Immutable systems, yo
+[2014-03-06 21:04:44 -0500] coderanger: gkra: Make a new server, roll forward on to it ;-)
+[2014-03-06 21:11:06 -0500] gkra: really I just need to get rabbitmq running again
+[2014-03-06 21:13:24 -0500] gkra: nginx access.log filled up /var, which broke rabbitmq
+[2014-03-06 21:22:13 -0500] davidski: Chef-solo newbie question - I have a recipe which does a simple apt-get update via exec. What's the most chef-like way to not get that to run every convergence? I'd prefer to have this run only on initial provision (via vagrant).
+[2014-03-06 21:23:37 -0500] chip-: davidski: The 'apt' cookbook handles this by writing a lock file.
+[2014-03-06 21:23:47 -0500] chip-: davidski: http://community.opscode.com/cookbooks/apt
+[2014-03-06 21:24:14 -0500] davidski: Ah. Someone's already done it. But of course. :) Graci!
+[2014-03-06 21:25:39 -0500] doomviking: give up too easily
+[2014-03-06 21:25:50 -0500] gkra: coderanger: uh... okay, so I stopped it (initctl stop chef-server-runsvdir) but now I can't start it up again?
+[2014-03-06 21:26:00 -0500] gkra: root@chef-01w(pts/2):etc 118 # initctl start chef-server-runsvdir
+[2014-03-06 21:26:03 -0500] gkra: initctl: Unknown job: chef-server-runsvdir
+[2014-03-06 21:26:10 -0500] gkra: sure enough, there's nothing cheffy in /etc/init... where'd it go?
+[2014-03-06 21:30:07 -0500] philcalvin: i'm running chef-solo 11.10.4 on ubuntu 13.10; i have a recipe with a service that needs to be reloaded, but chef is trying to reload it using Chef::Provider::Service::Debian rather than Chef::Provider::Service::Upstart, so it's bombing out when calling the /etc/init.d script
+[2014-03-06 21:30:15 -0500] philcalvin: https://gist.github.com/pnc/9400090
+[2014-03-06 21:30:28 -0500] benner: is there any more comortible way than encrypted databags?
+[2014-03-06 21:30:30 -0500] gkra: n/m, found it in /opt/chef-server/embedded/cookbooks/runit/files/default/chef-server-runsvdir.conf
+[2014-03-06 21:31:06 -0500] philcalvin: is there a way i can force the use of a particular provider, preferably from my own code rather than having to fork the recipe in question? (it's a community recipe, and presumably works fine with whatever ohai determines on other systems)
+[2014-03-06 21:35:14 -0500] coderanger: philcalvin: Use chef-rewind and override the provider attribute
+[2014-03-06 21:38:43 -0500] coderanger: benner: To do what?
+[2014-03-06 21:39:01 -0500] gkra: oh, well
+[2014-03-06 21:39:05 -0500] gkra: wish i would have known this earlier...
+[2014-03-06 21:39:16 -0500] benner: coderanger: distribute secret data
+[2014-03-06 21:39:17 -0500] gkra: rabbitmq in OSS chef-server toasted?
+[2014-03-06 21:39:41 -0500] gkra: mv /var/opt/chef-server/rabbitmq/db out of the way, make sure all services are running, then chef-server-ctl reconfigure.
+[2014-03-06 21:39:54 -0500] gkra: aaaaaand, still broken.
+[2014-03-06 21:40:43 -0500] philcalvin: coderanger: that was perfect, thanks so much
+[2014-03-06 21:40:57 -0500] coderanger: benner: One sec
+[2014-03-06 21:41:32 -0500] coderanger: benner:  https://coderanger.net/2014/02/data-bags/ has links to several other options in various states of quality
+[2014-03-06 21:41:46 -0500] coderanger: benner: tl;dr is: citadel, barbican, red october
+[2014-03-06 21:42:43 -0500] gkra: coderanger: how do I recover from a destroyed rabbitmq?
+[2014-03-06 21:42:50 -0500] coderanger: gkra: How destroyed?
+[2014-03-06 21:42:56 -0500] gkra: db completely gone
+[2014-03-06 21:43:09 -0500] gkra: well, i have the corrupted copy
+[2014-03-06 21:43:19 -0500] gkra: disk filled up (yay nginx) and broke mq
+[2014-03-06 21:43:27 -0500] coderanger: gkra: chef-server-ctl reconfigure should recreate the user and vhost
+[2014-03-06 21:43:40 -0500] gkra: erchef is continually erroring
+[2014-03-06 21:44:13 -0500] gkra: https://gist.github.com/gkra/6391f2503a9d93de0557
+[2014-03-06 21:44:16 -0500] coderanger: Indeed
+[2014-03-06 21:44:21 -0500] gkra: that's in erchef/current
+[2014-03-06 21:44:32 -0500] gkra: chef-server-ctl reconfigure claimed to be successful
+[2014-03-06 21:44:35 -0500] therealkoopa: Do I need to explicitly set something up so that the clients check in w/ the server? How often should that happen?
+[2014-03-06 21:44:42 -0500] coderanger: gkra: Then dive in and do it manually :)
+[2014-03-06 21:44:49 -0500] gkra: there a doc for that?
+[2014-03-06 21:45:02 -0500] coderanger: Sec
+[2014-03-06 21:45:16 -0500] coderanger: therealkoopa: Yes, use the chef-client cookbook, it defaults to 30m interval
+[2014-03-06 21:45:40 -0500] coderanger: gkra: https://github.com/opscode/omnibus-chef-server/blob/master/files/chef-server-cookbooks/chef-server/recipes/rabbitmq.rb#L84-L106
+[2014-03-06 21:45:48 -0500] coderanger: gkra: password defaults to chefrocks
+[2014-03-06 21:46:11 -0500] coderanger: gkra: https://github.com/opscode/omnibus-chef-server/blob/master/files/chef-server-cookbooks/chef-server/attributes/default.rb#L45-L47
+[2014-03-06 21:46:21 -0500] therealkoopa: coderanger: Okay, thanks. I was using the knife ec2, it must not set up the check in
+[2014-03-06 21:46:31 -0500] gkra: coderanger: chef-server-ctl start && chef-server-ctl reconfigure, or do the services need to be stopped?
+[2014-03-06 21:46:32 -0500] coderanger: therealkoopa: Indeed, it does not
+[2014-03-06 21:46:48 -0500] coderanger: gkra: Rabbitmq has to be running to use rabbitmqctl
+[2014-03-06 21:46:58 -0500] philcalvin: coderanger: that all said, is that a bug in the chef mappings for ubuntu? should i try to patch this or open a bug? eventually they'll all be systemd anyway, but for now
+[2014-03-06 21:47:00 -0500] gkra: well, yeah :)
+[2014-03-06 21:47:11 -0500] coderanger: philcalvin: Which cookbook?
+[2014-03-06 21:47:42 -0500] philcalvin: this the rsyslog community cookbook, but as i read it it's not doing anything special; it's relying on the service resource
+[2014-03-06 21:48:13 -0500] coderanger: philcalvin: I would file a ticket
+[2014-03-06 21:50:50 -0500] kitopastorino: does anyone have advise on how to use the chef-rvm cookbook with the opscode application/application_ruby cookbook? especially the bundler_command
+[2014-03-06 21:51:06 -0500] coderanger: kitopastorino: That is not really supported
+[2014-03-06 21:51:17 -0500] coderanger: Using rvm on servers is a mistake
+[2014-03-06 21:51:40 -0500] coderanger: kitopastorino: But if you change your path so thats the Ruby it picks up, it should work
+[2014-03-06 21:51:43 -0500] gkra: -sh-4.1$ bin/rabbitmqctl add_vhost /chef
+[2014-03-06 21:51:43 -0500] gkra: bin/rabbitmqctl: line 23: exec: erl: not found
+[2014-03-06 21:51:44 -0500] gkra: ?
+[2014-03-06 21:52:02 -0500] daxroc: coderanger: What way should it be done?
+[2014-03-06 21:52:13 -0500] tvanhens: whats the best/most developed cookbook to run a jar as a service on an ubuntu machine
+[2014-03-06 21:52:17 -0500] coderanger: daxroc: Just install ruby
+[2014-03-06 21:52:19 -0500] kitopastorino: coderanger: the thing is, how to point that path, what's the best way? but I second daxroc question as well
+[2014-03-06 21:52:32 -0500] coderanger: gkra: export PATH="/opt/chef-server/embedded/bin:$PATH"
+[2014-03-06 21:52:44 -0500] daxroc: *manage multiple versions that is, lxc for each version I guess?
+[2014-03-06 21:52:46 -0500] coderanger: kitopastorino: ENV['PATH'] = "wahtever"
+[2014-03-06 21:52:53 -0500] kitopastorino: coderanger: the thing is I want to run ruby 2.1.1, and the packages are always updated
+[2014-03-06 21:52:56 -0500] kitopastorino: outdated, sorry
+[2014-03-06 21:53:00 -0500] coderanger: daxroc: poise-ruby has convenient packages
+[2014-03-06 21:53:12 -0500] kitopastorino: and useing rvm is the easy way to set up 2.1.1 system wide
+[2014-03-06 21:53:44 -0500] kitopastorino: coderanger: poise-ruby has an issue with the pg gem :(
+[2014-03-06 21:53:45 -0500] gkra: coderanger: thanks. I has teh dumb today.
+[2014-03-06 21:53:50 -0500] tscanausa: I am definately in the field house of build from sourse and ad to the system path
+[2014-03-06 21:54:14 -0500] daxroc: coderanger: what problems does rvm pose ?
+[2014-03-06 21:54:22 -0500] coderanger: kitopastorino: If you are deploying a real app, use omnibus to package it
+[2014-03-06 21:54:55 -0500] Guest17272: I am new to chef and trying to install a specific version of httpd.  How do I do that?
+[2014-03-06 21:54:57 -0500] coderanger: daxroc: It hides the actual ruby behind a ton of indirection that makes integrating with anything that isn't bash really hard
+[2014-03-06 21:55:04 -0500] coderanger: Guest17272: Do you mean Apache?
+[2014-03-06 21:55:13 -0500] Guest17272: yes
+[2014-03-06 21:55:14 -0500] Guest17272: apache
+[2014-03-06 21:55:24 -0500] Guest17272: 2.4.7
+[2014-03-06 21:55:36 -0500] tscanausa: coderanger: depending on the os it is somethings called httpd
+[2014-03-06 21:55:44 -0500] kitopastorino: coderanger: I'll take a look at that, how's it better than preparing a cookbook for your app?
+[2014-03-06 21:55:44 -0500] Guest17272: if I just type httpd to install it installs an older version
+[2014-03-06 21:55:45 -0500] coderanger: Guest17272: What version are you trying to install, I think it has an option to install from source, but that is usually dangerous due to the rapid nature of apache security releases
+[2014-03-06 21:56:00 -0500] daxroc: coderanger: thanks
+[2014-03-06 21:56:02 -0500] tscanausa: but the apache2 cookbook should be able to handle it
+[2014-03-06 21:56:17 -0500] Guest17272: right I want 2.4.7
+[2014-03-06 21:56:19 -0500] coderanger: kitopastorino: Moves the complexity to build time, fewer moving pieces at deploy is a huge win
+[2014-03-06 21:56:28 -0500] Guest17272: i tried version but that did not work
+[2014-03-06 21:57:00 -0500] kitopastorino: coderanger: interesting! any particular reference/link?
+[2014-03-06 21:57:03 -0500] daxroc: Takes 4hrs to converge get to try it twice a day :D
+[2014-03-06 21:57:12 -0500] coderanger: Guest17272: Looks like I'm wrong, the apache 2 cookbook has no build-from-source recipe
+[2014-03-06 21:57:17 -0500] coderanger: Guest17272: So you would need to write your own
+[2014-03-06 21:57:28 -0500] coderanger: kitopastorino: github.com/opscode/omnibus-ruby is the tool
+[2014-03-06 21:57:34 -0500] kitopastorino: thanks!!
+[2014-03-06 21:57:44 -0500] Guest17272: ok do you have a place I can look for examples of writing own recipe to get from source?
+[2014-03-06 21:57:51 -0500] coderanger: kitopastorino: You can find the omnibus configs for chef itself on their repos, or balanced/omnibus-balanced for ours
+[2014-03-06 21:58:01 -0500] coderanger: Guest17272: Check out the ark cookbook
+[2014-03-06 21:58:11 -0500] Guest17272: ok
+[2014-03-06 21:58:14 -0500] kitopastorino: cool!
+[2014-03-06 21:58:20 -0500] gkra: coderanger: still having auth problem with rabbitmq? https://gist.github.com/gkra/6391f2503a9d93de0557
+[2014-03-06 21:58:44 -0500] gkra: oh shot
+[2014-03-06 21:58:48 -0500] gkra: forgot a step
+[2014-03-06 21:58:50 -0500] coderanger: gkra: You made a user and vhost named chef and granted perms?
+[2014-03-06 21:58:54 -0500] Guest17272: perfect
+[2014-03-06 21:58:55 -0500] Guest17272: thanks
+[2014-03-06 21:59:35 -0500] coderanger: kitopastorino: If you don't want to go down that rabbit hole but as you said poise-ruby has binary compat issues, ruby-build is faaaar simpler than rvm
+[2014-03-06 21:59:51 -0500] coderanger: kitopastorino: All it does is compile you a ruby, none of the magic version mangement and gem crud
+[2014-03-06 22:00:08 -0500] kitopastorino: maybe I'll try that first then
+[2014-03-06 22:00:56 -0500] coderanger: kitopastorino: https://github.com/fnichol/chef-ruby_build is an option, I've not tried it but fletcher write good code :)
+[2014-03-06 22:01:08 -0500] kitopastorino: nice, I was just looking at that
+[2014-03-06 22:01:09 -0500] coderanger: Its also simple enough to just write your own three-line cookbook for it :)
+[2014-03-06 22:02:03 -0500] gkra: coderanger: bah.. getting this: https://gist.github.com/gkra/9677927b2f4267a32478
+[2014-03-06 22:02:22 -0500] gkra: root@chef-01w(pts/2):chef-server 241 # rabbitmqctl list_user_permissions chef
+[2014-03-06 22:02:22 -0500] gkra: Listing permissions for user "chef" ...
+[2014-03-06 22:02:22 -0500] gkra: ...done.
+[2014-03-06 22:02:30 -0500] gkra: erm...
+[2014-03-06 22:02:44 -0500] coderanger: gkra: Isn't rabbitmq fun?
+[2014-03-06 22:02:48 -0500] gkra: https://gist.github.com/gkra/ef0626c15ae68e4e99d2
+[2014-03-06 22:02:57 -0500] gkra: permissions look like what the cookbook is trying to do
+[2014-03-06 22:03:03 -0500] coderanger: mnesia, a distributed DB that can't handle any kind of inconsistency
+[2014-03-06 22:03:26 -0500] gkra: where else is the password set
+[2014-03-06 22:03:34 -0500] gkra: i.e. so erchef knows what to connect with?
+[2014-03-06 22:03:48 -0500] kitopastorino: coderanger: and how about installing gems with rbenv? would I need sudo?
+[2014-03-06 22:04:05 -0500] coderanger: kitopastorino: Depends on if you install the ruby as root or not
+[2014-03-06 22:04:23 -0500] coderanger: gkra: grep -R chefrocks
+[2014-03-06 22:04:34 -0500] coderanger: gkra: I forget the path to the erchef config, its buried deep
+[2014-03-06 22:04:52 -0500] kitopastorino: I'd like a system-wide ruby install, so I guess it's going to be installed as root
+[2014-03-06 22:04:58 -0500] kitopastorino: but I'd like not to use sudo
+[2014-03-06 22:05:08 -0500] kitopastorino: rvm does that by creating a rvm group
+[2014-03-06 22:05:12 -0500] gkra: coderanger: https://github.com/opscode/omnibus-chef-server/blob/master/files/chef-server-cookbooks/chef-server/recipes/erchef.rb#L75 :)
+[2014-03-06 22:05:24 -0500] coderanger: kitopastorino: Then chown the dirs
+[2014-03-06 22:05:36 -0500] coderanger: kitopastorino: You need perms to write to the gems folder, how you do that is up to you :)
+[2014-03-06 22:06:20 -0500] kitopastorino: haha, ok
+[2014-03-06 22:07:03 -0500] gkra: ugh... it's a nastyhash? (https://gist.github.com/gkra/0805a2a13d4eece5416a)
+[2014-03-06 22:07:30 -0500] gkra: or is *that* the plaintext I should use for the chef user in rabbitmq?
+[2014-03-06 22:10:08 -0500] gkra: oh god
+[2014-03-06 22:10:13 -0500] gkra: that's the actual password.
+[2014-03-06 22:10:23 -0500] gkra: yay chef fixed now
+[2014-03-06 22:10:26 -0500] gkra: *headdesk*
+[2014-03-06 22:13:00 -0500] coderanger: gkra: Oh right, sorry
+[2014-03-06 22:13:11 -0500] coderanger: I think this came up before, its a hash of "chefrocks" not the string itself
+[2014-03-06 22:13:14 -0500] coderanger: I forget why that was
+[2014-03-06 22:18:53 -0500] gkra: hah
+[2014-03-06 22:19:00 -0500] gkra: well, figured it out
+[2014-03-06 22:19:01 -0500] gkra: thanks for the help
+[2014-03-06 22:40:10 -0500] jbellone: I am modifying knife-server to add openstack support. I seem to be making a boneheaded mistake and the actual command doesn't appear in knife --help.
+[2014-03-06 22:40:14 -0500] jbellone: Is there some magic I am missing?
+[2014-03-06 22:41:17 -0500] mattray: jbellone: what do you mean "to add openstack support"?
+[2014-03-06 22:41:42 -0500] mattray: ahh, never mind. Read the knife server page and now it's more clear
+[2014-03-06 22:41:42 -0500] gokr: jbellone: http://docs.opscode.com/plugin_knife_openstack.html
+[2014-03-06 22:41:46 -0500] jbellone: https://github.com/fnichol/knife-server
+[2014-03-06 22:41:54 -0500] gokr: Ok
+[2014-03-06 22:41:59 -0500] jbellone: Just asking about knife plugins :)
+[2014-03-06 22:42:12 -0500] coderanger: jbellone: That usually means it failed to load
+[2014-03-06 22:42:18 -0500] jbellone: Ah got it.
+[2014-03-06 22:42:42 -0500] coderanger: jbellone: The plugin system works by trying to load a specific file in every gem it can find
+[2014-03-06 22:42:44 -0500] gokr: Btw, the instructions for setting up a workstation is IMHO totally confusing.
+[2014-03-06 22:42:51 -0500] mattray: probably pushing a new knife-openstack tomorrow (unless my next meeting goes real quick)
+[2014-03-06 22:42:58 -0500] coderanger: So to avoid grumpy errors it just skips failures
+[2014-03-06 22:56:16 -0500] ben_rosio: I'm running into a weird issue with the apache2 cookbook
+[2014-03-06 22:56:43 -0500] ben_rosio: When I first start create a box and provision it I get this error: execute[generate-module-list] (apache2::default line 68) had an error: Errno::ENOENT: No such file or directory - /usr/local/bin/apache2_module_conf_generate.pl
+[2014-03-06 22:56:58 -0500] ben_rosio: But when I provision a second time it works fine
+[2014-03-06 22:57:15 -0500] ben_rosio: So the first vagrant up always breaks, but halting and upping again, or running provision fixes it
+[2014-03-06 22:57:24 -0500] ben_rosio: I can't seem to find much information on it though
+[2014-03-06 22:57:47 -0500] gleam: something is running generate-module-list before the file gets dropped
+[2014-03-06 22:57:56 -0500] gleam: do you have one of the module recipes included before the ::default?
+[2014-03-06 22:58:04 -0500] gleam: although that shouldn't do it
+[2014-03-06 22:58:05 -0500] gleam: i dunno
+[2014-03-06 22:58:32 -0500] ben_rosio: Hm, I don't think so, here's the vagrant file
+[2014-03-06 22:58:33 -0500] ben_rosio: http://pastebin.com/Ki6AMjNL
+[2014-03-06 22:58:38 -0500] jbellone: Any way I can put on some verbosity?
+[2014-03-06 22:59:17 -0500] ben_rosio: Oh hell, I might of just figured it out actually..
+[2014-03-06 22:59:24 -0500] ben_rosio: Hm, let me try something and I'll get back to you
+[2014-03-06 22:59:34 -0500] coderanger: jbellone: knife -vv
+[2014-03-06 23:00:56 -0500] jbellone: Thanks.
+[2014-03-06 23:07:56 -0500] jbellone: Boom! Thanks a lot guys :)
+[2014-03-06 23:07:57 -0500] jbellone: https://github.com/fnichol/knife-server/pull/51
+[2014-03-06 23:17:55 -0500] polivs: Hi all - if i'm getting Chef::Exceptions::ContentLengthMismatch, is that a problem with the cookbook or Chef? The Postgres cookbook fails when creating  'template[/etc/postgresql/9.3/main/environment]'
+[2014-03-06 23:18:23 -0500] coderanger: polivs: Generally means something went Weird with the file upload
+[2014-03-06 23:19:05 -0500] polivs: it's very weird :S - i've deleted the cookbook from the chef server (and the cache on my vm) but getting that error every time
+[2014-03-06 23:19:53 -0500] coderanger: polivs: Try restarting bookshelf and erchef
+[2014-03-06 23:20:18 -0500] polivs: coderanger: good idea, i'll have a go
+[2014-03-06 23:29:41 -0500] werdnativ: Has anyone got chef-omnibus installer + vagrant-cachier to work? I'd love if it would just download to /tmp/vagrant-cache the first time only...
+[2014-03-06 23:30:40 -0500] werdnativ: There's a mess of tickets across the different projects related to this (test-kitchen, omnitruck, etc.)
+[2014-03-06 23:31:24 -0500] chip-: werdnativ: Work is IN PROGRESS right now. Not sure if it's in the wild yet or not: https://github.com/fgrehm/vagrant-cachier/issues/13
+[2014-03-06 23:32:13 -0500] werdnativ: chip-: yeah, I saw this comment: https://github.com/fgrehm/vagrant-cachier/issues/13#issuecomment-36652790
+[2014-03-06 23:32:38 -0500] werdnativ: I wasn't able to make it work, even with the gist he recommended.
+[2014-03-06 23:37:57 -0500] coderanger: chip-: Totally unrelated to everything, but traceroute from my office to your IP is hilarious
+[2014-03-06 23:38:07 -0500] coderanger: chip-: SF -> SEA -> SF, seemed apropos :)
+[2014-03-06 23:39:22 -0500] werdnativ: The problem is I can't force test-kitchen to use anything other than www.getchef.com/chef/install.sh. This is my .kitchen.yml: https://gist.github.com/avit/7ea82605f695b40877c1
+[2014-03-06 23:39:42 -0500] coderanger: werdnativ: Yeah, I posted a thing about that, the pull-req was closed though
+[2014-03-06 23:41:42 -0500] werdnativ: ok. Also tried this ENV var, but not sure when vagrant-omnibus hooks into it: https://github.com/schisamo/vagrant-omnibus/blob/master/lib/vagrant-omnibus/action/install_chef.rb#L70
+[2014-03-06 23:42:19 -0500] werdnativ: does test-kitchen take care of installing omnibus before vagrant-omnibus gets in there?
+[2014-03-06 23:42:24 -0500] coderanger: werdnativ: No, TK does the install itself, not vagrant
+[2014-03-06 23:43:58 -0500] werdnativ: ok. I also found that if I tell TK not to install it, then it fails before vagrant-omnibus can get in there to do it. I guess I just have to wait for the official things to get fixed.
+[2014-03-06 23:46:31 -0500] coderanger: werdnativ: Yep, or run my fork :)

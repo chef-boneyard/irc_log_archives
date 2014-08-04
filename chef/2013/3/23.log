@@ -1,0 +1,196 @@
+[2013-03-23 00:11:20 -0400] Majost1: What is the syntax for sub-attributes with 'knife show nodename -a'?
+[2013-03-23 00:15:21 -0400] Majost1: ah -- period
+[2013-03-23 00:27:24 -0400] maplebed: I've got an attribute that's an array and in a recipe I want to add a value to it.
+[2013-03-23 00:27:46 -0400] maplebed: node.set['aoeu']['nth'] << 'value'
+[2013-03-23 00:27:48 -0400] maplebed: doesn't seem to work.
+[2013-03-23 00:29:58 -0400] maplebed: specifically, I'm working with the ['apache']['listen_ports'] attribute - it's currently set with a defaultc and I want to listen on an additional port.
+[2013-03-23 00:31:48 -0400] maplebed: I think http://docs.opscode.com/essentials_node_object_deep_merge.html has my answer in it somewhere but I'm not quite sure.
+[2013-03-23 00:33:23 -0400] tomdzk: maplebed: I think you need to do that before you do include_recipe "apache2"
+[2013-03-23 00:33:40 -0400] tomdzk: maplebed: see e.g. https://github.com/RiotGames/chef-server-cookbook/blob/master/recipes/apache-proxy.rb
+[2013-03-23 00:34:14 -0400] maplebed: ah, interesting.
+[2013-03-23 00:38:04 -0400] Majost1: maplebed: it should be something  like 'node.set['apache']['listen_ports'] = ['80', '443']
+[2013-03-23 00:39:39 -0400] maplebed: Majost1: I'm trying to create a recipe that adds a new port to whatever already exists instead of setting the full list.
+[2013-03-23 00:40:16 -0400] maplebed: i.e. I want the recipe to add port 8043 to two different types of hosts - some that have 80 enabled (in which case its [80,8043] and some that don't (in which case it's just [8043])
+[2013-03-23 00:40:27 -0400] Majost1: ahh
+[2013-03-23 00:40:44 -0400] Majost1: can you use .push?
+[2013-03-23 00:41:07 -0400] doomviking: apache2/recipes/mod_ssl.rb might have something you could use
+[2013-03-23 00:41:08 -0400] maplebed: tomdzk: won't the link you gave complain on chef11?
+[2013-03-23 00:41:19 -0400] maplebed: (since it's node[] instead of node.set[])?
+[2013-03-23 00:42:01 -0400] maplebed: ah!
+[2013-03-23 00:42:04 -0400] maplebed: I think doomviking has the winner.
+[2013-03-23 00:42:21 -0400] Majost1: =)
+[2013-03-23 00:42:33 -0400] maplebed: unless(includes myport) node.set = node[] + ["myport"]
+[2013-03-23 01:41:43 -0400] doomviking: wonder if it worked
+[2013-03-23 02:20:01 -0400] denken: im come from a puppet background so im pretty new to chef. im trying to come up with a good way to replace a failed chef server (DR essentially)... is best practice to set up an HA chef server pair, or to back up key data and spin up a new chef server if the primary fails?
+[2013-03-23 02:20:08 -0400] denken: a couple hours of downtime is acceptable
+[2013-03-23 02:21:13 -0400] denken: i havent fully groked the whole .pem auth system yet... which i could see causing difficulty in the backup/restore recovery scenario
+[2013-03-23 02:24:21 -0400] jsh: at least one recommended architecture for HA is mentioned in the private chef docs. http://docs.opscode.com/server/private_chef_1x_architecture.html
+[2013-03-23 02:24:53 -0400] jsh: I've not done anything like that personally, all the important bits in my systems are still using hosted :)
+[2013-03-23 02:25:13 -0400] denken: yeah i considered passing the responsibility ;)
+[2013-03-23 02:25:50 -0400] jsh: for me, it comes down to paying vendors being 10x easier than hiring more people on my teams
+[2013-03-23 02:26:28 -0400] denken: yeah. time is a factor for me too.
+[2013-03-23 02:26:34 -0400] denken: lots of moving parts in chef
+[2013-03-23 02:27:41 -0400] denken: thank you for the link
+[2013-03-23 02:30:24 -0400] denken: bleh drbd
+[2013-03-23 02:30:42 -0400] denken: vertical scaling only unless you enjoy trucking... which is crazy imho
+[2013-03-23 02:32:15 -0400] jsh: trucking?
+[2013-03-23 02:32:29 -0400] denken: stacking drbd
+[2013-03-23 02:34:53 -0400] jsh: TIL "truck based replication"
+[2013-03-23 02:35:06 -0400] jsh: means what it sounds like it means, apparently
+[2013-03-23 02:35:09 -0400] jsh: thanks
+[2013-03-23 02:37:26 -0400] denken: hmm
+[2013-03-23 02:37:38 -0400] denken: i may have been mistaken thinking trucking and stacking were the same thing, apparently
+[2013-03-23 02:37:43 -0400] denken: i meant stacked drbd resources
+[2013-03-23 02:44:47 -0400] denken: this all seems like overkill in my situation. im hoping i can just stand up a chef server, back up all the chef bits (keys primarily), and then restore those to a newly installed chef server if the existing ever goes down
+[2013-03-23 02:45:02 -0400] denken: im still ignorant of the internals though. that might not work for some reason(s)
+[2013-03-23 02:58:09 -0400] maek: any opscode people able to send me the latest private-chef rpm? I did email support and can do it again if needed.
+[2013-03-23 09:41:28 -0400] threesome: How can I create a new Vagrant virtual machine that has Chef 11 rather than the default chef version that comes when I do 'vagrant init; vagrant up'?
+[2013-03-23 09:45:56 -0400] mohits: threesome, either you can create a new base box with Chef 11 by referring http://docs-v1.vagrantup.com/v1/docs/base_boxes.html
+[2013-03-23 09:46:10 -0400] mohits: threesome, or use >> config.vm.provision :shell, :inline => "useradd vagrant ; curl -L https://www.opscode.com/chef/install.sh | bash"
+[2013-03-23 09:46:32 -0400] mohits: before your config.vm.provision :chef block
+[2013-03-23 09:46:54 -0400] threesome: mohits, thanks, is there a recommended approach?
+[2013-03-23 09:47:25 -0400] threesome: I didn't know you can do 2 config.vm.provision blocks (:shell and :chef) for one VM, interesting
+[2013-03-23 09:47:48 -0400] mohits: threesome, you can
+[2013-03-23 09:48:32 -0400] mohits: threesome, BTW i see CHef 11 box in http://www.vagrantbox.es/, you can use these. Though i haven't tested them :)
+[2013-03-23 09:52:10 -0400] threesome: mohits, do you know if https://github.com/hw-cookbooks/omnibus_updater will do it as well? It says "it can keep your omnibus install up to date", is keeping omnibus update to date the same as keeping chef up to date?
+[2013-03-23 09:55:03 -0400] mohits: threesome, haven't seen that before
+[2013-03-23 12:56:14 -0400] saten: hi, anyone willing to give me help with an issue on uploading recipes?
+[2013-03-23 12:56:42 -0400] saten: i'm stuck on a "InvalidByteSequenceError .... on US-ASCII"
+[2013-03-23 12:57:34 -0400] threesome: When installing latest Chef on Linux, do I need to add only /opt/chef/bin to PATH variable, or also /opt/chef/embedded/bin? (Using omnibus installer)
+[2013-03-23 14:07:13 -0400] Aaiiit: Hi all.  When I run my knife roles list i get the list of roles (as expected :p) , but when i run roles.list in chef-shell i get an empty array ... this ain't right i'm thinking?
+[2013-03-23 14:09:35 -0400] threesome: I'm using RVM and trying to do a simple 'chef-client --version', but how can I solve the following? "/opt/chef/embedded/lib/ruby/site_ruby/1.9.1/rubygems/dependency.rb:247:in `to_specs': Could not find chef (>= 0) amongst [bundler-1.3.4, rake-10.0.3, rubygems-bundler-1.1.1, rvm-1.11.3.6] (Gem::LoadError)". How can I solve this? (Sorry, new to this)
+[2013-03-23 14:10:10 -0400] Aaiiit1: Hi all, i'm using chef-server.  On client : When I run my knife roles list i get the list of roles (as expected :p) , but when i run roles.list in chef-shell i get an empty array ... this ain't right i'm thinking?
+[2013-03-23 14:20:41 -0400] Aaiiit1: @threesome:   you probably are not using the right gemset,    better create a gemset and add the gems to that
+[2013-03-23 14:21:58 -0400] threesome: Aaiiit1, which gems would I need to add? So far I have done nothing to the fresh RVM installation
+[2013-03-23 14:22:54 -0400] Aaiiit1: @threesome : fire up your shell and follow me
+[2013-03-23 14:23:10 -0400] Aaiiit1: rvm list
+[2013-03-23 14:23:19 -0400] Aaiiit1: what rubies are listed?
+[2013-03-23 14:24:10 -0400] threesome: Aaiiit1, thanks! One moment please
+[2013-03-23 14:26:32 -0400] threesome: Aaiiit1, I get "rvm rubies
+[2013-03-23 14:26:33 -0400] threesome: =* ruby-1.9.3-p392 [ x86_64 ]
+[2013-03-23 14:26:33 -0400] threesome: # => - current
+[2013-03-23 14:26:33 -0400] threesome: # =* - current && default
+[2013-03-23 14:26:33 -0400] threesome: #  * - default
+[2013-03-23 14:26:33 -0400] threesome: "
+[2013-03-23 14:26:51 -0400] Aaiiit1: ok, rvm use 1.9.3.3
+[2013-03-23 14:26:55 -0400] Aaiiit1: 1.9.3
+[2013-03-23 14:27:24 -0400] threesome: Ok
+[2013-03-23 14:27:34 -0400] Aaiiit1: create a dir where u be testing in, mkdir tmp
+[2013-03-23 14:27:59 -0400] threesome: Ok
+[2013-03-23 14:28:07 -0400] Aaiiit1: rvm gemset list
+[2013-03-23 14:28:32 -0400] threesome: gemsets for ruby-1.9.3-p392 (found in ~/.rvm/gems/ruby-1.9.3-p392)
+[2013-03-23 14:28:32 -0400] threesome: => (default)
+[2013-03-23 14:28:32 -0400] threesome:    global
+[2013-03-23 14:28:45 -0400] Aaiiit1: k, rvm gemset create chef
+[2013-03-23 14:29:06 -0400] Aaiiit1: echo "rvm use 1.9.3@chef" > tmp/.rvmrc
+[2013-03-23 14:29:10 -0400] threesome: gemset created chef=> ~/.rvm/gems/ruby-1.9.3-p392@chef
+[2013-03-23 14:29:45 -0400] threesome: Ok
+[2013-03-23 14:30:00 -0400] Aaiiit1: now enter the tmp dir and it should automatically select your ruby 1.9.3 with gemset chef
+[2013-03-23 14:30:51 -0400] threesome: Using ~/.rvm/gems/ruby-1.9.3-p392 with gemset chef
+[2013-03-23 14:31:12 -0400] Aaiiit1: ok , what do you want install on what os?
+[2013-03-23 14:31:32 -0400] threesome: My workstation I'm doing these commands on is Ubuntu 12.10 (is that what you mean?)
+[2013-03-23 14:31:47 -0400] Aaiiit1: you're working with a chef server?
+[2013-03-23 14:31:54 -0400] threesome: Yes, hosted chef
+[2013-03-23 14:32:19 -0400] spox: uh
+[2013-03-23 14:32:29 -0400] spox: it looks like you have omnibus chef installed
+[2013-03-23 14:32:43 -0400] spox: threesome: would that be a correct assessment?
+[2013-03-23 14:33:17 -0400] threesome: spox, yes I did "curl -L https://www.opscode.com/chef/install.sh | sudo bash"
+[2013-03-23 14:33:27 -0400] spox: okay, so rvm is going to muck up all that
+[2013-03-23 14:33:41 -0400] spox: since it messes with the env variables on where to find gems
+[2013-03-23 14:34:12 -0400] spox: is the chef for dev, or to actually manage your local box?
+[2013-03-23 14:34:36 -0400] threesome: I'm installing Chef on my workstation so that I can create cookbooks and use knife to manage my hosted chef account
+[2013-03-23 14:35:36 -0400] spox: okay, then you'll just want to do a gem install of chef. you can create a gemset if you wan't but you won't really need to. it's just an extra nicety if you want to be able to isolate it
+[2013-03-23 14:36:33 -0400] threesome: spox, is it possible to keep up with the latest stable releases using this method? If I want to keep up with latest releases using omnibus I just have to re-run "curl -L https://www.opscode.com/chef/install.sh | sudo bash". How about with this method?
+[2013-03-23 14:36:48 -0400] spox: threesome: yeah, just `gem install chef`
+[2013-03-23 14:37:10 -0400] spox: omnibus builds and gem packages are released at the same time (generally :))
+[2013-03-23 14:37:50 -0400] spox: you'll be better off just use the gem install within rvm on your local development box
+[2013-03-23 14:37:59 -0400] spox: and use the omnibus installers out on the nodes you are managing
+[2013-03-23 14:38:53 -0400] threesome: spox, this is starting to make sense! So it's not a problem that on most OpsCode documentation they say omnibus is the recommended and supported way?
+[2013-03-23 14:39:38 -0400] spox: threesome: to run on the nodes you are managing, that statement is fully correct
+[2013-03-23 14:39:54 -0400] spox: for development it gets a bit murky when you include tools like rvm into the mix
+[2013-03-23 14:40:41 -0400] tshauck: I'm pretty new to chef... what's the best way to manage ssh keys with chef.  In particular, how can I the appropriate public key to a deploy key (bitbucket) and private key on the server so I can clone?
+[2013-03-23 14:41:49 -0400] threesome: spox, actually wouldn't I need to use RVM on my nodes as well? For example, if one of my nodes is a Redmine server (a Passenger-based issue tracking system)
+[2013-03-23 14:42:24 -0400] threesome: Though for any nodes that don't have any Ruby things on them then I could use omnibus without problem
+[2013-03-23 14:43:18 -0400] spox: threesome: i would suggest using a proper ruby package, or just building a ruby for the system over using rvm on them
+[2013-03-23 14:44:17 -0400] threesome: spox, when you say proper Ruby package you mean 'sudo apt-get install ruby'?
+[2013-03-23 14:44:30 -0400] spox: yes
+[2013-03-23 14:45:06 -0400] threesome: spox, what could go wrong if I use RVM on a production node? So RVM on my Redmine server, with one RVM gemset for Chef and the other for Redmine?
+[2013-03-23 14:47:17 -0400] spox: because rvm introduces a lot of magic? it's fine for dev machines (i happily use it) but on actual managed nodes, omnibus chef + ruby package or custom built ruby is the way to go
+[2013-03-23 14:47:24 -0400] spox: path of least surprises
+[2013-03-23 14:49:52 -0400] threesome: spox, would omnibus Chef on the managed node use its own Ruby (in embedded/bin), or would I need to do some extra configuration to make it look there rather than using the package Ruby which I would hope is only being used by Redmine (and not Chef as well)
+[2013-03-23 14:50:15 -0400] Aaiiit1: When I run my knife roles list i get the list of roles , but when i run roles.list in chef-shell i get an empty array , nodes.list in chef-shell does return the correct array, cookbooks.list return an array with all nil values ... i'm guessing something is going wrong on the server?
+[2013-03-23 14:50:27 -0400] spox: no, omnibus is fully self-contained
+[2013-03-23 14:50:33 -0400] spox: it uses it's own ruby, separate of the system
+[2013-03-23 14:51:17 -0400] spox: Aaiiit1: can you find stuff via search?
+[2013-03-23 14:51:23 -0400] spox: search(:role, '*:*')
+[2013-03-23 14:51:52 -0400] Aaiiit1: @spox: nope, server returned error
+[2013-03-23 14:52:24 -0400] spox: what's the error/
+[2013-03-23 14:52:28 -0400] spox: ?
+[2013-03-23 14:54:34 -0400] Aaiiit1: @spox:  i'm an idiot, i got an error in the search , don't ask how i did it ,  .... now i also get a empty array
+[2013-03-23 14:55:00 -0400] threesome: spox, why doesn't a similar setup work on my dev machine, where Chef uses its own self-contained libraries. I get this error when doing 'chef-client --version': /opt/chef/embedded/lib/ruby/site_ruby/1.9.1/rubygems/dependency.rb:247:in `to_specs': Could not find chef (>= 0) amongst [bundler-1.3.4, rake-10.0.3, rubygems-bundler-1.1.1, rvm-1.11.3.6] (Gem::LoadError), which looks like it isn't using its own but is looking in my RVM area
+[2013-03-23 14:55:28 -0400] spox: threesome: because you are using rvm
+[2013-03-23 14:55:53 -0400] spox: rvm mucks up ENV variables that rubygems uses for gem discovery and loading when you do require 'somegem' in your scripts
+[2013-03-23 14:56:21 -0400] Aaiiit1: @spox : to be clear,  i can ran search without errors, but search(:role,'*:*') returns empty array
+[2013-03-23 14:56:45 -0400] spox: since rvm mucked it all up, when you try and use the omnibus install, it loads up, but the ENV is pointed to your rvm bits, so it follows it there, and errors out trying to load things
+[2013-03-23 14:56:51 -0400] spox: since you don't have them installed into rvm
+[2013-03-23 14:57:17 -0400] spox: which is why you are better off just using a gem install of chef on your dev machine, since it will work as expected that way with rvm
+[2013-03-23 14:59:21 -0400] threesome: spox, when using package ruby, does it not make any changes to environment variables? If not, how does it enable everything to work? (Like gems to be found, etc)
+[2013-03-23 15:00:43 -0400] spox: threesome: at that point you don't have ENV settings in your shell pointing rubygems at custom locations, so things will work properly
+[2013-03-23 15:02:41 -0400] threesome: spox, setting environment variables is only needed when using custom locations? Since the package ruby uses standard locations it doesn't set them, so Chef doesn't get confused...do I have it right?
+[2013-03-23 15:03:16 -0400] spox: yeah
+[2013-03-23 15:04:52 -0400] threesome: spox, is it a bug (or rather a feature) that Chef uses locations defined in environment variables if they are defined? If omnibus is meant to be truly self-contained, shouldn't it be unaffected by the rest of the environment?
+[2013-03-23 15:05:21 -0400] spox: it's not a function of chef, rather it's a function of rubygems, which chef uses internally
+[2013-03-23 15:07:56 -0400] threesome: spox, I see. Thanks for the clarifications!
+[2013-03-23 15:08:01 -0400] spox: threesome: sure :)
+[2013-03-23 15:11:35 -0400] mohits: join #vagrant
+[2013-03-23 15:14:56 -0400] Aaiiit1: @spox : any idea why my chef-server returns "knife roles list" but not "roles.list or search(:role;'*:*')' through chef-shell ?
+[2013-03-23 15:15:23 -0400] threesome: spox, I'm trying out the RVM way on my dev machine but btw, I cannot uninstall omnibus. Google isn't revealing much in this regard. I looked through the Omnibus install script and there are no uninstall flags I can pass to it
+[2013-03-23 15:15:34 -0400] threesome: Any ideas?
+[2013-03-23 15:15:45 -0400] spox: Aaiiit1: maybe an indexing issue?
+[2013-03-23 15:15:54 -0400] spox: try searching from knife and see how that goes
+[2013-03-23 15:16:28 -0400] spox: threesome: if you're on ubuntu, the omnibus install just installs a deb package
+[2013-03-23 15:18:09 -0400] Aaiiit1: @spox:  thanks, any idea which part of the server does the indexing?  chef-server,  chef-solr, ...
+[2013-03-23 15:18:46 -0400] spox: solr
+[2013-03-23 15:19:57 -0400] threesome: spox, you're right, removing the deb pkg did the trick :)
+[2013-03-23 15:20:05 -0400] spox: :)
+[2013-03-23 15:21:30 -0400] Aaiiit1: ooh, knife command does not communicate with chef-server to get a list of roles
+[2013-03-23 15:27:58 -0400] Aaiiit1: @spox: think i found the problem ... solr was apparently not running when i first created the roles, now i updated and it got indexed  , thanks for your help
+[2013-03-23 15:28:09 -0400] spox: Aaiiit1: sure :)
+[2013-03-23 15:49:35 -0400] chef866: any idea about how to run cookbook on clint from server ........i mean which command is use for that
+[2013-03-23 15:53:06 -0400] jsh: chef866: not from the server, but from your chef workstation you can use 'knife ssh'
+[2013-03-23 15:53:55 -0400] chef866: any other method for that ..........?
+[2013-03-23 15:55:06 -0400] jsh: lots of people run chef-client from cron, if yo make changes to the cookbooks you push to the server, they'll get picked up by the client on the next run
+[2013-03-23 15:56:48 -0400] chef866: <jsk> thanks a lot
+[2013-03-23 15:57:17 -0400] jsh: chef866: no problem
+[2013-03-23 16:14:30 -0400] threesome: spox, in order to use Chef in the various projects I have, like let's say I have 5 different directories each with their own Vagrantfile, does that mean I need to create 5 Gemfiles and add "gem 'chef'" to each of them?
+[2013-03-23 16:15:01 -0400] threesome: As opposed to using omnibus or 'sudo apt-get install chef'
+[2013-03-23 16:15:17 -0400] spox: threesome: only if you are using bundler and gemfiles to lock the version in use for development
+[2013-03-23 16:24:52 -0400] threesome: spox, I'm a bit confused about it, if I don't do this doesn't it mean I won't have Chef binaries on the PATH in those other projects?
+[2013-03-23 16:25:25 -0400] chef866: anyone have idea about how to create and use resource
+[2013-03-23 16:36:38 -0400] spox: threesome: ?
+[2013-03-23 16:36:54 -0400] spox: if you do a gem install of chef, it will be available to you everywhere via rvm
+[2013-03-23 16:37:22 -0400] spox: Gemfiles are just used to enforce a consistent state for gems in use
+[2013-03-23 16:38:06 -0400] spox: if you want everyone working in the chef repo to use chef at say version 11.0.4, then you add that to the gemfile, and when others bundle exec it (or implicitly with rvm), they will all use the same version
+[2013-03-23 16:38:10 -0400] spox: but it's not required
+[2013-03-23 16:39:16 -0400] threesome: spox, ah I should have clarified, I just learned about gemsets and started using them just now, so Chef is only available in the one project that is using that gemset. But come to think of it I could probably copy the .rvmrc file into all those different projects
+[2013-03-23 16:40:47 -0400] spox: threesome: i don't think that's necessary
+[2013-03-23 16:45:13 -0400] threesome: spox, so the Vagrant projects won't need access to Chef that I installed on my workstation? Only the chef-repo project will?
+[2013-03-23 16:49:44 -0400] threesome: I'm confused :) I think it comes from the fact that I don't know the proper workflow of doing things with Chef. Let me ask a super basic question: what's the difference between a Chef repository and a Chef server? (I can't believe I don't even know this!)
+[2013-03-23 16:50:43 -0400] spox: the chef repository is what you store generally in a git repository (or svn or what ever scm flavor you are using)
+[2013-03-23 16:51:18 -0400] spox: it contains all the code and stuff you push to the chef server. cookbooks, roles, environments, etc.
+[2013-03-23 16:51:44 -0400] spox: it's where you have your version control, and keep track of your code that you work on on your development box
+[2013-03-23 16:52:15 -0400] spox: the chef server is where you push all your cookbooks, roles, etc to. and the nodes you provision contact that chef server to pull information from to do what they are supposed to do
+[2013-03-23 16:55:33 -0400] threesome: spox, if in your chef-repo your 'git status' comes up clean, and you have done a 'knife cookbooks site upload -a' (to upload all cookbooks to the server), then does that mean the following 3 things are in sync with each other: git repository, chef repository, chef server?
+[2013-03-23 17:06:58 -0400] chef866: currently for any action i have  using cookbook ex : creating some directory on  client .  is that any other method  which  is do simple task like  creating files, restart services and create directory and run script on client
+[2013-03-23 18:55:16 -0400] Devanshu: Hello, I'm new to chef and need help can some one help me setup chef client server connection?
+[2013-03-23 19:03:55 -0400] Dev___: Hello, I'm new to chef and need help can some one help me setup chef client server connection?
+[2013-03-23 19:09:35 -0400] MattStratton: any suggestions for great Chef books, preferably available on kindle?
+[2013-03-23 19:15:37 -0400] mohits: MattStratton, there is one by Stephen Nelson, Test-Driven Infrastructure with Chef. It a good one.
+[2013-03-23 19:16:30 -0400] MattStratton: Yeah, i have that one. It seems a good high level overview and then started to get really into the cucumber-chef stuff, which unfortunately doesn't work well for me since i have Windows clients which don't play nice in the cloud partitioning cucumber-chef uses. but I'm still going to finish reading it :)
+[2013-03-23 19:17:38 -0400] mohits: MattStratton, I just checked amazon & found this >> http://goo.gl/X3rVs
+[2013-03-23 19:17:59 -0400] MattStratton: yah. preordered that one too :)
+[2013-03-23 19:18:23 -0400] MattStratton: it seems that there are basically three chef books - the cucumber-chef one, o'reilly (not out yet), and chef starter, which seems okay so far
+[2013-03-23 19:18:24 -0400] mohits: i didn't knew about this one, ordering it now :)
+[2013-03-23 19:19:14 -0400] mohits: yeah.
+[2013-03-23 23:28:58 -0400] dylan_: i want to use chef the right way for me. being able to use the knife install command is a must. i do not have the resources for a dedicated chef server machine at the moment, but i aim to in the future and as such would prefer not to use hosted chef (free or not). at this point, it seems like my best option is a git repo for my own "chef-repo", with git submodules for git submodules for environments, cookbooks, etc. this seems like i
+[2013-03-23 23:28:58 -0400] dylan_: will be a pain. anyone have a better idea?

@@ -1,0 +1,124 @@
+[2012-07-26 01:09:32 -0400] github-bawt: [knife-ec2] stevendanna pushed 1 new commit to master: http://git.io/wU7eZg
+[2012-07-26 01:09:32 -0400] github-bawt: [knife-ec2/master] Release 0.5.14 - Steven Danna
+[2012-07-26 01:13:05 -0400] tigris_: paulmorris: do you have a ticket number for that bug we were looking at? It's to do with the CWD of chef being "/"
+[2012-07-26 01:23:48 -0400] github-bawt: [knife-ec2] stevendanna pushed 1 new commit to master: http://git.io/HgcIfw
+[2012-07-26 01:23:48 -0400] github-bawt: [knife-ec2/master] Bump to 0.5.15 for development - Steven Danna
+[2012-07-26 01:30:23 -0400] tigris_: sorry, i mean paulmooring of course :)
+[2012-07-26 01:43:57 -0400] hoover_damm: tigris_, chef has a cwd of whatever starts it normally
+[2012-07-26 01:44:06 -0400] hoover_damm: tigris_, it's quite possible that daemonizing the client will put the cwd as /
+[2012-07-26 01:44:11 -0400] hoover_damm: lots of ruby things do that :/
+[2012-07-26 01:45:42 -0400] tigris_: i am using chef-solo, and inside the ohai recipe i added a simple Chef::Log.info "#{`pwd`}" and got "/"
+[2012-07-26 01:46:35 -0400] tigris_: since ohai tries to ::IO.read(Chef::Config[:config_file]), this has a little bit of trouble when you invoke chef-solo using a -c argument and giving it a relative path
+[2012-07-26 01:46:50 -0400] hoover_damm: tigris_, interesting
+[2012-07-26 01:48:26 -0400] tigris_: paulmooring: never mind, found it http://tickets.opscode.com/browse/COOK-1490
+[2012-07-26 02:28:43 -0400] paulmooring: tigris_: I'm back now
+[2012-07-26 02:29:05 -0400] paulmooring: I'm guessing you saw the extra details I dug up in that ticket
+[2012-07-26 02:40:27 -0400] tigris_: paulmooring: i did, but i've no idea what shef is... i realised as i was trying to sleep that it was probably a CWD issue, confirmed it when i woke up this morning
+[2012-07-26 02:40:58 -0400] paulmooring: tigris_:  Where are you located?
+[2012-07-26 02:41:07 -0400] tigris_: melbourne, AU
+[2012-07-26 02:41:35 -0400] paulmooring: ah, that makes sense
+[2012-07-26 02:41:55 -0400] paulmooring: yeah I'm still not sure why it's behaving like that it doesn't happen in shef
+[2012-07-26 02:42:07 -0400] paulmooring: but it's pretty reliable in chef-client or chef-solo
+[2012-07-26 02:42:49 -0400] tigris_: chef is chdir'ing to "/", but the Chef::Config variables taken from the command line arguments aren't made absolute before it chdir's
+[2012-07-26 02:42:50 -0400] hoover_damm: tigris_, you starting chef-solo from anything?
+[2012-07-26 02:42:54 -0400] hoover_damm: like cap?
+[2012-07-26 02:43:38 -0400] tigris_: so anything accessing Chef::Config[:config_file] won't be able to find it, since it won't know what directory chef was invoked from
+[2012-07-26 02:44:04 -0400] tigris_: nope, just straight from command line at the moment... probably from a git post-merge hook in future, but not implemented that yet
+[2012-07-26 02:45:22 -0400] hoover_damm: tigris_, hrm, yeah i can reproduce this in chef-client
+[2012-07-26 02:45:34 -0400] hoover_damm: tigris_, running chef-client and then ^Z'ing it and verifying in /proc shows the cwd to be /
+[2012-07-26 02:46:15 -0400] paulmooring: tigris_: it's not specific to chef-solo
+[2012-07-26 02:46:27 -0400] paulmooring: I reproduced it with chef-client on Hosted Chef
+[2012-07-26 02:46:45 -0400] paulmooring: it's just more common on solo because people use the -c option more often
+[2012-07-26 02:47:18 -0400] tigris_: hoover_damn: it's the Chef::Daemon.change_privilege method, it chdir's to / even when it doesn't have to do anything
+[2012-07-26 02:52:09 -0400] hoover_damm: doh
+[2012-07-26 02:53:49 -0400] ssd7: Ahh, has the puzzle of the relative paths been solved?
+[2012-07-26 02:54:04 -0400] hoover_damm: basically the change_privilage method does it
+[2012-07-26 02:54:08 -0400] hoover_damm: we just understand it better
+[2012-07-26 02:54:34 -0400] paulmooring: seems like more a Chef bug than a bug in the ohai cookbook
+[2012-07-26 02:54:56 -0400] hoover_damm:       def change_privilege
+[2012-07-26 02:54:57 -0400] hoover_damm:         Dir.chdir("/")
+[2012-07-26 02:55:04 -0400] hoover_damm: and then it does the change
+[2012-07-26 02:55:05 -0400] paulmooring: Chef should probably store Chef::Config[:config_file] as an absolute path
+[2012-07-26 02:55:35 -0400] ssd7: so at some point in the past we moved it there, but I'm not sure why it is necessary: git show 13c2cea6
+[2012-07-26 02:56:41 -0400] hoover_damm: well it's neccesary if your dropping privs and you have no privs to the directory your running in
+[2012-07-26 02:56:52 -0400] hoover_damm: but if your not dropping privs
+[2012-07-26 02:56:57 -0400] hoover_damm: it's not required
+[2012-07-26 02:57:09 -0400] paulmooring: ssd7: imo using relative paths is the wrong way anyhow and we shouldn't care what Chef's pwd is
+[2012-07-26 02:57:52 -0400] ssd7: paulmooring: I agree.  Just expand the path at the outset and be done with it.
+[2012-07-26 02:57:54 -0400] tigris_: paulmooring: i agree... when Chef::Config is doing it's thing and setting all the paths, it should make sure they are all relative... then anything can chdir all it wants
+[2012-07-26 02:58:11 -0400] tigris_: err, i of course mean all absolute
+[2012-07-26 02:59:10 -0400] paulmooring: yeah, the problem is I'm afraid changing that option might break something else
+[2012-07-26 03:00:43 -0400] ssd7: This is the story of everytime I sit down to fix something related to option parsing.
+[2012-07-26 03:01:21 -0400] tigris_: i don't see what could break, since passing in an absolute path with -c works perfectly
+[2012-07-26 03:01:28 -0400] hoover_damm: i'd say just move the Dir.chdir below the if Chef::Config[:user]
+[2012-07-26 03:01:30 -0400] hoover_damm: if it was me
+[2012-07-26 03:01:49 -0400] paulmooring: I was talking about changing Chef::Config[:config_file]
+[2012-07-26 03:01:54 -0400] hoover_damm: ah
+[2012-07-26 03:02:13 -0400] paulmooring: which is what I believe *should* be an absolute path, but would probably break something if changed
+[2012-07-26 03:02:32 -0400] tigris_: hoover_damn: you'd still have this same issue in future if something else chdir's, or even i wonder if this problem probably exist even in recipes if you have a resource block using the cwd option and want to use Chef::Config stuff inside there
+[2012-07-26 03:04:58 -0400] hoover_damm: hrm, damn
+[2012-07-26 03:05:02 -0400] hoover_damm: i'm going to say not it then
+[2012-07-26 03:05:52 -0400] paulmooring: I'll put it on the list of bugs I intend to eventually fix (emphasis on eventually)
+[2012-07-26 03:06:26 -0400] ssd7: tigris_: I think you will be OK in a recipe, at least on unix.
+[2012-07-26 03:06:44 -0400] ssd7: At least in terms of resources that use a "cwd" type option.
+[2012-07-26 03:07:08 -0400] ssd7: Mixlib-shellout changes the dir inside the forked process.
+[2012-07-26 03:09:36 -0400] ssd7: Ahh, bah, I only half read what you said and was thinking about another issue that came up in triage today.
+[2012-07-26 03:10:18 -0400] ssd7: ELONGDAY
+[2012-07-26 03:10:53 -0400] tigris_: ssd7: fair enough, i hadn't actually tested, was just thinking off the top of my head for reasons that making all paths in chef absolute would be a good idea
+[2012-07-26 04:09:42 -0400] tigris_: can anyone point me at some docs about node.run_state variables? really battling with some nasty nginx::source recipe bugs
+[2012-07-26 04:37:16 -0400] miah: use shef and display its contents
+[2012-07-26 05:02:38 -0400] tigris_: is there a correct way to override a default in subsequent attributes files? https://gist.github.com/e8d1f9769485d8685f9d logs the default value as pretty random
+[2012-07-26 05:03:07 -0400] tigris_: i would expect 'bar' every time, but it seems random
+[2012-07-26 05:29:13 -0400] jtimberman: tigris_: http://tickets.opscode.com/browse/CHEF-2903
+[2012-07-26 05:29:23 -0400] jtimberman: is the reason for the attribute load ordering.
+[2012-07-26 05:33:33 -0400] tigris_: that ticket implies `include_attribute` is the correct way to force the "other.rb" attributes file to be first in my gist example, but that doesn't seem to work either
+[2012-07-26 05:37:49 -0400] jtimberman: tigris_: if you're trying to override an attribute that is defined in a cookbook, use a role, or the node object itself (on the chef server, in the json attribs file, or in a recipe)
+[2012-07-26 05:39:32 -0400] tigris_: it's actually the opscode nginx cookbok i'm trying to fix... there are defaults in the attributes/source.rb file that rely on attributes/default.rb being loaded first
+[2012-07-26 05:42:45 -0400] tigris_: jtimberman: oic, that issue i mention for nginx is alreayd linked in that ticket
+[2012-07-26 05:45:56 -0400] tigris_: jtimberman: but is IMO incorrectly marked "fixed", since it's more than just the version variable nginx wants from defaults, it also uses `node['nginx']['dir']` which is why i am sometimes seeing my nginx configs installed into / instead of /etc/nginx.. and also the source.rb recipe includes ohai which will try to write out the `node['nginx']['binary']` which may or may not be loaded at this point
+[2012-07-26 06:06:18 -0400] tigris_: jtimberman: i see the problem.. your fix for COOK-1211 was reverted in https://github.com/opscode-cookbooks/nginx/commit/55305804379376474567841af5545b3bbd110248#attributes/source.rb for whatever reason
+[2012-07-26 14:28:35 -0400] superbaloo: do someone know how chef choose between package providers ?
+[2012-07-26 14:29:49 -0400] geekbri: superbaloo: There is a class called Chef::Platform that has a big hash which shows what providers are selected for a variety of resources
+[2012-07-26 14:30:15 -0400] geekbri: superbaloo: It has default providers, default providers for an OS, and then per version providers for that particular OS (although I don't think anything actually uses that yet)
+[2012-07-26 14:32:03 -0400] superbaloo: there ? https://github.com/opscode/chef/blob/master/chef/lib/chef/platform.rb#L59 ?
+[2012-07-26 14:32:23 -0400] superbaloo: what if i want another one by default for freebsd ?
+[2012-07-26 14:33:32 -0400] superbaloo: Chef:Platform::set({}) at run start ?
+[2012-07-26 14:34:23 -0400] geekbri: chef uses provider_for_resource to set the provider.
+[2012-07-26 14:35:02 -0400] geekbri: chef uses provider_for_resource to set the provider.   provider is just an attr_accessor of the Chef::Resource class
+[2012-07-26 14:35:38 -0400] geekbri: There may be a smarter way to do it.  That is just what I came up with from quickly looking at this.
+[2012-07-26 14:36:33 -0400] geekbri: Looks like FreeBSD by default uses the Chef::Provider::Package::Freebsd class
+[2012-07-26 14:36:46 -0400] geekbri: (at least on 0.10.10 which is what im looking at)
+[2012-07-26 15:37:18 -0400] github-bawt: [chef] btm pushed 1 new commit to master: http://git.io/QjORTw
+[2012-07-26 15:37:18 -0400] github-bawt: [chef/master] Ensure Chef::Config[:knife][:hints] in proc - Bryan McLellan
+[2012-07-26 16:08:03 -0400] github-bawt: [chef] btm pushed 6 new commits to master: http://git.io/ZA2yYg
+[2012-07-26 16:08:04 -0400] github-bawt: [chef/master] Take knife bootstrap -j into account in the ubuntu12.04-gems template - Raf Geens
+[2012-07-26 16:08:04 -0400] github-bawt: [chef/master] Merge branch 'CHEF-3311' - Bryan McLellan
+[2012-07-26 16:08:04 -0400] github-bawt: [chef/master] launching chef-client as a daemon does not load all required libraries. - Tim Green
+[2012-07-26 16:22:52 -0400] github-bawt: [chef] btm pushed 8 new commits to master: http://git.io/6pe7Cw
+[2012-07-26 16:22:52 -0400] github-bawt: [chef/master] Improved default_release option handling in apt_package provider. - Miguel Cabeca
+[2012-07-26 16:22:52 -0400] github-bawt: [chef/master] Merge branch 'CHEF-3266' - Bryan McLellan
+[2012-07-26 16:22:53 -0400] github-bawt: [chef/master] Use ui object instead of puts - Josiah Kiehl
+[2012-07-26 17:40:46 -0400] github-bawt: [chef] btm pushed 3 new commits to master: http://git.io/_Ce8_A
+[2012-07-26 17:40:47 -0400] github-bawt: [chef/master] CHEF-3201: Proper exit code when client creation fails. - Matthew Kent
+[2012-07-26 17:40:47 -0400] github-bawt: [chef/master] Multicookbook upload support - Phil Dibowitz
+[2012-07-26 17:40:47 -0400] github-bawt: [chef/master] Merge branch 'CHEF-3092' - Bryan McLellan
+[2012-07-26 17:52:08 -0400] github-bawt: [chef] btm pushed 4 new commits to master: http://git.io/0zDOPQ
+[2012-07-26 17:52:08 -0400] github-bawt: [chef/master] Display node tags in "knife node show". - Tim Potter
+[2012-07-26 17:52:09 -0400] github-bawt: [chef/master] Merge branch 'CHEF-2978' - Bryan McLellan
+[2012-07-26 17:52:09 -0400] github-bawt: [chef/master] Make output of "knife node tag delete" consistent with "knife node tag create". - Tim Potter
+[2012-07-26 18:11:01 -0400] github-bawt: [chef] btm pushed 4 new commits to master: http://git.io/DkiaiA
+[2012-07-26 18:11:01 -0400] github-bawt: [chef/master] CHEF-2706: tiny little change for manage_home bug - Sean Escriva
+[2012-07-26 18:11:01 -0400] github-bawt: [chef/master] modify tests for usermod managehome fix - Sean Escriva
+[2012-07-26 18:11:01 -0400] github-bawt: [chef/master] Merge branch 'CHEF-2706' - Bryan McLellan
+[2012-07-26 18:16:37 -0400] github-bawt: [chef] btm pushed 3 new commits to master: http://git.io/7M4FTQ
+[2012-07-26 18:16:37 -0400] github-bawt: [chef/master] Fixes #CHEF-3178: cron provider does not support month names and weekday names - Xabier de Zuazo
+[2012-07-26 18:16:37 -0400] github-bawt: [chef/master] Unit Tests for testing month names and weekdays in the cron provider - Xabier de Zuazo
+[2012-07-26 18:16:38 -0400] github-bawt: [chef/master] Merge branch 'CHEF-3178' - Bryan McLellan
+[2012-07-26 18:34:36 -0400] github-bawt: [chef] btm pushed 2 new commits to master: http://git.io/Ked3rg
+[2012-07-26 18:34:36 -0400] github-bawt: [chef/master] Converge via fork - Chris Roberts
+[2012-07-26 18:34:37 -0400] github-bawt: [chef/master] Merge branch 'CHEF-3104' - Bryan McLellan
+[2012-07-26 20:12:10 -0400] ampledata: FIX THIS RIGHT NOW!!!!
+[2012-07-26 20:12:14 -0400] ampledata: oh sorry
+[2012-07-26 20:12:29 -0400] ampledata: you needed one more '!' to trigger our 'fix_immediately()' method
+[2012-07-26 21:02:57 -0400] github-bawt: [chef] btm pushed 1 new commit to master: http://git.io/d9Vwqw
+[2012-07-26 21:02:58 -0400] github-bawt: [chef/master] Release 10.14.0.beta.3 - Bryan McLellan

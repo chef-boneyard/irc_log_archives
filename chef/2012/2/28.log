@@ -1,0 +1,656 @@
+[2012-02-28 09:01:00 -0500] ringods: Goodmorning, I want to upgrade my chef server 0.10.2 to 0.10.8. Beyond updating gems, are there other things to keep in mind?
+[2012-02-28 10:14:00 -0500] Yulya: hello guys
+[2012-02-28 10:16:00 -0500] Yulya: http://paste2.org/p/1918581
+[2012-02-28 10:16:00 -0500] Yulya: whats wrong with my recipe?
+[2012-02-28 10:16:00 -0500] Yulya: i want to catch exceptions in recipes
+[2012-02-28 10:16:00 -0500] Yulya: how can i do it?
+[2012-02-28 10:22:00 -0500] BryanWB_: Yulya: does apt-get support the version attribute? not all providers do
+[2012-02-28 10:22:00 -0500] BryanWB_: yum does but don't know about apt-get
+[2012-02-28 10:23:00 -0500] BryanWB_: and begin    rescue doesn't work in the context of a recipe
+[2012-02-28 10:23:00 -0500] BryanWB_: afaik
+[2012-02-28 10:54:00 -0500] Yulya: BryanWB_: yes, apt-get support version
+[2012-02-28 10:54:00 -0500] Yulya: well
+[2012-02-28 10:55:00 -0500] Yulya: how i can execute something in case of package resource fails?
+[2012-02-28 10:55:00 -0500] BryanWB_: Yulya: why do u want to? honestly don't know, never tried
+[2012-02-28 10:56:00 -0500] Yulya: in case of package upgrade
+[2012-02-28 10:56:00 -0500] Yulya: if new version appears in repo apt-get dont know about it without update
+[2012-02-28 10:56:00 -0500] Yulya: i downt want to do update at every chef cycle
+[2012-02-28 11:03:00 -0500] ashb: Yulya: action :install vs action :upgrade
+[2012-02-28 11:03:00 -0500] ashb: oh sorry, thats not what you asked
+[2012-02-28 11:04:00 -0500] ashb: Yulya: apt::default recipe will do an apt-get update. Put that at the start of your runlist (I put it as the first thing in my base role which is the first thing on all my nodes)
+[2012-02-28 11:05:00 -0500] Yulya: ashb: i dont want latest version, i want fixed version and do update every time when install of this version failed
+[2012-02-28 11:05:00 -0500] Yulya: well
+[2012-02-28 11:05:00 -0500] Yulya: i dont want to do update at every chef run
+[2012-02-28 11:05:00 -0500] ashb: so you want to install a fixed version of a particualr package?
+[2012-02-28 11:05:00 -0500] Yulya: yesh
+[2012-02-28 11:06:00 -0500] ashb: packge "foo"; action :install; version "1.2.3"; end
+[2012-02-28 11:06:00 -0500] ashb: the install is probably not needed with :install as install will only try to do anything if a version of the package isn't already installed
+[2012-02-28 11:07:00 -0500] Yulya: install with version works fine
+[2012-02-28 11:07:00 -0500] Yulya: package will be upgraded if needed
+[2012-02-28 11:07:00 -0500] Yulya: but apt-get update will never happen
+[2012-02-28 11:08:00 -0500] ashb: use apt::default receipt to update the apt cache
+[2012-02-28 11:08:00 -0500] ashb: recipe even
+[2012-02-28 11:08:00 -0500] Yulya: i will happen at every chef run on every node
+[2012-02-28 11:08:00 -0500] Yulya: *it
+[2012-02-28 11:09:00 -0500] ashb: yes. if you really don't want to do that you can do some magic by examining the output of apt-cache policy and only run apt-get update when 'necessary'
+[2012-02-28 11:09:00 -0500] ashb: nothing pre-baked to do that sort of thing that I am aware of
+[2012-02-28 11:14:00 -0500] yatesy: bear in mind folks that the apt default recipe doesn't run apt-get update on every run, it has a conditional in there to run it periodically
+[2012-02-28 11:14:00 -0500] yatesy: at least if i'm reading the recipe right!
+[2012-02-28 11:14:00 -0500] Yulya: doh
+[2012-02-28 11:14:00 -0500] Yulya: http://paste2.org/p/1918633
+[2012-02-28 11:14:00 -0500] Yulya: looks like totaly crap
+[2012-02-28 11:14:00 -0500] Yulya: but stil works
+[2012-02-28 11:19:00 -0500] bluenemo: good morning guys. i'm trying to get into more serious stuff now writing a chef recipe deploying wordpress with nginx. i sadly get strange errors that i dont understand, it says the syntax is bad but i cant find the error. my recipe: http://pastebin.com/kTFYjNZV and error-log: http://pastebin.com/vJ78gng4
+[2012-02-28 11:20:00 -0500] ashb: yatesy: ah, my (old) version just runs it every run
+[2012-02-28 11:20:00 -0500] bluenemo: ah found one major error @ execute "rc.local"
+[2012-02-28 11:20:00 -0500] bluenemo: (missing " at end of command
+[2012-02-28 11:21:00 -0500] ashb: bluenemo: that is going to add the echo line to rc.local every time chef runs
+[2012-02-28 11:21:00 -0500] ashb: almost certainly not what you want
+[2012-02-28 11:21:00 -0500] ashb: *a new echo line to rc.local every time
+[2012-02-28 11:22:00 -0500] ashb: and will nuke and recreate the WP download too
+[2012-02-28 11:22:00 -0500] bluenemo: yes i'm still very nooby with chef but thanks for giving me the hint. so far i want to execute it only once
+[2012-02-28 11:22:00 -0500] bluenemo: but i want to get into the stuff that leaves the state like it is as well soon
+[2012-02-28 11:22:00 -0500] ashb: make it conditional on the presence of a directory
+[2012-02-28 11:22:00 -0500] bluenemo: fine idea thank you
+[2012-02-28 11:22:00 -0500] ashb: using the directory resource and the subscribes/notifies stuff
+[2012-02-28 11:22:00 -0500] bluenemo: jup
+[2012-02-28 11:22:00 -0500] bluenemo: :)
+[2012-02-28 11:22:00 -0500] yatesy: prompting for password on the command line is als not what you really want
+[2012-02-28 11:22:00 -0500] ashb: also `read wp_admin_password` bad
+[2012-02-28 11:22:00 -0500] yatesy: also*
+[2012-02-28 11:23:00 -0500] ashb: chef runs should not need user input
+[2012-02-28 11:23:00 -0500] ashb: pull the password from a node or cookbook attribute
+[2012-02-28 11:23:00 -0500] bluenemo: yes true. as i said i'm still playing around
+[2012-02-28 11:23:00 -0500] ashb: cool
+[2012-02-28 11:24:00 -0500] ashb: there is also a nginx_site thingy as part of the nginx cookbook which would handle a lot of the clean up and stuff block for you
+[2012-02-28 11:25:00 -0500] bluenemo: the wordpress thing from knife cookbook site download wordpress?
+[2012-02-28 11:25:00 -0500] ashb: nginx_site "wordpress"; source "wordpress.vhost.erb"; variables( :server_name => ...) etc
+[2012-02-28 11:25:00 -0500] ashb: i haven't looked at the wordpress cookbook
+[2012-02-28 11:25:00 -0500] bluenemo: ah yes. i've looked deep into it yesterday but didnt get everything so far
+[2012-02-28 11:25:00 -0500] ashb: there is a certain amount of learning curve to all this :)
+[2012-02-28 11:26:00 -0500] ashb: the main thing to remember is to describe things in terms of 'the state should be like this, if its not run this'
+[2012-02-28 11:26:00 -0500] ashb: rather than an imperitve 'run this command'
+[2012-02-28 11:26:00 -0500] ashb: i.e. if this directory doesn't exist, download the tarball and unpack it
+[2012-02-28 11:27:00 -0500] bluenemo: ok as i'm now playing around to learn the basics one more noob question :) for the clean up block (last one) i'm getting strange syntax errors like (ok perfect i'll write this down - state thing :) syntax error, unexpected tUMINUS, expecting keyword_do or '{' or '('
+[2012-02-28 11:27:00 -0500] bluenemo: FATAL:   /usr/bin/spawn-fcgi -a 127.0.0.1 -p 9000 -u www-da...
+[2012-02-28 11:27:00 -0500] bluenemo: i've added the end btw..
+[2012-02-28 11:27:00 -0500] bluenemo: @ the last block (clean up and stuff)
+[2012-02-28 11:27:00 -0500] bluenemo: its recognising all the bash lines as syn errors somehow.. the other one seems fine
+[2012-02-28 11:28:00 -0500] bluenemo: ah whitespace error
+[2012-02-28 11:28:00 -0500] bluenemo: now it works out allrigth :) thank you for helping this far i'm starting to really like this chan :)
+[2012-02-28 11:44:00 -0500] BryanWB_: bluenemo: someone may have already told u, but i highly recommend using a heredoc
+[2012-02-28 11:45:00 -0500] BryanWB_: it works the same as in bash       code <<EOS    \n   do stuff w/out having to escape apostrophes  \n  more stutff EOS
+[2012-02-28 11:45:00 -0500] BryanWB_: make sure u don't indent the 2nd EOS
+[2012-02-28 11:48:00 -0500] BryanWB_: bluenemo: and um i have an lwrp for handling tarballs that u might find useful --> ark   https://github.com/bryanwb/cookbooks/tree/master/ark
+[2012-02-28 11:57:00 -0500] bluenemo: BryanWB_, thank you that might come in handy :) knife cookbook test works out fine so far, however i'm getting   undefined local variable or method `secure_password' for #<Chef::Recipe:   when i sudo chef-client. strange thing is that this string (secure_password) is nowhere present in any of my templates or default.rb
+[2012-02-28 12:05:00 -0500] bluenemo: hm for some reason it was loading the site download cookbook.. i'm still not exactly into where do i have to be for knife to take this and that ;) but i like working with chef
+[2012-02-28 12:06:00 -0500] ashb: BryanWB_: <<-EOS then you can indent the EOS
+[2012-02-28 12:07:00 -0500] BryanWB_: ashb: w the "-" ?
+[2012-02-28 12:07:00 -0500] ashb: yeah
+[2012-02-28 12:07:00 -0500] BryanWB_: ashb: awesome
+[2012-02-28 12:07:00 -0500] ashb: uses and additional dash, but allows you to indent the "end of here doc" delimiter
+[2012-02-28 12:07:00 -0500] BryanWB_: tks
+[2012-02-28 12:30:00 -0500] bluenemo: ok i'd like to ask for some explaination which i cant find correctly.. what does this mean exactly:       :config_var => node[:configs][:config_var]    i dont get what node, configs and config_var means (i guess..). node is propably that it has to change the files on the node, config_var is the final thing that it has to put into the erb but what does the single config mean exactly?
+[2012-02-28 12:32:00 -0500] bluenemo: aaaah attributes/default.rb. now things make sense again :)
+[2012-02-28 12:37:00 -0500] bluenemo: is it considered save to put a password in an attribute as plain text?
+[2012-02-28 12:39:00 -0500] BryanWB_: no
+[2012-02-28 12:40:00 -0500] BryanWB_: bluenemo: ^^
+[2012-02-28 12:40:00 -0500] BryanWB_: use an encrytped databag,
+[2012-02-28 12:40:00 -0500] BryanWB_: not very difficult
+[2012-02-28 12:40:00 -0500] bluenemo: ok ^^ i thought so, thanks
+[2012-02-28 13:19:00 -0500] bluenemo: ok another question :) i've downloaded the wordpress file from site and it wont work out right.. also i'm finding a ton of undeclared variables used in the script.. are there only 100% working scripts on site or are they also in dev?
+[2012-02-28 13:24:00 -0500] proffalken: Hi all, reasonably new to chef so have a few "dummy" questions... :)
+[2012-02-28 13:24:00 -0500] proffalken: I've got a databag which contains data to be used across multiple recipes in the same cookbook
+[2012-02-28 13:24:00 -0500] proffalken: can I read these into an array in default.rb and then use them in the other recipes (client.rb, server.rb etc)?
+[2012-02-28 13:26:00 -0500] lflux_: ohai
+[2012-02-28 13:26:00 -0500] lflux_: Another day of postgresql recipe headscratching
+[2012-02-28 13:32:00 -0500] BryanWB_: proffalken: hey buddy!, drunk yet?
+[2012-02-28 13:33:00 -0500] BryanWB_: proffalken: to your question, yes
+[2012-02-28 13:33:00 -0500] BryanWB_: proffalken: we need more drunken sysadmins!
+[2012-02-28 13:33:00 -0500] BryanWB_: :)
+[2012-02-28 13:35:00 -0500] bluenemo: are other drugs accepted here BryanWB_ ? :)
+[2012-02-28 13:35:00 -0500] |shad0w|: only bacon
+[2012-02-28 13:36:00 -0500] BryanWB_: bluenemo: only the best ones!
+[2012-02-28 13:36:00 -0500] bluenemo: rofl bacon :D
+[2012-02-28 13:37:00 -0500] |shad0w|: it's a hellavu drug
+[2012-02-28 13:37:00 -0500] bluenemo: when you come to berlin tell me then you can have them checked yourself :)
+[2012-02-28 13:37:00 -0500] bluenemo: m)
+[2012-02-28 13:37:00 -0500] BryanWB_: bluenemo: damn! was just in Berlin, i love that city!
+[2012-02-28 13:38:00 -0500] bluenemo: :) i love it too. just found a job as sys admin here. first project: chef :)
+[2012-02-28 13:38:00 -0500] bluenemo: did data recovery before that but was more study's than selling skills
+[2012-02-28 13:53:00 -0500] proffalken: BryanWB_: sober as a newt... :)
+[2012-02-28 13:53:00 -0500] proffalken: hmmm, beer & Bacon....
+[2012-02-28 13:54:00 -0500] BryanWB_: proffalken: what a bummer!
+[2012-02-28 13:54:00 -0500] proffalken: BryanWB_: heh, to be fair, it is only 2pm here...
+[2012-02-28 13:54:00 -0500] proffalken: and I'm at work...
+[2012-02-28 13:57:00 -0500] proffalken: BryanWB_: to get back to the question, I just do a "vars = search/data_bag_item()" in default.rb and then reference vars[] in the other recipes?
+[2012-02-28 13:58:00 -0500] proffalken: or do I need to do "default::vars[]"?
+[2012-02-28 13:58:00 -0500] BryanWB_: proffalken: stick it on the node object
+[2012-02-28 13:58:00 -0500] proffalken: ah, ok, so append the content of the  DB to the node in default and then read from node in other recipes
+[2012-02-28 13:58:00 -0500] proffalken: cool
+[2012-02-28 13:58:00 -0500] BryanWB_: proffalken:    default['cookbook_name]['vars'] = search( ).to_array
+[2012-02-28 13:59:00 -0500] BryanWB_: proffalken: then in recipe and elsewhere refereence as node['cookbook_name']['vars']
+[2012-02-28 13:59:00 -0500] proffalken: BryanWB_: awesome, thanks
+[2012-02-28 13:59:00 -0500] BryanWB_: proffalken: exactly
+[2012-02-28 14:07:00 -0500] proffalken: BryanWB_: can you think of any security issues with this approach (i.e. assigning encrypted databag stuff to a node)? or does the node "forget" what's been set at the end of the run?
+[2012-02-28 14:08:00 -0500] BryanWB_: proffalken: the node isn't written to disk
+[2012-02-28 14:08:00 -0500] proffalken: ok, so the data is only "decrypted" for the duration of the chef-client run.  Cool
+[2012-02-28 14:09:00 -0500] BryanWB_: proffalken: afaik
+[2012-02-28 14:09:00 -0500] proffalken: s/thsi/this
+[2012-02-28 14:09:00 -0500] proffalken: (not drunk, honest...)
+[2012-02-28 14:23:00 -0500] bluenemo: when i   %w{mysql-server mysql-client }.each do |pkg|  foo bar does it install those packages one after another or all toghether? (like is it aptitude install foo bar    or    aptitude install foo; aptitude install bar)?
+[2012-02-28 14:23:00 -0500] bluenemo: sry, back
+[2012-02-28 14:27:00 -0500] BryanWB_: ringods: too sweet! grimberger is better ;)
+[2012-02-28 14:30:00 -0500] geekbri: Is there a way for a cookbook to report its version?  Say for some reason in a recipe I wanted to do something iwth the version number of the cookbook... is there a way to retrieve that?
+[2012-02-28 14:30:00 -0500] yfeldblum: bluenemo, it installs the packages sequentially
+[2012-02-28 14:31:00 -0500] laurent\: but that would be nice if we could pass an array(or hash) of packages to provider
+[2012-02-28 14:31:00 -0500] laurent\: :)
+[2012-02-28 14:31:00 -0500] ringods: BrianWB_: depends which Grimbergen. Not the dark one I suppose, as that is a double brew and much sweeter than Duvel.
+[2012-02-28 14:32:00 -0500] ringods: BrianWB_: another suggestion is the Triple Karmeliet
+[2012-02-28 14:32:00 -0500] ringods: BrianWB_: or the best beer in the world: Westvleteren 12
+[2012-02-28 14:32:00 -0500] laurent\: une stella artois s'il vous plait ! :-)
+[2012-02-28 14:33:00 -0500] ringods: any other orders? ;-)
+[2012-02-28 14:35:00 -0500] yfeldblum: laurent\, you can `execute "apt-get install #{package_names.join(" ")}"` if you like
+[2012-02-28 14:36:00 -0500] laurent\: yfeldblum: yes but no :-)
+[2012-02-28 14:39:00 -0500] lflux_: doesn't seem to be in my case
+[2012-02-28 14:39:00 -0500] lflux_: hmm, shouldn't service action :start actually, you know, start the service/
+[2012-02-28 14:39:00 -0500] lflux_: ?
+[2012-02-28 14:39:00 -0500] laurent\: it should :)
+[2012-02-28 14:40:00 -0500] laurent\: lflux_: http://tickets.opscode.com/browse/CHEF-2880 ? :)
+[2012-02-28 14:40:00 -0500] ringods: With more people alive this afternoon, I'm going to repeat my question of this morning: I want to upgrade my chef server 0.10.2 to 0.10.8. Beyond updating gems, are there other things to keep in mind?
+[2012-02-28 14:41:00 -0500] lflux_: laurent\: I'm on CentOS
+[2012-02-28 14:41:00 -0500] mattray: ringods: there was a recent thread on the ML where someone had issues with Couch.
+[2012-02-28 14:41:00 -0500] laurent\: lflux_: ok :)
+[2012-02-28 14:41:00 -0500] mattray: ringods: make sure you have good backups :)
+[2012-02-28 14:41:00 -0500] ringods: mattray: ok, I will search for Couch. Searched this morning, but I doubt that thread popped up in my search results.
+[2012-02-28 14:41:00 -0500] rgsteele: For those using the official apt resource, how do you cope with a keyserver being unavailable?  This morning, pgpkeys.mit.edu wasn't responding, and it was breaking provisioning.  I could use some try/catch blocks or something, but it seems hacky.
+[2012-02-28 14:43:00 -0500] rgsteele: It's working again now, but that's the second time a keyserver has thrown a wrench into the gears.
+[2012-02-28 14:43:00 -0500] ringods: mattray: I did see that thread, but that was an upgrade via Ubuntu packages. I installed via gems.
+[2012-02-28 14:44:00 -0500] mattray: ringods: ahh, true. Still have good backups ;)
+[2012-02-28 14:45:00 -0500] laurent\: rgsteele: what about having a resource that cache/maintain a copy of the key to a local http server ?
+[2012-02-28 14:45:00 -0500] ringods: mattray: and the wiki documents upgrades between major versions, but nothing is documented regarding minor updates...
+[2012-02-28 14:45:00 -0500] ssd7: Morning all
+[2012-02-28 14:48:00 -0500] lflux_: laurent\: Ah, I was using the wrong provider. for some reason my init script doesn't play well with Redhat /sbin/service
+[2012-02-28 14:49:00 -0500] rgsteele: laurent\: Yeah, I was thinking of using something like sks
+[2012-02-28 14:49:00 -0500] laurent\: lflux_:  :)
+[2012-02-28 14:50:00 -0500] rgsteele: Just wasn't sure if there was a 'better' way.  Thanks for the input.
+[2012-02-28 14:54:00 -0500] statix: I use a modified Opscode users cookbook to install remote users with ssh keypairs, now I'm trying to use the deploy resource to checkout an svn repo with that user, but since I run chef client as root, the svn+ssh client runs are root. Any idea how I can make it run as the user?
+[2012-02-28 14:55:00 -0500] statix: I've tried the deploy svn_username option but that doesn't seem to work
+[2012-02-28 14:56:00 -0500] gchristensen: statix: check out how the application cookbook uses an SSH wrapper: https://github.com/opscode/cookbooks/blob/master/application/recipes/php.rb#L69-92 and https://github.com/opscode/cookbooks/blob/master/application/recipes/php.rb#L136
+[2012-02-28 14:58:00 -0500] statix: Hmm, the manual says the ssh_wrapper option is git-only but I'm using SVN
+[2012-02-28 14:59:00 -0500] gchristensen: :/ I don't know anything about using it for SVN... sorry statix
+[2012-02-28 14:59:00 -0500] statix: Ok thanks
+[2012-02-28 15:24:00 -0500] lflux_: Any good way for running chef in stages? I have machines working in pairs, where machine B needs to SCP/SSH to machine A as part of it's bootstrap cycle from clean machine to working app server. But for this to work, I need to have created the SSH private key on B so that A can get the public key.
+[2012-02-28 15:24:00 -0500] lflux_: So I feel I need to first run stage 1 on B where I create the key, run stage 2 on A where I insert the public key and then continue the bootstrap cycle on both
+[2012-02-28 15:24:00 -0500] lflux_: any ideas here?
+[2012-02-28 15:26:00 -0500] sifi|work: hey guys, I'm having trouble getting my execute command to work.
+[2012-02-28 15:27:00 -0500] sifi|work: I'm trying to cwd "/opt" then run command "git clone ..." but what ends up happening is that my command fails to return 0 (because of a permission issue) and chef thinks it succeeds
+[2012-02-28 15:28:00 -0500] sifi|work: oops, I think I found my mistake.
+[2012-02-28 15:35:00 -0500] statix: Woo! FYI, I was able to tell svn to ssh as a different user with this line just before a deploy resource: ENV['SVN_SSH'] = "ssh -l chef_svn -i /home/chef_svn/.ssh/id_rsa"
+[2012-02-28 15:38:00 -0500] gchristensen: statix: good to know!
+[2012-02-28 15:38:00 -0500] gchristensen: statix: so the ssh_wrapper should be exposed to both, perhaps
+[2012-02-28 15:39:00 -0500] statix: I don't think that's possible with svn.. the only way to modify ssh behavior is to set that environment variable
+[2012-02-28 15:45:00 -0500] mattray: lflux_: when I write things that need to be done in stages, I'll use flags and search, which means I may need more than 1 chef-client run if they're done out of order
+[2012-02-28 15:45:00 -0500] mattray: lflux_: inefficient, but safe
+[2012-02-28 15:45:00 -0500] lflux_: mattray: do you have any good examples to look at?
+[2012-02-28 15:45:00 -0500] mattray: 1 sec
+[2012-02-28 15:46:00 -0500] lflux_: yeah I don't mind doing like 3 runs just to get it right
+[2012-02-28 15:46:00 -0500] mattray: lflux_: https://github.com/opscode/cookbooks/tree/master/drbd
+[2012-02-28 15:47:00 -0500] mattray: the nodes work in pairs
+[2012-02-28 15:47:00 -0500] mattray: https://github.com/opscode/cookbooks/blob/master/drbd/recipes/pair.rb#L85
+[2012-02-28 15:48:00 -0500] lflux_: ah, so a judicious use of only_if
+[2012-02-28 15:49:00 -0500] mattray: there are of course, external systems that can manage it for you
+[2012-02-28 15:49:00 -0500] lflux_: such as?
+[2012-02-28 15:49:00 -0500] mattray: rundeck
+[2012-02-28 15:49:00 -0500] mattray: mcollective
+[2012-02-28 15:49:00 -0500] mattray: I prefer to write my cookbooks without the need for external tooling
+[2012-02-28 15:50:00 -0500] lflux_: well I could have that as part of the bootstrap script for bringing up a VM but i'd prefer to have as much 'system description' as possible in chef
+[2012-02-28 15:50:00 -0500] Yulya: hmmm
+[2012-02-28 15:50:00 -0500] Yulya: guys
+[2012-02-28 15:50:00 -0500] lflux_: since I'll be launching VMs in pairs
+[2012-02-28 15:51:00 -0500] mattray: lflux_: right. I usually launch things in order and try to sanity-check inside my cookbooks
+[2012-02-28 15:51:00 -0500] mattray: lflux_: see spiceweasel along that thinking bit.ly/spcwsl
+[2012-02-28 15:52:00 -0500] lflux_: All I need now is a "knife vcenter server create"
+[2012-02-28 15:52:00 -0500] lflux_: :)
+[2012-02-28 15:52:00 -0500] mattray: vcenter or vsphere?
+[2012-02-28 15:53:00 -0500] lflux_: vSphere I think
+[2012-02-28 15:53:00 -0500] lflux_: I keep getting lost in vNames
+[2012-02-28 15:53:00 -0500] mattray: http://wiki.opscode.com/display/chef/Community+Plugins
+[2012-02-28 15:53:00 -0500] mattray: http://rubygems.org/gems/knife-vsphere
+[2012-02-28 15:53:00 -0500] mattray: https://github.com/ezrapagel/knife-vsphere
+[2012-02-28 15:53:00 -0500] lflux_: I'd say "the one that costs an arm and a leg that needs a separate Win2k8 server" but that's like half of VMwares products
+[2012-02-28 15:54:00 -0500] mattray: knife-esx here: https://github.com/rubiojr/knife-esx
+[2012-02-28 15:54:00 -0500] lflux_: ooh, shiny. i'll definitely take a look
+[2012-02-28 16:00:00 -0500] madteckhead_1: looking high and low for a cookbook to deploy apache lucene 3.x anyone know of a jumping off point?
+[2012-02-28 16:01:00 -0500] madteckhead_1: there is a lot of noise in google due to chef-solr
+[2012-02-28 16:12:00 -0500] miah: *yawn*
+[2012-02-28 16:38:00 -0500] hoover_damm: good morning miah
+[2012-02-28 16:47:00 -0500] tolland: i have battle of the cookbooks.
+[2012-02-28 16:47:00 -0500] tolland: webalizer installs a webalizer.conf file, and then apache2 takes it out again.
+[2012-02-28 16:47:00 -0500] tolland: over and over ...
+[2012-02-28 16:52:00 -0500] bluenemo: yay i just setup nginx with wordpress via chef :) its still very crude, but it already works :)
+[2012-02-28 16:53:00 -0500] hugalua: in the chef world, what is analogous to puppet's mcollective?
+[2012-02-28 16:53:00 -0500] jtimberman: hugalua: you can use mcollective too :)
+[2012-02-28 16:54:00 -0500] jtimberman: hugalua: we generally use knife ssh
+[2012-02-28 16:54:00 -0500] jtimberman: hugalua: some folks use capistrano, fabric or rundeck too.
+[2012-02-28 16:54:00 -0500] atomic-penguin: I read that as redneck for some reason
+[2012-02-28 16:55:00 -0500] c_t: I would be astonished if there wasn't some ruby thing out there called redneck
+[2012-02-28 16:55:00 -0500] proffalken: hugalua: what are you trying to achieve?
+[2012-02-28 16:57:00 -0500] proffalken: hugalua: Mcollective != knife ssh (although you could probably write a plugin to emulate that behaviour if required!)
+[2012-02-28 17:01:00 -0500] kjz: Is it possible to set a variable in an attribute using a system command:  domain = `hostname -d`
+[2012-02-28 17:01:00 -0500] hugalua: ok i'll check it out later, i need to start "crawling" first with chef before I can stand or fly
+[2012-02-28 17:02:00 -0500] proffalken: kjz: probably easier to do something like node['fqdn'].split('.')[1:] or similar (check the syntax, that last [] might be wrong)
+[2012-02-28 17:03:00 -0500] proffalken: hugalua: my experience is that MC is awesome for carrying out defined tasks (Exim Management for example) and knife ssh is equally awesome for arbitrary commands across multiple node
+[2012-02-28 17:03:00 -0500] kjz: proffalken-  much thanks
+[2012-02-28 17:03:00 -0500] proffalken: hugalua: but I'm probably just as new to Chef as you are! :)
+[2012-02-28 17:03:00 -0500] proffalken: kjz: np
+[2012-02-28 17:03:00 -0500] hugalua: i'm guessing though that knife is easier to install?
+[2012-02-28 17:04:00 -0500] proffalken: kjz: there's probably  a far more eloquent way of doing it too, but I'll leave that to the experts
+[2012-02-28 17:04:00 -0500] proffalken: hugalua: it has fewer dependencies, yes
+[2012-02-28 17:04:00 -0500] hugalua: well i'm sure ill find out, I haven't even tried yet
+[2012-02-28 17:04:00 -0500] AntonZ: Hello, can someone please have a look at this script and tell me how can i convert it to a cookbook? it has some user inputs that i dont know how to convert to chef, any hints would be much appriciated: https://gist.github.com/1895560
+[2012-02-28 17:04:00 -0500] ssd7_: kjz: I think that ohai already populates a domain attribute
+[2012-02-28 17:04:00 -0500] hugalua: for chef, does it make things easier or worse to have a FQDN like this: db1.ops.sf.asdfasdf.com (hostname:group:location:domain:tld)
+[2012-02-28 17:05:00 -0500] hugalua: or shouldn't matter?
+[2012-02-28 17:05:00 -0500] proffalken: hugalua: it works via SSH, so you've probably already got the infrastructure for knife, MC requires some kind of messaging server running AMQP or STOMP
+[2012-02-28 17:05:00 -0500] tolland: ive got a bunch of production sites using the apache2 cookbook on the server, but i need to make a bunch of changes. what is the suggested work flow? can I fix their cookbook versions to the prod boxeS?
+[2012-02-28 17:05:00 -0500] proffalken: kjz: told you there would be a neater way of doing it... :P
+[2012-02-28 17:06:00 -0500] tolland: AntonZ: most of that stuff has to be in place pre chef, unless you are chef-solo'ing it, i have my script to se the hostname and resolf in a bash file
+[2012-02-28 17:07:00 -0500] AntonZ: im chef soling
+[2012-02-28 17:07:00 -0500] kjz: ssd7-  you are right, i guess I should have started my search there.  Thank you.
+[2012-02-28 17:07:00 -0500] AntonZ: we use RightScale and they use chef-solo
+[2012-02-28 17:08:00 -0500] AntonZ: i want everything to be done via chef if possible, but this script, i dont get how to convert these user  inputs Inputs DNS_IP_ADDRESS, DOMAIN, HOSTNAME_PREFIX
+[2012-02-28 17:09:00 -0500] cap10morgan: i have a recipe that changes the node's hostname, but then the run fails with a 403 error. is that b/c of the hostname change?
+[2012-02-28 17:09:00 -0500] cap10morgan: (it fails trying to save the node data)
+[2012-02-28 17:10:00 -0500] tolland: probably the hostname, you would need to update the hostname on the chef-server also
+[2012-02-28 17:10:00 -0500] cap10morgan: tolland: ok, thanks
+[2012-02-28 17:10:00 -0500] chip-: I've got a network of 289 nodes on Chef (according to knife status | wc -l). Every morning I'm finding that chef-client has crashed on about 5-10 of them. Is this a normal attrition rate?
+[2012-02-28 17:11:00 -0500] chip-: Most of these with crashes are old-ass rhel variants (5.2 - 5.4, not in my control) that I bootstrapped.
+[2012-02-28 17:11:00 -0500] mattray: chip-: no. What OS and version of Chef?
+[2012-02-28 17:11:00 -0500] mattray: chip-: stack traces?
+[2012-02-28 17:11:00 -0500] mattray: where are they failing?
+[2012-02-28 17:14:00 -0500] chip-: mattray: Chef 10.8 generally.  They're failing at different places during the run. For instance, most recent died right after printing "INFO: *** Chef 0.10.8 ***" into the log. This one is CentOS 5.4 with 2.6.18-164.10.1.el5 #1 SMP x86_64
+[2012-02-28 17:14:00 -0500] chip-: I'll look for stacktrace.out
+[2012-02-28 17:14:00 -0500] mattray: chip-: which install method?
+[2012-02-28 17:14:00 -0500] chip-: Nah, no stacktrace.out
+[2012-02-28 17:15:00 -0500] AntonZ: hwo do i make it pre-chef ?
+[2012-02-28 17:15:00 -0500] chip-: mattray: bootstrapped via the rhel template.
+[2012-02-28 17:15:00 -0500] AntonZ: tolalnd
+[2012-02-28 17:15:00 -0500] mattray: chip-: I wonder if you'd have better success with the Full Stack Installer?
+[2012-02-28 17:16:00 -0500] mattray: a little more homogeneity of the stack in line with other platforms
+[2012-02-28 17:16:00 -0500] tolland: AntonZ: sorry, dont understand the question
+[2012-02-28 17:16:00 -0500] mattray: and potentially something we'd be able to fix
+[2012-02-28 17:16:00 -0500] chip-: mattray: maybe. I'm wary now of using non-gem install methods. I got bit when the community rpm's went unsupported 2 Decembers back, and I've run into issues with apt-installed on my debian/ubuntu boxes.
+[2012-02-28 17:16:00 -0500] chip-: Wish you guys would bless a single method and stick with it, honestly.
+[2012-02-28 17:16:00 -0500] AntonZ: you said that the script has to be pre-chef
+[2012-02-28 17:16:00 -0500] mattray: chip-: yeah, key word in there is "unsupported"
+[2012-02-28 17:17:00 -0500] chip-: mattray: the wiki was remarkably unclear on that point 16 months ago.
+[2012-02-28 17:17:00 -0500] mattray: chip-: Full Stack Installer is/will be the blessed install
+[2012-02-28 17:17:00 -0500] mattray: same Chef client stack everywhere
+[2012-02-28 17:17:00 -0500] chip-: Excellent.
+[2012-02-28 17:17:00 -0500] AntonZ: https://gist.github.com/1895560
+[2012-02-28 17:18:00 -0500] chip-: Medium-term solution from me is probably just a script to ssh in and restart chef-client if the daemon check fails nagios
+[2012-02-28 17:18:00 -0500] tolland: AntonZ: i dont use chef-solo for bootstrap, so I can't help you there. but if you change anything that effects what the node calls itself in a recipe it breaks authentication like cap10morgan experienced
+[2012-02-28 17:19:00 -0500] chip-: mattray: sounds good to me. When will the ec2 / bootstrap scripts default to it?
+[2012-02-28 17:19:00 -0500] tolland: from bash you can delete the client.pem and re-register if you want
+[2012-02-28 17:19:00 -0500] atomic-penguin: AntonZ, why does your use case involve changing the hostname?
+[2012-02-28 17:19:00 -0500] mattray: chip-: possibly 0.10.10
+[2012-02-28 17:20:00 -0500] mattray: chip-: https://github.com/opscode/chef/blob/master/chef/lib/chef/knife/bootstrap/chef-full.erb
+[2012-02-28 17:20:00 -0500] tolland: anyway reading back, you are looking to get attributes into the chef solo recipe or something right?
+[2012-02-28 17:20:00 -0500] AntonZ: https://gist.github.com/1895560 - this is the script that adds a linux instance to windows active directory for LDAP authentication, script expects me to provide certain inputs such as DNS_IP_ADRESS; DOMAIN nad HOSTNAME_PREIX
+[2012-02-28 17:21:00 -0500] AntonZ: yes, those inputs are basically attributes
+[2012-02-28 17:21:00 -0500] AntonZ: but im not a scripty or devloper, so im abit stuck
+[2012-02-28 17:21:00 -0500] mattray: chip-: I use it everywhere today. RHEL 5.3, CentOS 5.6/6.1, Ubuntu 10.04-11.10 and Debian
+[2012-02-28 17:21:00 -0500] tolland: yeah put the attributes in a json file and pass it in with -j
+[2012-02-28 17:21:00 -0500] chip-: Cool. I look forward to having a blessed install!
+[2012-02-28 17:22:00 -0500] AntonZ: do i put the attributes in metadata.jason ?
+[2012-02-28 17:22:00 -0500] AntonZ: i thought atributes go to atttributes fodler->default.rb
+[2012-02-28 17:23:00 -0500] tolland: or at a massive guess, haha, dont even read any further ... you could have your recipe search for the same variabls that the script you have puts into the context
+[2012-02-28 17:24:00 -0500] cap10morgan: tolland: where does the chef server store the hostname? i don't see it in the client, and the node hasn't gotten a valid checkin yet, so no ohai data
+[2012-02-28 17:24:00 -0500] cap10morgan: and by "client" i mean the client entry for the node on the chef server
+[2012-02-28 17:25:00 -0500] tolland: hmm. well "knife node list" would give you the name that the client is using, if its not there, then you are right its hasn't registered and its something else
+[2012-02-28 17:26:00 -0500] AntonZ: tolland, what you are saying makes sense... now the technical aspect how to get there is a different story :D
+[2012-02-28 17:26:00 -0500] cap10morgan: tolland: it's in the list, but it doesn't have a hostname attribute yet. hmm...
+[2012-02-28 17:27:00 -0500] tolland: AntonZ: where do you intend to keep this list of values such as $DOMAIN and HOSTNAME PREFIX
+[2012-02-28 17:28:00 -0500] AntonZ: i dont care where honestly, anywhere where script will find them, i'm looking for a simple way out sort of, just wahtever way will wrok to convert this script to work with chef
+[2012-02-28 17:28:00 -0500] tolland: I mean, I think the nearest thing I can think of to passing args to chef-solo is using an attributes json file (but like I said I never used chef-solo)
+[2012-02-28 17:29:00 -0500] AntonZ: the thing is i could figure out attributes part, but i dont know how to modify actual script to look for those attributes
+[2012-02-28 17:30:00 -0500] tolland: according to the wiki you can read env variabls using ENV['FOO'] = "bar"
+[2012-02-28 17:30:00 -0500] tolland: http://wiki.opscode.com/display/chef/Unix+Environment+Variables+and+Chef+Recipes
+[2012-02-28 17:30:00 -0500] AntonZ: reading
+[2012-02-28 17:30:00 -0500] tolland: probably less of a ball ache way to do it
+[2012-02-28 17:32:00 -0500] AntonZ: hehe, the thing is - this is how i do it, i wrap entire script into chef script resource
+[2012-02-28 17:32:00 -0500] AntonZ: im not sure if that's gonna fly
+[2012-02-28 17:34:00 -0500] tolland: one of my greatest achievments is the famed tur-duck-en of a bash script that pipes a perl  command which regexes replaces output from an ldap-search into a netcat command to another netcat on a box that wasn't locked down.
+[2012-02-28 17:35:00 -0500] AntonZ: i think this will do what i want : bash "env_test" do
+[2012-02-28 17:35:00 -0500] AntonZ:     code<<-EOF
+[2012-02-28 17:35:00 -0500] AntonZ:  echo $FOO
+[2012-02-28 17:35:00 -0500] AntonZ: EOF
+[2012-02-28 17:35:00 -0500] AntonZ:     environment { 'FOO' => "bar" }
+[2012-02-28 17:35:00 -0500] AntonZ: end
+[2012-02-28 17:36:00 -0500] AntonZ: ill declare environment right below the script, and define my inputs there
+[2012-02-28 17:36:00 -0500] AntonZ: see if that's gonna fly
+[2012-02-28 17:36:00 -0500] atomic-penguin: AntonZ, I would personally template out the krb5, pam, nsswitch, and smb confs then run 'net ads join -U blah blah'
+[2012-02-28 17:37:00 -0500] atomic-penguin: ...and resolv.conf, etc
+[2012-02-28 17:38:00 -0500] proffalken: atomic-penguin: +1
+[2012-02-28 17:38:00 -0500] AntonZ: well, it's not just that... it's part of centrif software so
+[2012-02-28 17:38:00 -0500] AntonZ: centrify
+[2012-02-28 17:39:00 -0500] AntonZ: such as this part run /usr/sbin/adjoin $DOMAIN -S -w -n "$HOSTNAME_PREFIX$count"
+[2012-02-28 17:39:00 -0500] atomic-penguin: I don't know what centrify is, is it an IP MGMT solution?
+[2012-02-28 17:39:00 -0500] proffalken: atomic-penguin: joins *nix to ActiveDirectory
+[2012-02-28 17:39:00 -0500] AntonZ: im not aware of ip mgmt solution, got a link ?
+[2012-02-28 17:39:00 -0500] AntonZ: proffalken is correct
+[2012-02-28 17:40:00 -0500] proffalken: AntonZ: check out what /usr/sbin/adjoin actually does - I'm pretty sure it's probably just a "friendly" wrapper around 'net ads join'
+[2012-02-28 17:41:00 -0500] proffalken: AntonZ: I'd be tempted to install Centrify on a server, see what it installs and where, then create a chef cookbook based on the files it's changes and packages installed
+[2012-02-28 17:41:00 -0500] AntonZ: are you suggesting to skip this mosntrous scipt and just run a simplistic script that would join my linux instance with a single command :) ?
+[2012-02-28 17:41:00 -0500] proffalken: AntonZ: it's effectively reverse-engineering, but you end up with a config that you can re-deploy time and time again
+[2012-02-28 17:41:00 -0500] proffalken: AntonZ: yup... :)
+[2012-02-28 17:42:00 -0500] cap10morgan: oh, huh, never mind, the node gets a 403 right after it's created with an empty run list. hmm...
+[2012-02-28 17:42:00 -0500] AntonZ: it's extremely simple actually, it modifes ssh to use pem, and then it installs a set of it's won tools, like adjoin and that;s pretty much it
+[2012-02-28 17:42:00 -0500] atomic-penguin: proffalken, that's not a bad method of automating.  Essentially de-construct what that solution does, codify it in Chef
+[2012-02-28 17:42:00 -0500] proffalken: atomic-penguin: I've used it time and time again - with Vagrant, it's easy!
+[2012-02-28 17:42:00 -0500] AntonZ: okay, that's a ctually an idea! ill play around with it now!
+[2012-02-28 17:43:00 -0500] tolland: cap10morgan: presumably your "knife node list" and "knife client list" shows the old hostname
+[2012-02-28 17:43:00 -0500] proffalken: AntonZ: in that case, use chef to install the packages, then use tempaltes to overwrite the files
+[2012-02-28 17:43:00 -0500] proffalken: AntonZ: with the correct values
+[2012-02-28 17:43:00 -0500] tolland: cap10morgan: if you set one hostname in your /etc/chef/client.rb file then the client will use that whatever your changed actual hostname is
+[2012-02-28 17:44:00 -0500] cap10morgan: tolland: could have sworn i deleted them first. but let me do it all again to make sure.
+[2012-02-28 17:45:00 -0500] AntonZ: im curious if centrify package exist in yum
+[2012-02-28 17:46:00 -0500] atomic-penguin: I .shuffle my resolv.conf attributes for poor man's load balancing.
+[2012-02-28 17:46:00 -0500] proffalken: AntonZ: pretty sure there's a repo for it somewhere, if not, it's easy to setup your own repo and just d/l the rpms to there
+[2012-02-28 17:46:00 -0500] proffalken: AntonZ: if you use FPM, you can create your own RPMS with ease!
+[2012-02-28 17:48:00 -0500] proffalken: AntonZ: http://www.threedrunkensysadsonthe.net/2010/05/create-a-local-repository-for-mcollective-and-activemq/ <- shameless advertising, but a guide on how to create your own repo none the less... ;)
+[2012-02-28 17:49:00 -0500] tolland: in fact i dont see the good reason for leaving the "node name" in client rb to the default , it can only ever break things if the hostname is changed
+[2012-02-28 17:49:00 -0500] AntonZ: cheers, ill check it out, im abit time constrained, bt ill check it out!
+[2012-02-28 17:49:00 -0500] proffalken: lol
+[2012-02-28 17:50:00 -0500] tolland: where as you could detect the mismatch if the client was reporting with a differnt client name to hostname
+[2012-02-28 17:51:00 -0500] cap10morgan: tolland: yep, i must have screwed that up before. new node w/ no existing clients or nodes w/ the same name and an empty run list works. now to add in pieces of my recipe until it breaks again...
+[2012-02-28 17:52:00 -0500] AntonZ: sigh, what do they mean by: HOSTNAME_PREFIX - The hostname Prefix for the pool of pre-created ACtive Directory Accounts numbered 1-100 - do they make me name my PCs with name starting with number 1 and so on ?
+[2012-02-28 17:57:00 -0500] chip-: Dear maintainer of the Java cookbook: Thank you for making Oracle's Java licensing debacle wrt various distros completely painless.
+[2012-02-28 17:58:00 -0500] tolland: dear maintainer of the apache2 cookbook... ill probably have some comment when ive discovered what is causing httpd to restart every 30 mins
+[2012-02-28 18:00:00 -0500] c_t: the maintainer of the apache2 cookbook doesn't really exist
+[2012-02-28 18:00:00 -0500] c_t: it's like sending letters to Santa
+[2012-02-28 18:00:00 -0500] mlei: santa doesn't exist?!?!?!
+[2012-02-28 18:00:00 -0500] mattray: he does, he just can't read
+[2012-02-28 18:01:00 -0500] c_t: we're going to have to have a little talk, mlei
+[2012-02-28 18:01:00 -0500] c_t: characters like Santa, the Easter Bunny, and jtimberman are just made up
+[2012-02-28 18:01:00 -0500] mlei: didn't i just do a devops contract at the north pole last week?
+[2012-02-28 18:01:00 -0500] mlei: who the eff was i working for then???
+[2012-02-28 18:02:00 -0500] jtimberman: c_t: there are several people in the opscode office that can confirm my existence.
+[2012-02-28 18:02:00 -0500] mattray: I can neither confirm nor deny the existence of jtimberman
+[2012-02-28 18:02:00 -0500] jtimberman: chip-: BryanWB contributed the oracle specific recipes and refactored the openjdk recipe.
+[2012-02-28 18:03:00 -0500] chip-: jtimberman: He turned a boondoggle into smooth sailing.
+[2012-02-28 18:03:00 -0500] c_t: I've heard that at devops slumber parties, young ops guys will say "jtimberman" to the mirror in a dark bathroom to see if he will appear
+[2012-02-28 18:04:00 -0500] chip-: c_t: I've met him. He's real.
+[2012-02-28 18:04:00 -0500] c_t: (I've met him too. Shhh.)
+[2012-02-28 18:04:00 -0500] chip-: c_t: Devops_borat devops_borat devops_borat devops_borat
+[2012-02-28 18:04:00 -0500] chip-: oh man do I do it one more time?
+[2012-02-28 18:05:00 -0500] c_t: "Ma'am, log out of that server. The message is coming from INSIDE THE COMPUTER!"
+[2012-02-28 18:06:00 -0500] ssd7_: jtimberman: I can confirm nothing.
+[2012-02-28 18:13:00 -0500] tolland: gah. nagios!
+[2012-02-28 18:14:00 -0500] tolland: and webalizer, but that was my fault.
+[2012-02-28 18:25:00 -0500] cjs226: anyone working with Amazon's Elastic Network Interfaces?
+[2012-02-28 18:30:00 -0500] sifi|work: I'm having trouble getting forward agent working via Chef.  I have a middleman user called chef that I handle all the chef tasks.  When running my git resource it fails because of public key can't authenticate.  Ideas?
+[2012-02-28 18:45:00 -0500] tolland: hmm. why doesn nagios::server insist on disabling the default site. it seems to be competing with apache2
+[2012-02-28 18:49:00 -0500] AntonZ: good lord, after i played around with cli and centrify tools to join/leave AD - god knows why they heck they wrote such a complicated script... i guess it does a lot more than i need :)
+[2012-02-28 19:01:00 -0500] cap10morgan: how do you set the default provider for an LWRP?
+[2012-02-28 19:04:00 -0500] nico: it matches the resource name IIRC
+[2012-02-28 19:20:00 -0500] cap10morgan: nico: can it be set manually if the names don't match?
+[2012-02-28 19:23:00 -0500] AntonZ: hey guys, do you know what does this do, what's that hash thing ? attribute "ntp",
+[2012-02-28 19:23:00 -0500] AntonZ:   :display_name => "NTP",
+[2012-02-28 19:23:00 -0500] AntonZ:   :description => "Hash of NTP attributes",
+[2012-02-28 19:23:00 -0500] AntonZ:   :type => "hash"
+[2012-02-28 19:23:00 -0500] AntonZ: im setting up some attributes and creating metadata.rb
+[2012-02-28 19:27:00 -0500] atomic-penguin: AntonZ, looks to me like content from the metadata file
+[2012-02-28 19:27:00 -0500] atomic-penguin: metadata?
+[2012-02-28 19:27:00 -0500] bawt: metadata is http://wiki.opscode.com/display/chef/Metadata or used to declare dependencies if you want to use anything from one cookbook in another.
+[2012-02-28 19:28:00 -0500] AntonZ: yes, it's metadata, thanks for the link!
+[2012-02-28 19:29:00 -0500] AntonZ: i was just curious, what what that type: hash
+[2012-02-28 19:29:00 -0500] atomic-penguin: AntonZ, so that is optional attribute metadata.  I think it was intended to constrain and describe your attributes.  Not sure the constraints have ever been fully enforced, however.
+[2012-02-28 19:31:00 -0500] AntonZ: precisely, im setting up some reuired attributes via metadata.. in rightScale (what we use) they read metadata nad force you to do input, i want to set hostname, and i want to be able to enter it via variable
+[2012-02-28 19:36:00 -0500] caryp: AntonZ: setting hostname of the VM?
+[2012-02-28 19:42:00 -0500] AntonZ: yes, i actually just found hostname cookbook, so i was inventing a wheel
+[2012-02-28 19:43:00 -0500] AntonZ: i dont have to, but it's nice to have good hostname :)
+[2012-02-28 19:43:00 -0500] AntonZ: i need to set a hostname of my instance before i can join it to AD
+[2012-02-28 19:47:00 -0500] AntonZ: hmm, hjowever the hostname cookbook doesnt seem to be 100% writtely correctly
+[2012-02-28 19:48:00 -0500] AntonZ: written*
+[2012-02-28 20:02:00 -0500] AntonZ: can someone kindly look at http://community.opscode.com/cookbooks/hostname and tell me if this is the line that has to be modified in order for me to set desired hostname - fqdn = node[:set_fqdn]
+[2012-02-28 20:04:00 -0500] hoover_damm: lol
+[2012-02-28 20:04:00 -0500] hoover_damm: that's a funny cookbook AntonZ 
+[2012-02-28 20:05:00 -0500] AntonZ: why is it funny :) ?
+[2012-02-28 20:05:00 -0500] hoover_damm: i guess it should work
+[2012-02-28 20:05:00 -0500] AntonZ: ill find out in a moment, i just wanted to confirm the part which i need to modify :D
+[2012-02-28 20:07:00 -0500] cwj: i haven't used that 'hostname' cookbook, but I have recently begun using this hosts cookbook's lwrp https://github.com/spheromak/cookbooks/tree/master/hosts
+[2012-02-28 20:07:00 -0500] cwj: works a treat
+[2012-02-28 20:09:00 -0500] AntonZ: checking it out
+[2012-02-28 20:09:00 -0500] AntonZ: thanks
+[2012-02-28 20:10:00 -0500] AntonZ: thats a nice one
+[2012-02-28 20:12:00 -0500] cgibbons: let's say i'm making several different cookbooks for a large app, so typical web tier and database tier among other things. is it idiomatic to have the web tier use a search in a recipe for a db role, and then pull values out of that, such as db ip address, username, password? or is it better to have that sort of thign defined in an environment and/or data bag?
+[2012-02-28 20:14:00 -0500] cwj: cgibbons: i think that where the db tier is involved, the correct approach is going to be dependent on the db architecture
+[2012-02-28 20:14:00 -0500] cwj: e.g. are you in a situation where it doesn't matter whether you get the db master?
+[2012-02-28 20:15:00 -0500] cwj: or do you have a mysql server with drbd+heartbeat where the hostname is static
+[2012-02-28 20:15:00 -0500] cgibbons: in this particular environment that i'm thinking of there'll be a single mysql instance, but also a riak cluster
+[2012-02-28 20:16:00 -0500] cgibbons: i'm guessing the IP address at a minimum fro the db server has to come from a search, since it'll be an EC2 node and we'll want it's private IP
+[2012-02-28 20:17:00 -0500] cwj: i would use node.ec2.public_hostname as it will resolve to the internal ip address for other ec2 instances
+[2012-02-28 20:17:00 -0500] cwj: and resolve to the public ip for dns servers outside ec2
+[2012-02-28 20:18:00 -0500] cgibbons: nice
+[2012-02-28 20:18:00 -0500] mattray: cgibbons: I believe if you use the node.ipaddress, it defaults to the private IP
+[2012-02-28 20:18:00 -0500] mattray: cgibbons: and my preference is to drive it with search rather than data bags, until you have a whole lot of nodes
+[2012-02-28 20:19:00 -0500] mattray: ie. 20 web heads, use search
+[2012-02-28 20:19:00 -0500] mattray: 200, a data bag
+[2012-02-28 20:19:00 -0500] cwj: makes sense to me
+[2012-02-28 20:20:00 -0500] cgibbons: cool, thx cwj and matt
+[2012-02-28 20:21:00 -0500] kshep: Does anybody put arbitrary ruby in roles? Would like to do some conditional stuff.... doesn't feel right tho
+[2012-02-28 20:21:00 -0500] erikh: roles are just json..
+[2012-02-28 20:22:00 -0500] cwj: im under the impression that doesn't really work
+[2012-02-28 20:22:00 -0500] erikh: unless you're talking about doing something dirty with eval
+[2012-02-28 20:22:00 -0500] erikh: which... yeah. don't do that.
+[2012-02-28 20:22:00 -0500] cwj: e.g. your role.rb becomes role.json before being uploaded
+[2012-02-28 20:22:00 -0500] kshep: ah... right... it's not evaluated at run time. duh
+[2012-02-28 20:23:00 -0500] kshep: knew that. sigh
+[2012-02-28 20:27:00 -0500] cap10morgan: can I call gem_package from a library? it's saying "undefined method" when I try. Do I need to mixin a module or something?
+[2012-02-28 20:27:00 -0500] hoover_damm: call it by it's real name
+[2012-02-28 20:28:00 -0500] cap10morgan: hoover_damm: which is?
+[2012-02-28 20:28:00 -0500] hoover_damm: Chef::Resource::GemPackage.new
+[2012-02-28 20:28:00 -0500] cap10morgan: ah, sure, makes sense. thanks!
+[2012-02-28 20:28:00 -0500] hoover_damm: I can't give you an example of working code as the example i have is for oldchef
+[2012-02-28 20:28:00 -0500] hoover_damm: LOL
+[2012-02-28 20:28:00 -0500] hoover_damm: some horrible hack that holoway helped me put together :)
+[2012-02-28 20:30:00 -0500] AntonZ: cwj
+[2012-02-28 20:31:00 -0500] AntonZ: in your example file there are 4 examples, if i want to create an entry for lets say 127.0.0.1 hostname.mydomain.com which of the examples do i use ?
+[2012-02-28 20:32:00 -0500] cwj: AntonZ: it's not my example, fyi
+[2012-02-28 20:32:00 -0500] AntonZ: oh :)
+[2012-02-28 20:32:00 -0500] cwj: you'd just do hosts "127.0.0.1" do entries "hostname.mydomain.com" end
+[2012-02-28 20:33:00 -0500] cwj: just substituting the desired values into one of those examples
+[2012-02-28 20:33:00 -0500] AntonZ: thats what i figured, cheers
+[2012-02-28 20:36:00 -0500] cap10morgan: hoover_damm: any clues on how I could obtain the "run_context"?
+[2012-02-28 20:50:00 -0500] hoover_damm: cap10morgan, basically
+[2012-02-28 20:50:00 -0500] hoover_damm: cap10morgan, Chef::Resource::GemPackage.new("gem",collection,node)
+[2012-02-28 20:50:00 -0500] hoover_damm: cap10morgan, my experience on how to do this properly on modern chef in a non ugly way is unknown
+[2012-02-28 20:50:00 -0500] cap10morgan: hmm, node was undefined in that context. i decided to turn it into a recipe that i include in the other recipes
+[2012-02-28 20:51:00 -0500] cap10morgan: i'm basically trying to make the following reusable across a few recipes: http://www.opscode.com/blog/2009/06/01/cool-chef-tricks-install-and-use-rubygems-in-a-chef-run/
+[2012-02-28 20:52:00 -0500] hoover_damm: cap10morgan, well basically you need to set node before the ruby block, and collection before hand
+[2012-02-28 20:52:00 -0500] hoover_damm: cap10morgan, if you want to use my example it's
+[2012-02-28 20:52:00 -0500] hoover_damm: https://gist.github.com/d986820587dd2caf00ee
+[2012-02-28 20:55:00 -0500] spheromak: cwj: glad it's working for you
+[2012-02-28 20:55:00 -0500] cwj: spheromak: thanks!
+[2012-02-28 20:56:00 -0500] cap10morgan: ok, thanks hoover_damm
+[2012-02-28 21:04:00 -0500] hippiehacker: local chefserver down, no useful logs, suggestions?: https://gist.github.com/1935104
+[2012-02-28 21:05:00 -0500] gmcinnes: ohai shefs
+[2012-02-28 21:05:00 -0500] gmcinnes: those who wanted to split the cookbook repo up won?
+[2012-02-28 21:08:00 -0500] AntonZ: what does EOH mean ? code <<-EOH
+[2012-02-28 21:08:00 -0500] gmcinnes: The stuff inside the EOH is a string
+[2012-02-28 21:09:00 -0500] gmcinnes: inside the matching EOH bits.
+[2012-02-28 21:09:00 -0500] gmcinnes: It's sometimes called "Heredoc syntax"
+[2012-02-28 21:09:00 -0500] AntonZ: ah okay, thank you
+[2012-02-28 21:12:00 -0500] gmcinnes: some subtleties if you're interested: http://blog.grayproductions.net/articles/working_with_multiline_strings
+[2012-02-28 21:13:00 -0500] AntonZ: hosts cookbook added this to my hosts file:
+[2012-02-28 21:13:00 -0500] AntonZ: 127.0.0.1   localhost   localhost.localdomain
+[2012-02-28 21:13:00 -0500] AntonZ: 10.0.1.11 String
+[2012-02-28 21:13:00 -0500] AntonZ: 10.0.1.11 String
+[2012-02-28 21:18:00 -0500] gmcinnes: AntonZ: pastie the code where you set the strings?
+[2012-02-28 21:20:00 -0500] spicyWith: cwj: yes, using that one. Trying to figure out if I should have a separate role file for each replica set, and if there is a way of creating a replica set with 2 data-carrying nodes and 1 arbitrer
+[2012-02-28 21:22:00 -0500] mbj: hi, an hacked box with opensource chef-client does have access to all cookbooks etc? This is the reason for encrypted databags?
+[2012-02-28 21:22:00 -0500] cwj: spicyWith: i dont know, i am using an older even more broken mongodb cookbook
+[2012-02-28 21:22:00 -0500] spicyWith: cwj: fun times :)
+[2012-02-28 21:23:00 -0500] cwj: mbj: yes, but a hacked chef-server would be another reason
+[2012-02-28 21:23:00 -0500] spheromak: AntonZ: gist me your recipe
+[2012-02-28 21:23:00 -0500] spicyWith: cwj: the "even more" part, does that mean that the edelight cookbook is broken?
+[2012-02-28 21:23:00 -0500] spheromak: re: hosts lwrp
+[2012-02-28 21:23:00 -0500] hippiehacker: http://tickets.opscode.com/browse/CHEF-2950 cwj: opened
+[2012-02-28 21:24:00 -0500] cwj: also if you want to use opscode's hosted chef platform, you might want the warm fuzzies of denying opscode's employees the cleartext of your sensitive data
+[2012-02-28 21:24:00 -0500] spheromak: mbj: that would be one reason why
+[2012-02-28 21:24:00 -0500] spheromak: anyone with access to couch has acces to the contents of your bags. same with solr access.
+[2012-02-28 21:25:00 -0500] cwj: spicyWith: i made an attempt at using it and had problems, others (bemu and BryanK i think) said they have had to make modifications to get it working
+[2012-02-28 21:25:00 -0500] mbj: thx, I have my valuables in encrypted databags already that are been build automatically via rake tasks.
+[2012-02-28 21:25:00 -0500] spicyWith: cwj: It looked pretty good. FML
+[2012-02-28 21:25:00 -0500] cwj: i made plans with them to work up some fixes for the existing cookbook that could be sent upstream but haven't had the time to work on that yet
+[2012-02-28 21:26:00 -0500] mbj: But I still wounder about island hopping, since an attacker would gain much knowlege about the system he broke in.
+[2012-02-28 21:26:00 -0500] spicyWith: cwj: some of the docs are def wrong. Where it should says node[ "application"]["port"] it should be "mongod", for example...
+[2012-02-28 21:27:00 -0500] mbj: Or I have to go into the "extremes" and even encrypt all remote ips and hostnames?
+[2012-02-28 21:27:00 -0500] spheromak: well
+[2012-02-28 21:27:00 -0500] cwj: spicyWith: i can't recall exactly what the errors i encountered were, but that sounds like one of them
+[2012-02-28 21:27:00 -0500] spheromak: ssl to your server. and  locking down your server are probably good things
+[2012-02-28 21:27:00 -0500] mbj: Can you estimate the efford to patch chef-server only to distribute cookbooks the chef-client is using?
+[2012-02-28 21:27:00 -0500] spheromak: encrypting sensitive things are good.
+[2012-02-28 21:27:00 -0500] fujin: mbj: it already does that
+[2012-02-28 21:28:00 -0500] spicyWith: cwj: have you found another cookbook to work better?
+[2012-02-28 21:28:00 -0500] cwj: spicyWith: nope, thats why i am still on mongo 1.8
+[2012-02-28 21:28:00 -0500] spheromak: but generally since chef is there under all your systems if i got access to your couchDB and server i could own your infra prety fast. so i would worry bout that first
+[2012-02-28 21:28:00 -0500] AntonZ: spheromak: here it is: https://gist.github.com/1895560
+[2012-02-28 21:28:00 -0500] cwj: like i said, i made plans with bemu and BryanK to work up some fixes for the existing cookbook that could be sent upstream but haven't had the time to work on that yet
+[2012-02-28 21:29:00 -0500] spheromak: AntonZ: gimem a few to try to recreate, shouldn't be doing that ;)
+[2012-02-28 21:30:00 -0500] mbj: fujin: thx, so I misunderstood this from the docs.
+[2012-02-28 21:30:00 -0500] spheromak: AntonZ: ah dub bug on my part. fixing it.
+[2012-02-28 21:30:00 -0500] spicyWith: cwj:  yeah, now that you mention it, there seems to be a lot of inconsistencies: teh replica_set name in the docs is "cluster_name" and in the code is "shard_name".. might be time to bring out the surgery kit.
+[2012-02-28 21:30:00 -0500] fujin: mbj: roles + metadata dependencies control which cookbooks are shipped to each node
+[2012-02-28 21:31:00 -0500] AntonZ: thank you spheromak! standing by for the fix :)
+[2012-02-28 21:31:00 -0500] mbj: fujin: so when a client is owned, he cannot request cookbook internas he does not need (To be 100% sure about this)
+[2012-02-28 21:31:00 -0500] cap10morgan: i created resources/dns_record.rb but when i do "dns_record 'name' do  end" in a recipe, it says undefined method `dns_record' for #<Chef::Recipe
+[2012-02-28 21:31:00 -0500] cap10morgan: any ideas about what i could be missing?
+[2012-02-28 21:32:00 -0500] fujin: mbj: not sure what you mean
+[2012-02-28 21:32:00 -0500] fujin: you mean a client is compromised?
+[2012-02-28 21:32:00 -0500] mbj: yes
+[2012-02-28 21:32:00 -0500] fujin: the node could edit its own run list
+[2012-02-28 21:32:00 -0500] fujin: i.e. get any cookbook
+[2012-02-28 21:32:00 -0500] mbj: okay
+[2012-02-28 21:32:00 -0500] fujin: unless the RBAC authorizations prevent it from acccessing cooks
+[2012-02-28 21:33:00 -0500] mbj: I need to manage a system I cannot trust.
+[2012-02-28 21:33:00 -0500] mbj: And I dislike the idea the system (especially the owners) gain information about my internas.
+[2012-02-28 21:34:00 -0500] mbj: So the opensource chef does not hafe the RBAC?
+[2012-02-28 21:34:00 -0500] spheromak: correct
+[2012-02-28 21:34:00 -0500] mattray: mbj: nope
+[2012-02-28 21:34:00 -0500] spheromak: someone has to hack that in sometime.  its really super handy
+[2012-02-28 21:34:00 -0500] mbj: shouldnt be as much work. (thinking loud)
+[2012-02-28 21:35:00 -0500] cwj: mbj: have you considered using chef-solo on the system-you-cant-trust?
+[2012-02-28 21:35:00 -0500] mbj: nope. Did not have that idea.
+[2012-02-28 21:35:00 -0500] AntonZ: hey spheromak, does your cookbook also actually sets the hostname ?
+[2012-02-28 21:35:00 -0500] jtimberman: regenerate the API client for the system that was compromised.
+[2012-02-28 21:35:00 -0500] AntonZ: it modifies the hosts file, but i need it to set the hostname
+[2012-02-28 21:35:00 -0500] jtimberman: or delete it.
+[2012-02-28 21:35:00 -0500] mbj: cwj: thx, will consider it
+[2012-02-28 21:35:00 -0500] cwj: requires you to manually upload the cookbooks and so on that are needed, but it would let you manage the system without providing full access
+[2012-02-28 21:35:00 -0500] jtimberman: then it won't have access to anything on the chef server.
+[2012-02-28 21:36:00 -0500] spheromak: AntonZ: no
+[2012-02-28 21:36:00 -0500] mbj: jtimberman: Sure but you do not notive as fast about a owned system :D
+[2012-02-28 21:36:00 -0500] spheromak: just manages hosts file with the lwrp
+[2012-02-28 21:36:00 -0500] spheromak: AntonZ: just pushed to master should fix that issue. sorry bout that simple typo
+[2012-02-28 21:36:00 -0500] AntonZ: oo, i needed it to set actualy hostname... any chance for a custom fix :) ?
+[2012-02-28 21:36:00 -0500] AntonZ: not fix but patch
+[2012-02-28 21:37:00 -0500] spheromak: thats out of the scope of the hosts lwrp i would think
+[2012-02-28 21:37:00 -0500] spheromak: and its platform specific how to do that
+[2012-02-28 21:37:00 -0500] spheromak: and flavor specific
+[2012-02-28 21:37:00 -0500] spheromak: AntonZ: what distro you on
+[2012-02-28 21:37:00 -0500] AntonZ: im on centos
+[2012-02-28 21:38:00 -0500] mbj: thx at all, I'll go the -solo route. But when I have more "externals" I'll try to hack on basic RBAC.
+[2012-02-28 21:39:00 -0500] spheromak: AntonZ: just make a template that writes out /etc/sysconfig/network
+[2012-02-28 21:39:00 -0500] AntonZ: roger that
+[2012-02-28 21:48:00 -0500] maek: I could be wrong so take this with a grain of salt. I have a fresh centos 6.2 box im using the chef-server::rubygems-install boot strap method from the wiki. Its creating the /etc/init.d files and setting exec="/usr/bin/chef-*" for chef-solr, expander and server but they actually live in /usr/lcoal/bin/chef-*  - just fyi
+[2012-02-28 21:48:00 -0500] maek: did I miss an attribute to set in chef.json ?
+[2012-02-28 21:49:00 -0500] hippiehacker: xb
+[2012-02-28 21:51:00 -0500] jtimberman: maek: with bootstrap-latest.tar.gz right now?
+[2012-02-28 22:03:00 -0500] maek: jtimberman: correct
+[2012-02-28 22:04:00 -0500] maek: jtimberman: https://gist.github.com/1935564
+[2012-02-28 22:04:00 -0500] maek: all the exec lines for the init scripts point to /usr/bin - installs actually happened to /usr/local/bin
+[2012-02-28 22:09:00 -0500] Brad_K: ln -s /usr/local/bin/* /usr/bin
+[2012-02-28 22:09:00 -0500] erikh: in the hall of bad ideas yours is hte door with the cake in front of it
+[2012-02-28 22:09:00 -0500] erikh: also <3
+[2012-02-28 22:19:00 -0500] jtimberman: maek: oh
+[2012-02-28 22:19:00 -0500] jtimberman: yeah
+[2012-02-28 22:19:00 -0500] jtimberman: sorry about that
+[2012-02-28 22:19:00 -0500] jtimberman: so chef-client has a template for the chef-client init script in the cookbook
+[2012-02-28 22:19:00 -0500] jtimberman: the chef-server one still uses the ones that come from the chef gem
+[2012-02-28 22:20:00 -0500] maek: no sorry :) just wondering if I did something wrong of if something was off
+[2012-02-28 22:37:00 -0500] Brad_K: punfest?
+[2012-02-28 22:38:00 -0500] Brad_K: is it punday?
+[2012-02-28 22:38:00 -0500] Brad_K: 'cause that's my fun day.
+[2012-02-28 22:38:00 -0500] c_t: Brad_K: Olympia Snowe's retiring from the Senate
+[2012-02-28 22:38:00 -0500] c_t: so I'm seeing heaps of "Snowe" puns
+[2012-02-28 22:39:00 -0500] Brad_K: that's Snowe cool!
+[2012-02-28 22:41:00 -0500] c_t: that would be one of the better ones, sadly
+[2012-02-28 22:42:00 -0500] Brad_K: Say it ain't Snowe, Joe!
+[2012-02-28 22:56:00 -0500] AntonZ: how can i find out which part of a script starts instance decomission ? it looks like Centrify script start instance decomission upon reboot
+[2012-02-28 22:59:00 -0500] Brad_K: to the best of my knowledge, there is only an instance decommission step if you put one in.  and i'm not sure how you'd do that.
+[2012-02-28 22:59:00 -0500] AntonZ: this is from the documentation: Centrify  Leave Active Directory. This decommission script will terminate the relationship of
+[2012-02-28 22:59:00 -0500] AntonZ: the cloud server and Active Directory and reset the computer account so that the next new
+[2012-02-28 22:59:00 -0500] AntonZ: instance can reuse the computer account
+[2012-02-28 23:00:00 -0500] AntonZ: im looking for a place to see where it does it... i dont need to reboot instance often, but lets say for updates, etc
+[2012-02-28 23:05:00 -0500] AntonZ: ah nevermind, i was misled... works as expected :)
+[2012-02-28 23:20:00 -0500] jtimberman: maek: oh -
+[2012-02-28 23:20:00 -0500] jtimberman: maek: did you install rubygems as a package or from source?
+[2012-02-28 23:21:00 -0500] maek: jtimberman: source 1.810
+[2012-02-28 23:21:00 -0500] maek: let me verify
+[2012-02-28 23:21:00 -0500] maek: jtimberman: yes 1.8.10 from source
+[2012-02-28 23:33:00 -0500] AntonZ: did anyone here install hudson cookbook ?
+[2012-02-28 23:35:00 -0500] mlei: AntonZ: where is there a hudson cookbook
+[2012-02-28 23:36:00 -0500] mlei: oh, sorry. i'm blind.
+[2012-02-28 23:37:00 -0500] AntonZ: it looks very large and complex, wanted to see if anyone had experience...
+[2012-02-28 23:37:00 -0500] AntonZ: i neeed to deploy it :D
+[2012-02-28 23:38:00 -0500] cgibbons: grrr apache listen_ports keeps getting overriden by something
+[2012-02-28 23:38:00 -0500] mattray: AntonZ: hudson or jenkins?
+[2012-02-28 23:38:00 -0500] AntonZ: jenkins actually
+[2012-02-28 23:39:00 -0500] AntonZ: didnt get renamed or something
+[2012-02-28 23:39:00 -0500] mattray: AntonZ: there's a cookbook for that http://community.opscode.com/cookbooks/jenkins
+[2012-02-28 23:39:00 -0500] mattray: and I know fujin had a blog post about how they use it
+[2012-02-28 23:40:00 -0500] AntonZ: checking it out, thank you Sir! - where is that @fujin gentlemen when you need him :)
+[2012-02-28 23:41:00 -0500] mattray: since he's in New Zealand probably sleeping
+[2012-02-28 23:41:00 -0500] AntonZ: i think he comes in right after 4pmPST
+[2012-02-28 23:41:00 -0500] fujin: hm ?
+[2012-02-28 23:42:00 -0500] fujin: list.gen.nz/blog/2011/11/16/pennyworth-quick-start/
+[2012-02-28 23:42:00 -0500] fujin: err
+[2012-02-28 23:42:00 -0500] fujin: pennyworth?
+[2012-02-28 23:42:00 -0500] bawt: pennyworth is https://github.com/heavywater/pennyworth
+[2012-02-28 23:42:00 -0500] fujin: junglist.gen.nz/blog/2011/11/16/pennyworth-quick-start/
+[2012-02-28 23:42:00 -0500] fujin: pennyworth is also junglist.gen.nz/blog/2011/11/16/pennyworth-quick-start/
+[2012-02-28 23:42:00 -0500] fujin: i gotta put a better tutorial together
+[2012-02-28 23:42:00 -0500] AntonZ: Fujin is here, do you have a blog on how to build jenkins boxes ?
+[2012-02-28 23:43:00 -0500] fujin: =_+
+[2012-02-28 23:43:00 -0500] fujin: I just linked it bro
+[2012-02-28 23:44:00 -0500] fujin: pennyworth is the name for the chef automation we built around jenkins
+[2012-02-28 23:44:00 -0500] AntonZ: oo, haha, let me see, thanks!
+[2012-02-28 23:46:00 -0500] AntonZ: Fujin, so i should diregard this cookbook as it's not used in your blog ? http://community.opscode.com/cookbooks/jenkins
+[2012-02-28 23:46:00 -0500] fujin: the jenkins cookbook is used in the blog.
+[2012-02-28 23:47:00 -0500] fujin: the pennyworth repo is a Librarian style chef repository that ties it all together
+[2012-02-28 23:47:00 -0500] AntonZ: the one thats in the opscode ?
+[2012-02-28 23:47:00 -0500] fujin: you can deploy it with vagrant
+[2012-02-28 23:47:00 -0500] fujin: https://github.com/heavywater/chef-jenkins
+[2012-02-28 23:47:00 -0500] fujin: is that one
+[2012-02-28 23:47:00 -0500] gmcinnes: turtles all the way down.
+[2012-02-28 23:48:00 -0500] gmcinnes: use chef to build your chef building chef machines!
+[2012-02-28 23:49:00 -0500] AntonZ: thanks Fujin, im checking it out...
+[2012-02-28 23:50:00 -0500] JasonBox: hrm
+[2012-02-28 23:50:00 -0500] AntonZ: im sorry but im not familiar with pennyworth or vibrant... before i start digging into this, one question - supposdely if i pre-populate all attributes for this cookbook and lunch it on chef, this should build me jenkins box ?
+[2012-02-28 23:50:00 -0500] JasonBox: If I had a recipe that managed a template, but I needed that template to be deferred until the end of the entire run
+[2012-02-28 23:51:00 -0500] fujin: maybe
+[2012-02-28 23:51:00 -0500] fujin: might build you a jenkins box
+[2012-02-28 23:51:00 -0500] fujin: might build you a banana
+[2012-02-28 23:51:00 -0500] fujin: onlyh way to tell is to read the code or run it with your eyes closed
+[2012-02-28 23:51:00 -0500] JasonBox: Would I say, have that template with no action and then say call it from a ruby_block with deferred?
+[2012-02-28 23:51:00 -0500] AntonZ: lol - i think i might just do that now :))
+[2012-02-28 23:51:00 -0500] JasonBox: Is deferred mean end of chef run or end of that particular recipe?
+[2012-02-28 23:51:00 -0500] JasonBox: s/Is/Does/
+[2012-02-28 23:53:00 -0500] gmcinnes: banana++
+[2012-02-28 23:55:00 -0500] JasonBox: Ah, okay, that's how notifications work anyway
+[2012-02-28 23:55:00 -0500] JasonBox: nm
+[2012-02-28 23:55:00 -0500] JasonBox: Need to modify the resolver cookbook to do its template at the end of the run, as I have my attributes set for localhost, which will fail until dnsmasq is installed later on
+[2012-02-28 23:58:00 -0500] jtimberman: maek: hmm, well, i did a source rubygems install from the installation page on the wiki and my chef binaries are all in /usr/bin not /usr/local/bin :/

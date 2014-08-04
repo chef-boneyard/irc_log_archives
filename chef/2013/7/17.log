@@ -1,0 +1,198 @@
+[2013-07-17 00:00:39 -0400] cparedes_: (i know i could probably use the 'source' key for each file, but i won't be divvying it up by OS/hostname at all)
+[2013-07-17 00:22:49 -0400] aneto: this is probably a silly question but how would I go about unfreezing a cookbook version without using --force
+[2013-07-17 00:22:51 -0400] coderanger: cpasmoi: Not currently
+[2013-07-17 00:23:37 -0400] coderanger: aneto: I'm not actually sure if we expose that in knife
+[2013-07-17 00:23:44 -0400] coderanger: Might have to go to the API more directly
+[2013-07-17 00:26:55 -0400] mushuweasel: gutie morgie
+[2013-07-17 00:27:11 -0400] Majost: why would knife decide its a good idea to encrypt my users data bag if I have an encrypted_data_bag_secret file
+[2013-07-17 00:30:50 -0400] behemphi: ohai all, we are using the Postgres cookbook for the first time.  In our wrapper cookbook we are setting the version to 9.2 with and override.  However this version is not picked up in the next lines of the Postgres cookbook attr file and it still installs version 9.1
+[2013-07-17 00:31:03 -0400] Majost: huh.. I think I found a bug in knife.
+[2013-07-17 00:31:14 -0400] behemphi: I _thought_ attrs where merged a compile time so that order did not matter
+[2013-07-17 00:31:50 -0400] behemphi: So why is our override not overriding?
+[2013-07-17 00:32:50 -0400] Majost: behemphi: last time I looked at the postgresql cookbook, it had hard coded conditionals for the version
+[2013-07-17 00:33:08 -0400] Majost: I need to check, but I think its just not handling 9.2
+[2013-07-17 00:33:22 -0400] behemphi: @Majost that is true it sets a default attr based on the version of the OS
+[2013-07-17 00:33:29 -0400] behemphi: but we are overriding that attr
+[2013-07-17 00:33:54 -0400] behemphi: I am missing something here, I just don't know what
+[2013-07-17 00:34:37 -0400] mushuweasel: Our omnibus chef-server is churning out tons of time_wait connections on localhost:<some chef component port>
+[2013-07-17 00:35:22 -0400] mushuweasel: I'm doing some tcp tuning, but would humbly suggest that, especially for an omnibus package, those localhost accesses should really be domain sockets instead
+[2013-07-17 00:35:32 -0400] Majost: behemphi: ahh, yeah.. you are right
+[2013-07-17 00:35:56 -0400] behemphi: @Majost, I would rather be wrong and know why :-)
+[2013-07-17 00:35:59 -0400] behemphi: darn!
+[2013-07-17 00:37:36 -0400] behemphi: any idea why when we override default['postgresql']['version'] it doesn't stick?
+[2013-07-17 00:37:38 -0400] Majost: behemphi: I think this this is why:
+[2013-07-17 00:37:40 -0400] Majost: https://github.com/opscode-cookbooks/postgresql/blob/master/attributes/default.rb#L36-L37
+[2013-07-17 00:38:01 -0400] Majost: behemphi: what are you using to override the value?
+[2013-07-17 00:38:19 -0400] behemphi: '9.2'
+[2013-07-17 00:38:39 -0400] Majost: sorry, not the value itself
+[2013-07-17 00:38:42 -0400] behemphi: specivially override['postgresql']['version'] = '9.2'
+[2013-07-17 00:38:53 -0400] Majost: eg: set? override? default?
+[2013-07-17 00:38:57 -0400] Majost: ah
+[2013-07-17 00:39:05 -0400] coderanger: So order does still kind of matter
+[2013-07-17 00:39:22 -0400] Majost: behemphi: there is actually an open issue for this
+[2013-07-17 00:39:22 -0400] coderanger: You need to make sure your attrs file is executed first
+[2013-07-17 00:39:28 -0400] behemphi: Hey Noah, Luke Sneeringer says Hi
+[2013-07-17 00:39:51 -0400] coderanger: behemphi: Heh, ::waves:: didn't connect the username :)
+[2013-07-17 00:40:09 -0400] behemphi: behemphi = Boyd Hemphill Noah, I work with Luke
+[2013-07-17 00:40:23 -0400] coderanger: Yeah, got it now
+[2013-07-17 00:40:30 -0400] behemphi: So two questions:  1. is ther a ticket I can read?
+[2013-07-17 00:40:57 -0400] Majost: chef-4234
+[2013-07-17 00:40:59 -0400] behemphi: 2. How do we force an order
+[2013-07-17 00:41:26 -0400] Majost: note the workaround in the issue
+[2013-07-17 00:41:28 -0400] Majost: it works
+[2013-07-17 00:41:56 -0400] behemphi: damn didn't read b/f I asked,  :shame:
+[2013-07-17 00:41:58 -0400] coderanger: So the issue is that if your wrapper cookbook depends on the postgresql cookbook (which it should), that means its attr file will execute first
+[2013-07-17 00:42:36 -0400] coderanger: which means that when things like node...['version'] are evaluated within that file, your overrides aren't in place yet
+[2013-07-17 00:42:50 -0400] Majost: yep
+[2013-07-17 00:43:00 -0400] coderanger: and so yeah, forcing the postgresql attrs to re-execute after your overrides are set is the best fix for now
+[2013-07-17 00:43:24 -0400] Majost: you can thank brandont for that one. =)
+[2013-07-17 00:43:38 -0400] Majost: the work around at least
+[2013-07-17 00:43:55 -0400] coderanger: Not sure how to go about a less hacky fix
+[2013-07-17 00:43:57 -0400] coderanger: :-/
+[2013-07-17 00:44:12 -0400] coderanger: Other than what that ticket has, which is just making it less hack to force the re-execution
+[2013-07-17 00:44:19 -0400] Majost: I haven't tried the patch supplied this morning to the chef code base
+[2013-07-17 00:44:20 -0400] coderanger: but still, double-executing attr files is icky
+[2013-07-17 00:44:26 -0400] Majost: yeah
+[2013-07-17 00:44:43 -0400] Majost: there probably is bound to be some side affects at some point
+[2013-07-17 00:45:02 -0400] Majost: neither of really like it all that much, but it works for the most part.
+[2013-07-17 00:45:17 -0400] behemphi: We are back in biz @majoh and @coderanger thanks for a _quick_ and effective answer!
+[2013-07-17 00:45:23 -0400] coderanger: we would need some kind of lazy lookup, which sounds nice in theory, but when you have stuff like ...['service_name'] = "postgresql-#{version}", thats bordering on NP-complete
+[2013-07-17 00:45:25 -0400] behemphi: you all rock!
+[2013-07-17 00:45:32 -0400] Majost: np
+[2013-07-17 00:45:59 -0400] steve: Hey, so I've been beating my head over merging data bags all day and was wondering if anyone had any pointers.
+[2013-07-17 00:46:09 -0400] steve: Basically I have..... unencrypted = Chef:DataBagItem.load('databag', 'id') ; encrypted = Chef::EncryptedDataBagItem.load('secret_data_bag', 'id') ; x = unencrypted.merge(encrypted)..
+[2013-07-17 00:46:18 -0400] steve: in chef-shell -z it works
+[2013-07-17 00:46:23 -0400] coderanger: Topological sorting of executable code is a Hard Problem >_<
+[2013-07-17 00:46:49 -0400] Majost: coderanger: *nod*
+[2013-07-17 00:47:01 -0400] steve: but in a provider it craps out with a undefined method `each_pair' for #<Chef::EncryptedDataBagItem:0x000000040bb1d0>
+[2013-07-17 00:47:08 -0400] behemphi: It hit me when you said lazy lookup that it becomes np-complete
+[2013-07-17 00:47:18 -0400] Majost: coderanger: we run into the issue from time to time though.
+[2013-07-17 00:47:35 -0400] Majost: and its not an obvious one to hack around
+[2013-07-17 00:47:49 -0400] coderanger: Yeah, the force re-exec is probably fine, just make sure to avoid side-effects in your attr files, which is a good idea in general
+[2013-07-17 00:52:58 -0400] coderanger: (see also: stop using arrays in chef attributes because array appends are side-effecty)
+[2013-07-17 00:57:43 -0400] Majost: Professor Google is confused by that statement.
+[2013-07-17 01:02:12 -0400] coderanger: which one?
+[2013-07-17 01:03:51 -0400] Majost: "stop using arrays in chef attributes because array appends are side-effecty"
+[2013-07-17 01:04:07 -0400] coderanger: https://coderanger.net/2013/06/arrays-and-chef/
+[2013-07-17 01:04:10 -0400] Majost: ah
+[2013-07-17 01:04:12 -0400] Majost: thanks
+[2013-07-17 01:04:43 -0400] Majost: hey, I found a bug -- but I am not sure if I would consider it a bug in chef-client or knife
+[2013-07-17 01:05:51 -0400] Majost: basically the issue is, if you use [:secret_file] in your knife.rb -- and do something like, 'knife data bag from file users username.json' -- the data gets encrypted which breaks search for the chef-client
+[2013-07-17 01:06:26 -0400] steve: oh, im solving that one now
+[2013-07-17 01:06:31 -0400] Majost: oh
+[2013-07-17 01:06:31 -0400] Majost: good
+[2013-07-17 01:06:32 -0400] steve: I have two data bags
+[2013-07-17 01:06:36 -0400] steve: one encrypted one non
+[2013-07-17 01:06:42 -0400] steve: so private keys are in encrypted
+[2013-07-17 01:06:52 -0400] steve:     #look for secrets     if u['secrets'] == true then       begin         secrets = Chef::EncryptedDataBagItem.load(new_resource.secret_data_bag, u['id'])       rescue         Chef::Log.info("Notice: Unable to locate secrets data bag for user #{u['id']}")       end       u.each {|k,v| secrets[k] ? u[k] = secrets[k] : u[k] }     end
+[2013-07-17 01:07:27 -0400] steve: its working not quite how i want yet.....so far the encrypted is over riding anything in the non-encrypted
+[2013-07-17 01:07:51 -0400] Majost: I'm not sure that is the same though
+[2013-07-17 01:08:01 -0400] steve: oh, well yes it breaks search
+[2013-07-17 01:08:07 -0400] coderanger: Yeah, the knife[] args stuff in knife.rb basically just act as global command line args
+[2013-07-17 01:08:07 -0400] steve: but what do you search by
+[2013-07-17 01:08:38 -0400] steve: oh yeah
+[2013-07-17 01:09:34 -0400] Majost: yeah, thats the pickle -- its not really a bug, but it totally breaks a users data bag without one even realizing so until suddenly you lose sudo on EVERYTHING
+[2013-07-17 01:09:36 -0400] Majost: hah
+[2013-07-17 01:10:22 -0400] coderanger: Just means we should probably rethink the UX for encrypted data bags
+[2013-07-17 01:10:25 -0400] Majost: and the chef-client cant really do crap about it because it doesn't do the search
+[2013-07-17 01:10:29 -0400] coderanger: which is true on a lot of levels
+[2013-07-17 01:10:36 -0400] Majost: indeed
+[2013-07-17 01:10:45 -0400] Majost: chef-vault has some good ideas behind it
+[2013-07-17 01:12:28 -0400] coderanger: Yep, both encryption schemes have their advantages
+[2013-07-17 01:12:46 -0400] coderanger: the chef-vault one requires a lot more storage since it encrypting separately for every host
+[2013-07-17 01:13:08 -0400] coderanger: but it does make key distribution easier since it can piggyback on the chef keys
+[2013-07-17 01:13:28 -0400] coderanger: Doesn't work in a high-churn environment, but really in a case like that you should use something like barbican
+[2013-07-17 01:13:49 -0400] coderanger: but "use this hugely complex external service" is a pretty bad thing to tell a user :-/
+[2013-07-17 01:17:31 -0400] Majost: Yeah, but the current means of putting symmetric challenge keys everywhere -- for lack of a better word, just sucks
+[2013-07-17 01:17:49 -0400] coderanger: It does indeed, and security is basically impossible with it
+[2013-07-17 01:17:50 -0400] steve: yeah
+[2013-07-17 01:18:23 -0400] coderanger: Check out https://github.com/cloudkeep/barbican if you are interested
+[2013-07-17 01:18:33 -0400] Majost: I was wondering about this barbican
+[2013-07-17 01:18:44 -0400] Majost: it too perplexed the professor
+[2013-07-17 01:18:47 -0400] Majost: heh
+[2013-07-17 01:19:23 -0400] coderanger: Its ... very new
+[2013-07-17 01:19:25 -0400] coderanger: OpenStack project
+[2013-07-17 01:19:40 -0400] coderanger: and apparently https://github.com/stackforge/barbican is the repo now
+[2013-07-17 01:20:20 -0400] coderanger: But I'm hopefuly
+[2013-07-17 01:20:22 -0400] coderanger: er, hopeful
+[2013-07-17 01:22:51 -0400] coderanger: In another life I used to do security engineering :-)
+[2013-07-17 01:22:57 -0400] Majost: have you played around with it much?
+[2013-07-17 01:23:03 -0400] coderanger: once a tinfoilhat, always a tinfoilhat
+[2013-07-17 01:23:07 -0400] Majost: hah
+[2013-07-17 01:23:14 -0400] coderanger: Not even a little, just started digging into their design and API
+[2013-07-17 01:27:34 -0400] steve: ok, i just found my solution to meging an encrypted dbag with an uncrypted one......
+[2013-07-17 01:27:40 -0400] steve: unencrypted has a .to_hash
+[2013-07-17 01:27:47 -0400] steve: then things play fine
+[2013-07-17 01:30:19 -0400] barefoot: is it possible to grab the attributes from a non-included role via a recipe?
+[2013-07-17 01:31:15 -0400] Majost: thats a weird inverse inheritance... you might be able to search the values
+[2013-07-17 01:31:37 -0400] Majost: what are you ultimately trying to accomplish?
+[2013-07-17 01:32:02 -0400] coderanger: barefoot: You can use the API directly to get it I suppose
+[2013-07-17 01:32:09 -0400] coderanger: but that sounds more like you want a data bag
+[2013-07-17 01:32:51 -0400] barefoot: coderanger: ah yes, a simple data_bag would do, overthinking it, ty
+[2013-07-17 02:29:44 -0400] chris_woods: Hi #chef!  I'm going to bootstrap some machines, but I know the IP address of these guys is going to change.  Is that going to cause me any headaches with chef, and if so what can I do about it?
+[2013-07-17 02:33:56 -0400] atomic-penguin: chris_woods, the output of `hostname -f` is usually the key for chef
+[2013-07-17 02:34:32 -0400] atomic-penguin: chris_woods, therefore if that doesn't change then you wouldn't have to re-key those nodes
+[2013-07-17 02:36:04 -0400] atomic-penguin: chris_woods, the IP address changing shouldn't be a problem unless you depend on that OHAI attribute in generating your configuration.
+[2013-07-17 02:36:23 -0400] chris_woods: atomic-penguin, kk - is that actually using DNS, or something I don't understand?  If the ip changes, do I need to make sure the fqdn resolves to the new ip?
+[2013-07-17 02:37:47 -0400] atomic-penguin: chris_woods, the output of `hostname -f` would be dependent on things like /etc/hosts, /etc/sysconfig/network, /etc/default/interfaces config files
+[2013-07-17 02:38:13 -0400] atomic-penguin: chris_woods, so when you register a new node, it creates a client key.
+[2013-07-17 02:38:33 -0400] atomic-penguin: chris_woods, the client key is for the fqdn of that machine
+[2013-07-17 02:39:26 -0400] atomic-penguin: chris_woods, if you change the IP address, the fqdn isn't necessarily going to change
+[2013-07-17 02:41:27 -0400] chris_woods: atomic-penguin, Okay, so how does the chef server find the machine?
+[2013-07-17 02:41:29 -0400] atomic-penguin: chris_woods, I change IP addresses all the time on machines.  The only time I have to re-register a node is if I change its fqdn.  Chef doesn't care what the IP address is
+[2013-07-17 02:41:48 -0400] atomic-penguin: chris_woods, it doesn't, the node machine finds the chef-server
+[2013-07-17 02:42:01 -0400] chris_woods: atmoic-penguin, Ah, got it.  That's the part I wan't understanding.
+[2013-07-17 02:42:19 -0400] chris_woods: atomic-penguin, That's awesome, then.  solves a pretty annoying problem I was worried about.  Thanks!
+[2013-07-17 02:42:53 -0400] chris_woods: atomic-penguin, So that means if the servers ip changes I'm in trouble, but that should be significantly easier to control.
+[2013-07-17 02:44:52 -0400] atomic-penguin: chris_woods, I would try to keep the chef-servers service name consistent, like "orgchef.example.org".  It could also have another alias like orgchef01, orgchef02, orgchef03, etc.  But just point your clients at the "orgchef.example.org" service name.
+[2013-07-17 02:45:28 -0400] atomic-penguin: chris_woods, that way if you switch out your chef server you just update the alias "orgchef.example.org"
+[2013-07-17 02:45:37 -0400] atomic-penguin: ...in DNS
+[2013-07-17 02:46:14 -0400] chris_woods: atomic-penguin, Agreed.  I'm actually running this all on a lan with no connection to the net at large, but I can just statically assign the chef server.
+[2013-07-17 03:27:49 -0400] patcon: jtimberman: Just a little heads up that the ohai cookbook is a little inconsistent between github and community site: http://tickets.opscode.com/browse/COOK-3339
+[2013-07-17 03:28:03 -0400] patcon: sorry, not sure if you guys see issues that aren't marked "fix provided"
+[2013-07-17 04:10:43 -0400] brucelee: hey there
+[2013-07-17 04:10:58 -0400] brucelee: :P
+[2013-07-17 04:11:08 -0400] brucelee: any chef tinkerers up and about?
+[2013-07-17 04:11:20 -0400] gchristensen: probably :)
+[2013-07-17 04:11:25 -0400] brucelee: :p
+[2013-07-17 04:12:48 -0400] brucelee: I'm at the very initial stages of trying to get Chef working. I like to believe I got the Server, Workstation set up correctly, but when I created a new role in the server, knife bootstrap this new node, the node was getting 404 Object not found errors...
+[2013-07-17 04:12:53 -0400] brucelee: :O
+[2013-07-17 04:13:30 -0400] brucelee: setting client.rb logging to debug mode, I realized the run list was doing stuff that referred to https://localhost/ and it was running on the client
+[2013-07-17 04:13:46 -0400] brucelee: so the client was trying to connect to itself... when actually it was supposed to connect to chef server
+[2013-07-17 04:14:07 -0400] brucelee: so I hacked the hosts file and put in the chef server IP as localhost :P
+[2013-07-17 04:14:31 -0400] brucelee: things started running all the way without the 404 errors
+[2013-07-17 04:14:52 -0400] brucelee: so im trying to figure out what's causing the chef client to go to https://localhost
+[2013-07-17 04:14:55 -0400] brucelee: any ideas?
+[2013-07-17 04:40:15 -0400] hakunin: brucelee: in the chef server docs
+[2013-07-17 04:40:40 -0400] hakunin: brucelee: they really go to town
+[2013-07-17 04:40:45 -0400] hakunin: brucelee: emphasizing fqdn setup
+[2013-07-17 04:41:05 -0400] hakunin: brucelee: http://docs.opscode.com/install_server.html
+[2013-07-17 04:41:32 -0400] hakunin: brucelee: if you ssh into chef server and run hostname -f it will probably print localhost
+[2013-07-17 04:41:35 -0400] hakunin: brucelee: it shouldn't
+[2013-07-17 04:42:22 -0400] brucelee: ok
+[2013-07-17 04:42:29 -0400] brucelee: let me try that
+[2013-07-17 04:42:42 -0400] brucelee: hakunin: thats the doc i followed when installing the chef server, i will read into it
+[2013-07-17 04:42:55 -0400] brucelee: let me run that command really quick
+[2013-07-17 04:43:35 -0400] brucelee: it said hostname: Unknown hostname
+[2013-07-17 04:43:44 -0400] brucelee: hostname: Unknown host
+[2013-07-17 04:43:49 -0400] brucelee: that's after i did hostname -f
+[2013-07-17 04:43:53 -0400] brucelee: hakunin: :O
+[2013-07-17 04:44:11 -0400] hakunin: brucelee: not good either
+[2013-07-17 04:44:31 -0400] hakunin: brucelee: make it say something resolvable from the client
+[2013-07-17 04:44:46 -0400] hakunin: brucelee: then rerun sudo chef-server-ctl reconfigure
+[2013-07-17 04:44:54 -0400] brucelee: hakunin: ok
+[2013-07-17 04:54:51 -0400] corehook: hi all
+[2013-07-17 04:55:00 -0400] corehook: after all commands i see "DEBUG -- : Shutdown completed cleanly"
+[2013-07-17 04:55:06 -0400] corehook: what is ?
+[2013-07-17 05:02:38 -0400] brucelee: hakunin: youre right, hostname -f now says localhost
+[2013-07-17 05:09:49 -0400] hakunin: brucelee: it should say something resolvable from client though
+[2013-07-17 05:10:31 -0400] hakunin: corehook: sounds like nothing wrong
+[2013-07-17 05:11:02 -0400] corehook: but its work
+[2013-07-17 05:11:07 -0400] corehook: nothing is wrong
+[2013-07-17 07:46:04 -0400] glen: why is it so, that i run chef-client -l error and i still get messages from info category to screen?
+[2013-07-17 07:46:35 -0400] glen: is chef really so awkward that config overrides commandline options, not like normally vice versa?
+[2013-07-17 07:47:53 -0400] glen: i'm running it from cron, and would like to receive only errors, no output otherwise
+[2013-07-17 07:53:33 -0400] cheeseplus: glenin my experience logging levels are additive, you get the lower levels included
+[2013-07-17 07:59:37 -0400] glen: what is lower, info or error?
+[2013-07-17 08:04:59 -0400] utdemir: glen: info
+[2013-07-17 08:16:41 -0400] glen: i changed in config to 'fatal' in config and commandine. the output is still the same verbose

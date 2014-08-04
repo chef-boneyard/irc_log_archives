@@ -1,0 +1,1174 @@
+[2012-06-12 00:01:11 -0400] reset: does the new chef_gem resource execute at a set order in the resource chain? I'm seeing it first no matter what other package resources are defined before it
+[2012-06-12 00:02:39 -0400] Rorgo: is there any easy way to register a node without over-writing its run_list?
+[2012-06-12 00:03:19 -0400] Rorgo: it seems like the two ways to get a client key is via 'chef-client -j ...' from the client, or via a 'knife bootstrap ...', both of which overwrite the run_list
+[2012-06-12 00:03:33 -0400] Rorgo: basically I need to preserve the run_list between re-imaging a host
+[2012-06-12 00:05:04 -0400] yfeldblum: reset, the chef_gem code installs the gem during the compilation phase, not the convergence phase, and its code runs at the point in the recipe where you call `chef_gem`
+[2012-06-12 00:05:32 -0400] reset: yfeldblum: what do we do when we have a package requirement for the gem to install
+[2012-06-12 00:05:50 -0400] reset: just define the package resource it depends on and explicitly call run_action(:install) on it?
+[2012-06-12 00:08:37 -0400] yfeldblum: reset, yes
+[2012-06-12 00:08:56 -0400] reset: though so, thanks yfeldblum. This is why I was asking: https://github.com/opscode-cookbooks/mysql/pull/1
+[2012-06-12 00:09:10 -0400] reset: you can see my solution at the bottom in commit: https://github.com/RiotGames/mysql-cookbook/commit/4cd63f1d75413d36511ac3804f84595e968ecac8
+[2012-06-12 00:43:11 -0400] josephholsten: anyone doing any CI on their entire chef repo (not individual cookbooks)? running food critic, &c?
+[2012-06-12 00:59:47 -0400] knuckolls: haha omnibus installs so fast. it's obscene. i'm so happy. my bootstraps! they're faster! hooray!
+[2012-06-12 01:00:11 -0400] reset: josephholsten
+[2012-06-12 01:00:13 -0400] reset: we are
+[2012-06-12 01:00:28 -0400] reset: (Riot Games)
+[2012-06-12 01:00:34 -0400] josephholsten: reset: any interesting things?
+[2012-06-12 01:00:56 -0400] reset: we don't keep cookbooks in our Repo, so it's offloaded to our other cookbooks
+[2012-06-12 01:01:09 -0400] reset: it's loffloaded to our cookbook's that are in their own repo
+[2012-06-12 01:01:13 -0400] josephholsten: I'm considering having it upload to the chef server on success
+[2012-06-12 01:01:16 -0400] reset: and they run in their own CI job
+[2012-06-12 01:01:30 -0400] reset: yes, we push to the Chef server on success
+[2012-06-12 01:01:32 -0400] josephholsten: do you use solo?
+[2012-06-12 01:01:43 -0400] reset: no, we use OSS and are switching to Private Chef
+[2012-06-12 01:01:51 -0400] josephholsten: ah
+[2012-06-12 01:01:55 -0400] reset: but we use Chef-Solo with Vagrant
+[2012-06-12 01:01:58 -0400] reset: and the same cookbooks
+[2012-06-12 01:02:09 -0400] reset: when we spin up integration environments on dev machines
+[2012-06-12 01:02:34 -0400] reset: I think it is a very good idea to follow the master is safe mentality with your cookbooks
+[2012-06-12 01:02:55 -0400] reset: test them and then publish them to your Chef server on successful foodcritic and unit test / acceptance test (if you have them)
+[2012-06-12 01:03:33 -0400] josephholsten: do you use discovery (app -> db, &c) when using server?
+[2012-06-12 01:03:51 -0400] josephholsten: that's why I don't use solo
+[2012-06-12 01:03:56 -0400] reset: yes, we use discovery
+[2012-06-12 01:04:03 -0400] reset: all searches are wrapped in library functions
+[2012-06-12 01:04:08 -0400] josephholsten: ah
+[2012-06-12 01:04:13 -0400] reset: that way they can return a sane value or warn if you are using ChefSolo
+[2012-06-12 01:04:20 -0400] knuckolls: that's a good idea.
+[2012-06-12 01:04:27 -0400] reset: the cookbooks intelligently deprecate
+[2012-06-12 01:04:50 -0400] reset: for instance, if you want to find data base configuration information
+[2012-06-12 01:04:57 -0400] reset: well... you just return a hash containing those values
+[2012-06-12 01:05:12 -0400] reset: and you warn that since you are running Chef SOlo it returned this defualt value
+[2012-06-12 01:05:19 -0400] reset: instead of reading an encrypted data bag
+[2012-06-12 01:06:21 -0400] reset: we built an automated environment provisioner that connects to eucalyptus (or EC2, or anything with fog really) that we're going to open source soon. That gets run after FoodCritic and Unit tests (if the CB has them) to deploy the cookbook entirely and then run some acceptance tests to ensure the services started
+[2012-06-12 01:07:11 -0400] reset: sorry that wasn't very clear: the build server tells the provisioner to make a virtual environment and to use the cookbook to configure it
+[2012-06-12 01:08:08 -0400] knuckolls: you test each cookbook in isolation?
+[2012-06-12 01:08:29 -0400] knuckolls: or whole architectural components?
+[2012-06-12 01:09:18 -0400] josephholsten: I keep meaning to set up openstack for our infra, especially for our staging boxen
+[2012-06-12 01:09:51 -0400] reset: we test each cookbook in isolation along with the application they control
+[2012-06-12 01:10:49 -0400] reset: we have open soure cookbooks for other services, like Redis for example, which would be tested on amuch smaller scale
+[2012-06-12 01:10:53 -0400] reset: we only need to install Redis in that case
+[2012-06-12 01:11:27 -0400] reset: when services are modular enough we can test only that cookbook
+[2012-06-12 01:12:45 -0400] reset: josephholsten: have you read the book "Continuous Delivery"?
+[2012-06-12 01:13:17 -0400] reset: we're closely modeling our software life cycle around that
+[2012-06-12 01:13:21 -0400] josephholsten: skimmed it
+[2012-06-12 01:13:24 -0400] reset: and using Chef as the configuration pillar
+[2012-06-12 01:13:28 -0400] reset: with Jenkins as the CI part
+[2012-06-12 01:13:36 -0400] reset: Nexus as the artifact repository part
+[2012-06-12 01:13:47 -0400] josephholsten: rundeck?
+[2012-06-12 01:13:47 -0400] bawt_: rundeck is a tool to help automating ad-hoc and routine procedures, http://rundeck.org/
+[2012-06-12 01:14:02 -0400] josephholsten: thank you, bawt
+[2012-06-12 01:14:06 -0400] reset: we use Chef to manage state on nodes 100%
+[2012-06-12 01:14:13 -0400] josephholsten: ah
+[2012-06-12 01:14:27 -0400] reset: manipulating a resource managed by chef in any other way is potentially hazardous
+[2012-06-12 01:14:45 -0400] reset: so we have roles to mark nodes as offline, or internal only, or what have you
+[2012-06-12 01:14:54 -0400] reset: and then we have an orchestration layer built in Knife
+[2012-06-12 01:15:04 -0400] reset: that willl communicate to the chef server to set state
+[2012-06-12 01:15:15 -0400] reset: and then send parallel commands to the nodes of a cluster based on a search from Chef
+[2012-06-12 01:15:21 -0400] reset: to tell them to go figure out what their new state is
+[2012-06-12 01:15:24 -0400] reset: and to do it
+[2012-06-12 01:15:28 -0400] josephholsten: I'm migrating team away from cap + ad-hoc, I'm just glad to have the audit record run deck gives me
+[2012-06-12 01:15:31 -0400] reset: AKA; chef-client run ;)
+[2012-06-12 01:15:48 -0400] josephholsten: I just got nexus set up today
+[2012-06-12 01:15:55 -0400] reset: there's a number of ways to achieve it
+[2012-06-12 01:16:17 -0400] josephholsten: derived from DTO's hack day repos: https://github.com/josephholsten/nexus-cookbook
+[2012-06-12 01:16:43 -0400] reset: sweet man
+[2012-06-12 01:16:56 -0400] reset: the artifact cookbook that we published will be updated to include a nexus provider
+[2012-06-12 01:17:05 -0400] reset: https://github.com/riotgames/artifact-cookbook
+[2012-06-12 01:17:19 -0400] reset: we haven't switched 100% to nexus yet
+[2012-06-12 01:17:52 -0400] reset: ping me in a few weeks and let me know how you like it
+[2012-06-12 01:17:53 -0400] josephholsten: woah, tarballs?
+[2012-06-12 01:18:54 -0400] reset: yeah, just a generic package type that nexus can hold
+[2012-06-12 01:19:13 -0400] reset: our game consists of more languages than just Java
+[2012-06-12 01:19:20 -0400] josephholsten: I keep meaning to look into fpm
+[2012-06-12 01:19:22 -0400] reset: need to find common ground
+[2012-06-12 01:19:41 -0400] reset: we had issues with packaging things as an RPM since RPMs assume absolute paths
+[2012-06-12 01:19:42 -0400] hoover_damm: tarballs is the common ground
+[2012-06-12 01:19:46 -0400] hoover_damm: short of pax or cpio
+[2012-06-12 01:19:57 -0400] hoover_damm: those are much to arcane for most people
+[2012-06-12 01:19:58 -0400] Randm: you can have relocatable rpms
+[2012-06-12 01:20:02 -0400] reset: and also you can't have multiple versions of your software running on the same machine with RPMs
+[2012-06-12 01:20:09 -0400] hoover_damm: nope
+[2012-06-12 01:20:15 -0400] hoover_damm: rpm's really don't make it sane to slot stuff in and out
+[2012-06-12 01:20:24 -0400] Randm: this is true
+[2012-06-12 01:20:25 -0400] josephholsten: hmm, heirloom cpio: http://heirloom.sourceforge.net/man/cpio.1.html
+[2012-06-12 01:20:29 -0400] hoover_damm: having tarballs that you can add to ld.so.conf if needed, and wrapping around installers the hard way
+[2012-06-12 01:20:31 -0400] Randm: you can upgrade, but that's it
+[2012-06-12 01:20:34 -0400] reset: Randm: yes you can - I guess that isn't my main point
+[2012-06-12 01:20:38 -0400] hoover_damm: is a bit more flexible
+[2012-06-12 01:20:44 -0400] hoover_damm: it's how I managed MySQL Enterprise
+[2012-06-12 01:20:54 -0400] reset: we're looking to deliver a 0 downtime experience for our players
+[2012-06-12 01:20:54 -0400] Randm: but you can't have two copies of the same package installed
+[2012-06-12 01:20:58 -0400] Randm: like you can with npm
+[2012-06-12 01:20:59 -0400] hoover_damm: tarballs always and just slap it in /usr/local/mysql-enterprise and symlink it
+[2012-06-12 01:21:02 -0400] reset: so RPMs are out of the question for us
+[2012-06-12 01:21:03 -0400] hoover_damm: ld.so.conf to find the libs
+[2012-06-12 01:21:11 -0400] hoover_damm: package management is hard
+[2012-06-12 01:21:18 -0400] hoover_damm: and writing your own packages can suck badly
+[2012-06-12 01:21:21 -0400] josephholsten: +1
+[2012-06-12 01:21:23 -0400] Randm: fpm is awesome
+[2012-06-12 01:21:43 -0400] hoover_damm: i'd rather just use pkgsrc or tarballs
+[2012-06-12 01:21:51 -0400] hoover_damm: fpm works within the broken system
+[2012-06-12 01:21:55 -0400] reset: we find that tar is the perfect middle gorund for us
+[2012-06-12 01:21:57 -0400] josephholsten: I feel like I'm the only guy who thinks it's worth keeping on with macports
+[2012-06-12 01:22:14 -0400] hoover_damm: josephholsten, macports is still kicking?
+[2012-06-12 01:22:21 -0400] josephholsten: reset: you guys considered slackware?
+[2012-06-12 01:22:23 -0400] Randm: most people don't juggle multiple things like that though, they'll use another vm
+[2012-06-12 01:22:28 -0400] josephholsten: hoover_damm: yes
+[2012-06-12 01:22:35 -0400] reset: the OS?
+[2012-06-12 01:22:35 -0400] bawt_: the OS is SuSe Enterprise 10..
+[2012-06-12 01:22:41 -0400] hoover_damm: :(
+[2012-06-12 01:22:43 -0400] hoover_damm: sad
+[2012-06-12 01:22:51 -0400] bawt_: couldn't find keyword the os?
+[2012-06-12 01:22:51 -0400] hoover_damm: bawt_, forget the os?
+[2012-06-12 01:22:53 -0400] hoover_damm: bawt_, forget the os
+[2012-06-12 01:22:53 -0400] bawt_: can do!
+[2012-06-12 01:22:56 -0400] reset: I don't choose our OS here, I'm just a software engineer
+[2012-06-12 01:22:57 -0400] josephholsten: bawt, that was  kinda sad
+[2012-06-12 01:23:11 -0400] hoover_damm: reset, does OS matter?
+[2012-06-12 01:23:21 -0400] hoover_damm: i'm about half a dance from omniOS myself
+[2012-06-12 01:23:27 -0400] josephholsten: reset: I was being snarky. Slackpacks are just tarballs
+[2012-06-12 01:23:28 -0400] reset: it doesn't from my perspective
+[2012-06-12 01:23:39 -0400] reset: if you ask an operations person it apparently is very important
+[2012-06-12 01:23:50 -0400] hoover_damm: hrm, what is your job title?
+[2012-06-12 01:23:54 -0400] reset: I can start a war right now just from going downstairs
+[2012-06-12 01:23:58 -0400] reset: software engineer
+[2012-06-12 01:24:04 -0400] hoover_damm: <-- is an old crusty systems engineer
+[2012-06-12 01:24:08 -0400] hoover_damm: sometimes a full stack engineer
+[2012-06-12 01:24:12 -0400] hoover_damm: but you can call me god
+[2012-06-12 01:24:14 -0400] josephholsten: OS? seriously important. Distro? meh.
+[2012-06-12 01:24:15 -0400] hoover_damm: </snark>
+[2012-06-12 01:24:36 -0400] hoover_damm: Distributions come and go, the Kernel stays.
+[2012-06-12 01:24:38 -0400] reset: I'm sure you will win this conversation, I simply just want a nix environment for my stuff to run on ;)
+[2012-06-12 01:24:57 -0400] josephholsten: omnios!? is this a usable illumos?
+[2012-06-12 01:25:05 -0400] hoover_damm: josephholsten, yes
+[2012-06-12 01:25:09 -0400] hoover_damm: with pxe installer
+[2012-06-12 01:25:25 -0400] hoover_damm: josephholsten, I wanna reimage half my servers with kayak
+[2012-06-12 01:25:25 -0400] hoover_damm: lol
+[2012-06-12 01:25:26 -0400] josephholsten: what's the diff vs smarts?
+[2012-06-12 01:25:36 -0400] hoover_damm: different folks
+[2012-06-12 01:26:19 -0400] hoover_damm: reset, basically the next time they bitch about a distro.  Tell them they care too much and if they keep caring like this their face will get stuck that way.
+[2012-06-12 01:26:23 -0400] josephholsten: sure, but similar? pkgsr?
+[2012-06-12 01:26:57 -0400] knuckolls: reset: thanks for going through your setup. got a few useful ideas out of it.
+[2012-06-12 01:27:03 -0400] hoover_damm: reset, it's truly a silly argument.  The only thing that should matter is getting the job done and having it work and be supported.
+[2012-06-12 01:27:11 -0400] josephholsten: +1
+[2012-06-12 01:27:28 -0400] hoover_damm: we're all here for the same thing, to work
+[2012-06-12 01:27:40 -0400] hoover_damm: and that kind of overcaring makes work... miserable
+[2012-06-12 01:27:57 -0400] hoover_damm: so I hope I underestimate and your work is great except this small bump
+[2012-06-12 01:28:17 -0400] josephholsten: Reset: you've got git->jenkins->nexus->chef
+[2012-06-12 01:29:00 -0400] josephholsten: what are all the tests you all run? food critic? cucumber-chef, chef-spec?
+[2012-06-12 01:32:50 -0400] reset: hoover_damm: I agree, from my seat I can only tell if I'm on Windows or Linux - I have no idea if it's Redhat or Debian really. Not until I start writing Chef stuff at least
+[2012-06-12 01:33:24 -0400] reset: knuckolls: no problem man! I'm hoping that we can begin talking more about this with our players and the Chef community as we begin to roll out our new deployment processes
+[2012-06-12 01:34:08 -0400] reset: josephholsten: we have git and perforce, jenkins that runs CI and publishes to Nexus, and Chef for configuration
+[2012-06-12 01:34:27 -0400] reset: we also have something we call Environment Factory which automatically provisions virtual resources into nodes for testing purposes
+[2012-06-12 01:34:36 -0400] reset: but it does not yet provision our production hardware
+[2012-06-12 01:34:45 -0400] reset: we run Food Critic and Cucumber
+[2012-06-12 01:34:50 -0400] reset: we don't use Cucumber Chef
+[2012-06-12 01:35:23 -0400] reset: depending on the team, though, they may not use Cucumber. They can honestly write their own AT framework for all I care
+[2012-06-12 01:35:27 -0400] reset: long as acceptance tests are done
+[2012-06-12 01:35:45 -0400] reset: and for unit testing we use rspec
+[2012-06-12 01:36:05 -0400] reset: we have not really written a whole lot of unit testing for our cookbooks
+[2012-06-12 01:42:21 -0400] hoover_damm: reset, i've been doing linux for 20 years.  I went to *BSD because i got sick of the people caring about things they shouldn't
+[2012-06-12 01:42:52 -0400] reset: I try to tell peopel that nobody plays CentOS 6
+[2012-06-12 01:42:55 -0400] reset: they only play League of Legends
+[2012-06-12 01:43:17 -0400] reset: that seems to work sometimes
+[2012-06-12 01:43:18 -0400] reset: haha
+[2012-06-12 01:43:24 -0400] josephholsten: woo! got jenkins pushing changes to the chef server. now anyone can push any change they want to our production machines without supervision or oversight!
+[2012-06-12 01:43:40 -0400] josephholsten: this does not terrify me at all!
+[2012-06-12 01:44:22 -0400] reset: josephholsten: haha Chef provides us with excellent primitives. Much like how Rails never included an authentication layer in their framework, we're given the task of building orchestration and auditing :)
+[2012-06-12 01:45:34 -0400] josephholsten: well once erchef is public, we can start beating the drum for a nice AAA layer
+[2012-06-12 01:45:37 -0400] hoover_damm: reset, well the problem is Linux has a lot of moving parts and the problem I have mainly is how distros care about what they care about.
+[2012-06-12 01:46:00 -0400] hoover_damm: part of the cycle that could be is where we engineer their OS into what works for us
+[2012-06-12 01:46:15 -0400] hoover_damm: but I find a lot of orgs prefer to ship vanilla ubuntu then to bother customizing anything
+[2012-06-12 02:06:55 -0400] yfeldblum: AAA layer?
+[2012-06-12 02:28:08 -0400] josephholsten: yfeldblum: authentication, authorization, accounting/audit
+[2012-06-12 02:40:54 -0400] knuckolls: anyone know a good node cookbook?
+[2012-06-12 02:41:12 -0400] knuckolls: the one on the community site has a syntax error and who knows what other problems. i'd rather just grab something else.
+[2012-06-12 02:41:32 -0400] hoover_damm: but nodejs cookbooks are just compile
+[2012-06-12 02:41:33 -0400] hoover_damm: and forget
+[2012-06-12 02:41:38 -0400] nicholasf: knuckolls: just find the npm cookbook
+[2012-06-12 02:41:42 -0400] nicholasf: and that will install node for you
+[2012-06-12 02:41:45 -0400] knuckolls: k
+[2012-06-12 02:41:47 -0400] nicholasf: (it's what I did)
+[2012-06-12 02:41:57 -0400] knuckolls: deal :) i'll try it
+[2012-06-12 02:41:58 -0400] knuckolls: thanks
+[2012-06-12 02:42:00 -0400] nicholasf: np
+[2012-06-12 02:42:06 -0400] hoover_damm: I ended up modifying our nodejs cookbook
+[2012-06-12 02:42:10 -0400] hoover_damm: to make it a bit more idempotent
+[2012-06-12 02:42:40 -0400] knuckolls: yeah it's late and i'm in the "find something that works" instead of "fix something upstream" mode;)
+[2012-06-12 02:43:59 -0400] hoover_damm: https://github.com/mdxp/cookbooks/blob/master/nodejs/recipes/default.rb
+[2012-06-12 02:44:01 -0400] hoover_damm: looks still neat
+[2012-06-12 02:44:13 -0400] hoover_damm: the base of the cookbook that I use
+[2012-06-12 02:44:41 -0400] knuckolls: cool i'll give that a whirl if the npm one doesn't pan out how i like
+[2012-06-12 02:44:41 -0400] knuckolls: thanks
+[2012-06-12 02:44:58 -0400] hoover_damm: knuckolls, basically welcome to bleeding edge languages
+[2012-06-12 02:45:03 -0400] hoover_damm: I thought ruby was hard
+[2012-06-12 02:45:13 -0400] hoover_damm: to get shipped sanely
+[2012-06-12 02:45:25 -0400] knuckolls: we've got node shipped by hand
+[2012-06-12 02:45:30 -0400] hoover_damm: nodejs, redis are two items that are mega-fun on ubuntu
+[2012-06-12 02:45:31 -0400] knuckolls: and hoo whee you're right
+[2012-06-12 02:45:47 -0400] knuckolls: time to chef it up
+[2012-06-12 02:46:56 -0400] hoover_damm: or why they don't use it
+[2012-06-12 02:47:24 -0400] knuckolls: that seems like exactly what i want.
+[2012-06-12 02:47:47 -0400] knuckolls: probably quicker to whip that into a cookbook than to fool around with community cookbooks
+[2012-06-12 02:47:50 -0400] hoover_damm: and that is just a apt resource to add
+[2012-06-12 02:47:55 -0400] knuckolls: right
+[2012-06-12 02:47:57 -0400] knuckolls: i'm doing that.
+[2012-06-12 02:48:01 -0400] hoover_damm: and then a package resource
+[2012-06-12 02:48:03 -0400] hoover_damm: super easy
+[2012-06-12 02:48:07 -0400] knuckolls: *high five*
+[2012-06-12 02:48:25 -0400] miah_: sup
+[2012-06-12 02:48:37 -0400] hoover_damm: knuckolls, searching launchpad will find backports more often
+[2012-06-12 02:48:46 -0400] hoover_damm: and usually a unique path to solving, sometimes better
+[2012-06-12 02:48:53 -0400] hoover_damm: that's where we pull our haproxy 1.5 deb
+[2012-06-12 02:48:57 -0400] knuckolls: me too
+[2012-06-12 02:49:00 -0400] hoover_damm: i need to roll a 1.5_9...
+[2012-06-12 02:49:02 -0400] knuckolls: i think?
+[2012-06-12 02:49:03 -0400] bawt_: i think is the syntax.
+[2012-06-12 02:49:03 -0400] miah_: i need to upload my new ssh key onto my server so i can do proper irssi from work
+[2012-06-12 02:49:17 -0400] knuckolls: well good call on the debs
+[2012-06-12 02:49:17 -0400] miah_: hoover_damm: i thought 1.5_9 had a bunch of issues
+[2012-06-12 02:49:33 -0400] hoover_damm: miah_, without knowing what said issues are... this is heresay
+[2012-06-12 02:49:44 -0400] miah_: this is from willy
+[2012-06-12 02:50:00 -0400] hoover_damm: who's willy?
+[2012-06-12 02:50:03 -0400] knuckolls: front and center on haproxy
+[2012-06-12 02:50:09 -0400] knuckolls: he writes haproxy
+[2012-06-12 02:50:17 -0400] miah_: June 4th, 2012 : Development 1.5-dev11
+[2012-06-12 02:50:17 -0400] miah_: A large number of bugs were fixed again since 1.5-dev10, some of them being regressions from 1.5-dev8 and later versions. See the changelog for more information, but nobody should be running on dev9 nor dev10. Minor harmless features were added in dev11, such as new actions on the stats page, a few new cookie options, and some minor improvements on URI hashing and server recovery mode. Users should really upgrade, as I don't want to waste time trying to spot stu
+[2012-06-12 02:50:26 -0400] hoover_damm: and we're up to 1.5dev11 actually
+[2012-06-12 02:50:36 -0400] hoover_damm: sorry I know we're on 7
+[2012-06-12 02:50:42 -0400] hoover_damm: was just knowing I needed to roll an update
+[2012-06-12 02:50:46 -0400] hoover_damm: what it was, was irrelevent
+[2012-06-12 02:51:02 -0400] miah_: ya, but i heard you say _9 and i wanted to prevent you from agonizing pain
+[2012-06-12 02:51:13 -0400] miah_: =)
+[2012-06-12 02:51:16 -0400] hoover_damm: true that
+[2012-06-12 02:51:23 -0400] miah_: YOU GUYS ARE MY BEST FRIENDS
+[2012-06-12 02:51:27 -0400] miah_: BEST FRIENDS ARE WE
+[2012-06-12 02:51:36 -0400] knuckolls: BFFz
+[2012-06-12 02:51:43 -0400] erikh: that's hot.
+[2012-06-12 02:52:06 -0400] miah_: so, im dealing with a 0.9 server.. can i spin up chef-solr-indexer like 8 times? i have 40k items in queue :/
+[2012-06-12 02:52:32 -0400] hoover_damm: miah_, eek 0.9? working with Aslan?
+[2012-06-12 02:52:39 -0400] miah_: chef-index-consumer-default 38026
+[2012-06-12 02:52:41 -0400] miah_: \me cries
+[2012-06-12 02:52:51 -0400] hoover_damm: new job
+[2012-06-12 02:52:52 -0400] hoover_damm: fun
+[2012-06-12 02:52:54 -0400] miah_: guh. no cmdchars set here.
+[2012-06-12 02:52:55 -0400] hoover_damm: so make tickets
+[2012-06-12 02:53:02 -0400] hoover_damm: and go kanban
+[2012-06-12 02:53:07 -0400] miah_: yup. i am building a 0.10 server but dont want to break 0.9 while i'm doing that
+[2012-06-12 02:53:08 -0400] hoover_damm: you'll be done in no time
+[2012-06-12 02:53:30 -0400] hoover_damm: http://en.wikipedia.org/wiki/Kanban_(development)
+[2012-06-12 02:53:46 -0400] miah_: <keanu>i know kanban</keanu>
+[2012-06-12 02:53:54 -0400] knuckolls: haha
+[2012-06-12 02:53:56 -0400] hoover_damm: lol at not break 0.9
+[2012-06-12 02:53:59 -0400] hoover_damm: like that could happen
+[2012-06-12 02:54:08 -0400] miah_: =) well, i dont want to break it _more_
+[2012-06-12 02:54:09 -0400] hoover_damm: look at 0.9 wrong
+[2012-06-12 02:54:13 -0400] hoover_damm: and it'll go *segfault*
+[2012-06-12 02:54:21 -0400] hoover_damm: j/k
+[2012-06-12 02:54:40 -0400] miah_: its clearing this queue so damned slowly. ~2 hours and its only gone through about 4k items
+[2012-06-12 02:55:16 -0400] hoover_damm: this is why people buy private chef
+[2012-06-12 02:55:19 -0400] miah_: ya
+[2012-06-12 02:55:23 -0400] hoover_damm: it really is no fun maintaining chef
+[2012-06-12 02:55:27 -0400] miah_: i know
+[2012-06-12 02:55:28 -0400] hoover_damm: i love using it
+[2012-06-12 02:55:32 -0400] miah_: i am trying to make that case here
+[2012-06-12 02:55:34 -0400] hoover_damm: but i'd rather just pay opscode
+[2012-06-12 02:55:38 -0400] miah_: its hard to sell solutions on day 1
+[2012-06-12 02:56:01 -0400] hoover_damm: if you can't sell solutions on day 1, you can't sell solutions
+[2012-06-12 02:56:11 -0400] miah_: lol
+[2012-06-12 02:56:15 -0400] hoover_damm: as that's the moment where you should be allowed to change a lot
+[2012-06-12 02:56:18 -0400] hoover_damm: or open the door on a lot
+[2012-06-12 02:56:28 -0400] miah_: true
+[2012-06-12 02:56:45 -0400] hoover_damm: it doesn't mean it has to change this exact moment... but if you can't get people to think about x on day 1... why can you on day 365?
+[2012-06-12 02:56:59 -0400] miah_: well, if i cant make change in 6 months i'll work elsewhere
+[2012-06-12 02:57:20 -0400] hoover_damm: lol
+[2012-06-12 02:57:22 -0400] hoover_damm: i used to give 90 days
+[2012-06-12 02:57:58 -0400] hoover_damm: you are the only person that can about /you/.  With that, you should always have a keen eye on you and make sure that your happy spot is at least alive
+[2012-06-12 02:58:13 -0400] hoover_damm: if not close to a reality
+[2012-06-12 02:58:32 -0400] miah_: yup
+[2012-06-12 02:58:37 -0400] hoover_damm: When we are not happy, we are not as productive as we can be.  We are grumpy, ..
+[2012-06-12 02:58:40 -0400] hoover_damm: you know the drill
+[2012-06-12 02:58:52 -0400] miah_: yes, that is the reason i left my last company
+[2012-06-12 03:02:17 -0400] hoover_damm: I imagine I won't be much happier without starting my own company
+[2012-06-12 03:02:58 -0400] hoover_damm: I mean i'm pretty happy with my contract(s) more or less.  But I don't think I can find much more
+[2012-06-12 03:05:05 -0400] knuckolls: omni omni omnibussin'
+[2012-06-12 03:05:10 -0400] knuckolls: livin' in the future
+[2012-06-12 03:05:14 -0400] miah_: hot
+[2012-06-12 03:05:26 -0400] hoover_damm: yeah i finally got my 12.04 omnibus built
+[2012-06-12 03:05:42 -0400] knuckolls: it's kind of like my bootstraps aren't dumb long anymore
+[2012-06-12 03:05:46 -0400] hoover_damm: now I can update to p136 and update to 0.12?
+[2012-06-12 03:05:56 -0400] knuckolls: if they're long it's _my fault_
+[2012-06-12 03:06:12 -0400] hoover_damm: knuckolls, lol as I always say.  It amazes me how many people use default distro ami/images without customization ;)
+[2012-06-12 03:06:51 -0400] hoover_damm: ami with chef preconfigured is like step #1 to shaving off pain
+[2012-06-12 03:07:09 -0400] knuckolls: TICKET CREATED
+[2012-06-12 03:07:10 -0400] hoover_damm: although If I was going to keep using ec2 i'd be using cloudinit to roll chef more
+[2012-06-12 03:07:20 -0400] knuckolls: haha no that ticket's already in there
+[2012-06-12 03:07:38 -0400] knuckolls: i use cloudinit to fix stuff that needs to happen before the chef run
+[2012-06-12 03:07:43 -0400] knuckolls: like ulimit
+[2012-06-12 03:07:57 -0400] hoover_damm: that's what I do on the AMI
+[2012-06-12 03:17:16 -0400] hoover_damm: miah, btw beware there's 0.8 installs out there too
+[2012-06-12 03:17:18 -0400] hoover_damm: i've had those interviews
+[2012-06-12 03:17:34 -0400] hoover_damm: no repeats here
+[2012-06-12 03:21:08 -0400] hoover_damm: if you want to upgrade puppet? upgrade chef? quit jobs and get a new one.  Just like Rails or any other $stupid thing
+[2012-06-12 03:21:30 -0400] erikh: we upgraded chef at my last job
+[2012-06-12 03:21:35 -0400] erikh: 0.9 to 0.10 is pretty painless
+[2012-06-12 03:21:45 -0400] hoover_damm: yep
+[2012-06-12 03:22:09 -0400] hoover_damm: hardest transition was 0.7 to 0.8
+[2012-06-12 03:22:21 -0400] hoover_damm: but to drop openid... it was worth it.
+[2012-06-12 03:23:02 -0400] hoover_damm: and use haproxy
+[2012-06-12 03:36:39 -0400] knuckolls: hoover_damm: node via apt was the way to go. thanks.
+[2012-06-12 03:36:49 -0400] hoover_damm: np
+[2012-06-12 03:37:21 -0400] hoover_damm: I soft fail on redis hehe
+[2012-06-12 05:08:31 -0400] BryanWB_: good morning chefs!
+[2012-06-12 06:05:52 -0400] farshidghods: is there an easy way to get the node architecture using node[:arch] ( similar to node["platform"]
+[2012-06-12 06:14:29 -0400] BryanWB_: farshidghods: y
+[2012-06-12 06:15:35 -0400] BryanWB_: farshidghods: node['kernel']['machine']
+[2012-06-12 06:21:49 -0400] farshidghods: thanks BryanWB_
+[2012-06-12 06:22:30 -0400] farshidghods: BryanWB_: does that work for centos and ubuntu where 64-bit and 32-bit notions are quite different
+[2012-06-12 06:22:35 -0400] farshidghods: amd64 versus x86_64
+[2012-06-12 06:24:12 -0400] BryanWB_: farshidghods: i believe so, but not 100% sure
+[2012-06-12 06:25:04 -0400] BryanWB_: farshidghods: on centos yet
+[2012-06-12 06:25:14 -0400] BryanWB_: don't know about ubuntu
+[2012-06-12 06:25:36 -0400] BryanWB_: both ubuntu and centos report "i386"
+[2012-06-12 06:26:04 -0400] farshidghods: thanks BryanWB_.i have "Case" for node["platform"] so i can take care of different kernel.machine values in those case statements
+[2012-06-12 06:30:40 -0400] BryanWB_: u prolly want to use platform_family if using newer ohai
+[2012-06-12 08:08:25 -0400] specialsauce: ohai chefs. is there any easy way to get chef chef-client to tell me how many resources it changed in its run?
+[2012-06-12 08:12:44 -0400] specialsauce: the default output is a little confusing as to whether any change has actually been made or not
+[2012-06-12 08:13:39 -0400] radim: morning guys, a quick question - any idea when 10.12.0 would be out?
+[2012-06-12 08:24:00 -0400] specialsauce: nm, found how you can add this into the default handler
+[2012-06-12 08:24:22 -0400] specialsauce: bit odd this isn't on by default, since its hard to figure out if your recipes are idempotent without it
+[2012-06-12 08:49:38 -0400] DeltaKalle: Hi all, I'm trying to create a new installation of my chef-server, but would like to not reuse any files from my old installation (it has been seriously trashed).. I've done a couchdb replication which works, but when I upload my cookbooks, the files doesn't get uploaded to the server since all checksums are still correct.. How could I solve this?
+[2012-06-12 09:06:40 -0400] railsraider: i have a chef recipe that purges a firewall installation, pressed answer fle, install, and start service - it works on a clean install but not on the next chef-client run
+[2012-06-12 09:07:38 -0400] railsraider: ok, if the pressed exists it fails
+[2012-06-12 09:07:42 -0400] railsraider: exists in cache
+[2012-06-12 09:07:54 -0400] railsraider: [/var/chef/cache/preseed/arno-iptables-firewall/arno-iptables-firewall-1.9.2.h-1.seed
+[2012-06-12 09:11:02 -0400] railsraider: weird, only when i delete the cached pressed it runs
+[2012-06-12 09:12:05 -0400] railsraider: i'll remove it manually with script
+[2012-06-12 09:45:23 -0400] Guest24088: Hi.
+[2012-06-12 09:46:05 -0400] Guest24088: I am investing a lot of time trying to solve one issue, and any kind of help will be pay with a beer in berlin.
+[2012-06-12 09:46:17 -0400] Guest24088: The message I get is: ResourceNotFound: Resource template[/etc/chef/ohai_plugins/nginx.rb]
+[2012-06-12 09:46:22 -0400] Guest24088: ups
+[2012-06-12 09:46:34 -0400] Guest24088: Chef::Exceptions::ResourceNotFound: Resource template[/etc/chef/ohai_plugins/nginx.rb] is configured to notify resource ohai[custom_plugins] with action reload, but ohai[custom_plugins] cannot be found in the resource collection. template[/etc/chef/ohai_plugins/nginx.rb] is defined in /var/cache/chef/cookbooks/nginx/recipes/ohai_plugin.rb:24:in `from_file'
+[2012-06-12 09:46:54 -0400] BryanWB_: Guest24088: maybe   include_recipe "ohai_plugins" ?
+[2012-06-12 09:47:15 -0400] BryanWB_: no, that won't work
+[2012-06-12 09:47:40 -0400] BryanWB_: is ohai_plugins recipe in your run_list?
+[2012-06-12 09:47:53 -0400] guillermooo: checking
+[2012-06-12 09:48:57 -0400] guillermooo: I am using the nginx recipe that is on opscode
+[2012-06-12 09:49:04 -0400] guillermooo: so I am looking right now in that code
+[2012-06-12 09:55:05 -0400] guillermooo: Ok. I can imagine that ohai custom plugins is related with with the autodiscovery of the things of the machine. Is a way to extend the hash exposed through node when running recipes. I can understand that having that could be nice for nginx. The problem is that i don't see right now the use case.
+[2012-06-12 09:55:38 -0400] guillermooo: So I am going to remove "notifies :reload, "ohai[custom_plugins]"" for the moment and see what happends.
+[2012-06-12 10:00:52 -0400] railsraider: I'm trying to write a logrotate recipe, how can i separate the log templates, just by folders?
+[2012-06-12 10:16:23 -0400] mysore: Hi anybody who knows chef configuration ?
+[2012-06-12 10:18:24 -0400] mysore: i have struck up with a error related to knife bootstrap its showing ERROR: Network Error: Connection refused - connect(2) Check your knife configuration and network settings
+[2012-06-12 10:20:24 -0400] Sephi: hi there again
+[2012-06-12 10:21:04 -0400] Sephi: does anybody know how you can modify what ':install' does
+[2012-06-12 10:21:10 -0400] Sephi: or not
+[2012-06-12 10:26:26 -0400] sampikesley: Sephi: this is an LWRP thing, I think
+[2012-06-12 10:29:25 -0400] laurent\: Sephi: what's the context ?
+[2012-06-12 10:34:26 -0400] specialsauce: mysore: "Connectin refused" is normally a firewall issue, is not that you have the wrong entry but something is actively refusing your connection
+[2012-06-12 10:40:27 -0400] laurent\: or nobody's listening
+[2012-06-12 10:41:35 -0400] specialsauce: laurent\, normally "Connection refused" means yu reached something, and it couldn't serve the request (wrong port, firewall etc). You would normally get a different message if you were trying to talk to something that pplain didn't exist
+[2012-06-12 10:44:04 -0400] bdha: "To protect your account, we keep a list of questions only you can answer. When resetting your password, we'll verify your identity with two questions-one from our list and one from yours."
+[2012-06-12 10:44:13 -0400] bdha: ^-- works really well for corporate accounts.
+[2012-06-12 10:44:30 -0400] bdha: "In what city did the company meet its spouse?"
+[2012-06-12 10:44:31 -0400] bdha: sigh
+[2012-06-12 10:50:23 -0400] laurent\: specialsauce: as you said, wrong port => nobody's listening, that doesn't necessarily mean a firewall was in the middle
+[2012-06-12 10:50:36 -0400] laurent\: i'm not going to troll or argue about that :)
+[2012-06-12 10:55:45 -0400] chef2012: Hi
+[2012-06-12 10:56:00 -0400] chef2012: FATAL: ArgumentError: Attribute ec2 is not defined!
+[2012-06-12 10:56:26 -0400] chef2012: I am getting above whne I try to run chef-client for an instance of type of VPC
+[2012-06-12 10:56:42 -0400] chef2012: EC2 type instance doesn't cause any error
+[2012-06-12 10:56:49 -0400] chef2012: What could be the issue ?
+[2012-06-12 11:02:22 -0400] zts: chef2012: http://tickets.opscode.com/browse/OHAI-310
+[2012-06-12 11:02:43 -0400] zts: chef2012: the comments at the bottom suggest there is a feature in ohai 6.14.0 which will help you
+[2012-06-12 11:02:48 -0400] zts: (I haven't personally used it)
+[2012-06-12 11:03:11 -0400] chef2012: okay
+[2012-06-12 11:03:31 -0400] chef2012: I have Ohai: 0.6.12
+[2012-06-12 11:09:12 -0400] mgalkiewicz: hi guys. How to change default provider for resource?
+[2012-06-12 11:12:20 -0400] zts: mgalkiewicz: use the 'provider' attribute in your resource block - http://wiki.opscode.com/display/chef/Resources#Resources-CommonAttributes
+[2012-06-12 11:12:32 -0400] zts: oh sorry, default provider
+[2012-06-12 11:12:42 -0400] zts: not sure about that one
+[2012-06-12 11:26:12 -0400] mgalkiewicz: zts: I want to change it for all service resources and I would like to avoid adding 'provider' everywhere
+[2012-06-12 11:45:38 -0400] Sephi: laurent\: sorry i just went for lunch
+[2012-06-12 11:45:56 -0400] Sephi: i want to install package on Ubuntu10.04
+[2012-06-12 11:46:46 -0400] Sephi: when i have action :install it search the latest and run apt-get install package=latest_version and this seems not working
+[2012-06-12 11:46:59 -0400] Sephi: and there is nothing i can do 'bout that
+[2012-06-12 11:58:22 -0400] [pavel]: Hi guys! Any ideas how to store binary data in secure databags? I suppose it's not possible, if it's not, which is best way to store binary data encrypted in repo, and get it decrypted on servers?
+[2012-06-12 12:02:48 -0400] BryanWB_: [pavel]:the key question there is whether json can store binary data
+[2012-06-12 12:03:00 -0400] BryanWB_: [pavel]: if json, can store binary data, then u can
+[2012-06-12 12:05:49 -0400] mysore: Specialsauce : how can i resolve that error ? how can i know what is the that which is restricting my request ?
+[2012-06-12 12:08:58 -0400] [pavel]: BryanWB_, using base64 for data may be an option, but I wonder maybe there are better solutions arounfd?
+[2012-06-12 12:09:00 -0400] [pavel]: BryanWB_, using base64 for data may be an option, but I wonder maybe there are better solutions around?
+[2012-06-12 12:11:47 -0400] BryanWB_: [pavel]: why not encrypt, store it on S3 or another storage place, and then distribute the decrypting  key via chef
+[2012-06-12 12:12:11 -0400] BryanWB_: [pavel]: but perhaps easier solutions are out htere
+[2012-06-12 12:12:27 -0400] Sephi: laurent\ i get the answer from another one
+[2012-06-12 12:12:40 -0400] Sephi: https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/package/apt.rb#L87
+[2012-06-12 12:12:52 -0400] Sephi: got to find this file and modify it
+[2012-06-12 12:13:00 -0400] Sephi: 2
+[2012-06-12 12:13:07 -0400] Sephi: *miss sorry
+[2012-06-12 12:14:53 -0400] chef2012: if chef client is run in non daemon mode ( by removing -d switch ) will it continue to run and fetch any changes from chef server ?
+[2012-06-12 12:15:16 -0400] [pavel]: BryanWB_, yeah, it seems simplest one is base64 :(
+[2012-06-12 12:17:22 -0400] chef2012: I have simple recipie to download and install ( wget , tar xvzf , make , make install ) . But It seems like after defined sleep interval it again downloads the gz
+[2012-06-12 12:17:57 -0400] BryanWB_: chef2012: i recommend using ark instead
+[2012-06-12 12:18:14 -0400] BryanWB_: chef2012: http://community.opscode.com/cookbooks/ark
+[2012-06-12 12:18:44 -0400] BryanWB_: chef2012: your recipe is not idempotent
+[2012-06-12 12:18:50 -0400] BryanWB_: ark is
+[2012-06-12 12:19:45 -0400] chef2012: okay
+[2012-06-12 12:19:51 -0400] chef2012: will check it out
+[2012-06-12 12:20:47 -0400] chef2012: and what about running chef just once during startup and then not running or contacting server for that matter
+[2012-06-12 12:21:10 -0400] chef2012: would removing -d ( daemonize switch ) take care of it ?
+[2012-06-12 12:21:16 -0400] BryanWB_: chef2012: i believe so
+[2012-06-12 12:21:27 -0400] chef2012: Thanks BryanWB
+[2012-06-12 12:21:45 -0400] BryanWB_: but i run it every 4 hours via cron, it's a good discipline imho
+[2012-06-12 12:23:21 -0400] chef2012: Okay. I am currently facing issue on running chef-client on instances created under VPC in Amazon cloud
+[2012-06-12 12:23:45 -0400] chef2012: no issues when running it on an EC2 instance only
+[2012-06-12 12:24:03 -0400] chef2012: =>FATAL: ArgumentError: Attribute ec2 is not defined!
+[2012-06-12 12:24:08 -0400] chef2012: Is what I get
+[2012-06-12 12:33:58 -0400] guillermooo: Ok. How the hell i end with a system that doesnt respond to $ hostname --fqdn
+[2012-06-12 12:44:45 -0400] surma: Hey everybody. I wrote a provider and during the creation fo the resource I'd like to access a template file which is in the cookbook which also contains the provider. How do I access that template?
+[2012-06-12 12:46:25 -0400] yfeldblum: surma, by not using a provider?
+[2012-06-12 12:46:30 -0400] Sephi: hi surma does this help you
+[2012-06-12 12:46:35 -0400] Sephi: https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/
+[2012-06-12 12:47:38 -0400] surma: yfeldblum: What am I supposed to use? The provider needs to generate a config file.
+[2012-06-12 12:48:13 -0400] surma: Sephi: I don't really know what I'm supposed to look at there. This seems to be mainly a path-related problem
+[2012-06-12 12:48:18 -0400] yfeldblum: surma, sorry, misread the question (thought you meant accessing a template declared in the calling recipe)
+[2012-06-12 12:48:34 -0400] Sephi: ow, sorry
+[2012-06-12 12:48:46 -0400] surma: yfeldblum: No :) that'd be surprisingly easy, because that's where chef is looking for the template by default
+[2012-06-12 12:49:04 -0400] yfeldblum: surma, what's the problem that you're seeing?
+[2012-06-12 12:50:01 -0400] surma: yfeldblum: I wrote provider in cookbook "A", and I'm creating a resource (implicitly usin that very provider) in cookbok "B". Now the provider code renders a template but tries to fetch the file from cookbook "B" instead of "A".
+[2012-06-12 12:50:53 -0400] yfeldblum: surma, use the `cookbook` attribute when declaring the `template` resource
+[2012-06-12 12:51:11 -0400] yfeldblum: surma, http://wiki.opscode.com/display/chef/Resources#Resources-Template
+[2012-06-12 12:52:36 -0400] surma: Okay, that is an easy fix then. Thanks alot :D
+[2012-06-12 12:52:53 -0400] surma: Just out of curiosity: Why is this behaviour useful?
+[2012-06-12 12:55:09 -0400] yfeldblum: surma, don't know
+[2012-06-12 12:57:11 -0400] surma: ^^ alright. Thanks for your help
+[2012-06-12 13:02:48 -0400] thom: surma: fetching from the cookbook you call the provider in? so that you can ship custom templates for the provider to use
+[2012-06-12 13:03:00 -0400] yfeldblum: surma, there are some odd defaults in chef
+[2012-06-12 13:04:35 -0400] thom: but is the default right? possibly not
+[2012-06-12 13:37:14 -0400] surma: Hey :) Is there some way I can deactivate the pattern matching done when I use the service resource to start or stop a service? I have a rather weird service where a pattern matching cannot really tell, whether the service is running or not.
+[2012-06-12 13:40:16 -0400] eherot: surma: if you don't use the pattern matcher, what would you use?
+[2012-06-12 13:40:23 -0400] eherot: you could always just give it action :nothing
+[2012-06-12 13:41:10 -0400] LinuxHorn: can someone show me how to only do an action if a specific apt package is installed?
+[2012-06-12 13:41:19 -0400] eherot: surma: or define a better pattern
+[2012-06-12 13:42:16 -0400] eherot: LinuxHorn: only_if { `dpkg -s <packagename>` }
+[2012-06-12 13:42:49 -0400] surma: eherot: I just want it to execute the command to start or stop the service. Right now it checks if thats even necessary by pattern matching (which yields wrong results)
+[2012-06-12 13:43:04 -0400] LinuxHorn: hmmmm  just realized i need this to work with yum also
+[2012-06-12 13:43:31 -0400] surma: weirdly enough, I can't find the snippet of code in the lib which does the patternmatching
+[2012-06-12 13:43:40 -0400] eherot: LinuxHorn: hmmhackily you could run a command that gets changed based on the distro
+[2012-06-12 13:43:47 -0400] LinuxHorn: eherot: the problem i have is that i am updating a recipe someone wrote that uses the r.run_action(:install) code described here: http://www.opscode.com/blog/2009/06/01/cool-chef-tricks-install-and-use-rubygems-in-a-chef-run/
+[2012-06-12 13:44:06 -0400] LinuxHorn: and the gem_package install fails because i do not have 2 pre-reqs
+[2012-06-12 13:44:16 -0400] LinuxHorn: but i want the pre-reqs to only install as part of this recipe
+[2012-06-12 13:44:18 -0400] eherot: so instead of what I just wrote there, do:
+[2012-06-12 13:44:18 -0400] eherot: case node["platform"]
+[2012-06-12 13:44:19 -0400] eherot: when "debian","ubuntu"
+[2012-06-12 13:44:19 -0400] eherot: pkg_cmd="dpkg -s <packagename>"
+[2012-06-12 13:44:19 -0400] eherot: end
+[2012-06-12 13:44:19 -0400] eherot: etc.
+[2012-06-12 13:44:49 -0400] LinuxHorn: don't want to make people have to remember to install those packages as pre-reqs from a whole different cookbook
+[2012-06-12 13:45:01 -0400] eherot: yeah you could wrap the p.run_action command in an if statement.
+[2012-06-12 13:45:20 -0400] eherot: Although I do feel like I'm going down the path of hacks here, heh.
+[2012-06-12 13:45:22 -0400] LinuxHorn: that's what i was wondering, everything else i try with it runs the run_action first
+[2012-06-12 13:45:41 -0400] eherot: surma: It's going to run that every time the chef-client runs if you don't supply a meaningful pattern
+[2012-06-12 13:45:43 -0400] LinuxHorn: what would that if statement look like?  (still very new to ruby)
+[2012-06-12 13:45:53 -0400] eherot: surma: You could use execute instead and have it save a file somewhere.
+[2012-06-12 13:46:05 -0400] eherot: LinuxHorn: One sec, lemmie gist that.
+[2012-06-12 13:46:11 -0400] LinuxHorn: thanks!
+[2012-06-12 13:46:12 -0400] surma: eherot: Ha, got it. It only does pattern matching when the service does not have "status" defined. I will just define status
+[2012-06-12 13:46:31 -0400] eherot: surma: doh, forgot about that bit :-)
+[2012-06-12 13:49:37 -0400] magoo: can someone provide me a gist with a couple chef_handler recipes? I'd like to compare
+[2012-06-12 13:50:30 -0400] eherot: LinuxHorn: your mileage may vary :-) https://gist.github.com/2917622
+[2012-06-12 13:51:10 -0400] LinuxHorn: trying now
+[2012-06-12 13:56:01 -0400] LinuxHorn: eherot: unfortunately i don't think that will work  think i'm just screwed if using the r.run_action(:install)
+[2012-06-12 13:56:09 -0400] LinuxHorn: no matter what it is gonna run that code first
+[2012-06-12 13:57:36 -0400] eherot: if you put the r.run_action(:install) command inside the if statement, it won't run it no matter what.
+[2012-06-12 14:01:33 -0400] LinuxHorn: eherot: https://gist.github.com/2917708
+[2012-06-12 14:02:12 -0400] LinuxHorn: the pkg_chk_cmd fails because the packages are not installed, which means the if statement should fail right?
+[2012-06-12 14:02:28 -0400] LinuxHorn: but the r.run_action is still being run
+[2012-06-12 14:02:47 -0400] eherot: might want to check that those commands are actually returning 0
+[2012-06-12 14:03:18 -0400] LinuxHorn: root@cmtest:~# dpkg -s libxml2-dev libxslt-dev
+[2012-06-12 14:03:18 -0400] LinuxHorn: Package `libxml2-dev' is not installed and no info is available.
+[2012-06-12 14:03:18 -0400] LinuxHorn: Package `libxslt-dev' is not installed and no info is available.
+[2012-06-12 14:03:18 -0400] LinuxHorn: Use dpkg --info (= dpkg-deb --info) to examine archive files,
+[2012-06-12 14:03:18 -0400] LinuxHorn: and dpkg --contents (= dpkg-deb --contents) to list their contents.
+[2012-06-12 14:03:19 -0400] LinuxHorn: root@cmtest:~# echo $?
+[2012-06-12 14:03:19 -0400] LinuxHorn: 1
+[2012-06-12 14:04:32 -0400] eherot: which is line 20 exactly?
+[2012-06-12 14:05:16 -0400] LinuxHorn: line 20 is the r = gem...
+[2012-06-12 14:06:36 -0400] eherot: ahhh
+[2012-06-12 14:06:46 -0400] eherot: might want to wrap the whole package business in the if statement
+[2012-06-12 14:06:54 -0400] eherot: apparently some actual evaluation goes on there.
+[2012-06-12 14:08:11 -0400] LinuxHorn: giving that a try
+[2012-06-12 14:08:15 -0400] LinuxHorn: (thanks for the help)
+[2012-06-12 14:08:28 -0400] mjreed: Good morning.  I have a recipe that has been working for a while which uses a particular gem within the recipe code.  Our newer nodes are using the omnibus installer, and it can't install that gem in the embedded ruby because the ruby development stuff isn't installed for it.  Is it available?
+[2012-06-12 14:08:46 -0400] LinuxHorn: damn, nope
+[2012-06-12 14:09:01 -0400] LinuxHorn: same issue
+[2012-06-12 14:09:31 -0400] LinuxHorn: but now at line 23, since i moved the if line and pkg chk_cmd lines up above the r = gem...
+[2012-06-12 14:10:52 -0400] eherot: let me try this in shef
+[2012-06-12 14:11:13 -0400] LinuxHorn: that's a good idea, i always forget about shef
+[2012-06-12 14:11:15 -0400] LinuxHorn: such a good tool
+[2012-06-12 14:13:58 -0400] eherot: LinuxHorn: ah.  I think I found the problem
+[2012-06-12 14:14:07 -0400] eherot: I'm not apparently as experienced at ruby as I thought ;-)
+[2012-06-12 14:14:08 -0400] hippieha`: /erc-quit
+[2012-06-12 14:14:14 -0400] eherot: `cmd` always evaluates true
+[2012-06-12 14:14:22 -0400] bencaron: Hey, I'm meeting the direction here to sell them the idea of opensourcing most of our cookbook work
+[2012-06-12 14:14:31 -0400] eherot: chef > if `false`
+[2012-06-12 14:14:31 -0400] eherot: chef ?> puts "true"
+[2012-06-12 14:14:31 -0400] eherot: chef ?> end
+[2012-06-12 14:14:31 -0400] eherot: true
+[2012-06-12 14:14:35 -0400] bencaron: I remember seeing a nice slide selling that idea
+[2012-06-12 14:14:46 -0400] mjreed: yes, `...` just gets you the output of the shell command, eherot.
+[2012-06-12 14:14:57 -0400] bencaron: making the point that opensourcing is good because it force good practice
+[2012-06-12 14:15:00 -0400] mjreed: not the exit status.
+[2012-06-12 14:15:04 -0400] eherot: mjreed: yeah and in fact I have no excuse 'cause I already had to work around this in another tool i wrote
+[2012-06-12 14:15:15 -0400] bencaron: like, no  passwords, no hardcoded stuff, etc.
+[2012-06-12 14:15:23 -0400] mjreed: the exit status is in $?
+[2012-06-12 14:15:29 -0400] bencaron: anybody know of a good reference for that?
+[2012-06-12 14:16:20 -0400] LinuxHorn: hmmm
+[2012-06-12 14:16:51 -0400] mjreed: output = `false`; if $?.success? then puts "succeeded" else puts "failed" end
+[2012-06-12 14:16:58 -0400] mjreed: ==> failed
+[2012-06-12 14:17:00 -0400] BryanWB_: bencaron: u get lots of pull requests that fix issues u haven't encountered yet
+[2012-06-12 14:17:20 -0400] BryanWB_: bencaron: and add features that you will eventually need
+[2012-06-12 14:17:37 -0400] bencaron: yeah myself I'm sold :)
+[2012-06-12 14:17:46 -0400] bencaron: i want to convince the Power
+[2012-06-12 14:18:01 -0400] bencaron: and showing things not written by me
+[2012-06-12 14:18:03 -0400] bencaron: sadly
+[2012-06-12 14:18:08 -0400] bencaron: is more convincing
+[2012-06-12 14:18:10 -0400] eherot: mjreed/LinuxHorn: you could do instead: if system("dpkg -s libxslt-dev"); puts "true"; end
+[2012-06-12 14:18:16 -0400] BryanWB_: bencaron: that saves them from having to pay for same development
+[2012-06-12 14:18:30 -0400] BryanWB_: bencaron: the stronger argument is that it makes them less dependent on you  ;)
+[2012-06-12 14:18:33 -0400] LinuxHorn: gonna try that
+[2012-06-12 14:18:35 -0400] BryanWB_: longterm
+[2012-06-12 14:18:37 -0400] bencaron: hehe :)
+[2012-06-12 14:18:47 -0400] bencaron: BryanWB_: good argument :)
+[2012-06-12 14:18:52 -0400] mjreed: I didn't see the original command.  I assumed from the use of `...` that you needed the output
+[2012-06-12 14:18:53 -0400] eherot: obviously, you'll want to run your gem_package statement instead of just putting true ;-)
+[2012-06-12 14:19:04 -0400] BryanWB_: bencaron: then they ask, "buty why would u want us to be less dependent on you?"
+[2012-06-12 14:19:06 -0400] eherot: mjreed: nah, just the exit status
+[2012-06-12 14:19:13 -0400] LinuxHorn: right eherot
+[2012-06-12 14:19:13 -0400] bencaron: it's not all "average" sysadmin that is open to works with chef (or CM in general)
+[2012-06-12 14:19:18 -0400] mjreed: then don't use backticks. :)
+[2012-06-12 14:19:20 -0400] eherot: mjreed: and not even the exact status, just whether or not it succeeded
+[2012-06-12 14:19:28 -0400] eherot: mjreed: but it works in bash!!! ;-)
+[2012-06-12 14:19:30 -0400] BryanWB_: bencaron: it benefits u because the open-source work  u do is your professional portfolio
+[2012-06-12 14:19:51 -0400] mjreed: no, in bash you don't use backticks for that either.  just if command; then it worked; else it didn't; fi
+[2012-06-12 14:19:57 -0400] bencaron: BryanWB_: that, and it's annoying having to redo soething you did at the previous gig
+[2012-06-12 14:20:09 -0400] bencaron: bc it's closed in a git repos somewhere
+[2012-06-12 14:20:10 -0400] BryanWB_: bencaron: y ;)
+[2012-06-12 14:20:16 -0400] bencaron: DRY :)
+[2012-06-12 14:20:50 -0400] eherot: mjreed: oh right
+[2012-06-12 14:21:16 -0400] LinuxHorn: well shit, so that kind of works
+[2012-06-12 14:21:21 -0400] LinuxHorn: but kind of not also
+[2012-06-12 14:21:35 -0400] eherot: LinuxHorn: what'd you get back this time?
+[2012-06-12 14:22:02 -0400] LinuxHorn: the if statement works  if the packages are not installed, then it doesn't run the whole r. stuff
+[2012-06-12 14:22:30 -0400] LinuxHorn: but, i need it to install the packages if they are not installed and then run the r. stuff
+[2012-06-12 14:22:47 -0400] LinuxHorn: https://gist.github.com/2917838
+[2012-06-12 14:23:26 -0400] LinuxHorn: so in the else portion it is still going to run the run_action first
+[2012-06-12 14:26:02 -0400] eherot: LinuxHorn: question for you
+[2012-06-12 14:26:08 -0400] LinuxHorn: ?
+[2012-06-12 14:26:27 -0400] magoo: trying to use the chef-handler-mail (https://github.com/kisoku/chef-handler-mail/blob/master/lib/chef/handler/mail.rb) inside of the chef_handler cookbook with this recipe https://gist.github.com/2917853 but the report fails with: FATAL: NoMethodError: undefined method `run_report_safely' for #<Mail::Message:0x7f78986f02d0>
+[2012-06-12 14:26:37 -0400] eherot: LinuxHorn: Why bother checking if the package is installed before running gem_package?  Why not just run package install first?"
+[2012-06-12 14:26:59 -0400] LinuxHorn: eherot: i tried that, but it will always run the run_action first
+[2012-06-12 14:27:07 -0400] eherot: LinuxHorn: that's by design
+[2012-06-12 14:27:09 -0400] ashb: %w[ libxslt-dev libxml2-dev ].each { |pkg| package(pkg).run_action(:install) }
+[2012-06-12 14:27:16 -0400] eherot: LinuxHorn: but if you do it this way instead...
+[2012-06-12 14:28:03 -0400] eherot: LinuxHorn: hold on, trying this whole fork-a-gist thing :-)
+[2012-06-12 14:28:12 -0400] LinuxHorn: sure
+[2012-06-12 14:28:30 -0400] eherot: I was advised by someone else here not to use gem_package, btw. Are you running 0.10.10?
+[2012-06-12 14:29:02 -0400] LinuxHorn: no, they are still on 0.10.8
+[2012-06-12 14:29:47 -0400] LinuxHorn: 0.10.4 actually
+[2012-06-12 14:29:48 -0400] eherot: you might want to consider grabbing the chef_gem community cookbook and including that
+[2012-06-12 14:30:49 -0400] littleidea: anyone have tips and tricks for managing/interacting with multiple knife.rb/orgs/chef servers?
+[2012-06-12 14:31:26 -0400] zts: littleidea: knife-block is pretty ace
+[2012-06-12 14:31:42 -0400] zts: http://rubygems.org/gems/knife-block
+[2012-06-12 14:32:02 -0400] littleidea: reading
+[2012-06-12 14:32:42 -0400] eherot: LinuxHorn: recipe updated https://gist.github.com/2917872
+[2012-06-12 14:32:58 -0400] eherot: LinuxHorn: You'd want to put "depends 'chef_gem'" in your metadata.rb file too
+[2012-06-12 14:33:13 -0400] zts: littleidea: I used to have a "clever" knife.rb which pointed at different chef servers based on my current directory (and other things), but I've binned it in favour of knife-block
+[2012-06-12 14:33:16 -0400] LinuxHorn: yeah
+[2012-06-12 14:33:20 -0400] LinuxHorn: good idea eherot
+[2012-06-12 14:33:54 -0400] eherot: LinuxHorn: Just did a similar refactoring of some of my own recipes in order to get over the whole dev-tools/ruby-shadow hurdle when installing a machine from scratch using chef
+[2012-06-12 14:35:35 -0400] LinuxHorn: woohoo!
+[2012-06-12 14:35:42 -0400] LinuxHorn: didn't need chef_gem :)
+[2012-06-12 14:35:46 -0400] ssd7: Ohai Chefs
+[2012-06-12 14:36:07 -0400] LinuxHorn: https://gist.github.com/2917908
+[2012-06-12 14:36:14 -0400] LinuxHorn: not the best code probably, but it works
+[2012-06-12 14:36:16 -0400] LinuxHorn: :0
+[2012-06-12 14:37:53 -0400] ashb: LinuxHorn: you don't need to specify action :install
+[2012-06-12 14:38:02 -0400] ashb: 1) thats the default, 2) you are doing a manual run_action anyway
+[2012-06-12 14:38:08 -0400] LinuxHorn: right right, just noticed that
+[2012-06-12 14:38:27 -0400] ashb: package( "libxslt-dev" ).run_action( :install )
+[2012-06-12 14:38:31 -0400] ashb: if you want it on one line
+[2012-06-12 14:38:40 -0400] LinuxHorn: nice, cleaner
+[2012-06-12 14:42:19 -0400] LinuxHorn: thanks all, off to a meeting
+[2012-06-12 14:42:29 -0400] LinuxHorn: bootstrapping a new server to double check it's working
+[2012-06-12 14:43:05 -0400] LinuxHorn: hoping this is my final re-write:  https://gist.github.com/2917908
+[2012-06-12 14:49:01 -0400] LinuxHorn: success
+[2012-06-12 14:49:16 -0400] drrk: how can I tell the chef_gem resource that it needs to use a proxy server?
+[2012-06-12 14:49:20 -0400] eherot: yayy
+[2012-06-12 14:49:27 -0400] stodan: hi, can someone throw at me link to a page about chef security concepts? mostly I am interested in what regular client can access
+[2012-06-12 14:50:29 -0400] eherot: stodan: I don't know about any docs on the process but as far as I understand it a regular client can access everything, it just can't write.
+[2012-06-12 14:54:29 -0400] stodan: eherot, I was afraid of that. so it seems I need to create second chef server instance for managing vagrant dev boxes, unless i can allow each dev to be able to get passwords (like mysql) on production servers?
+[2012-06-12 14:57:13 -0400] zts: stodan: you can use encrypted data bags for that - if you don't distribute the secret to your dev boxes, they won't be able to decrypt the bag
+[2012-06-12 14:57:44 -0400] stodan: zts, mysql uses node attributes to save password, not databags
+[2012-06-12 14:58:02 -0400] zts: stodan: you can always change the recipe to work differently :)
+[2012-06-12 14:58:35 -0400] eherot: stodan: encrypted data bags are the standard method for this
+[2012-06-12 14:58:40 -0400] eherot: the tweak required should be a minor one
+[2012-06-12 14:59:18 -0400] agosse: i'm trying to use a template, and for some reason, i'm getting an error saying "had an error: Errno::ENOENT: No such file or directory -".  where is it getting the dash from?
+[2012-06-12 14:59:44 -0400] agosse: the source file exists in the templates/default directory
+[2012-06-12 14:59:58 -0400] agosse: and i'm pretty sure it was working yesterday
+[2012-06-12 15:15:11 -0400] specialsauce: hey, is it possible to use includes in the /etc/chef/client.rb configuration file?
+[2012-06-12 15:23:06 -0400] hasrb: If I want to write a standalone script to use Chef::Search::Query.new, what's the ideal way to point it to a knife config file?
+[2012-06-12 15:24:01 -0400] hasrb: It's not in a parent path but a sibling
+[2012-06-12 15:34:51 -0400] specialsauce: chaps: what i would like to do is to have the chef_server_url included from a separate file external to /etc/chef/client.rb so that i can manage the config file via chef server, but have the actual hostname managed by another system - this is so i can throw a given host at any given chef server I choose. If I stick the chef_server_url in a second file, require that in the main config file, chef-client doesn't seem happy with this approach
+[2012-06-12 15:38:45 -0400] jtimberman: aaaaaaand he left.
+[2012-06-12 15:38:51 -0400] thehar: lol
+[2012-06-12 15:39:04 -0400] jtimberman: the answer is yes, you can do "includes" with chef config, though it doesn't use an "include" keyword.
+[2012-06-12 15:41:32 -0400] jtimberman: https://gist.github.com/2918285
+[2012-06-12 15:41:36 -0400] jtimberman: answers his question :)
+[2012-06-12 15:42:57 -0400] hasrb: jtimberman: ah, I was looking for the from_file method too, thanks
+[2012-06-12 15:45:27 -0400] hasrb: jtimberman: is that part of mixlib/config?
+[2012-06-12 15:48:20 -0400] dodizzle: jtimberman schooling all us kids again!
+[2012-06-12 15:48:41 -0400] jtimberman: hasrb: yes - which Chef::Config inerhits
+[2012-06-12 15:48:44 -0400] jtimberman: inherits, too.
+[2012-06-12 15:48:46 -0400] jtimberman: dodizzle: :)
+[2012-06-12 15:49:00 -0400] hasrb: jtimberman: saw that part, just hadn't started to dig through mixlib/config yet
+[2012-06-12 15:49:09 -0400] jtimberman: its a neat little library
+[2012-06-12 15:49:21 -0400] hasrb: jtimberman: I was digging through the chef config specs and almost everything was in there except that
+[2012-06-12 15:49:23 -0400] jtimberman: dodizzle: That is from Aug  9  2010 - well before I started up my blog.
+[2012-06-12 15:54:23 -0400] Khyron320: ERROR:  While executing gem ... (Gem::DependencyError)
+[2012-06-12 15:54:23 -0400] Khyron320:     Unable to resolve dependencies: chef-expander requires yajl-ruby (~> 0.7.7)
+[2012-06-12 15:54:41 -0400] Khyron320: yajl-ruby 1.1 is installed im confused why its complaining
+[2012-06-12 16:04:52 -0400] magoo: i got my report handler working but I'm curious if it'd be possible to only trigger the lwrp when certain key resources have taken action
+[2012-06-12 16:06:24 -0400] magoo: whenever git actually does a sync for example, that would be a time we'd want the report handler to run and send us an email
+[2012-06-12 16:07:40 -0400] yfeldblum: magoo, so in your report handler, ask the git resource if it was `updated_by_last_action?`
+[2012-06-12 16:08:15 -0400] yfeldblum: magoo, the report handler must always run; what it does is up to you; whether it sends the email depends on whether you ask it to send the email, and whether you ask it to send the email is up to you
+[2012-06-12 16:09:37 -0400] magoo: that's a good point, i'm thinking about it the wrong way. All of the control should be in the script
+[2012-06-12 16:10:27 -0400] magoo: or handler i should say
+[2012-06-12 16:16:26 -0400] magoo: yfeldblum: do you know where I can find the docs on run_status?
+[2012-06-12 16:16:37 -0400] yfeldblum: magoo, it's just a Hash
+[2012-06-12 16:16:47 -0400] jtimberman: magoo: there aren't really any
+[2012-06-12 16:16:59 -0400] jtimberman: magoo: as yfeldblum said, its just a hash, and its not preserved on the node object.
+[2012-06-12 16:17:11 -0400] jtimberman: so its a "per run" ephemeral state tracking object.
+[2012-06-12 16:17:47 -0400] yfeldblum: magoo, https://github.com/opscode/chef/blob/master/chef/lib/chef/node.rb#L171-175
+[2012-06-12 16:17:53 -0400] magoo: thanks guys
+[2012-06-12 16:18:00 -0400] yfeldblum: magoo, and https://github.com/opscode/chef/blob/master/chef/lib/chef/node.rb#L48
+[2012-06-12 16:19:45 -0400] yfeldblum: magoo, handlers have access to the run_context, and can thereby get the resources_collection and loop over it to find resources of interest and ask them whether any of them were `updated_by_last_action?`
+[2012-06-12 16:20:48 -0400] magoo: that's exactly what i need
+[2012-06-12 16:23:19 -0400] neurodamage: when trying to boot an ec2 instance I'm getting the following error, anyone familiar with this? I've used chef a ton never the knife-ec2 plugin to bootstrap instances?
+[2012-06-12 16:32:25 -0400] fish_: what sets the server_url initially?
+[2012-06-12 16:32:29 -0400] fish_: quite confusing
+[2012-06-12 16:32:47 -0400] fish_: I'd say it reads it from the client.rb when the system is registering itself
+[2012-06-12 16:37:04 -0400] Ogg: hello all
+[2012-06-12 16:37:28 -0400] Ogg: anyone know what the current status of support for ubuntu 12.04 with chef?
+[2012-06-12 16:38:13 -0400] jtimberman: Ogg: works great
+[2012-06-12 16:38:43 -0400] Ogg: i getting some boot strap erros when i try to knife ec2 server create ........
+[2012-06-12 16:38:50 -0400] Ogg: with some gem install issues
+[2012-06-12 16:39:02 -0400] jtimberman: i believe there's a 12.04 specific bootstrap
+[2012-06-12 16:39:14 -0400] Ogg: oh?
+[2012-06-12 16:40:06 -0400] jtimberman: add to your command: -d ubuntu12.04-gems
+[2012-06-12 16:40:15 -0400] Ogg: ok
+[2012-06-12 16:40:18 -0400] Ogg: thanks!
+[2012-06-12 16:40:22 -0400] Ogg: will try that
+[2012-06-12 16:40:28 -0400] jtimberman: thats in 0.10.10 i believe
+[2012-06-12 16:40:38 -0400] Ogg: yah im running 10.10
+[2012-06-12 16:44:51 -0400] Ogg: thanks seems to be working now!
+[2012-06-12 16:44:59 -0400] jtimberman: cool
+[2012-06-12 17:12:57 -0400] steelnwool: for the most part shoud a person run knife as root, or a regular unix user?
+[2012-06-12 17:15:47 -0400] Urocyon: don't run with knives, especially if you might trip over a root.
+[2012-06-12 17:16:25 -0400] Urocyon: steelnwool: I never run as it as root.
+[2012-06-12 17:16:28 -0400] thehar: Trees are tricky.
+[2012-06-12 17:16:50 -0400] Urocyon: steelnwool: I can't think of any reason why I would want knife to have root priveleges on the system I'm running it from.
+[2012-06-12 17:17:59 -0400] miketheman: where would one find all the potential omnibus package version strings?
+[2012-06-12 17:18:41 -0400] steelnwool: okay cool.
+[2012-06-12 17:19:43 -0400] atomic-penguin: omnibus?
+[2012-06-12 17:19:43 -0400] bawt_: omnibus is a project for building full-stack packages for a variety of platforms, and is used to build the 'chef-full' packages downloaded from http://opscode.com/chef/install or with http://opscode.com/chef/install.sh
+[2012-06-12 17:20:12 -0400] atomic-penguin: whoops, thought you said "omnibus package things"
+[2012-06-12 17:21:08 -0400] atomic-penguin: the install.sh might have package version numbers in it
+[2012-06-12 17:21:18 -0400] miketheman: atomic-penguin: nope, just the most recent
+[2012-06-12 17:21:43 -0400] miketheman: should be an index somewhere with "0.10.8-3" and the like
+[2012-06-12 17:21:54 -0400] miketheman: so I can bootstrap correctly.
+[2012-06-12 17:22:09 -0400] jessicab: miketheman - im not sure if theres a better way.. but you can see all of them at http://s3.amazonaws.com/opscode-full-stack/
+[2012-06-12 17:22:21 -0400] mjreed: Does chef_gem work with gems that require native code compilation?
+[2012-06-12 17:22:22 -0400] miketheman: jessicab: you're my hero!
+[2012-06-12 17:22:32 -0400] atomic-penguin: http://s3.amazonaws.com/opscode-full-stack
+[2012-06-12 17:22:47 -0400] miketheman: atomic-penguin: thanks. jessicab beat you to iy. :)
+[2012-06-12 17:22:52 -0400] miketheman: s/iy/it
+[2012-06-12 17:30:55 -0400] neurodamage: jtimberman: you know what's up with knife-ec2? when it drops a getaddrinfo issue? I mean that's the only output I see?
+[2012-06-12 17:33:53 -0400] mvisich: hello, I was wondering if there was a way in knife to add a role to an environment?
+[2012-06-12 17:38:01 -0400] doomviking: mvisich: I think you might have it a bit backwards; my understanding is that roles can have environment-specific run lists, but not vice versa
+[2012-06-12 17:39:38 -0400] mvisich: alrigis there a way to assign a default role then?
+[2012-06-12 17:40:11 -0400] mvisich: i'm trying to have my ec2 instances check in on boot and use a deafault role/env to install base aps
+[2012-06-12 17:40:28 -0400] mvisich: I have it boot strapped correctly
+[2012-06-12 17:41:47 -0400] mjreed: mvisich: you know you can specify a run list at bootstrap time, right?
+[2012-06-12 17:43:29 -0400] mvisich: i'm a little confused on what your saying
+[2012-06-12 17:43:57 -0400] mvisich: I have my ami set up with keys and chef installed. When they boot up they run the chef-client and check in.
+[2012-06-12 17:44:00 -0400] magoo: yfeldblum: so i'm looping through run_status.updated_resources and there's an updated? field. I imagine this will always be true given the context
+[2012-06-12 17:44:06 -0400] mvisich: i just wanted it to have a role already assighned to it
+[2012-06-12 17:44:21 -0400] yfeldblum: steelnwool, knife is the sysadmin's CLI *for talking to the chef-server-api endpoint* ... you don't need knife for that
+[2012-06-12 17:46:10 -0400] yfeldblum: magoo, updated_by_last_action? is what you want
+[2012-06-12 17:46:28 -0400] yfeldblum: magoo, sorry that may not be right
+[2012-06-12 17:46:31 -0400] magoo: can you explain the diff?
+[2012-06-12 17:46:31 -0400] yfeldblum: magoo, looking
+[2012-06-12 17:47:44 -0400] yfeldblum: magoo, sorry, you do want to look at `updated?` and not `updated_by_last_action?` if what you're interested in is whether the resource was updated by any action ... which is probably the thing you care about in a handler
+[2012-06-12 17:48:12 -0400] doomviking: mvisich: you can assign any role on bootstrap with knife
+[2012-06-12 17:48:14 -0400] yfeldblum: magoo, in case a resource has two actions, or one action and another one triggered by a notification
+[2012-06-12 17:49:32 -0400] magoo: i think what i have is similar
+[2012-06-12 17:49:39 -0400] magoo:     run_status.updated_resources.each { |r|
+[2012-06-12 17:49:45 -0400] magoo:         if r.resource_name.to_s == "git"
+[2012-06-12 17:50:30 -0400] magoo: will this also work?
+[2012-06-12 17:50:59 -0400] yfeldblum: magoo, sure: https://github.com/opscode/chef/blob/master/chef/lib/chef/run_status.rb#L71-75
+[2012-06-12 17:51:30 -0400] magoo: ah, nice
+[2012-06-12 17:53:24 -0400] steelnwool: the chef.json is just for the chef-solo install right?
+[2012-06-12 17:53:31 -0400] steelnwool: er rather for the chef install, via chef-solo
+[2012-06-12 18:04:08 -0400] steelnwool: hrmm. chef-server won't start. and is logging noting to the file. a process seems to start up then died immediatly.
+[2012-06-12 18:04:14 -0400] steelnwool: on centos 6 64bit.
+[2012-06-12 18:13:08 -0400] atomic-penguin: steelnwool, can you 'strace -o chef-server.log /etc/init.d/chef-server' and gist it?
+[2012-06-12 18:13:26 -0400] steelnwool: i could, but i'd probably not understand the output :)
+[2012-06-12 18:13:36 -0400] steelnwool: i'm seeing in server.rb tho that log location is set to stdout not a file.
+[2012-06-12 18:13:45 -0400] steelnwool: so i'm playing with log levels
+[2012-06-12 18:13:55 -0400] steelnwool: but i'll revert to strace in a bit.
+[2012-06-12 18:14:15 -0400] atomic-penguin: I'll take a look at the strace, see if I can figure it out
+[2012-06-12 18:14:24 -0400] steelnwool: k. wll be about 5 minutes
+[2012-06-12 18:18:13 -0400] hoover_damm: or if it'll be in 2012
+[2012-06-12 18:18:58 -0400] steelnwool: okay, according to strace, may of my .rb files are not being found.
+[2012-06-12 18:18:59 -0400] steelnwool: such as /usr/lib/ruby/site_ruby/1.8/rbconfig.rb
+[2012-06-12 18:19:24 -0400] steelnwool: a huge amount of gems etc not found.
+[2012-06-12 18:19:25 -0400] hoover_damm: steelnwool, rubygems searches all over
+[2012-06-12 18:19:32 -0400] hoover_damm: steelnwool, in about 4-10 different paths
+[2012-06-12 18:19:50 -0400] hoover_damm: steelnwool, so what your seeing is just it trying to open files in different locations of where it 'can' be installed
+[2012-06-12 18:20:01 -0400] steelnwool: gotcha.
+[2012-06-12 18:20:03 -0400] hoover_damm: steelnwool, that's why strace is so much fun to read.  You have to know what to ignore, and what not.
+[2012-06-12 18:20:09 -0400] steelnwool: i'm putting my strace somewhere now. sec.
+[2012-06-12 18:20:22 -0400] hoover_damm: cool
+[2012-06-12 18:20:39 -0400] hoover_damm: prolly not the most fun way to figure it out
+[2012-06-12 18:21:02 -0400] steelnwool: http://www.bignose.ca/strace/debug
+[2012-06-12 18:21:11 -0400] neurodamage: is it safe to assume that the knife-ec2 plugin doesn't really work?
+[2012-06-12 18:22:47 -0400] jessicab: neurodamage - the knife ec2 plugin works in general for me when ive tested it.. more specifics might help though
+[2012-06-12 18:23:57 -0400] geekbri: What doesn't work about it? I built another plugin on top of it and I haven't had any issues with it.
+[2012-06-12 18:26:57 -0400] miah: moin
+[2012-06-12 18:27:00 -0400] steelnwool: hoover_damm: so what kinds of things are you looking for in this?
+[2012-06-12 18:29:11 -0400] atomic-penguin: steelnwool, the best way to read an strace log is from the bottom up
+[2012-06-12 18:29:23 -0400] atomic-penguin: steelnwool, start at the end and look for the last error
+[2012-06-12 18:29:44 -0400] steelnwool: ayel
+[2012-06-12 18:30:25 -0400] neurodamage: jessicab: haha, yeah I can't seem to get it to produce better output on the error other than the ruby call for getaddrinfo is failing, throwing an exception
+[2012-06-12 18:31:02 -0400] neurodamage: ERROR: Excon::Errors::SocketError: getaddrinfo: Name or service not known
+[2012-06-12 18:31:20 -0400] atomic-penguin: steelnwool, do you have a /var/run/chef directory?
+[2012-06-12 18:31:28 -0400] neurodamage: wondering if that's an issue with the URL that it's trying to connect to in order to make the API calls?
+[2012-06-12 18:31:39 -0400] geekbri: neurodamage: yeah that sounds like what is wrong to me
+[2012-06-12 18:31:53 -0400] atomic-penguin: steelnwool, if so, is there a stale pid file causing init status to bail out?
+[2012-06-12 18:31:56 -0400] steelnwool: atomic-penguin: i do.
+[2012-06-12 18:31:56 -0400] geekbri: neurodamage: I was testing a plugin I wrote one time, so i made an entry for the API endpoint and sent it to localhost and tahts the error I remember seeing
+[2012-06-12 18:32:02 -0400] neurodamage: but i'm able to use the ec2-* command line tools to get instances etc...
+[2012-06-12 18:32:04 -0400] steelnwool: there could be a stale file. will cehck
+[2012-06-12 18:32:12 -0400] neurodamage: geekbri: kk, thanks[5~
+[2012-06-12 18:32:15 -0400] steelnwool: there is a server-main.pid. i can kill that
+[2012-06-12 18:32:27 -0400] geekbri: neurodamage: I was about to ask if you coudl use the command line tools for ec2.
+[2012-06-12 18:32:48 -0400] geekbri: neurodamage: strange that they work and knife is having connection issues.  knife-ec2 just uses ruby-fog under the hood
+[2012-06-12 18:33:08 -0400] steelnwool: atomic-penguin: didn't work. it still died as soon as it started
+[2012-06-12 18:33:10 -0400] neurodamage: yeah there's no issue there, wondering how the knife-ec2 gem knows what url to use for the ec2 api calls? I don't see a way to specify this explicitly in their documentation https://github.com/opscode/knife-ec2
+[2012-06-12 18:33:49 -0400] neurodamage: geekbri: know how to get  a full stack trace back from the knife ec2 command?
+[2012-06-12 18:33:57 -0400] geekbri: neurodamage: try -VV ?
+[2012-06-12 18:34:10 -0400] neurodamage: so I have a better idea of where in the code it's trying to make the socket connection, either in the fog side or with something else
+[2012-06-12 18:34:33 -0400] neurodamage: geekbri: there it is :), thanks
+[2012-06-12 18:34:38 -0400] geekbri: np
+[2012-06-12 18:34:48 -0400] neurodamage: yup so the issue is with fog trying to make the call :(
+[2012-06-12 18:35:44 -0400] geekbri: :-/
+[2012-06-12 18:36:38 -0400] neurodamage: here's the gist, https://gist.github.com/245536354b3a6727f244
+[2012-06-12 18:37:38 -0400] neurodamage: I just hate blockers like this :(, was really hoping the gem had gotten better and that I could streamline things like this without issue
+[2012-06-12 18:38:12 -0400] jessicab: neurodamage - do you use a proxy perhaps? that looks like a firewall error to me..
+[2012-06-12 18:38:30 -0400] geekbri: I havent' had any issue with fog at all :-\
+[2012-06-12 18:38:32 -0400] atomic-penguin: steelnwool, does 'ps aux | grep chef-server' return anything?
+[2012-06-12 18:38:38 -0400] steelnwool: no.
+[2012-06-12 18:39:35 -0400] neurodamage: I also followed this documentation http://wiki.opscode.com/display/chef/Launch+Cloud+Instances+with+Knife
+[2012-06-12 18:39:45 -0400] neurodamage: where I have the ssh-agent running and the aws_ssh_id specified etc...
+[2012-06-12 18:42:13 -0400] neurodamage: geekbri: me either I'm wondering how the knife-ec2 uses it and maybe the url that it's passing isn't good, I guess it's same old, gotta find this bug :)
+[2012-06-12 18:42:56 -0400] geekbri: neurodamage: you can look right into the code for knife-ec2 itself, its pretty basic.  It just opens a connection to AWS via fog, and then makes the appropriate request
+[2012-06-12 18:43:15 -0400] atomic-penguin: steelnwool, do another strace, see what the last error is
+[2012-06-12 18:43:44 -0400] neurodamage: geekbri: what should the value of knife[:region] look like?
+[2012-06-12 18:43:55 -0400] atomic-penguin: steelnwool, the last one in your previous straces was /var/run/chef/server.4000.pid
+[2012-06-12 18:44:35 -0400] geekbri: neurodamage: mine is blank.  I'm a little fuzzy but I think fog defaults to us-east if you don't specify
+[2012-06-12 18:44:46 -0400] geekbri: (which would make sense as my instances are in us-east)
+[2012-06-12 18:46:11 -0400] geekbri: neurodamage: http://fog.io/1.3.1/rdoc/
+[2012-06-12 18:46:13 -0400] steelnwool: atomic-penguin: yeah, i see that, but that file does not exist.
+[2012-06-12 18:47:32 -0400] steelnwool: its curious that it even puts 4000 in the file name tho. i mean.. thast the server port#
+[2012-06-12 18:47:54 -0400] hoover_damm: neurodamage, what is your knife[:region] set to?
+[2012-06-12 18:47:58 -0400] hoover_damm: us-east? or us-east-1?
+[2012-06-12 18:48:51 -0400] geekbri: neurodamage: line 185           @region = options[:region] || 'us-east-1'      in    lib/fog/aws/compute.rb
+[2012-06-12 18:49:14 -0400] neurodamage: geekbri: ok so somehow when I specify us-west and us-west-1b for it, then it doesn't work, works for east though
+[2012-06-12 18:49:43 -0400] hoover_damm: you can specify us-west-1 as your region
+[2012-06-12 18:49:47 -0400] hoover_damm: but not us-west-1b
+[2012-06-12 18:50:19 -0400] hoover_damm: ^^ neurodamage
+[2012-06-12 18:51:38 -0400] neurodamage: hoover_damm: what would the availability_zone look like?
+[2012-06-12 18:52:05 -0400] hoover_damm: az should be fine as us-west-1b, but region would need to be us-west-1
+[2012-06-12 18:52:37 -0400] hoover_damm: neurodamage, regions create the uri for which the API requests are generated.
+[2012-06-12 18:53:37 -0400] hoover_damm: neurodamage, http://docs.amazonwebservices.com/general/latest/gr/rande.html#ec2_region
+[2012-06-12 18:54:51 -0400] neurodamage: hoover_damm: cheers, good to go there, will read that doc thanks for help with getting the POC working
+[2012-06-12 18:55:43 -0400] hoover_damm: neurodamage, you can always append --region to the knife ec2 command
+[2012-06-12 18:55:50 -0400] hoover_damm: not as pretty as setting it in knife.rb
+[2012-06-12 18:56:17 -0400] hoover_damm: the multiple endpoints of ec2 always slayed me when I did multi-region
+[2012-06-12 18:56:33 -0400] steelnwool: okay, so debug level should have been set to debug not fatal. now server.log shows things. the last line it gets to is [2012-06-12T14:47:52-04:00] INFO: Loading roles
+[2012-06-12 18:56:54 -0400] hoover_damm: that was a /chore/
+[2012-06-12 18:57:20 -0400] hoover_damm: steelnwool, couchdb running? compact recently?
+[2012-06-12 18:57:50 -0400] steelnwool: its running, but i don't know what compact means
+[2012-06-12 18:57:55 -0400] steelnwool: i can telnet to port 5984 and get a response.
+[2012-06-12 18:58:04 -0400] steelnwool: (note, this is my very first install of chef)
+[2012-06-12 18:58:28 -0400] eherot: is there a way to specify the knife ssh username in knife.rb ?
+[2012-06-12 18:58:35 -0400] eherot: knife[:ssh_user] does not seem to work...
+[2012-06-12 18:58:36 -0400] hoover_damm: steelnwool, so it should be empty then cool.
+[2012-06-12 18:58:41 -0400] steelnwool: okay and i just did a get to localhost:5984/chef/_design/id_map/_view/name_to_id and it returned some stuff, loooks like json so something is working.
+[2012-06-12 18:58:43 -0400] hoover_damm: steelnwool, what distro / release?
+[2012-06-12 18:58:48 -0400] steelnwool: centos 6 64bit.
+[2012-06-12 18:59:02 -0400] steelnwool: 6.2
+[2012-06-12 18:59:13 -0400] hoover_damm: hrm, that should be straight forward (I hope)
+[2012-06-12 18:59:51 -0400] atomic-penguin: steelnwool, if you run the opscode cookbook chef-server on there, it should compact couchdb for you
+[2012-06-12 19:00:04 -0400] steelnwool: is that like a vaccum in postgres?
+[2012-06-12 19:00:12 -0400] magoo: yfeldblum: updated? seems to be set on every chef run independent of whether a git sync actually happens
+[2012-06-12 19:00:14 -0400] steelnwool: or a defrag in windows? more or less?
+[2012-06-12 19:00:29 -0400] steelnwool: yeah. it is. okay, no biggie
+[2012-06-12 19:00:32 -0400] atomic-penguin: If not, this does the trick from cron, https://gist.github.com/733724
+[2012-06-12 19:00:41 -0400] steelnwool: yeah, not worried. it has nothing in it yet :)
+[2012-06-12 19:00:45 -0400] cdracars: anyone know how to install apc with debugging off?
+[2012-06-12 19:00:49 -0400] hoover_damm: steelnwool, vacuum works
+[2012-06-12 19:00:52 -0400] magoo: i need to differentiate based on whether it was executed and not just processed
+[2012-06-12 19:00:54 -0400] hoover_damm: steelnwool, as a comparison
+[2012-06-12 19:01:16 -0400] hoover_damm: steelnwool, frees up the old revisions and rewrites the .couch file, but if yours is empty it hsouldn't matter too much
+[2012-06-12 19:01:43 -0400] steelnwool: i've asked mailing list for help. we'll see where i get on that front.
+[2012-06-12 19:01:44 -0400] hoover_damm: steelnwool, now you said this is your first install? is it possible to delete the chef database and let chef-server re-create it?
+[2012-06-12 19:02:13 -0400] steelnwool: i don't know.. is it? :)
+[2012-06-12 19:02:30 -0400] steelnwool: i mean not to be obtuse. i don't actually know the answer to what you just asked.
+[2012-06-12 19:02:41 -0400] steelnwool: if i delete it, will init.d/chef-server recreate one?
+[2012-06-12 19:02:42 -0400] hoover_damm: steelnwool, well if you have no data, stop couchdb, cd /var/lib/couchdb/(may need to find the version deeper in this) and then find chef.couch
+[2012-06-12 19:02:45 -0400] hoover_damm: to remove it
+[2012-06-12 19:02:52 -0400] steelnwool: okay.
+[2012-06-12 19:02:56 -0400] hoover_damm: then start couchdb
+[2012-06-12 19:02:59 -0400] hoover_damm: then start chef-server-api
+[2012-06-12 19:03:11 -0400] hoover_damm: if you want to run chef-server-api on the command line it would be helpful
+[2012-06-12 19:03:14 -0400] steelnwool: i don't have chef-server-api just chef-server
+[2012-06-12 19:03:14 -0400] hoover_damm: so you can watch it work
+[2012-06-12 19:03:22 -0400] hoover_damm: err chef-server :)
+[2012-06-12 19:03:25 -0400] steelnwool: groove.
+[2012-06-12 19:04:32 -0400] yfeldblum: magoo, interesting ... are you pointing the `git` resource to an annotated tag?
+[2012-06-12 19:04:34 -0400] steelnwool: yeah, seeing it work in the logs. it died on the same place .loading roles
+[2012-06-12 19:04:35 -0400] hoover_damm: if you gem list do you have chef-server and chef-erver-api installed? or just chef-server?
+[2012-06-12 19:04:59 -0400] hoover_damm: cool, so then post that data to the list (or to a gist) and what version of couchdb you run
+[2012-06-12 19:05:15 -0400] magoo: i'm just taking teh default for my testing but we specify normally
+[2012-06-12 19:05:34 -0400] magoo: oh, i see what you're asking
+[2012-06-12 19:05:45 -0400] magoo: we don't annotate
+[2012-06-12 19:06:14 -0400] magoo: other than the main branches dev/prod
+[2012-06-12 19:06:28 -0400] magoo: s/prod/master/
+[2012-06-12 19:06:33 -0400] yfeldblum: magoo, is it pointing to a branch, tag, or SHA?
+[2012-06-12 19:06:49 -0400] magoo: pretty sure it defaults to master branch
+[2012-06-12 19:07:18 -0400] steelnwool: i have chef chef-expander chef-server-api chef-server-webui and chef-solr, but no chef-server
+[2012-06-12 19:07:58 -0400] hoover_damm: hrm, interesting
+[2012-06-12 19:08:08 -0400] ryker: are recipes executed in the order specified in the run_list?  The chef-client output seems to always alphabetize the recipes.
+[2012-06-12 19:08:09 -0400] hoover_damm: this is from rpm or gem?
+[2012-06-12 19:08:13 -0400] steelnwool: gem
+[2012-06-12 19:08:23 -0400] hoover_damm: ec2 or hardware?
+[2012-06-12 19:08:24 -0400] steelnwool: actually. i think it uses an rpm sec.
+[2012-06-12 19:08:28 -0400] steelnwool: my own virtual machine.
+[2012-06-12 19:08:40 -0400] hoover_damm: :) okay I was going to suggest using the rpm
+[2012-06-12 19:08:43 -0400] steelnwool: i used this to install it. sudo chef-solo -c /etc/chef/solo.rb -j ~/chef.json -r http://s3.amazonaws.com/chef-solo/bootstrap-latest.tar.gz
+[2012-06-12 19:08:57 -0400] hoover_damm: cool, gist what's in chef.json?
+[2012-06-12 19:09:05 -0400] steelnwool: whats gist?
+[2012-06-12 19:09:08 -0400] neurodamage: does the boostrap process for ec2 server creation use an internal ip to do the ssh functions? I'm assuming it's better to have a utility instance setup in a zone?
+[2012-06-12 19:09:10 -0400] hoover_damm: http://gist.github.com
+[2012-06-12 19:09:17 -0400] steelnwool: sweet. one sec
+[2012-06-12 19:09:46 -0400] steelnwool: https://gist.github.com/2919490
+[2012-06-12 19:10:06 -0400] yfeldblum: magoo, do you see this log message every time? https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/git.rb#L68
+[2012-06-12 19:10:20 -0400] steelnwool: of note: i had to modify something wthing bootstrap-latest.tar.gz just to point to a different RPM, 6-7 not 6-5
+[2012-06-12 19:10:36 -0400] magoo: yfeldblum: no
+[2012-06-12 19:10:58 -0400] hoover_damm: steelnwool, hrm? yeah i'd suggest the rpm method then
+[2012-06-12 19:11:00 -0400] magoo: 1 sec
+[2012-06-12 19:11:48 -0400] steelnwool: there is an rpm method?
+[2012-06-12 19:11:54 -0400] magoo: yfeldblum: Processing git[/tmp] action sync
+[2012-06-12 19:11:58 -0400] magoo: and that's it
+[2012-06-12 19:12:09 -0400] magoo: i'll gist my handler for grins
+[2012-06-12 19:13:22 -0400] hoover_damm: there was a rpm method at one point.  did it get deprecated?
+[2012-06-12 19:13:36 -0400] steelnwool: bootstrap seems to be the preferred method
+[2012-06-12 19:13:47 -0400] hoover_damm: well they all ran bootstrap really
+[2012-06-12 19:13:49 -0400] steelnwool: i'm tempted to just install a ubuntu server for the sake of learning chef :P
+[2012-06-12 19:14:00 -0400] hoover_damm: any reason you are running centos?
+[2012-06-12 19:14:05 -0400] hoover_damm: ubuntu is the lowest barrier
+[2012-06-12 19:14:08 -0400] hoover_damm: short of using hosted
+[2012-06-12 19:14:22 -0400] steelnwool: i run centos / rhel on all of my machines, mostly cause we're an oracle shop
+[2012-06-12 19:14:23 -0400] hoover_damm: if your just wanting to learn chef get your free 5 nodes and worry about chef-server another day
+[2012-06-12 19:14:26 -0400] steelnwool: and jboss etc.
+[2012-06-12 19:14:26 -0400] hoover_damm: or don't
+[2012-06-12 19:14:41 -0400] steelnwool: nah, can't use 3rd parties to control our machines.
+[2012-06-12 19:14:48 -0400] hoover_damm: so then ubuntu is a safer bet
+[2012-06-12 19:14:54 -0400] magoo: yfeldblum: https://gist.github.com/2919532
+[2012-06-12 19:14:56 -0400] steelnwool: my boss is to paranoid to mention. we're in canada, she hates the patriot act.
+[2012-06-12 19:14:57 -0400] hoover_damm: or private-chef if you want someone to maintain it
+[2012-06-12 19:15:17 -0400] yfeldblum: steelnwool, perfectly sensible
+[2012-06-12 19:15:18 -0400] steelnwool: i'll give ubuntu a try in my own sandbox to get my learn on, and i'll keep pressing on the mailing lists to get my centos server running.
+[2012-06-12 19:15:36 -0400] steelnwool: and we deal with private info and stuff so yeah. it is what it is.
+[2012-06-12 19:15:43 -0400] hoover_damm: steelnwool, if you can post what version of erlang, couchdb you're dealing with...
+[2012-06-12 19:15:45 -0400] hoover_damm: might help
+[2012-06-12 19:15:54 -0400] hoover_damm: well if you deal with private stuff then you want private-chef
+[2012-06-12 19:16:23 -0400] hoover_damm: ... just imagine having a chef server managed and maintained by Opscode inside your firewall :) http://www.opscode.com/private-chef/
+[2012-06-12 19:16:30 -0400] steelnwool: couchdb is 1.0.3 and erlang is R14b04
+[2012-06-12 19:16:38 -0400] yfeldblum: magoo, doesn't help me understand why the git resource is marked updated on every run
+[2012-06-12 19:16:42 -0400] steelnwool: pff, i'll learn the free one first :)
+[2012-06-12 19:16:46 -0400] hoover_damm: steelnwool, http://private-chef-docs.opscode.com/installation.html
+[2012-06-12 19:16:47 -0400] yfeldblum: magoo, also, do you know about the method Array#any?
+[2012-06-12 19:16:52 -0400] hoover_damm: is the install docs on how to install private-chef
+[2012-06-12 19:17:19 -0400] steelnwool: so its not a service that you pay opscode for?
+[2012-06-12 19:17:26 -0400] hoover_damm: it is
+[2012-06-12 19:17:27 -0400] yfeldblum: magoo, notify = run_status.updated_resources.any?{|r| r.resource_name.to_s == "git"}
+[2012-06-12 19:17:28 -0400] magoo: yfeldblum: thought maybe my logic was bad
+[2012-06-12 19:17:30 -0400] hoover_damm: but they still give you the docs for free
+[2012-06-12 19:17:34 -0400] hoover_damm: cool cats they are huh?
+[2012-06-12 19:17:34 -0400] steelnwool: ahh.
+[2012-06-12 19:17:37 -0400] steelnwool: they are.
+[2012-06-12 19:17:44 -0400] steelnwool: but not for us. chef is a pet project since right now its a "slow time
+[2012-06-12 19:17:48 -0400] steelnwool: so i'm mostly learning this for my own good.
+[2012-06-12 19:17:55 -0400] hoover_damm: ahh own good :) yeah ubuntu
+[2012-06-12 19:18:06 -0400] magoo: didn't know about that, nice
+[2012-06-12 19:18:14 -0400] steelnwool: word. i am pretty much self directed until we need something or shit breaks and right now it all works just fine.
+[2012-06-12 19:18:14 -0400] yfeldblum: magoo, what's the code that declares the git resource?
+[2012-06-12 19:18:24 -0400] steelnwool: so i learn stuff for $next_job.
+[2012-06-12 19:18:34 -0400] hoover_damm: devops can go learn golang
+[2012-06-12 19:18:37 -0400] hoover_damm: j/k
+[2012-06-12 19:19:17 -0400] hoover_damm: steelnwool, yep I understand how it is.  You take the slow periods to learn new things that can help the firestorms or ... who knows
+[2012-06-12 19:19:26 -0400] hoover_damm: and if you get paid for it, you better do it.
+[2012-06-12 19:19:48 -0400] steelnwool: yep.
+[2012-06-12 19:20:38 -0400] magoo: yfeldblum: https://gist.github.com/2919555
+[2012-06-12 19:21:21 -0400] yfeldblum: magoo, do you delete that clone later on in the recipe, or move it elsewhere?
+[2012-06-12 19:21:34 -0400] hoover_damm: seems to ever grow
+[2012-06-12 19:21:45 -0400] magoo: yfeldblum: no
+[2012-06-12 19:22:02 -0400] magoo: that was just a test so there's only the one entry related to it
+[2012-06-12 19:22:39 -0400] yfeldblum: huh
+[2012-06-12 19:24:27 -0400] magoo: yfeldblum: the interesting thing is that there are a LOT of entries that were just 'Processing' that end up in the report email.
+[2012-06-12 19:24:52 -0400] magoo: since the reporting email just loops over everything in the updated_resources list
+[2012-06-12 19:26:32 -0400] magoo: well, that's probably not true... but a few it seems
+[2012-06-12 19:41:54 -0400] timsmith: Is there any documentation on moving from one chef open source server to another using backup_restore and backup_export knife plugins?
+[2012-06-12 19:47:29 -0400] gp5st2: i wrote this today.  If there is something better out there, could i be pointed to it, otherwise enjoy and feedback welcome
+[2012-06-12 19:47:31 -0400] gp5st2: https://github.com/jimktrains/knife-role-modify
+[2012-06-12 19:52:26 -0400] geekbri: gp5st2: the documentation could use some cleanup and nice'ing up :)
+[2012-06-12 19:52:48 -0400] neurodamage: thanks for your help earlier geekbri and hoover_damm
+[2012-06-12 19:52:54 -0400] geekbri: neurodamage: np
+[2012-06-12 19:52:55 -0400] gp5st2: i'm sure:) i wrote it quickly just so it existed and plan to clean it up a bit better later
+[2012-06-12 20:01:12 -0400] egon1: greetings. I'm trying to bootstrap an Ubuntu Karmic node, and this URL is returning a 404.
+[2012-06-12 20:01:14 -0400] egon1: http://s3.amazonaws.com/opscode-full-stack/ubuntu-9.10-x86_64/chef-full_0.10.10-1_amd64.deb
+[2012-06-12 20:01:29 -0400] egon1: is this a transient problem or has support for karmic been ended?
+[2012-06-12 20:03:28 -0400] jtimberman: egon1: i don't think we have a package build for karmic.
+[2012-06-12 20:03:56 -0400] egon1: Odd, this has been working off and on for me up until today.
+[2012-06-12 20:04:21 -0400] egon1: er, let me be more clear, this has worked several times for me recently up until now.
+[2012-06-12 20:04:21 -0400] jtimberman: egon1:  i think the 10.04 package should work though
+[2012-06-12 20:05:19 -0400] hoover_damm: darn linking... why can't it be easier!
+[2012-06-12 20:05:42 -0400] hoover_damm: like one ubuntu package to rule them all ;)
+[2012-06-12 20:06:22 -0400] egon1: 10.04 also 404s
+[2012-06-12 20:06:28 -0400] egon1: I used --bootstrap-version
+[2012-06-12 20:10:42 -0400] egon1: there are no keys with the substr "ubuntu-9" at http://s3.amazonaws.com/opscode-full-stack/, leading me to believe I'm hosed for karmic.
+[2012-06-12 20:12:53 -0400] Eitch_: Hi! I have 800 nodes on an installation, and was wondering why search(:node, 'name:*') is so slow, anyone have tips on search performances? When I do a search, the solr server apparently returns the results fast, but the chef-server process uses a lot of cpu and memory...
+[2012-06-12 20:13:05 -0400] cwj: platform y u no serve most current template to node
+[2012-06-12 20:16:22 -0400] miah: Eitch_: search returns all of the node attributes for each node
+[2012-06-12 20:16:30 -0400] miah: so, 800 nodes is a bunch of data to send back
+[2012-06-12 20:16:52 -0400] egon1: scratch that 10.04 does work, botched which knife I was using
+[2012-06-12 20:16:54 -0400] Eitch_: miah: i see, if i need for example only 4 attributes, can I specify them?
+[2012-06-12 20:17:19 -0400] geekbri: you can search for nodes by attributes if i remeber correctly
+[2012-06-12 20:17:52 -0400] geekbri: http://wiki.opscode.com/display/chef/Search#Search-FieldNameSyntax
+[2012-06-12 20:17:59 -0400] miah: im not sure if you can searchy and have a limited result returned
+[2012-06-12 20:18:06 -0400] yfeldblum: cwj, chef-server-api is constructing 800 JSON trees
+[2012-06-12 20:18:11 -0400] Eitch_: i can search by attributes, but will it return the entire node?
+[2012-06-12 20:18:18 -0400] miah: yes
+[2012-06-12 20:18:34 -0400] Eitch_: so that's the problem, i need only 4 attributes but it returns the entire data :(
+[2012-06-12 20:18:39 -0400] miah: ya :/
+[2012-06-12 20:18:55 -0400] jessicab: Eitch_: if you just want an attribute for all of your nodes, you could do something like 'knife node list' with the -a switch perhaps?
+[2012-06-12 20:19:07 -0400] jessicab: er knife node show i mean
+[2012-06-12 20:19:11 -0400] geekbri: oh yeah.. hrm
+[2012-06-12 20:19:35 -0400] geekbri: i think the problem is though, is knife node list under the hood still returning all that data then just filtering out all but the selected attributes?
+[2012-06-12 20:19:41 -0400] geekbri: I misunderstood the issue at first
+[2012-06-12 20:19:45 -0400] Eitch_: actually i need 4 attributes, name, hostname, fqdn, and ssh key fingerprint
+[2012-06-12 20:19:51 -0400] Eitch_: and it's used inside a recipe
+[2012-06-12 20:20:01 -0400] knuckolls: anyone use anything specific for getting ruby 1.9 on ubuntu 10.04? i'd prefer a package over building from source or rvm
+[2012-06-12 20:20:03 -0400] jessicab: eh, nevermind.. my suggestion probably wouldnt help, since thats one node at a time
+[2012-06-12 20:20:14 -0400] Eitch_: geekbri: yeah maybe... the knife node list is quite slow too
+[2012-06-12 20:20:38 -0400] miah: ideally, a more specific way to search needs to happen
+[2012-06-12 20:20:39 -0400] cwj: this particular problem was mentioned in one of the chefconf keynotes, i think that in the near future there will be a way to get just a subset of attributes via search
+[2012-06-12 20:20:46 -0400] miah: right
+[2012-06-12 20:20:57 -0400] Eitch_: cwj: that will be great =)
+[2012-06-12 20:21:01 -0400] yfeldblum: cwj, chef-server-api does indeed need greater query capabilities - projections in particular
+[2012-06-12 20:21:36 -0400] gp5st2: chef is recording the wrong fqdn for windows ec2 nodes. it's using the host's default hostname and not the public once assigned by amazon
+[2012-06-12 20:22:26 -0400] Eitch_: I'm using these searches for two purposes: clean out unused nodes (comparing ohai_time) and generating a sshd_known_hosts for all nodes, it's very intensive
+[2012-06-12 20:22:42 -0400] holoway: cwj: I saw that demo-ed today
+[2012-06-12 20:22:57 -0400] Eitch_: well thanks for the info people! :)
+[2012-06-12 20:24:05 -0400] cwj: holoway: sweet :)
+[2012-06-12 20:24:12 -0400] cwj: is there a ticket for that?
+[2012-06-12 20:27:18 -0400] holoway: cwj: http://tickets.opscode.com/browse/CHEF-1068 is the one I keep in my head
+[2012-06-12 20:27:30 -0400] cwj: cool, thanks
+[2012-06-12 20:27:49 -0400] holoway: cwj: I think resolving it is tied to shipping the erlang version of the OSS chef server
+[2012-06-12 20:27:58 -0400] holoway: but I don't know if that's a strong or weak tie
+[2012-06-12 20:28:07 -0400] holoway: I just know the demo I saw was in erlang
+[2012-06-12 20:38:42 -0400] hoover_damm: knuckolls, http://packages.qa.debian.org/r/ruby1.9.1.html
+[2012-06-12 20:38:55 -0400] knuckolls: hoover_damm: cool thx
+[2012-06-12 20:38:57 -0400] hoover_damm: knuckolls, you just need to build that on 10.04 ... some backporting may be involved
+[2012-06-12 20:39:06 -0400] knuckolls: worth it
+[2012-06-12 20:39:13 -0400] hoover_damm: it is
+[2012-06-12 20:39:17 -0400] hoover_damm: doesn't brightbox have 10.04?
+[2012-06-12 20:40:19 -0400] hoover_damm: nope
+[2012-06-12 20:40:20 -0400] hoover_damm: weird
+[2012-06-12 20:42:09 -0400] jaimef: so I have the node object fully populated in irb. how can I evaluate an erb template?
+[2012-06-12 20:48:03 -0400] chef_newbie: Hi chef experts - is there a way to grab an attribute from the node environment and fall back on the default value if the variable has not been defined?
+[2012-06-12 20:48:08 -0400] chef_newbie: in order to avoid this :
+[2012-06-12 20:48:09 -0400] chef_newbie: node[:hadoop][node.chef_environment][:namenode][:addr] || node[:hadoop][:_default][:namenode][:addr]
+[2012-06-12 20:48:19 -0400] jaimef: ||=?
+[2012-06-12 20:48:19 -0400] bawt_: ||= is checking for a built-in nil
+[2012-06-12 20:48:52 -0400] jaimef: oh nvm
+[2012-06-12 20:49:07 -0400] chef_newbie: The comments in the cookbook were : "# each cluster using this cookbook should have its specific attributes set in the  # attributes files.  Defaults are used if there are no attributes set for the # node's current environment."
+[2012-06-12 20:49:34 -0400] chef_newbie: it's just a lot of lines for every attributes - I was wondering if there was an elegant solution to tackle this
+[2012-06-12 21:05:51 -0400] holoway: chef_newbie: chef does that for you
+[2012-06-12 21:05:56 -0400] holoway: using attribute precedence
+[2012-06-12 21:06:12 -0400] holoway: http://wiki.opscode.com/display/chef/Attributes
+[2012-06-12 21:06:21 -0400] holoway: just set new default attributes in your environment
+[2012-06-12 21:06:25 -0400] holoway: and they will override
+[2012-06-12 21:06:30 -0400] chef_newbie: so in my template, I just need to call node[:hadoop][:namenode][:addr]
+[2012-06-12 21:10:09 -0400] holoway: aye
+[2012-06-12 21:18:11 -0400] chef_newbie: What is the best practice to access variables? Pass them in the context from the recipe or access them directly from the template?
+[2012-06-12 21:24:18 -0400] eherot: chef_newbie: there are templates that do both.  It's really just a matter of what keeps the template more readable.
+[2012-06-12 21:24:34 -0400] yfeldblum: chef_newbie, assign the variables to the template resources: template("/etc/blah.conf") { variables :addr => node["hadoop"]["namenode"]["addr"] }
+[2012-06-12 21:24:49 -0400] hoover_damm: just another layer for the pattern recognition to kick in on
+[2012-06-12 21:25:10 -0400] yfeldblum: chef_newbie, the only input to a template ERB file should be the variables assigned to it in the template resource in the recipe
+[2012-06-12 21:25:51 -0400] yfeldblum: chef_newbie, you shouldn't use `@node` or `node` in template ERB files ... that way lies eventual insanity, even if it seems easier at the time
+[2012-06-12 21:26:22 -0400] eherot: it definitely results in the template being less portable/extensible
+[2012-06-12 21:26:30 -0400] monvillalon: is there a way to update the fqdn of an exising node on the chef server?
+[2012-06-12 21:26:40 -0400] yfeldblum: eherot, what does?
+[2012-06-12 21:26:47 -0400] eherot: yfeldblum: not using @node in the templates
+[2012-06-12 21:26:54 -0400] eherot: err
+[2012-06-12 21:26:54 -0400] eherot: rather
+[2012-06-12 21:26:57 -0400] eherot: USING
+[2012-06-12 21:27:50 -0400] hoover_damm: eherot, using @node or not using @node is a personal opinion for a lot of people
+[2012-06-12 21:28:07 -0400] yfeldblum: eherot, that's right, using @node or node from your template ERB absolutely makes your template more complex, less extensible, and less portable than otherwise
+[2012-06-12 21:28:28 -0400] eherot: yfeldblum: yes, that it what I was trying to say, in spite of my typing skills.
+[2012-06-12 21:29:28 -0400] hoover_damm: I love advocating using variables() because it turns the results of your template into an easier to define/modify object
+[2012-06-12 21:29:41 -0400] yfeldblum: hoover_damm, that's right
+[2012-06-12 21:30:10 -0400] eherot: there are probably times when the template is simple enough that I wouldn't care either way
+[2012-06-12 21:30:26 -0400] yfeldblum: eherot, that's right
+[2012-06-12 21:30:34 -0400] yfeldblum: eherot, it matters in the large-scale, not in the small-scale
+[2012-06-12 21:30:41 -0400] eherot: like a file where it only needed one value, @node[:fqdn] and it was unlikely to ever change (because it's a unix file that tends to sit on a machine for 20 years without ever changing)
+[2012-06-12 21:30:42 -0400] hoover_damm: eherot, generally if i do that... there's a FIXME created
+[2012-06-12 21:30:48 -0400] eherot: heh
+[2012-06-12 21:31:15 -0400] yfeldblum: hoover_damm, do fixmes ever get fixed?
+[2012-06-12 21:32:54 -0400] hoover_damm: they should
+[2012-06-12 21:32:57 -0400] hoover_damm: that's the point of them
+[2012-06-12 21:38:39 -0400] chef_newbie: thanks for the feedback - I'm thinking of using the technique used by ironfan
+[2012-06-12 21:38:43 -0400] chef_newbie: they created a library
+[2012-06-12 21:38:45 -0400] chef_newbie:  def hadoop_config_hash     Mash.new({         :aws              => (node[:aws] && node[:aws].to_hash),         :extra_classpaths => node[:hadoop][:extra_classpaths].map{|nm, classpath| classpath }.flatten,       }).merge(node[:hadoop])   end
+[2012-06-12 21:39:00 -0400] chef_newbie: and then pass hadoop_config_hash to their template
+[2012-06-12 21:39:14 -0400] chef_newbie: like : :hadoop => hadoop_config_hash
+[2012-06-12 21:39:28 -0400] chef_newbie: they then access all the variables doing a @hadoop[:var]
+[2012-06-12 21:39:52 -0400] chef_newbie: it does not explicitly declare the variables for a given template
+[2012-06-12 21:40:09 -0400] chef_newbie: but it allows to pass a lot of variables without specifically declaring them
+[2012-06-12 21:40:27 -0400] chef_newbie: <yfeldblum>does this break the best practice you recommend?
+[2012-06-12 21:40:43 -0400] holoway: yfeldblum: yeah, I tend to think differently about it
+[2012-06-12 21:40:56 -0400] holoway: I use "node" (no @) if all I'm referencing are node attributes
+[2012-06-12 21:41:11 -0400] holoway: if I'm passing in data (like, from a data bag, or some other source) then I pass variables
+[2012-06-12 21:41:27 -0400] holoway: but I never go through the work of explicitly setting values for nothing but node attributes
+[2012-06-12 21:41:39 -0400] holoway: (partly because I don't think it makes the final template any more readable)
+[2012-06-12 21:41:49 -0400] holoway: that's the style we're teaching in fundamentals training now
+[2012-06-12 21:43:51 -0400] hoover_damm: it's an awesome style
+[2012-06-12 21:50:21 -0400] chef_newbie: <holoway> I see what you mean in http://localhost:9090/presenter#408
+[2012-06-12 21:50:44 -0400] chef_newbie: listen application 0.0.0.0:<%= node["haproxy"]["incoming_port"] %>
+[2012-06-12 21:50:45 -0400] chef_newbie: balance  <%= node["haproxy"]["balance_algorithm"] %>
+[2012-06-12 21:57:42 -0400] lflux: awwww, I just got a bunch of stickers from Opscode in the mail
+[2012-06-12 21:57:51 -0400] lflux: how cute <3
+[2012-06-12 21:59:28 -0400] senthilr_: how did you score those
+[2012-06-12 21:59:44 -0400] lflux: I fixed a bug I think
+[2012-06-12 22:02:56 -0400] neurodamage: what's a good way to set an ec2 instances role once it's gone through the bootstrap process so "one" can be sure that the next run has the run_list that comes from the bootstrap that happens?
+[2012-06-12 22:06:14 -0400] hoover_damm: lflux, I enjoy companies who enjoy their contributors :)
+[2012-06-12 22:06:48 -0400] hasrb: What's the best practice for copying up your SSL certificate files with Chef? Just put them in an encrypted data bag and write them out to a file?
+[2012-06-12 22:06:51 -0400] lflux: hoover_damm: I'm starting to wonder where I entered my home address and not my work addr. Still very sweet, gotta trick out my laptop now.
+[2012-06-12 22:07:42 -0400] hoover_damm: lflux, I wondered that when Stackoverflow team sent me some schwag
+[2012-06-12 22:17:29 -0400] excalq: hello all...
+[2012-06-12 22:19:46 -0400] excalq: is there a way to keep a role associated with a node, but not have it stay in the run_list? (so I can do only_if { node.role?('background-worker') }, but not do all the background-worker setup on every deploy?)
+[2012-06-12 22:21:14 -0400] hoover_damm: excalq, only_if { node.role == "background-worker" }
+[2012-06-12 22:21:20 -0400] hoover_damm: I guess the other way works too
+[2012-06-12 22:21:43 -0400] excalq: that's not the issue
+[2012-06-12 22:21:53 -0400] hoover_damm: excalq, catch 22 on the node.role is on the first run (at least on 0.10.8) it's not recognized
+[2012-06-12 22:22:02 -0400] hoover_damm: as it's in node.run_list but node.roles is empty
+[2012-06-12 22:22:11 -0400] hoover_damm: at least this is my experience on 0.10.8
+[2012-06-12 22:22:25 -0400] hoover_damm: so if you have something looking for your role like that, the first run will always be a false
+[2012-06-12 22:22:28 -0400] excalq: I'm on 0.10.10
+[2012-06-12 22:23:07 -0400] excalq: I think another problem is that role['background-worker'] includes an initial deploy, which isn't idempotent
+[2012-06-12 22:23:24 -0400] hoover_damm: make it idempotent?
+[2012-06-12 22:23:26 -0400] excalq: maybe I need to make the role completely idempotent, then have all deployments as discrete recipes
+[2012-06-12 22:23:41 -0400] hoover_damm: sounds like a one off to fix a pain that would be easier fixed with idempotence
+[2012-06-12 22:23:55 -0400] hoover_damm: longer, more work perhaps
+[2012-06-12 22:24:00 -0400] excalq: yes, as in creating users, installing packages, etc... that only happen once ever
+[2012-06-12 22:24:17 -0400] hoover_damm: well creating users is idempotent and so is installing packages
+[2012-06-12 22:24:35 -0400] excalq: right
+[2012-06-12 22:25:12 -0400] excalq: ideally, I can have roles stay with servers (so I can search for membership to a role), but change the run_list around
+[2012-06-12 22:25:37 -0400] excalq: correct me if I'm wrong, but it looks like to have a role, it needs to always be present in the run_list
+[2012-06-12 22:28:02 -0400] hoover_damm: right, so wrap the functions you don't want to run on other roles in the only_if
+[2012-06-12 22:28:05 -0400] hoover_damm: like above
+[2012-06-12 22:28:14 -0400] hoover_damm: feels creepy
+[2012-06-12 22:28:18 -0400] mattray: excalq: something like https://github.com/mattray/mattray-cookbooks/tree/master/one-shot?
+[2012-06-12 22:28:51 -0400] mattray: run it once, then remove it?
+[2012-06-12 22:29:23 -0400] hoover_damm: mattray, nice!
+[2012-06-12 22:29:29 -0400] mattray: or you want to run it once, keep it around but never use it again?
+[2012-06-12 22:30:02 -0400] mattray: hoover_damm: a hack I wrote awhile back
+[2012-06-12 22:30:31 -0400] excalq: I'm not sure that's related to what I need... I just want to search for role membership, but be able to clear/change our run_list
+[2012-06-12 22:31:23 -0400] hoover_damm: excalq, so is background-worker something you run on the first run to set it up?
+[2012-06-12 22:31:34 -0400] hoover_damm: excalq, and then you want that removed so that subsequent runs lack that role?
+[2012-06-12 22:31:39 -0400] mattray: excalq: the built-in resources are already idempotent
+[2012-06-12 22:32:40 -0400] mattray: excalq: maybe add an attribute 'background-worker-configured'?
+[2012-06-12 22:32:48 -0400] excalq: I want to have a role which I can use for searching membership with, but one that doesn't cause non-necessary actions to happen during future deploys (recipies added to the run_list)
+[2012-06-12 22:32:48 -0400] mattray: and add guards on that?
+[2012-06-12 22:33:09 -0400] mattray: there are examples of cookbooks setting a boolean like that
+[2012-06-12 22:33:19 -0400] mattray: so they don't do destructive stuff again
+[2012-06-12 22:33:21 -0400] excalq: I think if we remove non-idempotent deploy recipies from that role, and keep them seperate, that will help
+[2012-06-12 22:35:46 -0400] hoover_damm: or make them idempotent
+[2012-06-12 22:36:15 -0400] excalq: yup
+[2012-06-12 22:36:38 -0400] excalq: but yeah, perhaps using a tag or something would be the "right" way to do that?
+[2012-06-12 22:37:51 -0400] excalq: the overall situation being that both the app-server and background-worker deploy the same rails app, but the bg-worker has an additional init script to run in after_restart
+[2012-06-12 22:38:40 -0400] mattray: excalq: I've used a boolean attribute for those sorts of things
+[2012-06-12 22:38:55 -0400] mattray: drbd cookbook for example
+[2012-06-12 22:39:05 -0400] excalq: thanks
+[2012-06-12 22:39:10 -0400] hoover_damm: honestly my deploy resource is just idempotent on it being deployed
+[2012-06-12 22:39:13 -0400] hoover_damm: sounds silly
+[2012-06-12 22:39:29 -0400] hoover_damm: but if you don't primarily deploy with chef yet, and you need the code there.  Your goal is just to have the code there
+[2012-06-12 22:39:46 -0400] mattray: I'm out, later gents
+[2012-06-12 22:39:50 -0400] mattray: and ladies
+[2012-06-12 22:39:55 -0400] excalq: thanks, have a good one
+[2012-06-12 22:40:00 -0400] hoover_damm: so you do the regular deploy "/fdsofdsajlfadsjklfads/fdasjklfadsklafds//fdsa" do
+[2012-06-12 22:40:11 -0400] hoover_damm: not_if { File.directory?("/path/to/current") }
+[2012-06-12 22:40:12 -0400] hoover_damm: end
+[2012-06-12 22:40:23 -0400] excalq: @hoover_damm: we do all our operations with AWS using Chef, including deployment :)
+[2012-06-12 22:40:40 -0400] hoover_damm: and really that not_if can be anything, a file, a redis key
+[2012-06-12 22:40:55 -0400] hoover_damm: this is ruby, so how you want to block your only_if or not_if is up to your imagination sort of
+[2012-06-12 22:41:00 -0400] excalq: right
+[2012-06-12 22:41:19 -0400] excalq: only, part of that is detecting if the node is a member of a role
+[2012-06-12 22:41:22 -0400] hoover_damm: write up some rest service to hit deploy to and then have chef-client polls that app to see if it's ready to poll? sounds bad
+[2012-06-12 22:41:24 -0400] hoover_damm: but it would work
+[2012-06-12 22:42:44 -0400] hoover_damm: I admit I gotta start using run_states more
+[2012-06-12 22:42:46 -0400] excalq: we have a ruby script that wraps premade knife commands, which we use for creating/destroying instances and running deploys
+[2012-06-12 22:42:57 -0400] hoover_damm: that really would feel better to just load the run_state from somewhere
+[2012-06-12 22:43:06 -0400] hoover_damm: like ZK or whatever
+[2012-06-12 23:17:41 -0400] cassarani: hi all, so if I wanted my services to be started/stopped etc during a Chef run using Upstart, presumably that's just as simple as having .conf Upstart files be created in /etc/init/ for my various services, rather than /etc/init.d files, right?
+[2012-06-12 23:17:47 -0400] cassarani: or is there some other gotcha I should be aware of?
+[2012-06-12 23:20:30 -0400] miah: have i told you lately. that i love you?
+[2012-06-12 23:20:45 -0400] miah: cassarani: that is about it
+[2012-06-12 23:20:52 -0400] miah: but note that upstart doesn't know how to 'restart'
+[2012-06-12 23:21:16 -0400] miah: well it does, but it wont restart a service that isn't currently started (which is different than every other init tool)
+[2012-06-12 23:24:04 -0400] cassarani: miah: fair enough, so do I always have to do a stop then start?
+[2012-06-12 23:24:09 -0400] cassarani: unless the service supports some kind of config reload?
+[2012-06-12 23:25:49 -0400] cassarani: or rather, what is the commonly used solution for that?
+[2012-06-12 23:28:53 -0400] hoover_damm: cassarani, start/stop/restart/reload
+[2012-06-12 23:29:14 -0400] hoover_damm: cassarani, stop and start are the fundamental basics that we all know.  restart/reload and others are usually added per daemon
+[2012-06-12 23:29:31 -0400] hoover_damm: like nginx has it's own restart functionality, so you can use that instead of stop/start
+[2012-06-12 23:30:29 -0400] cassarani: hoover_damm: are you saying that nginx should be restarted (during the Chef run) calling the nginx binary directly, instead of going through upstart?
+[2012-06-12 23:30:33 -0400] cassarani: hoover_damm: or am I misunderstanding?
+[2012-06-12 23:30:47 -0400] hoover_damm: cassarani, what I was getting to but got sidetracked in my thinking
+[2012-06-12 23:31:18 -0400] hoover_damm: cassarani, because of that upstart tries to only know about start and stop.  Restart would be a start and stop action as those are the guarenteed actions that we know should exist/work
+[2012-06-12 23:31:32 -0400] cassarani: yup, seems like a sound design choice
+[2012-06-12 23:31:34 -0400] hoover_damm: cassarani, not every daemon has a restart knob
+[2012-06-12 23:31:53 -0400] hoover_damm: so really to support stop / start must be cleaner then mandating a path to restart/reload/etc
+[2012-06-12 23:32:29 -0400] cassarani: and I totally understand that
+[2012-06-12 23:33:08 -0400] cassarani: but are you saying that if I want to use Chef with Upstart, then I need to do stop && start for all my services? i.e. is that my best option?
+[2012-06-12 23:33:12 -0400] cassarani: or best practice, however you want to put it
+[2012-06-12 23:37:20 -0400] hoover_damm: cassarani, what we're saying is the :restart functionality of upstart is calling stop and then start
+[2012-06-12 23:37:27 -0400] hoover_damm: cassarani, so keep that in mind when coding your upstart config file
+[2012-06-12 23:37:28 -0400] cassarani: oh, right
+[2012-06-12 23:37:33 -0400] cassarani: that's nice of it I guess
+[2012-06-12 23:37:42 -0400] cassarani: ok cool
+[2012-06-12 23:37:57 -0400] hoover_damm: some people use s6, some people use upstart, some people use runit

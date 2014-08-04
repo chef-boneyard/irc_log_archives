@@ -1,0 +1,183 @@
+[2012-11-07 03:37:16 -0500] github-bawt: [chef-server-webui] schisamo pushed 2 new commits to erchef-support: http://git.io/pLhApg
+[2012-11-07 03:37:16 -0500] github-bawt: chef-server-webui/erchef-support 1182b26 Seth Chisamore: [OC-3469] add support for displaying user keys...
+[2012-11-07 03:37:16 -0500] github-bawt: chef-server-webui/erchef-support 8c199f7 Seth Chisamore: [OC-3469] fix client show view formatting
+[2012-11-07 12:35:07 -0500] lxndrp: Hey folks.
+[2012-11-07 12:35:22 -0500] lxndrp: Not sure where to ask, so here again (already spoke on #chef):
+[2012-11-07 12:35:29 -0500] lxndrp: I've got a q re: data bags.
+[2012-11-07 12:35:30 -0500] lxndrp: i was wondering whether it is possible to reference a data bag item using the standard node name (the FQDN, that is).
+[2012-11-07 12:35:35 -0500] lxndrp: At least for chef-solo, I get a complaint in vagrant:
+[2012-11-07 12:35:36 -0500] lxndrp: FATAL: Chef::Exceptions::InvalidDataBagItemID: Data Bag items must have an id matching /^[\-[:alnum:]_]+$/, you gave: "vagrant.vm"
+[2012-11-07 12:35:37 -0500] lxndrp: Any ideas?
+[2012-11-07 14:35:37 -0500] schisamo: lxndrp: you can only use letters, numbers, dashes or underscores.
+[2012-11-07 14:36:13 -0500] lxndrp: Yup, I know. The thing is: I'd like to have certain data bags per fqdn, which is hard to do.
+[2012-11-07 14:38:21 -0500] lxndrp: I am wondering whether there is a better solution rather gsub'ing the dots to underscores each and every time.
+[2012-11-07 14:38:44 -0500] lxndrp: Basically, I would have liked to load the data bag item just via node['name']
+[2012-11-07 14:39:15 -0500] lxndrp: But that doesn't seem to work at all unless I do all the replacement stuff or use custom node names with knife bootstrap -N
+[2012-11-07 14:51:11 -0500] schisamo: you could create a library (and ship in a cookbook) that hides all the ugliness (the bit that inserts underscores for dots).  we did something very similar to ship v1 of our partial_search stuff http://community.opscode.com/cookbooks/partial_search
+[2012-11-07 14:51:17 -0500] schisamo: lxndrp: ^^
+[2012-11-07 14:51:49 -0500] lxndrp: Interseting, schisamo. Will take a look :_)
+[2012-11-07 14:52:07 -0500] lxndrp: argh.
+[2012-11-07 14:52:17 -0500] lxndrp: Interesting, schisamo. Will take a look :-)
+[2012-11-07 14:52:21 -0500] lxndrp: Sigh.
+[2012-11-07 15:02:14 -0500] yfeldblum: lxndrp, why would you have node-specific data in something other than the node-data?
+[2012-11-07 15:04:47 -0500] lxndrp: Hm, say I'd like to remote-create a data base during initial bootstrapping for a web container on an sql server somewhere remote. This happens from a different cookbook (the one of the app) than db management.
+[2012-11-07 15:05:29 -0500] lxndrp: I need to find the encrypted credentials for a user who is allowed to create new databases, and this user is not necessarily the same one used in the web app for filling the db.
+[2012-11-07 15:06:19 -0500] lxndrp: I'd then have the db servers fqdn somewhere in my role as a node attribute, and then fumble out the node object via search using the fqdn.
+[2012-11-07 15:06:42 -0500] yfeldblum: lxndrp, you can provide json attributes to prepopulate the normal-level node data during the initial bootstrap
+[2012-11-07 15:07:17 -0500] lxndrp: Yeah, but I don't want the webapp node to keep the "higher permission" credential.
+[2012-11-07 15:07:30 -0500] lxndrp: Maybe I am going wrong somewhere.
+[2012-11-07 15:08:00 -0500] yfeldblum: lxndrp, you can bootstrap with `knife ec2 server create ... --json-attributes '{"key1": "value1"}'` and after the bootstrap you can remove those node attributes with `knife node edit`
+[2012-11-07 15:08:02 -0500] lxndrp: The other thing where I use this is for setting passwords here and there. eg. I keep around data bags with root user passwords.
+[2012-11-07 15:08:47 -0500] lxndrp: Or would it be better to generate the passwords on the node, and then store them encrypted during bootstrapping?
+[2012-11-07 15:11:29 -0500] yfeldblum: lxndrp, you can certainly either pregenerate passwords and pass them into the bootstrap, or your first chef-client run can generate passwords and save them, and you can also encrypt them with either method
+[2012-11-07 15:11:54 -0500] lxndrp: Yes, but for pregenerating I have exactly that problem.
+[2012-11-07 15:12:11 -0500] lxndrp: Given a data bag "root_users", with items in there.
+[2012-11-07 15:12:29 -0500] lxndrp: My items would ideally be the node name, say node.example.com.
+[2012-11-07 15:12:36 -0500] lxndrp: But that doesn't work for data bags.
+[2012-11-07 15:12:45 -0500] lxndrp: Because of the dots in the fqdn.
+[2012-11-07 15:13:14 -0500] lxndrp: I encountered this problem with vagrant, but it's the same for my prod env.
+[2012-11-07 15:13:29 -0500] lxndrp: In vagrant, the vm node name is "vagrant.vm".
+[2012-11-07 15:13:45 -0500] lxndrp: But I can't create a corresponding item in my "root_users" data bag.
+[2012-11-07 15:14:05 -0500] lxndrp: (I have one json file per item)
+[2012-11-07 15:15:45 -0500] yfeldblum: lxndrp, i'm talking about just using the node attributes to store node data, without using data-bag items
+[2012-11-07 15:16:13 -0500] lxndrp: Do you have an example for vagrant?
+[2012-11-07 15:16:21 -0500] lxndrp: via the json param?
+[2012-11-07 15:16:49 -0500] lxndrp: Can I then also encrypt the data?
+[2012-11-07 15:16:50 -0500] yfeldblum: lxndrp, knife bootstrap ... --json-attributes '{"key1": {"subkey1": "value1"}}'
+[2012-11-07 15:16:59 -0500] lxndrp: oh, ok.
+[2012-11-07 15:17:02 -0500] lxndrp: Same as usual.
+[2012-11-07 15:17:21 -0500] yfeldblum: lxndrp, not sure exactly what support vagrant has for that
+[2012-11-07 15:17:32 -0500] lxndrp: I think you just pass the json.
+[2012-11-07 15:17:43 -0500] lxndrp: Will try out and tell ya ;-)
+[2012-11-07 15:22:33 -0500] lxndrp: yfeldblum: Following example
+[2012-11-07 15:22:37 -0500] lxndrp: chef.json = {
+[2012-11-07 15:22:37 -0500] lxndrp:         :root_users => {
+[2012-11-07 15:22:39 -0500] lxndrp:           :id       => "vagrant.vm",
+[2012-11-07 15:22:40 -0500] lxndrp:           :password => "vagrant"
+[2012-11-07 15:22:41 -0500] lxndrp:         }
+[2012-11-07 15:22:42 -0500] lxndrp:       }
+[2012-11-07 15:22:52 -0500] lxndrp: That't the --json-file equiv for vagrant.
+[2012-11-07 15:23:03 -0500] lxndrp: Fails because of the dot in the id.
+[2012-11-07 15:23:26 -0500] yfeldblum: lxndrp, good to know, thanks
+[2012-11-07 15:25:19 -0500] yfeldblum: lxndrp, not sure what the json-file is, as i only know about json-attributes
+[2012-11-07 15:25:37 -0500] lxndrp: Should be the same, just looks slightly different.
+[2012-11-07 15:25:52 -0500] lxndrp: In vagrant, you pass it as a ruby hash.
+[2012-11-07 15:26:00 -0500] lxndrp: that's the only difference.
+[2012-11-07 15:26:10 -0500] lxndrp: Argh.
+[2012-11-07 15:26:21 -0500] lxndrp: Ignore what I said. I meant json-attributes
+[2012-11-07 15:27:19 -0500] yfeldblum: lxndrp, chef-solo and chef-client deal with a json file, but knife-bootstrap and knife-ec2-server-create deal with json-attributes
+[2012-11-07 15:27:29 -0500] lxndrp: ok, i see.
+[2012-11-07 15:27:36 -0500] yfeldblum: lxndrp, i expect that vagrant is using its own bootstrap and not knife-bootstrap
+[2012-11-07 15:28:08 -0500] yfeldblum: lxndrp, anyway try using different keys, i.e. not using the key "id"?
+[2012-11-07 15:43:15 -0500] lxndrp: Hm. I'll think about that.
+[2012-11-07 15:43:35 -0500] lxndrp: Thanks for the fish, yfeldblum!
+[2012-11-07 19:54:45 -0500] github-bawt: [chef-server-webui] schisamo pushed 2 new commits to erchef-support: http://git.io/ALeHIw
+[2012-11-07 19:54:45 -0500] github-bawt: chef-server-webui/erchef-support c036997 Seth Chisamore: [OC-3469] create ChefServerWebui::Helpers module for global helpers...
+[2012-11-07 19:54:45 -0500] github-bawt: chef-server-webui/erchef-support 939e289 Seth Chisamore: [OC-3469] leverage Rails built in configuration for application config...
+[2012-11-07 20:19:24 -0500] github-bawt: [omnibus-chef] schisamo created sc/OC-3469/erchef-webui (+1 new commit): http://git.io/N2xFEQ
+[2012-11-07 20:19:24 -0500] github-bawt: omnibus-chef/sc/OC-3469/erchef-webui 569bc87 Seth Chisamore: [OC-3469] leverage Rails built in configuration for webui config
+[2012-11-07 20:24:55 -0500] github-bawt: [omnibus-chef] mmzyk created mm/OC-4751 (+1 new commit): http://git.io/d0wcRw
+[2012-11-07 20:24:56 -0500] github-bawt: omnibus-chef/mm/OC-4751 8f167ce mmzyk: Use configured username/password for initial webui user
+[2012-11-07 20:52:17 -0500] mikethem_: kallistec: he uses github just fine: https://github.com/erikh
+[2012-11-07 20:52:36 -0500] kallistec: mikethem_: yep, just joking
+[2012-11-07 20:52:40 -0500] mikethem_: :)
+[2012-11-07 20:54:18 -0500] mikethem_: btm: you're a most furious typist.
+[2012-11-07 20:54:39 -0500] jtimberman: hee hee.
+[2012-11-07 20:56:41 -0500] jtimberman: mikethem_: the best part is watching btm type in the screenshare :)
+[2012-11-07 20:56:53 -0500] mikethem_: jtimberman: I know, right?!
+[2012-11-07 20:57:35 -0500] jtimberman: dan and steven have loud keyboards too, but they judiciously keep them at their desks. the office can be quite typey loud.
+[2012-11-07 20:57:45 -0500] mikethem_: jtimberman: you're typing just as loud
+[2012-11-07 20:58:03 -0500] mikethem_: You should all invest $3 like I did and get Shush. http://mizage.com/shush/
+[2012-11-07 20:58:14 -0500] mikethem_: disclaimer: I don't work for them, I paid them $3.
+[2012-11-07 20:58:15 -0500] jtimberman: mikethem_: meh!
+[2012-11-07 20:58:55 -0500] mikethem_: hi!
+[2012-11-07 21:03:48 -0500] c_t: are there other Model M users in here?
+[2012-11-07 21:03:57 -0500] jtimberman: c_t: btm is a model M user
+[2012-11-07 21:04:39 -0500] erikh: what'd I do
+[2012-11-07 21:04:54 -0500] c_t: eggsellent
+[2012-11-07 21:05:42 -0500] erikh: is this because I didn't send a pull request?
+[2012-11-07 21:09:19 -0500] webframp: did the livestream url get posted?
+[2012-11-07 21:10:07 -0500] c_t: jtimberman: I got one of those newfangled USB Model Ms with a Windows key
+[2012-11-07 21:10:09 -0500] btm: webframp: http://youtu.be/eLCRfOCEACY
+[2012-11-07 21:10:15 -0500] btm: webframp: my twitter.
+[2012-11-07 21:10:17 -0500] c_t: (changed to a Mac arrangement)
+[2012-11-07 21:10:23 -0500] webframp: btm: gracias
+[2012-11-07 21:10:41 -0500] btm: webframp: which is twitter.com/btmspox
+[2012-11-07 21:10:43 -0500] c_t: seems that Model Ms are too badassed for most PS/2 -> USB converters
+[2012-11-07 21:10:44 -0500] erikh: feh
+[2012-11-07 21:11:35 -0500] webframp: btm: followed
+[2012-11-07 21:12:36 -0500] webframp: I just realized btm is beardless
+[2012-11-07 21:13:59 -0500] miah: many people who make podcasts should invest that $3 into shush (or atleast learn how to use mute, or disable system alert sounds)
+[2012-11-07 21:14:48 -0500] miah: who needs model m's when you can get these? http://elitekeyboards.com/products.php?sub=topre_keyboards,rftenkeyless&pid=rf_se1700
+[2012-11-07 21:15:25 -0500] miah: or this? http://elitekeyboards.com/products.php?sub=leopold,tenkeyless&pid=fc200rtab
+[2012-11-07 21:15:56 -0500] miah: get a different type of cherry keyswitch if you want that CLANG CLANG as you type
+[2012-11-07 21:16:12 -0500] erikh: model m is buckling spring.
+[2012-11-07 21:16:17 -0500] miah: ya
+[2012-11-07 21:16:40 -0500] miah: http://www.cherrycorp.com/english/switches/key/mx.htm
+[2012-11-07 21:16:42 -0500] miah: are pretty fancy
+[2012-11-07 21:17:01 -0500] erikh: I have a keyboard with cherry blues, not nearly the same
+[2012-11-07 21:17:07 -0500] miah: no?
+[2012-11-07 21:17:19 -0500] erikh: model m is a lot more tactile
+[2012-11-07 21:17:31 -0500] miah: i had to get rid of my model m because it was keeping my pregnant gf awake
+[2012-11-07 21:17:38 -0500] miah: i've had quiet keyboards since
+[2012-11-07 21:18:14 -0500] erikh: I learned the hard way that shipping keyboards in bubble wrap that don't have easily replacable keys is a bad idea
+[2012-11-07 21:18:21 -0500] miah: uhoh
+[2012-11-07 21:23:55 -0500] BryanWB: iirc, I can have two distinct resources w/ the same resource type and name, user "foo"  and user "foo"
+[2012-11-07 21:25:15 -0500] BryanWB: is there a particular reason for that?
+[2012-11-07 21:25:23 -0500] miah: can you? i don't think you can..
+[2012-11-07 21:25:31 -0500] BryanWB: u can
+[2012-11-07 21:26:24 -0500] BryanWB: i was mistakenly under the impression until today that if i have   user "foo" { home '/opt/foo' }    and then later in another recipe   user "foo" { home '/home/foo' }
+[2012-11-07 21:26:54 -0500] BryanWB: then the user "resource" would execute once
+[2012-11-07 21:26:55 -0500] miah: i would think you'd be dealing with the same resource
+[2012-11-07 21:26:59 -0500] BryanWB: nope
+[2012-11-07 21:27:12 -0500] miah: do you have the 'manage' action enabled?
+[2012-11-07 21:27:12 -0500] BryanWB: i think they are separate resource instances
+[2012-11-07 21:27:16 -0500] BryanWB: y
+[2012-11-07 21:27:23 -0500] btm: BryanWB: yes/no. if you don't set an action, it will trigger the default action.
+[2012-11-07 21:27:24 -0500] spox: it will dup a bunch of stuff if an existing resource already exists
+[2012-11-07 21:27:44 -0500] BryanWB: but i will have duplicate resources in my resource_collection
+[2012-11-07 21:27:57 -0500] BryanWB: i thought they would be like ruby's open classes
+[2012-11-07 21:28:05 -0500] BryanWB: but they aren't, they are separate instances
+[2012-11-07 21:28:19 -0500] BryanWB: or am I mistaken?
+[2012-11-07 21:28:20 -0500] miah: i would think the second execution would be modifing the users home directory to '/home/foo'
+[2012-11-07 21:28:26 -0500] miah: since you have 'manage' enabled
+[2012-11-07 21:29:02 -0500] BryanWB: miah yup
+[2012-11-07 21:29:11 -0500] BryanWB: miah but that's beside the point
+[2012-11-07 21:29:36 -0500] BryanWB: if i have   template '/etc/foo'     twice, it will be templated 2x during the chef run, correct?
+[2012-11-07 21:30:07 -0500] BryanWB: or is their a lookup on on resource collection so there aren't duplicate resources like this? pls correct me if i am wrong
+[2012-11-07 21:30:24 -0500] spox: two resources
+[2012-11-07 21:31:16 -0500] BryanWB: i think it would be more intuitive and also make it easier to reuse coobkooks if there was only one resource. however there could be also issues w/ that
+[2012-11-07 21:31:26 -0500] spox: yeah
+[2012-11-07 21:31:36 -0500] BryanWB: say for particular workflow if I want to remove a user and then add it back later
+[2012-11-07 21:32:07 -0500] BryanWB: for this exact reason i created chef-edit and would looooove feedback https://github.com/bryanwb/chef-edit
+[2012-11-07 21:33:35 -0500] miah: hrm
+[2012-11-07 21:33:49 -0500] btm: BryanWB: see CHEF-26, CHEF-92, CHEF-2812
+[2012-11-07 21:34:32 -0500] btm: BryanWB: when you define a resource with the same name more than once, the subsequent times we copy the the existing resource (but not its action).
+[2012-11-07 21:34:50 -0500] BryanWB: btm,  so it is actioned 2x
+[2012-11-07 21:34:59 -0500] btm: BryanWB: which was originally for inheriting attribtues before notifications worked.
+[2012-11-07 21:35:05 -0500] btm: BryanWB: yeah, depending on action.
+[2012-11-07 21:35:15 -0500] BryanWB: btm, so the 2nd time, if has different attrs, will be actioned 2x
+[2012-11-07 21:35:41 -0500] BryanWB: so if i use postgresql cookbook, which templates   #{postgres_home}/postgres.conf
+[2012-11-07 21:36:04 -0500] BryanWB: and i have an app cookbook   mycorp-postgresql which   also templates that file
+[2012-11-07 21:36:33 -0500] BryanWB: that main config file is guaranteed to to be templated 2x and the db restarted unnecessarily
+[2012-11-07 21:37:04 -0500] BryanWB: and to avoid this i have to fork the main community cookbook & tear it up
+[2012-11-07 21:37:31 -0500] BryanWB: or at least make changes to me that make it less useful to others
+[2012-11-07 21:37:36 -0500] btm: BryanWB: it should always be run twice, regardless of attributes, provide the action is one that is actionable.
+[2012-11-07 21:38:18 -0500] BryanWB: so w/ the  "edit" function in chef-edit one could avoid this
+[2012-11-07 21:38:59 -0500] BryanWB: explicitly modify the resource w/ new/different attributes and only take action once if even necessary
+[2012-11-07 21:39:53 -0500] BryanWB: btm,  each time an action takes place my notification or subscription triggers
+[2012-11-07 21:39:58 -0500] BryanWB: other resources
+[2012-11-07 21:40:23 -0500] btm: BryanWB: I think so. I'm in code review right now so I'm not very helpful. when people run into this in a loop we recommend changing the resource name in the loop.
+[2012-11-07 21:41:00 -0500] BryanWB: btm, np, pls focus, those code reviews are gr8 stuff
+[2012-11-07 21:41:14 -0500] btm: BryanWB: perhaps you could look into doing something with updated_by_last_action.
+[2012-11-07 21:41:57 -0500] BryanWB: i m sure we will get plenty of chance to discuss this tomorrow :)
+[2012-11-07 21:43:38 -0500] yfeldblum: BryanWB, add a second comment for u
+[2012-11-07 21:43:45 -0500] BryanWB: yfeldblum, awesome, tks
+[2012-11-07 21:46:30 -0500] BryanWB: yfeldblum, gr8 tip, had no idea about \A and \z
+[2012-11-07 21:46:48 -0500] yfeldblum: BryanWB, affects a lot of people who need to sanitize input from the web ...
+[2012-11-07 21:57:40 -0500] github-bawt: [chef] danielsdeleo pushed 1 new commit to master: http://git.io/VYDd8g
+[2012-11-07 21:57:40 -0500] github-bawt: chef/master 949e584 danielsdeleo: Merge branch 'verify-updated-in-func-tests'
+[2012-11-07 22:01:03 -0500] BryanWB: yfeldblum, tks again
+[2012-11-07 22:14:38 -0500] yfeldblum: BryanWB, thanks for making it
+[2012-11-07 23:34:11 -0500] github-bawt: [chef] danielsdeleo created CHEF-2903 (+1 new commit): http://git.io/ymYABQ
+[2012-11-07 23:34:11 -0500] github-bawt: chef/CHEF-2903 627b868 danielsdeleo: [CHEF-2903] load attribute files in run_list order

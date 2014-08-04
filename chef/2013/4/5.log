@@ -1,0 +1,620 @@
+[2013-04-05 00:00:38 -0400] maplebed: I'm writing an LWRP for xinetd - I want to pass in the command to execute, the port, etc., and have it fill out a template that will drop a config in /etc/xinetd.d/
+[2013-04-05 00:00:47 -0400] maplebed: as part of the cookbook, I'm providing that template,
+[2013-04-05 00:00:50 -0400] yfeldblum: maplebed, opscode often provides very weird guidance that breaks abstractions ... and using resources inside provider actions is one of those things that breaks abstractions
+[2013-04-05 00:01:03 -0400] maplebed: huh.
+[2013-04-05 00:01:09 -0400] hdee: jed2, yea thats the problem
+[2013-04-05 00:01:22 -0400] hdee: though i figured out why the proxy was blocking it now so no work around needed
+[2013-04-05 00:01:30 -0400] hdee: guess i came here too soon =P
+[2013-04-05 00:03:35 -0400] yfeldblum: maplebed, https://github.com/opscode/chef/blob/11.4.0/lib/chef/provider/lwrp_base.rb#L103-L133
+[2013-04-05 00:05:02 -0400] yfeldblum: maplebed, at the top of your provider, stick a call to `use_inline_resources`; then presto! every action defined in your provider automatically runs inside it's own complete miniature chef run, which brings the abstraction back
+[2013-04-05 00:05:24 -0400] maplebed: gotcha.
+[2013-04-05 00:07:56 -0400] maplebed: still, though, I'm curious if there's a way to declare "this cookbook" vs. "calling cookbook" without having to hardcode the name of teh cookbook.
+[2013-04-05 00:18:39 -0400] yfeldblum: maplebed, there is - and that's exactly what it's doing
+[2013-04-05 00:18:51 -0400] yfeldblum: maplebed, not specifying the cookbook at all means "this cookbook"
+[2013-04-05 00:19:12 -0400] maplebed: huh.  I was under the impression that not specifying it means calling cookbook.
+[2013-04-05 00:19:40 -0400] jnwng: hey all, I've been working on a wrapper cookbook and was wondering what sort of best practices there were for overwriting attributes from cookbooks it is dependent on. I'm having a couple of cases where default attributes look like that depend on other default attributes (which subsequently get overwritten) but they don't update the attributes that previously depended on them
+[2013-04-05 00:20:18 -0400] jnwng: i threw some things into roles, but was curious if there was a better way to override the attributes in cookbook dependencies
+[2013-04-05 00:21:10 -0400] jnwng: just to clarify, the regular way of `override` and `normal` work just fine, but sometimes I override attributes that other attributes depend on
+[2013-04-05 00:21:54 -0400] yfeldblum: maplebed, yeah, that's what it is
+[2013-04-05 00:22:03 -0400] jnwng: causing some attributes to be "out of date"
+[2013-04-05 00:22:46 -0400] yfeldblum: maplebed, the problem is, that's not what you'd like it to be ... because you're breaking abstractions
+[2013-04-05 00:25:15 -0400] maplebed: if you say so.
+[2013-04-05 00:25:50 -0400] maplebed: seems to me though, I'm setting up an abstraction layer, insulating the person using the LWRP from having to know how it's implemented.
+[2013-04-05 00:25:59 -0400] maplebed: isn't that the point of them?
+[2013-04-05 00:26:24 -0400] maplebed: with something like a template pulling from the calling cookbook, the caller suddenly has to provide something beyond just calling the provider in order for it to work.
+[2013-04-05 00:27:05 -0400] yfeldblum: maplebed, it's nice that you think that, but here's how "real" providers are implemented: https://github.com/opscode/chef/tree/11.4.0/lib/chef/provider
+[2013-04-05 00:28:30 -0400] yfeldblum: maplebed, so while it's possible to use sub-resources inside provider actions, it's kind of a cheat from chef's perspective
+[2013-04-05 00:28:47 -0400] yfeldblum: maplebed, at least so far ... support for it is ... partial
+[2013-04-05 01:11:02 -0400] log1kal_: So, cookbook version constraining. At the environment, or at the meta/wrapper-cookbook level?
+[2013-04-05 01:11:24 -0400] log1kal_: my team got ahead of ourselves, and we're doing it in both places right now. This is ... not ideal
+[2013-04-05 01:11:40 -0400] log1kal_: would love to hear what's worked and hasn't for others
+[2013-04-05 01:15:54 -0400] iverson0881: knife spork is ideal and works for us
+[2013-04-05 01:16:59 -0400] log1kal: so at the environment, then
+[2013-04-05 01:17:13 -0400] iverson0881: we do it at the environment level
+[2013-04-05 01:17:26 -0400] iverson0881: i dindt even know you could do it at the cookbook level lol
+[2013-04-05 01:17:45 -0400] log1kal: Our current problem isn't that we clobber each other's versions, it's that the environment pins versions, and then we also have depends "cookbook", "x.y.z"
+[2013-04-05 01:18:15 -0400] KarlHungus: will someone please share the output of 'knife client show chef-validator' against a OSS chef 11 server?
+[2013-04-05 01:18:20 -0400] log1kal: Yeah, I didn't either. :)
+[2013-04-05 01:18:29 -0400] KarlHungus: for some reason i can't validate and the attributes look different
+[2013-04-05 01:18:53 -0400] iverson0881: i'd simplify it to do only in the environment level, so cookbook depends but no version specified, and then at the environment level specifcy that depend cookbook
+[2013-04-05 01:18:55 -0400] iverson0881: however
+[2013-04-05 01:19:17 -0400] iverson0881: if you have different versions for the same cookbook across various cookbooks
+[2013-04-05 01:19:21 -0400] iverson0881: that could get ugly
+[2013-04-05 01:19:42 -0400] log1kal: That's what I was going to move to
+[2013-04-05 01:19:59 -0400] log1kal: if we have to depend on different versions of a cookbook in a given environment, I'm going to slit my wrists anyway
+[2013-04-05 01:20:53 -0400] log1kal: Thanks, iverson0881
+[2013-04-05 01:21:35 -0400] iverson0881: got it, that seems like i would hurt myself too.
+[2013-04-05 01:48:59 -0400] Peter______: hello
+[2013-04-05 01:49:20 -0400] Peter______: i'm a chef noob
+[2013-04-05 01:49:34 -0400] spheromak: everyone was once
+[2013-04-05 01:49:51 -0400] Peter______: where to change the configuration after downloading recipe?
+[2013-04-05 01:50:38 -0400] Peter______: you're right sir
+[2013-04-05 01:51:51 -0400] spheromak: how did you download it ?
+[2013-04-05 01:56:48 -0400] Peter______: using knife
+[2013-04-05 01:58:19 -0400] spheromak: it should be in your cookbooks path
+[2013-04-05 01:58:26 -0400] spheromak: as a tarball
+[2013-04-05 01:58:55 -0400] Peter______: inside chef-repo?
+[2013-04-05 01:59:32 -0400] Peter______: then should I "extract" it?
+[2013-04-05 01:59:43 -0400] Peter______: to change the configuration?
+[2013-04-05 01:59:52 -0400] spheromak: yea if you want to customize it
+[2013-04-05 02:00:55 -0400] Peter______: currently I'm downloading jenkins cookbook
+[2013-04-05 02:01:29 -0400] Peter______: how to configure the "git path" and "maven build" so the jenkins will work?
+[2013-04-05 02:01:41 -0400] Peter______: is there any docs bout this?
+[2013-04-05 02:03:12 -0400] Peter______: I'm using "knife cookbook download -d" to get the recipe
+[2013-04-05 02:04:25 -0400] spheromak: the opscode jenkins cook doesn't have much doc in it at all right now. they are in process of  bringing it to opscode from heavywater. You will have to look at the attributes files to geet a feel for the configurable paramaters. You can use a role or environemnt to set them without changing the cookbook
+[2013-04-05 02:05:19 -0400] spheromak: or a wrapper cookbook :P but I don't wnat to you get in super deep if you're just starting out
+[2013-04-05 02:08:11 -0400] Peter______: so much stuff to learn, so little time haha
+[2013-04-05 02:08:30 -0400] Peter______: how to use a role/environment?
+[2013-04-05 02:09:29 -0400] Peter______: I plan to user chef server & chef client btw
+[2013-04-05 02:33:28 -0400] Siraris_: I'm getting ERROR: Network Error: Operation timed out - connect(2) while trying to run bootstrap on an EC2 instance.  Anyone know what's up?  Instance is up, I'm giving it my correct pem, ip address is correct, and I added the AWS key and secret to my knife.rb
+[2013-04-05 02:44:54 -0400] gansbrest: I need to add a line to file which was installed previously by cookbook (nginx). There is no way to do it with attributes and I don't want to hack the cookbook
+[2013-04-05 02:45:29 -0400] gansbrest: What is recommended way to do the modification
+[2013-04-05 03:10:33 -0400] jackorl: Hello -- I'm trying to find a list of nodes which don't have an attribute set. I can do something like search(:node, "domain:* AND NOT domain:abc") if I expect most of my hosts to have domain:abc -- however, I can't think of a way to search for nodes which dont have domain:
+[2013-04-05 06:37:22 -0400] kernel_panik: Hi to All!
+[2013-04-05 06:40:00 -0400] kernel_panik: just a quick advice.. I would like create a script for knife in order to search all node w/ a cookbook foo..   I thought  to use something like  =>    search("*") do |n|    (I think n has something for show all object in run_list.. and the I can compare w/  foo [the recipe name])   sounds good? or there is a better solution?
+[2013-04-05 06:44:51 -0400] kernel_panik: (sorry better nodes.all do |n| ...)
+[2013-04-05 09:06:49 -0400] poseid: I just discovered how easy the it is to create some boxes with Bento
+[2013-04-05 09:07:12 -0400] poseid: however, I don't see how/when to use some custom build steps there
+[2013-04-05 09:07:38 -0400] poseid: there is a definitions/.commons directory but I don't see how it is executed, and how to change some settings there
+[2013-04-05 11:16:02 -0400] jimjimovich: I'm getting a "undefined method `render'" error when placing <%= render '_head' %> in my template
+[2013-04-05 12:58:29 -0400] JakeKitchener: Has anyone used Chef with clients that need to use an authenticated proxy for the yum repository?
+[2013-04-05 13:25:20 -0400] visit0r: anyone know the syntax for searching multiple attribute levels?
+[2013-04-05 13:25:35 -0400] visit0r: for nested attributes
+[2013-04-05 13:26:00 -0400] visit0r: server: example : example2
+[2013-04-05 13:28:08 -0400] visit0r: is it to use underscores:
+[2013-04-05 13:28:27 -0400] visit0r: search(:node, "server_example_example2:*")
+[2013-04-05 13:42:28 -0400] BryanWB: has someone created a cloud_file resource to pull a file from various cloud storage providers?
+[2013-04-05 13:56:17 -0400] drrk: would that not just be a remote file with the right URL?
+[2013-04-05 13:56:50 -0400] BryanWB: drrk, credentials'n'stuff
+[2013-04-05 13:57:14 -0400] drrk: is it not just http authentication?
+[2013-04-05 14:03:49 -0400] UukGoblin: I'm using chef to write some files to a directory (like /etc/logrotate.d). How can I make a recipe ensure that there are no other files present in that directory, except for the ones written by that recipe?
+[2013-04-05 14:04:41 -0400] pikesley: delete everyhint first
+[2013-04-05 14:04:42 -0400] pikesley: ?
+[2013-04-05 14:05:01 -0400] pikesley: nix that dir, remake it, populate it
+[2013-04-05 14:05:05 -0400] pikesley: NUCLEAR OPTION
+[2013-04-05 14:05:07 -0400] UukGoblin: pikesley, that's a very ugly solution...
+[2013-04-05 14:05:14 -0400] UukGoblin: which I'd rather avoid
+[2013-04-05 14:05:49 -0400] UukGoblin: not only it'd run the resource at each chef run, but it'd open the system up to race conditions
+[2013-04-05 14:05:58 -0400] pikesley: um, list contents into an array, list your intended files into an array, diff the arrays?
+[2013-04-05 14:06:05 -0400] UukGoblin: also it'd probably notify the underlying service of a change at each run
+[2013-04-05 14:06:55 -0400] UukGoblin: pikesley, okay, yeah, something like that I guess...
+[2013-04-05 14:08:18 -0400] UukGoblin: just not sure how to write it so that it'd build these arrays during the identification phase of the chef run
+[2013-04-05 14:08:55 -0400] UukGoblin: (I /would/ like the underlying service to be notified if something is deleted from there, and I would like it notified only once per chef run, even if there are multiple files deleted/added)
+[2013-04-05 14:14:30 -0400] zts: UukGoblin: you could do something like this: https://github.com/zts/chef-cookbook-managed_directory
+[2013-04-05 14:14:53 -0400] UukGoblin: zts, looks perfect, thanks!
+[2013-04-05 14:15:31 -0400] zts: I should probably clean it up a bit and put it on the community site
+[2013-04-05 14:18:37 -0400] UukGoblin: zts, hm, regarding the last caveat... Would the missing-file-window problem happen if I had (in the same recipe) a managed_directory block followed by a template block? (i.e. when the file was created after the managed_directory)?
+[2013-04-05 14:19:11 -0400] UukGoblin: basically it looks like I need to ensure that managed_directory is the very last thing that runs, right?
+[2013-04-05 14:22:56 -0400] UukGoblin: can the managed_directory span across multiple recipes?
+[2013-04-05 14:23:54 -0400] billyoung: anyone here using a cassandra cookbook?
+[2013-04-05 14:23:56 -0400] UukGoblin: i.e. I'd have two recipes in the runlist, each creating a file in /etc/logrotate.d, and each using managed_directory "/etc/logrotate.d" - would that work as expected?
+[2013-04-05 14:27:21 -0400] zts: UukGoblin: nah, file and template are both okay, so long as the full path to the file is the name attribute
+[2013-04-05 14:27:32 -0400] zts: UukGoblin: ie,: template "/path/to/file.txt"
+[2013-04-05 14:28:06 -0400] zts: that's a good question, making it the very last thing that runs isn't always necessary
+[2013-04-05 14:29:26 -0400] zts: one possible issue would be LWRPs that create files/templates, as those won't necessarily be visible
+[2013-04-05 14:29:26 -0400] UukGoblin: I just saw the 'test' recipe after I asked the first question - which basically says that order doesn't matter. But I wonder if that still applies across runlist items - gonna test that in a sec
+[2013-04-05 14:30:25 -0400] zts: UukGoblin: to specifically answer the question about the missing-file-window problem, that note just applies to using raw ruby code to write files (instead of using the Chef resources)
+[2013-04-05 14:30:47 -0400] UukGoblin: right
+[2013-04-05 14:31:05 -0400] UukGoblin: ok, all my files should be created using resources (file, cookbook_file and template)
+[2013-04-05 14:31:09 -0400] UukGoblin: so I should be good
+[2013-04-05 14:41:33 -0400] zts: UukGoblin: cool, do let me know if you try it and have any problems
+[2013-04-05 14:45:36 -0400] UukGoblin: zts, seems to work OK with two independent recipes. I do get a warning about cloning a managed_directory w.r.t. CHEF-3694, but that's kind of expected - I did use the same managed_directory resource twice from two recipes. Which is sort of intended, I wish I could silence the warning.
+[2013-04-05 14:45:59 -0400] UukGoblin: but yeah, the files aren't being unlinked during the run
+[2013-04-05 14:46:13 -0400] failshell: is there something similar to test-kitchen but at the knife level? something that would check basic syntax, etc before uploading to the server?
+[2013-04-05 14:47:16 -0400] UukGoblin: failshell, there's knife cookbook test
+[2013-04-05 14:47:35 -0400] UukGoblin: and there's foodcritic
+[2013-04-05 14:47:48 -0400] zts: UukGoblin: oh y'know what, that probably needs to be updated for Chef 11, hangon...
+[2013-04-05 14:48:53 -0400] UukGoblin: zts, what, the managed_directory cookbook, or the cloned resource warning?
+[2013-04-05 14:49:25 -0400] zts: I meant the former, but it turns out I was thinking of a different problem
+[2013-04-05 14:49:44 -0400] UukGoblin: I tested with chef-solo 11.4.0
+[2013-04-05 14:49:47 -0400] UukGoblin: worked fine :-)
+[2013-04-05 14:50:17 -0400] zts: as for the cloned resource warning, you could use chef-rewind (or the manual way) to reopen the resource, if you do intend to use it in two places for the same directory
+[2013-04-05 14:51:19 -0400] UukGoblin: interesting, this chef-rewind...
+[2013-04-05 14:51:20 -0400] zts: though I'm not sure why you'd want to
+[2013-04-05 14:51:27 -0400] zts: what's your use case?
+[2013-04-05 14:51:34 -0400] UukGoblin: but I don't think it'd work in my case as I really don't know which recipe will be first in the runlist
+[2013-04-05 14:51:48 -0400] UukGoblin: this needs a more general cleanup so I won't worry about this warning right now
+[2013-04-05 14:52:11 -0400] UukGoblin: (/^this/ meaning my cookbooks)
+[2013-04-05 14:52:15 -0400] zts: gotcha, fair play :)
+[2013-04-05 14:52:40 -0400] visit0r: anyone seen the 'Attribute to_ary is not defined' error?
+[2013-04-05 14:52:44 -0400] visit0r: when dealing with search
+[2013-04-05 14:52:54 -0400] visit0r: I want to search for a node using AND boolean logic
+[2013-04-05 14:53:13 -0400] visit0r: looking for a node with a certain hostname and a certain recipe and a certain tag
+[2013-04-05 14:53:32 -0400] UukGoblin: zts, many thanks though, your answer was mega-helpful :-)
+[2013-04-05 14:55:26 -0400] zts: UukGoblin: you're welcome :)
+[2013-04-05 15:06:12 -0400] hufman: hello!
+[2013-04-05 15:06:24 -0400] hufman: i am in the middle of upgrading chef to the latest version in the debian repository
+[2013-04-05 15:06:47 -0400] hufman: and i think i have all the pieces up and running again, except my index is empty and doesn't want to rebuild
+[2013-04-05 15:08:20 -0400] randomautomator: hey question about the "deploy" resource in chef
+[2013-04-05 15:08:44 -0400] randomautomator: when i'm doing an svn checkout and it creates the folder for it, it's using this set of permissions "drw-r-xr-x"
+[2013-04-05 15:08:51 -0400] randomautomator: which means i can't enter that directory after
+[2013-04-05 15:08:53 -0400] randomautomator: is that normal?
+[2013-04-05 15:09:24 -0400] randomautomator: i need a 755 permission is there anyway to set mode with the deploy routine?
+[2013-04-05 15:13:28 -0400] pikesley: yes
+[2013-04-05 15:21:43 -0400] mml: hmm, i have a recipe that depends on node.etc.passwd.someuser, how do i ensure that the recipe that creates someuser runs first? the recipe pre compile step complains that a referenced attr pointing to someuser doesn't exist
+[2013-04-05 15:22:03 -0400] mml: i added the user creation recipe to the recipe dep list to no avail
+[2013-04-05 15:22:24 -0400] mml: the runlist looks in the right order, seems the compiler doesn't like it though
+[2013-04-05 15:25:02 -0400] dfrey: Do I need a knife.rb on the client machines or just the workstation?
+[2013-04-05 15:25:24 -0400] pikesley: wherever you wanna ru a knife client
+[2013-04-05 15:25:29 -0400] pikesley: so workstation ;)
+[2013-04-05 15:25:52 -0400] visit0r: has anyone used search with boolean operators?
+[2013-04-05 15:26:05 -0400] visit0r: i am getting an invalid search query
+[2013-04-05 15:26:07 -0400] visit0r: with parse error
+[2013-04-05 15:26:15 -0400] visit0r: my search is as such:
+[2013-04-05 15:26:47 -0400] dfrey: im trying to set the environment on a client, but it tries to connect to the wrong server (localhost) i'm not sure why it decides that. i thought it might be determined in the knife.rb file
+[2013-04-05 15:26:53 -0400] visit0r: search(:node, "field1:* AND recipe:recipe AND tags:tag") do |matching_node|
+[2013-04-05 15:27:07 -0400] visit0r: i get a parse error after the AND
+[2013-04-05 15:27:09 -0400] dfrey: thats when i save a node object in chef-shell
+[2013-04-05 15:28:54 -0400] dfrey: visit0r: where are you searching from?
+[2013-04-05 15:29:21 -0400] pikesley: dfrey: something something chef-client::config
+[2013-04-05 15:29:25 -0400] visit0r: dfrey: a recipe
+[2013-04-05 15:30:26 -0400] mml: seems like i have to defer the execution of the attribute lookup somehow
+[2013-04-05 15:36:26 -0400] dfrey: visit0r: it's gotta be something else, i dont have a parse error
+[2013-04-05 15:36:40 -0400] visit0r: dfrey: hm, okay
+[2013-04-05 15:36:51 -0400] visit0r: dfrey: I am passing in a parameter
+[2013-04-05 15:37:06 -0400] visit0r: search(:node, "field1:* AND recipe:recipe AND tags:#{node['value']}") do |matching_node|
+[2013-04-05 15:37:40 -0400] dfrey: visit0r: .each?
+[2013-04-05 15:37:59 -0400] dfrey: visit0r: to iterate through the results
+[2013-04-05 15:39:20 -0400] dfrey: pikesley: do you know the easiest way to set a specific node's environment from the workstation?
+[2013-04-05 15:39:54 -0400] visit0r: dfrey: I did not put that on there
+[2013-04-05 15:40:28 -0400] pikesley: IIRC, there was a way to do it with knife, but it was severely borked
+[2013-04-05 15:40:49 -0400] dfrey: yea, i'm having trouble finding it
+[2013-04-05 15:41:02 -0400] hufman: knife node edit nodename?
+[2013-04-05 15:41:14 -0400] dfrey: right now i'm just running "chef-client -E 'env-name'"
+[2013-04-05 15:44:09 -0400] dfrey: thanks!
+[2013-04-05 15:48:16 -0400] visit0r: dfrey: https://github.com/opscode/chef-fundamentals/blob/master/slides/multiple-nodes-and-search/01_slide.md#iterating-over-a-search
+[2013-04-05 15:49:11 -0400] dfrey: knife node edit <node-name> -E "production" brings up the node config for editing but completely ignores the -E "production" param
+[2013-04-05 15:50:07 -0400] knuckolls: dfrey: you'll have to change the environment in the editor and save it
+[2013-04-05 15:50:22 -0400] dfrey: dagnabbit
+[2013-04-05 15:53:11 -0400] dfrey: visit0r: what are the contents of node['value'] before the search?
+[2013-04-05 15:53:26 -0400] dfrey: knuckolls: theres no way to do it automatically?
+[2013-04-05 15:53:34 -0400] visit0r: dfrey: yeah, I am wondering about that, I am re running it all and printing that out
+[2013-04-05 15:53:58 -0400] dfrey: there are certain chars that need to be escaped
+[2013-04-05 15:54:21 -0400] knuckolls: dfrey: i just set environments when i bootstrap them initially. there's also this thing called knife-flip that will flip nodes in and out of environments, and you can always just write a short little script with the chef api or something like ridley or knife exec
+[2013-04-05 15:54:34 -0400] knuckolls: gotta hack on some stuff, hope that points you in the right direction :)
+[2013-04-05 15:55:14 -0400] dfrey: yea it does. i'm surprised its not easier
+[2013-04-05 15:57:25 -0400] visit0r: dfrey: Yeah, that could be it too
+[2013-04-05 15:57:28 -0400] KarlHungus: dfrey: knife exec -E 'nodes.transform("name:batman") {|n| n.chef_environment("infra") }'
+[2013-04-05 15:57:54 -0400] visit0r: dfrey: Since #{} includes a few special characters (namely the { and })
+[2013-04-05 15:59:06 -0400] zts: KarlHungus: that probably needs a "node.save" in it too?
+[2013-04-05 16:01:13 -0400] dfrey: zts: it doesn't look like it
+[2013-04-05 16:01:18 -0400] KarlHungus: zts: no, because of the transform method https://github.com/opscode/chef/blob/master/lib/chef/shell/model_wrapper.rb#L62-L73
+[2013-04-05 16:01:28 -0400] dfrey: <KarlHungus>: hooray!
+[2013-04-05 16:01:58 -0400] zts: KarlHungus: ooh, thankyou!
+[2013-04-05 16:06:31 -0400] dfrey: visit0r: i'm having trouble figuring out if queries can handle string interpolation
+[2013-04-05 16:06:52 -0400] visit0r: dfrey: yeah, I something is broken in my query
+[2013-04-05 16:07:21 -0400] visit0r: dfrey: search(:node, "rundeck_server_ssh_pub_key:* AND recipe:rundeck\:\:install-server") do |matching_node|
+[2013-04-05 16:07:24 -0400] KarlHungus: visit0r: what error do you get? or just an empty list?
+[2013-04-05 16:07:33 -0400] visit0r: dfrey: that query even breaks, with no substitution of variables
+[2013-04-05 16:07:54 -0400] KarlHungus: visit0r: also. experimenting with search in shef/chef-shell is really useful when prepping the syntax
+[2013-04-05 16:08:16 -0400] visit0r: KarlHungus: there is a search on the Web UI as well... which I thought would work
+[2013-04-05 16:08:24 -0400] KarlHungus: you may want recipes, in place of recipe, so you're searching the expanding list
+[2013-04-05 16:09:35 -0400] visit0r: dfrey: INFO: HTTP Rquest returned 400 bad request: invalid search query: 'rundeck_server_ssh_pub_key AND recipe:rundeck::install-server' Parse error at offset: 47 Reason: Expected one of \, AND, &&, .... at line 1, columb 48 (byte 48) after
+[2013-04-05 16:10:07 -0400] dfrey: you dont have a key in there
+[2013-04-05 16:10:12 -0400] dfrey: value*
+[2013-04-05 16:10:20 -0400] KarlHungus: visit0r: recipes:foo\\:\\:bar
+[2013-04-05 16:10:49 -0400] KarlHungus: you need to escape the \, so its passed literally in the solr query
+[2013-04-05 16:10:52 -0400] visit0r: INFO: HTTP Rquest returned 400 bad request: invalid search query: 'rundeck_server_ssh_pub_key:* AND recipe:rundeck::install-server' Parse error at offset: 47 Reason: Expected one of \, AND, &&, .... at line 1, columb 48 (byte 48) after
+[2013-04-05 16:11:09 -0400] visit0r: what?
+[2013-04-05 16:11:16 -0400] visit0r: the single \ is to escape the : character
+[2013-04-05 16:11:21 -0400] KarlHungus: thats wrong
+[2013-04-05 16:11:26 -0400] visit0r: so it is recipe:rundeck::install-server
+[2013-04-05 16:11:42 -0400] KarlHungus: you want to escape the \, so when solr interprets the string, the : is escaped
+[2013-04-05 16:11:50 -0400] visit0r: so double \\
+[2013-04-05 16:11:54 -0400] KarlHungus: right
+[2013-04-05 16:12:04 -0400] visit0r: let me try that out
+[2013-04-05 16:13:26 -0400] visit0r: the documentation on search in recipes is lacking imo
+[2013-04-05 16:13:27 -0400] visit0r: to be honest
+[2013-04-05 16:13:37 -0400] visit0r: there are 1-2 examples online, total
+[2013-04-05 16:13:38 -0400] visit0r: lol
+[2013-04-05 16:13:40 -0400] techminer: ohai chefsIn Chef 11 is it possible to add override_attributes to nodes?  I'm trying and it doesn't save my changes.
+[2013-04-05 16:13:54 -0400] KarlHungus: the search method itself is lacking, i think ;) visit0r: but its just solr under the hood
+[2013-04-05 16:14:15 -0400] visit0r: KarlHungus: yeah and I ahve messed with solr several times, I would agree with you
+[2013-04-05 16:14:16 -0400] KarlHungus: so \: would send a literal to :, and \\: sends \: to solr
+[2013-04-05 16:14:50 -0400] visit0r: KarlHungus: thank you sir
+[2013-04-05 16:14:50 -0400] randomautomator: anyone know why when i use the "deploy" resource it doesn't create a shared directory and instead deploys all the stuff that usually goes into shared into releases/RELEASENUM
+[2013-04-05 16:14:55 -0400] visit0r: dfrey: thank you sir
+[2013-04-05 16:14:59 -0400] visit0r: thanks, I think it worked now
+[2013-04-05 16:15:02 -0400] KarlHungus: visit0r: cheers
+[2013-04-05 16:15:08 -0400] visit0r: so... I have a lot of escaping to sub in a node attribute value
+[2013-04-05 16:15:09 -0400] visit0r: dont i?
+[2013-04-05 16:16:09 -0400] visit0r: search(:node, "rundeck_server_ssh_pub_key:* AND recipe:rundeck\\:\\:install-server AND tags:#{node['rundeck']['server_tag']}")
+[2013-04-05 16:16:27 -0400] visit0r: KarlHungus: so double escape every special char right?
+[2013-04-05 16:16:49 -0400] visit0r: leads to:
+[2013-04-05 16:18:51 -0400] randomautomator: this is my pastebin if anyone cares to help me out
+[2013-04-05 16:18:52 -0400] randomautomator: http://pastebin.com/qyHaw3aN
+[2013-04-05 16:21:43 -0400] randomautomator: fack, nevermind... was a missing trailing "/"
+[2013-04-05 16:24:04 -0400] trilitheus: is anyone using git with application cookbook?  Trying to get the deploy to work from a remote repository through a proxy
+[2013-04-05 16:24:06 -0400] trilitheus: I've done a Mixlib::Shellout to set global https.proxy but I think It's trying to deploy before that is set or not picking it up for some reason
+[2013-04-05 16:24:13 -0400] Dunkirk: Can anyone help me understand what the `swift-recon' "distribution graph" is telling me?
+[2013-04-05 16:25:00 -0400] maplebed: Dunkirk: is that a #swift question? probably better luck there.
+[2013-04-05 16:25:12 -0400] Dunkirk: maplebed:  Roger.
+[2013-04-05 16:26:48 -0400] Dunkirk: maplebed:  Wow. It's been awhile since I irc'd. Wrong window.
+[2013-04-05 16:26:57 -0400] maplebed: :)
+[2013-04-05 16:28:19 -0400] visit0r: KarlHungus: man, it is still giving me trouble, all of this escaping
+[2013-04-05 16:40:50 -0400] visit0r: has anyone else had experience with substituting variables into a search query in a recipe?
+[2013-04-05 16:41:55 -0400] jrclouda: Yes
+[2013-04-05 16:46:08 -0400] visit0r: did you figure out the escaping via a recipe?
+[2013-04-05 16:46:28 -0400] visit0r: search(:node, "rundeck_server_ssh_pub_key:* AND recipe:rundeck\\:\\:install-server AND tags:#\\{node\\['rundeck'\\]\\['server_tag'\\]\\}")
+[2013-04-05 16:46:30 -0400] visit0r: this fails
+[2013-04-05 16:46:43 -0400] visit0r: due to the last variable substitution
+[2013-04-05 16:49:08 -0400] ivey: Why are you escaping the {?
+[2013-04-05 16:49:16 -0400] visit0r: http://docs.opscode.com/essentials_search_special_characters.html
+[2013-04-05 16:49:25 -0400] visit0r: I was just escaping all special characters
+[2013-04-05 16:49:42 -0400] ivey: But you don't want to send the #{...} part to the server do you?
+[2013-04-05 16:49:55 -0400] ivey: You want that to be interpolated
+[2013-04-05 16:49:57 -0400] visit0r: no, it should substitute by then right?
+[2013-04-05 16:50:01 -0400] visit0r: i see
+[2013-04-05 16:50:42 -0400] visit0r: hmmmm
+[2013-04-05 16:50:46 -0400] visit0r: this is just very very painful
+[2013-04-05 16:50:55 -0400] visit0r: or should i create a string before the search call
+[2013-04-05 16:50:59 -0400] visit0r: and have it substitute there?
+[2013-04-05 16:51:11 -0400] visit0r: search_str = "blabh blah blah #{node['blah']}"
+[2013-04-05 16:51:19 -0400] visit0r: search(:node, search_str)
+[2013-04-05 16:51:19 -0400] ivey: Yes
+[2013-04-05 16:51:29 -0400] visit0r: does it need escaped then?
+[2013-04-05 16:51:51 -0400] ivey: You need to escape anything in the string that you're sending to chef server
+[2013-04-05 16:52:04 -0400] visit0r: ok
+[2013-04-05 16:52:17 -0400] visit0r: so build up the string beforehand, so the node attribute gets interpolated
+[2013-04-05 16:52:24 -0400] visit0r: and escape in that string as well
+[2013-04-05 16:52:37 -0400] ivey: You dont't have to build it separately
+[2013-04-05 16:53:01 -0400] visit0r: lol
+[2013-04-05 16:53:02 -0400] visit0r: i wonder
+[2013-04-05 16:53:06 -0400] visit0r: if it was my node attribute
+[2013-04-05 16:53:13 -0400] visit0r: it was actually 'rundeck-server'
+[2013-04-05 16:53:19 -0400] visit0r: which is an escapable character
+[2013-04-05 16:53:23 -0400] visit0r: ill change that
+[2013-04-05 16:53:33 -0400] ivey: Sorry on my ipad so hard to reply with lots of details
+[2013-04-05 16:54:03 -0400] visit0r: ivey: its okay, i appreciate any help
+[2013-04-05 16:55:42 -0400] Eiam: should you treat the cheffile.lock the same as a gemfile.lock?
+[2013-04-05 16:55:47 -0400] Eiam: only check it in when you want to deploy?
+[2013-04-05 16:58:30 -0400] ben-colorado: I just ran through the chef workstation install on my mac... http://docs.opscode.com/install_workstation.html. knife client list is working, so I know its communicating with my server fine. Tried to bootstrap a new windows box and got the folllowing error Can not find bootstrap definition for chef-full
+[2013-04-05 16:58:57 -0400] visit0r: ivey: i still can't seem to get it to work
+[2013-04-05 16:59:26 -0400] ben-colorado: I grabbed the latest bootstrap erb files from chef on github and put them in a bootstrap folder. Still no love.
+[2013-04-05 16:59:44 -0400] visit0r: ivey: search(:node, "rundeck_server_ssh_pub_key:* AND recipe:rundeck\\:\\:install\\-server AND tags:#{node['rundeck']['server_tag']}")
+[2013-04-05 17:00:21 -0400] ben-colorado: is bootstrap via an knife install off omnibus broken?
+[2013-04-05 17:05:31 -0400] visit0r: thanks for your help
+[2013-04-05 17:05:35 -0400] visit0r: I think I finally got it working
+[2013-04-05 17:05:48 -0400] visit0r: i think I was breaking myself since my node attribute had a special character in it
+[2013-04-05 17:06:05 -0400] visit0r: so when it was substituted into the search string, it had a bad character in it
+[2013-04-05 17:21:38 -0400] randomautomator: soo.. back to the deploy resource
+[2013-04-05 17:21:47 -0400] randomautomator: i'm setting "migrate false"
+[2013-04-05 17:21:53 -0400] randomautomator: and it keeps trying to do a migrate
+[2013-04-05 17:21:55 -0400] randomautomator: any suggestions?
+[2013-04-05 17:22:15 -0400] randomautomator: also i have to do a force_deploy all the time otherwise the following happens : http://pastebin.com/qyHaw3aN
+[2013-04-05 17:22:30 -0400] randomautomator: which means it doesn't do an svn checkout
+[2013-04-05 17:22:42 -0400] randomautomator: any suggestions?
+[2013-04-05 17:58:49 -0400] Siraris_: Anyone know why it is that every time I type gem install knife-ec2 it just hangs forever?
+[2013-04-05 17:59:15 -0400] test: Is it possible to bootstrap with winrm?
+[2013-04-05 17:59:39 -0400] Siraris_: wow finally, took 10 minutes for it to respond
+[2013-04-05 18:00:02 -0400] miketheman: test: looks like it: http://docs.opscode.com/plugin_knife_windows.html
+[2013-04-05 18:00:04 -0400] hufman: try running with the --verbose or --debug flags
+[2013-04-05 18:00:09 -0400] bemu: Siraris_: add --no-ri and --no-rdoc next time
+[2013-04-05 18:00:12 -0400] bemu: and it will go more quickly
+[2013-04-05 18:00:21 -0400] Siraris_: ohhh
+[2013-04-05 18:00:29 -0400] test: miketheman, thanks a ton
+[2013-04-05 18:00:34 -0400] miketheman: np
+[2013-04-05 18:00:42 -0400] Siraris_: Bemu: Thanks
+[2013-04-05 18:00:46 -0400] bemu: Npnp
+[2013-04-05 18:01:39 -0400] Siraris_: Is it really that much more complicated to setup a hosted chef server compared to chef solo?
+[2013-04-05 18:02:46 -0400] bemu: Siraris_: No.
+[2013-04-05 18:03:39 -0400] Siraris_: Bemu:  I found two tutorials that say setting up Chef Server is a pain, etc. etc. etc.  So far it hasn't been bad
+[2013-04-05 18:04:07 -0400] bemu: That's referring to non-hosted Chef, and has historically been the case. It is apparently much easier now.
+[2013-04-05 18:04:09 -0400] Siraris_: So I worry I'm doing something wrong :)
+[2013-04-05 18:04:14 -0400] Siraris_: Ah ok
+[2013-04-05 18:04:23 -0400] bemu: but I can't vouch for that as I haven't set up erlchef server yet.
+[2013-04-05 18:05:21 -0400] hufman: what is erlchef?
+[2013-04-05 18:05:30 -0400] bougyman: is there an instance method on Node::Attribute that will give me the current value?
+[2013-04-05 18:05:46 -0400] bougyman: just as if I did a node[:thing][:foo]
+[2013-04-05 18:06:00 -0400] bougyman: i need to do a node[:thing][:foo].to_current_value
+[2013-04-05 18:06:03 -0400] ivey: hufman: It's the new chef server written in erlang
+[2013-04-05 18:06:25 -0400] hufman: wait, there's a PyChef too?
+[2013-04-05 18:06:31 -0400] bougyman: not seeing that specific transform on http://rubydoc.info/gems/naked-chef/Chef/Node/Attribute
+[2013-04-05 18:07:17 -0400] ivey: Holding out for HaskellChef myself
+[2013-04-05 18:09:30 -0400] iamchrisf: Why does package version require "el5" or "el6" --  Seems to me this locks me to a specific version.  I declare the version string in the environment it will apply all instances regardless of version.  Is there a way to ignore el[56] ?
+[2013-04-05 18:09:52 -0400] Siraris_: I'm waiting for PascalChef
+[2013-04-05 18:13:38 -0400] bemu: hufman: I think pychef is only for the client. we use it pretty heavily.
+[2013-04-05 18:14:13 -0400] hufman: fun :)
+[2013-04-05 18:14:45 -0400] bemu: we'll be releasing some of the tools we've built around pychef and fabric within the next few weeks
+[2013-04-05 18:18:59 -0400] siezer: iamchrisf what?
+[2013-04-05 18:20:18 -0400] iamchrisf: siezer: I'm trying to install mcollective via the zts cookbook and I've set version to "2.2.3-1", but the package resource is failing as it requires '2.2.3-1.el5' for this box as its centos5
+[2013-04-05 18:21:13 -0400] iamchrisf: hardcoding the centos version into the version attribute is obviously not cool
+[2013-04-05 18:25:25 -0400] aalbertson2: Hi folks, I'm trying to get the datadog cookbook installed and configured for my self hosted chef env (11.4.0) but it is throwing a chef_handler error complaining about it not >= 1.0.6, but I have 1.1.4 installed. Any ideas?
+[2013-04-05 18:29:15 -0400] test: my winrm bootstrap ran perfectly...i see no variable defined to set the environment.  Does anyone know of it?  it's probably -e, but I don't want to screw up the vm
+[2013-04-05 18:31:03 -0400] aalbertson2: cancel this. Looks like it hasn't been updated to the latest on the community site. getting fixed now. thanks all!
+[2013-04-05 18:33:43 -0400] test: or is the environment technically an attribute...i'll look into that
+[2013-04-05 18:36:36 -0400] zts: iamchrisf: I'm happy to improve that, if you have any suggestions?  (ideally, another cookbook that does a good job with this problem)
+[2013-04-05 18:36:59 -0400] zts: iamchrisf: my ideal would be to have a version constraint like "~> 2.2.0" and have the package resource do the right thing, but I don't believe that's possible
+[2013-04-05 18:37:24 -0400] iamchrisf: zts: I'm actually looking for a solution now when I get one in place I'll send a pull request.
+[2013-04-05 18:39:26 -0400] zts: iamchrisf: awesome!  thankyou
+[2013-04-05 18:40:05 -0400] iamchrisf: no thx yet until I get you the pull request :)
+[2013-04-05 18:50:33 -0400] kesor: can someone suggest an exceptional presentation about chef? I'm going to make one soon and want to look at an example of when it was done really great.
+[2013-04-05 18:51:51 -0400] sandra_a: http://www.slideshare.net/btm/using-nagios-with-chef
+[2013-04-05 18:51:52 -0400] sandra_a: ?
+[2013-04-05 18:52:42 -0400] kesor: cool, thanks. i'll look at it
+[2013-04-05 18:58:49 -0400] jmickle: anyone had any advice for pulling a file from github to use on java class path config?
+[2013-04-05 19:00:22 -0400] kesor: jmickle: maybe using remote_file?
+[2013-04-05 19:00:48 -0400] jmickle: kesor: i thought about that but then thought this is a private file so it might fail
+[2013-04-05 19:01:14 -0400] kesor: jmickle: https://help.github.com/articles/downloading-files-from-the-command-line
+[2013-04-05 19:01:33 -0400] jmickle: kesor: awesome thanks!
+[2013-04-05 19:14:24 -0400] ben-colorado: Ca0
+[2013-04-05 19:20:04 -0400] bougyman: how can I get the value of a node attribute?
+[2013-04-05 19:20:09 -0400] bougyman: it's killing me that I can't find this
+[2013-04-05 19:20:39 -0400] bougyman: i thought priorities = @node.safe.core.servers.safe.queue_priorities would derefrence it, but 'priorities' is still a node::attribute
+[2013-04-05 19:20:48 -0400] bougyman: i just want the current value of the attribute
+[2013-04-05 19:21:00 -0400] bougyman: without all the method missing plumbing
+[2013-04-05 19:21:27 -0400] yfeldblum: bougyman, node["safe"]["core"]["servers"]["safe"]["queue_priorities"].to_hash
+[2013-04-05 19:21:43 -0400] bougyman: yfeldblum: wow, I saw to_hash but didn't think to use it
+[2013-04-05 19:21:51 -0400] bougyman: what if it's just a value?
+[2013-04-05 19:22:09 -0400] bougyman: i don't want {:queue_priorities => 12}, i just want '12'
+[2013-04-05 19:22:17 -0400] yfeldblum: bougyman, then: node["safe"]["core"]["servers"]["safe"]["queue_priorities"]
+[2013-04-05 19:22:51 -0400] bougyman: yfeldblum: aha
+[2013-04-05 19:22:59 -0400] yfeldblum: bougyman, if it should be an atomic value but you're getting a Node::Attribute, then something's wrong with your assumptions
+[2013-04-05 19:23:15 -0400] bougyman: it should just be '12'
+[2013-04-05 19:23:34 -0400] bougyman: when I do @node.safe.core.servers.safe.queue_priorities.values, i get [12]
+[2013-04-05 19:25:09 -0400] yfeldblum: bougyman, so `node["safe"]["core"]["servers"]["safe"]["queue_priorities"].to_hash` returns a hash?
+[2013-04-05 19:25:34 -0400] yfeldblum: bougyman, if so, then:  node["safe"]["core"]["servers"]["safe"]["queue_priorities"]["queue_priorities"]
+[2013-04-05 19:25:35 -0400] bougyman: checking
+[2013-04-05 19:26:10 -0400] bougyman: wouldn't it make sense to have a #current_value as an instance method on a Node::Attribute?
+[2013-04-05 19:26:18 -0400] yfeldblum: bougyman, no
+[2013-04-05 19:27:31 -0400] bougyman: or to at least get past method missing and try to send the missing method to the current value, at least.
+[2013-04-05 19:30:51 -0400] yfeldblum: bougyman, there's no such thing as a current value
+[2013-04-05 19:31:09 -0400] bougyman: that's poppycock.
+[2013-04-05 19:31:39 -0400] bougyman: at any point in time, the highest priority value (the one it will use) is _something_
+[2013-04-05 19:32:10 -0400] yfeldblum: bougyman, it seems like you're setting up the data wrong to start out with
+[2013-04-05 19:32:16 -0400] kesor: can someone tell me how the "deploy" cookbook is used? I understand how it works, but what is the workflow that makes it go and deploy stuff?
+[2013-04-05 19:32:43 -0400] bougyman: yfeldblum: because I want to be able to get at the value without all the Node::Attribute plumbing?
+[2013-04-05 19:32:54 -0400] bougyman: it doesn't seem like an obscene request
+[2013-04-05 19:33:15 -0400] yfeldblum: bougyman, you're apparently getting a Hash back when what you're wanting is an atomic value, right?
+[2013-04-05 19:34:21 -0400] yfeldblum: bougyman, i'm guessing the problem isn't the Node::Attribute plumbing; the problem is that you put a Hash in there instead of an atomic value
+[2013-04-05 19:35:41 -0400] bougyman: yfeldblum: in this case it's an atomic value. but what if it were a hash and I just wanted it as a value? same concept.
+[2013-04-05 19:35:55 -0400] bougyman: doesn't matter what object I have as that value, i'd like to be able to expose it.
+[2013-04-05 19:40:00 -0400] yfeldblum: bougyman, try `Chef::Log.warn "\n" << JSON.pretty_generate(node.to_hash)` to see the merged data-structure
+[2013-04-05 19:41:10 -0400] bougyman: so I don't have to do things like Hash[node["safe"]["core"]["servers"]["safe"]["queue_maps"].to_hash.map { |k,v| [k.to_sym,v] }].to_edn
+[2013-04-05 19:41:13 -0400] bougyman: that's just ugly
+[2013-04-05 19:41:28 -0400] bougyman: the keys in the actual hash I stored in queue_maps has symbols as keys
+[2013-04-05 19:41:36 -0400] bougyman: but when I pull it as a node value, they get stringified
+[2013-04-05 19:41:50 -0400] bougyman: this is why I want the raw, actual value (hash, in that case) i input
+[2013-04-05 19:41:56 -0400] bougyman: not a sexed up on
+[2013-04-05 19:41:59 -0400] bougyman: *one
+[2013-04-05 19:43:22 -0400] yfeldblum: bougyman, don't depend on symbols in the node data; they get autoconverted right to strings always all the time
+[2013-04-05 19:43:27 -0400] bougyman: I know
+[2013-04-05 19:43:32 -0400] bougyman: that's why I have this request!
+[2013-04-05 19:43:52 -0400] bougyman: i can't store a hash with symbolized keys as a node attribute, is the result.
+[2013-04-05 19:44:00 -0400] bougyman: not and expect it to be returned to me as I stored it
+[2013-04-05 19:44:44 -0400] yfeldblum: bougyman, so ... that's how the node data works because it has to roundtrip to and back from JSON
+[2013-04-05 19:45:18 -0400] bougyman: ok, that makes sense
+[2013-04-05 19:45:27 -0400] bougyman: sucks, though, when you expect what you input to be output.
+[2013-04-05 19:45:36 -0400] yfeldblum: bougyman, wrong expectation :D
+[2013-04-05 19:45:43 -0400] bougyman: impossible use-case
+[2013-04-05 19:48:25 -0400] yfeldblum: bougyman, anyway, you can make a library module for yourself and then you can call `BougymanCookbook::Util.hash_symbolize_keys(node["safe"]["core"]["servers"]["safe"]["queue_maps"].to_hash).to_edn`
+[2013-04-05 19:48:41 -0400] bougyman: yeah, I know.
+[2013-04-05 19:48:49 -0400] bougyman: that's about as long as the original, and no more descriptive
+[2013-04-05 19:49:58 -0400] yfeldblum: bougyman, split it to two lines? `queue_maps_raw = node["safe"]["core"]["servers"]["safe"]["queue_maps"].to_hash ; queue_maps_edn = BougymanCookbook::Util.hash_symbolize_keys(queue_maps_raw).to_edn`
+[2013-04-05 19:50:37 -0400] bougyman: i just meant it doesn't save anything to make it a helper.
+[2013-04-05 19:50:49 -0400] serge: Is it possible to download the encrypted form of my data bag so I can push that version to my repo instead of the plaintext version ?
+[2013-04-05 19:51:02 -0400] bougyman: now that it's working i'm calm and moving on, learned something, i'm happy.
+[2013-04-05 19:51:06 -0400] serge: I'm not seeing a knife data bag command to do so
+[2013-04-05 19:51:10 -0400] bougyman: but disturbed.
+[2013-04-05 19:51:26 -0400] yfeldblum: bougyman, disturbed?
+[2013-04-05 19:51:54 -0400] yfeldblum: serge, `knife data bag show $BAG $ITEM -Fj > data_bags/$BAG/$ITEM.json`
+[2013-04-05 19:52:28 -0400] yfeldblum: serge, unless that decrypts it automatically; i don't know
+[2013-04-05 19:52:49 -0400] serge: Not unless I pass the --secret-file option. That'll do then. Thanks
+[2013-04-05 19:56:06 -0400] bougyman: yfeldblum: not to worry, i'm always disturbed
+[2013-04-05 19:56:13 -0400] yfeldblum: bougyman, :D
+[2013-04-05 19:56:33 -0400] btm: @opscode No cookbook code review today, go say hi to @jtimberman at #mwrc #opschef
+[2013-04-05 19:57:16 -0400] yfeldblum: btm, freenode =/= twitter
+[2013-04-05 20:02:52 -0400] bougyman: i can't stand the twitosphere
+[2013-04-05 20:04:18 -0400] kesor: yfeldblum: actually #mwrc is in freenode as well, with the live stream and all.
+[2013-04-05 20:04:29 -0400] yfeldblum: ah
+[2013-04-05 20:06:25 -0400] wbills: chef 10.16.6 on ubuntu 12.04 - just updated a cookbook but chef-client didn't pick it up. new version was sync'd into /var/cache/chef (as expected) but chef client isn't looking there somehow. knife node show and /etc/chef/client.rb show /var/cache/chef like they should. /var/chef/cache however has copies of the old cookbook so it's like chef-client is looking there for some reason. any ideas?
+[2013-04-05 20:09:49 -0400] btm: yfeldblum: I copy the tweet and paste it into IRC because I'm lazy.
+[2013-04-05 20:13:37 -0400] gaffo: so I'm using vagrant and chef solo. I'm trying to run this recipe: https://gist.github.com/gaffo/5321674 but a bunch of stuff isn't installing. the output is there as well. I'm not seeing any packages installing either. I'm coming from puppet so I may be doing some things incorrectly.
+[2013-04-05 20:17:12 -0400] gaffo: but when I take that exec out it starts working
+[2013-04-05 20:19:14 -0400] gad0lin: gaffo: the output shows just the update run,  chef doesnt do anything more after that, exists or what happens?
+[2013-04-05 20:20:02 -0400] gaffo: nope, it just stops after that
+[2013-04-05 20:20:18 -0400] gaffo: would it stop if apt was giving a non-zero return?
+[2013-04-05 20:22:17 -0400] hufman: hmmmm why is this index not updating?
+[2013-04-05 20:24:05 -0400] context: chef solo supports roles right ?
+[2013-04-05 20:24:09 -0400] context: stupid question
+[2013-04-05 20:24:46 -0400] yfeldblum: context, yes
+[2013-04-05 20:24:46 -0400] sandra_a: @wbills  what does knife cookbook show <cookbook> tell you about the verison?
+[2013-04-05 20:24:53 -0400] context: kk thoguht so
+[2013-04-05 20:24:57 -0400] sandra_a: is the version the correct. updated new version that you did in the metadata?
+[2013-04-05 20:25:47 -0400] wbills: sandra_a yeah it shows the correct version
+[2013-04-05 20:26:00 -0400] sandra_a: and when you made your changes
+[2013-04-05 20:26:04 -0400] sandra_a: you updated the version in the metadata?
+[2013-04-05 20:26:45 -0400] wbills: yep.the updated version was downloaded to the machine and is in /var/cache/chef as expected
+[2013-04-05 20:27:45 -0400] sandra_a: and you don't see any errors when you run chef-client -l debug?
+[2013-04-05 20:29:00 -0400] wbills: nope, client runs fine w/o errors, just doesn't pick up that the version changed. there is also a /var/chef/cache directory which has the old version and I assume that's where chef-client is looking even though all of the configs show that the cache path should be /var/cache/chef
+[2013-04-05 20:30:10 -0400] gad0lin: gaffo: yes, you can run command maunally with success?
+[2013-04-05 20:30:11 -0400] hufman: heh, i hide CHEF-2346 again
+[2013-04-05 20:30:18 -0400] hufman: i guess the upgrade killed it
+[2013-04-05 20:30:24 -0400] gaffo: gad0lin, yes
+[2013-04-05 20:38:44 -0400] hufman: or it just hates me D:
+[2013-04-05 20:52:19 -0400] test_: Is there an easier way to change a nodes chef_environment than through knife exec?
+[2013-04-05 20:52:38 -0400] ev0ldave: knife node edit
+[2013-04-05 20:52:58 -0400] ev0ldave: brain spaz, ignore me
+[2013-04-05 20:53:34 -0400] ev0ldave: nm, yeah, you can edit it there
+[2013-04-05 20:53:45 -0400] hufman: oh fun, and now chef-expanderctl says it is filling up the queues
+[2013-04-05 20:53:56 -0400] hufman: ok, because i had killed it
+[2013-04-05 21:16:26 -0400] agoddard: I have a node that's throwing an 413 on chef 11, I guess I gotta dig into why it's sending so much data, but wondering in the mean time whether I can override anything to allow the large request?
+[2013-04-05 21:16:57 -0400] agoddard: I've tried increasing client_max_body_size in the embedded nginx but no dice
+[2013-04-05 21:17:15 -0400] agoddard: "an 413" ;) meaning: a Net::HTTPServerException: 413 "Request Entity Too Large"
+[2013-04-05 21:21:30 -0400] context: anyone here use vagrant with chef? i can get chef_client to work with add_role but chef_solo wont take it
+[2013-04-05 21:22:29 -0400] tomdzk: context: did you set chef.roles_path ?
+[2013-04-05 21:22:46 -0400] context: tomdzk: yeah cookbooks_path and roles_path
+[2013-04-05 21:22:50 -0400] context: sec
+[2013-04-05 21:23:05 -0400] context: add_recipe works in both, add_role works in client not solo
+[2013-04-05 21:23:20 -0400] context: http://dpaste.com/1048368/
+[2013-04-05 21:23:23 -0400] context: http://dpaste.com/1048370/
+[2013-04-05 21:23:27 -0400] context: error and vagrantfile
+[2013-04-05 21:24:42 -0400] tomdzk: context: log into the vm and verify the three folders have the correct stuff (v-csc-1/v-csc-2/v-csr-3)
+[2013-04-05 21:24:59 -0400] context: sec
+[2013-04-05 21:25:51 -0400] context: tomdzk: yes they do
+[2013-04-05 21:26:20 -0400] test_: couldnt figure out the knife node edit, but got the knife exec to a single liner, so don't need to call .rb file anymore: knife exec -E "search(:node,'ipaddress:1xx.xx.x.xxx') do |n| n.chef_environment='NEWENVNAME' ; n.save end"
+[2013-04-05 21:26:24 -0400] test_: good enough for me
+[2013-04-05 21:26:51 -0400] tomdzk: context: also, add chef.log_level = :debug
+[2013-04-05 21:27:00 -0400] tomdzk: that might give you enough info about what's going on
+[2013-04-05 21:28:10 -0400] context: tomdzk: pretty much the same thing as the pastie
+[2013-04-05 21:28:28 -0400] context: i can paste the stacktrace
+[2013-04-05 21:28:50 -0400] context: http://dpaste.com/1048405/
+[2013-04-05 21:29:43 -0400] tomdzk: context: does your base role include another role ?
+[2013-04-05 21:29:47 -0400] context: no
+[2013-04-05 21:30:05 -0400] context: tomdzk: just recipe's in its run_list, which works in chef_client using hosted-chef
+[2013-04-05 21:30:41 -0400] context: copying al of the recipes from the role into Vagrantfile works using add_recipe
+[2013-04-05 21:31:13 -0400] miketheman: context: have you done a `vagrant reload` since adding the roles_path?
+[2013-04-05 21:32:06 -0400] tomdzk: context: do you have "json_class": "Chef::Role" ?
+[2013-04-05 21:32:27 -0400] context: err oooo
+[2013-04-05 21:32:34 -0400] context: jsonclass
+[2013-04-05 21:32:37 -0400] context: not json_class
+[2013-04-05 21:33:08 -0400] context: still scary it'd work in client not solo. trying json_class now
+[2013-04-05 21:33:13 -0400] context: that owrked :D
+[2013-04-05 21:33:14 -0400] context: thnx
+[2013-04-05 21:35:16 -0400] griff: I'm having a few problems trying to install nginx through chef. I think I have things set up correctly but I keep getting an error telling me that apt-get returned 100. Has anyone else seen this problem?
+[2013-04-05 21:35:42 -0400] griff: I tried first using berkshelf and then with librarian-chef
+[2013-04-05 21:36:27 -0400] tomdzk: griff: try installing the package manually (using apt-get), that might show you the problem
+[2013-04-05 21:36:56 -0400] tomdzk: griff: I've seen two different causes of this error: no connection to the internet, or not having run apt-get update before trying to install
+[2013-04-05 21:37:11 -0400] tomdzk: griff: the latter you can fix by having the apt cookbook first in your run list
+[2013-04-05 21:37:20 -0400] context: <3 im loving this chef stuff
+[2013-04-05 21:37:56 -0400] griff: Ah, that's a good way to check it, I didn't think of that. It seems that I need to run apt-get update.
+[2013-04-05 21:38:03 -0400] griff: I'll try with the apt cookbook
+[2013-04-05 21:38:10 -0400] griff: Thanks tomdzk
+[2013-04-05 21:41:21 -0400] griff: tomdzk: Ah hah, you're a genius :) That worked!
+[2013-04-05 21:41:32 -0400] tomdzk: I wouldn't go so far :)
+[2013-04-05 21:42:46 -0400] miketheman: "Wisdom is born from experiencing failure"
+[2013-04-05 21:42:57 -0400] griff: I've been hitting my head against a wall for a while trying to fix this. I never thought of running it by hand from inside the VM
+[2013-04-05 21:43:44 -0400] jmickle: is there an API to pull information from hosted chef?
+[2013-04-05 21:44:55 -0400] miketheman: jmickle: what information?
+[2013-04-05 21:45:11 -0400] tomdzk: jmickle: chef server is all apis, see http://docs.opscode.com/api_chef_server.html
+[2013-04-05 21:45:12 -0400] zrankfappa: hi all
+[2013-04-05 21:45:34 -0400] zrankfappa: a quick question if I may
+[2013-04-05 21:45:41 -0400] zrankfappa: i'm just setting up a chef server/wkstn for the first time
+[2013-04-05 21:45:45 -0400] zrankfappa: using chef 11
+[2013-04-05 21:46:13 -0400] zrankfappa: where do I get the ORGANIZATION-validator.pem from?
+[2013-04-05 21:46:36 -0400] miketheman: zrankfappa: that's a Hosted Chaef thing, methinks
+[2013-04-05 21:46:37 -0400] zrankfappa: i've created a dumy organization but see no dummy-validator.pem
+[2013-04-05 21:46:48 -0400] zrankfappa: ah ok
+[2013-04-05 21:46:51 -0400] zrankfappa: so maybe not needed ?
+[2013-04-05 21:47:03 -0400] zrankfappa: i'm following http://docs.opscode.com/install_workstation.html
+[2013-04-05 21:47:08 -0400] miketheman: q: did you create an organization in your chef 11 server?
+[2013-04-05 21:47:13 -0400] zrankfappa: aye
+[2013-04-05 21:47:14 -0400] tomdzk: zrankfappa: private or open source chef server ?
+[2013-04-05 21:47:22 -0400] miketheman: (caveat: I haven't used Chef 11 server yet, I use hosted chef)
+[2013-04-05 21:47:35 -0400] zrankfappa: hmm, not sure tbh, I just built it following the instructions on ......
+[2013-04-05 21:47:56 -0400] jmickle: miketheman: any information regarding nodes/env
+[2013-04-05 21:48:00 -0400] zrankfappa: this page http://www.opscode.com/chef/install/
+[2013-04-05 21:48:19 -0400] zrankfappa: just installed the package and it was alll up and running in minutes
+[2013-04-05 21:48:24 -0400] miketheman: jmickle: yeah, it's all there. the `knife` tool communicates via the API and does a lot of this.
+[2013-04-05 21:48:28 -0400] jmickle: ty
+[2013-04-05 21:48:54 -0400] miketheman: there's a few chef client libraries like ridley and pychef that you could use to leverage custom code
+[2013-04-05 21:49:12 -0400] miketheman: heh. "chef api client libraries" I should have said
+[2013-04-05 21:49:44 -0400] log1kal: Hrmm.
+[2013-04-05 21:50:09 -0400] log1kal: Anyone know of a way to do something like "knife environment diff --cookbook-constraints"
+[2013-04-05 21:50:32 -0400] zrankfappa: maybe i just dont need the ORGANIZATION-validator.pem if I'm using my own hosted chef 11 ?
+[2013-04-05 21:50:55 -0400] tomdzk: zrankfappa: then prob. you're using open source chef server, no organizations there, see e.g. http://www.linuxguy.in/how-to-install-and-configure-open-source-chef-server-11/
+[2013-04-05 21:51:11 -0400] zrankfappa: cheers mate
+[2013-04-05 21:51:20 -0400] zrankfappa: it seems to be working because I can run knife user list
+[2013-04-05 21:51:25 -0400] zrankfappa: and it returns the users
+[2013-04-05 21:52:14 -0400] miketheman: zrankfappa: those are two different things.
+[2013-04-05 21:52:24 -0400] zrankfappa: hmm
+[2013-04-05 21:52:27 -0400] miketheman: you (workstation) has a client.pem cert to communicate securely with chef server
+[2013-04-05 21:52:55 -0400] miketheman: a validation.pem is typically provided to a new node during a bootstrap phase that it uses to ask chef server to assign it a new individual cert
+[2013-04-05 21:52:59 -0400] zrankfappa: i just have my knife.rb and my username.pem
+[2013-04-05 21:53:09 -0400] miketheman: no validation.pem?
+[2013-04-05 21:53:13 -0400] zrankfappa: aaah ok
+[2013-04-05 21:53:24 -0400] zrankfappa: so i just grab the validation pem of the server when i need to bootstrap?
+[2013-04-05 21:54:06 -0400] miketheman: typically, you might store it on your workstation, so during bootstrap, the bootstrap script will push the validation cert to the new node
+[2013-04-05 21:54:17 -0400] zrankfappa: sure do like to set myself a challenge, built an openstack cluster, now doing chef, then bootstrap images, then drupal, varnish, mysql , solr and capistrano :)
+[2013-04-05 21:54:28 -0400] zrankfappa: cool thanks
+[2013-04-05 21:54:35 -0400] zrankfappa: i know where it is on the server, i can just pull it down
+[2013-04-05 21:55:02 -0400] zrankfappa: thanks for the info, very nice to speak with people in teh know when you are trying to work through learning so many different products
+[2013-04-05 21:55:23 -0400] miketheman: might want to look at knife-openstack, by mattray
+[2013-04-05 21:55:27 -0400] zrankfappa: have any of you used chef/knife to fire up nodes in openstack?
+[2013-04-05 21:55:37 -0400] zrankfappa: aye, that was on my list next mike :)
+[2013-04-05 21:55:55 -0400] zrankfappa: wanted to get the normal chef working first
+[2013-04-05 21:56:01 -0400] zrankfappa: i guess they are connected somehow
+[2013-04-05 21:59:56 -0400] context: anyone have a good example of another server using other nodes/roles addresses in a template?
+[2013-04-05 22:00:07 -0400] context: i /think/ thats the only issue im having with
+[2013-04-05 22:01:01 -0400] context: granted i do still have a lot of trial-and-error for general stuff, i still just want to see how nodes share data (mostly just addresses)
+[2013-04-05 22:04:14 -0400] log1kal: context: the splunk cookbook does some of that (looking for other nodes, and using their info)
+[2013-04-05 22:06:17 -0400] log1kal: https://github.com/bestbuycom/splunk_cookbook, specifically https://github.com/bestbuycom/splunk_cookbook/blob/master/recipes/server.rb#L72
+[2013-04-05 22:07:11 -0400] kesor: the ssh_known_hosts cookbook also does that
+[2013-04-05 22:07:49 -0400] log1kal: Hrmm. knife-spork's workflow doesn't support having cookbook_versions in environment files, does it?
+[2013-04-05 22:08:03 -0400] log1kal: wonder if I can convince my team spork would help more.
+[2013-04-05 22:10:37 -0400] socomm: Are there any books on Chef out there?
+[2013-04-05 22:10:45 -0400] socomm: I know puppet has one, albeit not very good.
+[2013-04-05 22:13:20 -0400] context: log1kal: thnx. i guess the only 'manual' stuff after that is removing nodes if their instance dies or something
+[2013-04-05 22:14:15 -0400] miketheman: context: I actually was speaking about that recently, and I'm devising an idea of how to do that based on their checking/ohai time.
+[2013-04-05 22:14:17 -0400] miketheman: checkin*
+[2013-04-05 22:14:43 -0400] miketheman: i.e. my tolerance threshold is 3x interval for failure, or something
+[2013-04-05 22:15:14 -0400] log1kal: heh, I'm talking with a coworker about that now
+[2013-04-05 22:15:29 -0400] log1kal: we don't do chef-clients on an interval, though
+[2013-04-05 22:15:50 -0400] miketheman: bah
+[2013-04-05 22:15:56 -0400] log1kal: so far we're thinking add a script/chef role that get's executed on switching to runlevel 0
+[2013-04-05 22:15:57 -0400] miketheman: how do you ensure convergence?
+[2013-04-05 22:16:22 -0400] log1kal: how do I ensure that the box is still the same as it should be?
+[2013-04-05 22:16:27 -0400] miketheman: yep
+[2013-04-05 22:16:54 -0400] log1kal: we don't I guess
+[2013-04-05 22:17:05 -0400] log1kal: we're automation-first culture
+[2013-04-05 22:17:13 -0400] log1kal: changes don't really get made on-box
+[2013-04-05 22:17:27 -0400] miketheman: so destroy box and provision a new one?
+[2013-04-05 22:17:38 -0400] log1kal: especially since we autoscale, any change you make to a box is going to disappear in 24 hours anyway
+[2013-04-05 22:17:46 -0400] miketheman: hm.
+[2013-04-05 22:17:49 -0400] log1kal: since we'll run through a set of boxes in a day or so
+[2013-04-05 22:18:12 -0400] miketheman: even for backend services, databases, etc?
+[2013-04-05 22:18:34 -0400] log1kal: we use RDS (I know)
+[2013-04-05 22:18:43 -0400] context: miketheman: nice
+[2013-04-05 22:18:58 -0400] context: yeah i havent even really looked into ohai that much yet
+[2013-04-05 22:19:07 -0400] test_: where n is a :node     this works in a knife exec (get last checkin time)     checkintime=Time.at(n['ohai_time']).to_i ; lastcheckin=Time.at(checkintime).strftime("%F %R")
+[2013-04-05 22:19:40 -0400] log1kal: our infra is such that anything that can be cheffed is likely ephemeral
+[2013-04-05 22:19:52 -0400] log1kal: the things that aren't normally aren't manually changed
+[2013-04-05 22:19:53 -0400] miketheman: test_: have you modeled that into something a recipe could search for?
+[2013-04-05 22:20:08 -0400] test_: no, but i can paste in the .rb file :)
+[2013-04-05 22:20:24 -0400] miketheman: hehehehe
+[2013-04-05 22:21:10 -0400] test_: oh, i can make it a one liner
+[2013-04-05 22:21:12 -0400] test_: one sec
+[2013-04-05 22:22:44 -0400] test_: knife exec -E "search(:node,'*:*') do |n| checkintime=Time.at(n['ohai_time']).to_i ; puts Time.at(checkintime).strftime('%F %R') end"
+[2013-04-05 22:23:00 -0400] miketheman: nice
+[2013-04-05 22:23:07 -0400] test_: testing it now
+[2013-04-05 22:23:33 -0400] test_: works
+[2013-04-05 22:24:17 -0400] miketheman: hehe - no ids or anything like that, but that's all ruby.
+[2013-04-05 22:24:31 -0400] test_: well, yeah, you can add in whatever you want to the puts :)
+[2013-04-05 22:24:35 -0400] miketheman: going to think about using partial_search for this to minimize data
+[2013-04-05 22:47:52 -0400] aneto: Question, if I wanted to have chef do something else in the event a section fails in my cookbook how would I approach that? For example if an ebs volume does not exist, instead of crashing creates the volume and attaches it?
+[2013-04-05 22:49:55 -0400] ranjibd: model the ebs volume before using it..
+[2013-04-05 22:50:12 -0400] ranjibd: the ebs resource should create it if not exists.. else do nothing
+[2013-04-05 22:50:36 -0400] ranjibd: later .. some other resource use the ebs volume.. u decalre the ebs volume before using it
+[2013-04-05 22:51:58 -0400] aneto: ranjibd: do you happen to have an example I could look at? I would appreciate it greatly
+[2013-04-05 22:52:20 -0400] ranjibd: aneto: are you using the aws cookbook
+[2013-04-05 22:52:24 -0400] miketheman: aneto: have you looked at the aws cookbook? it has an ebs_volume provider
+[2013-04-05 22:52:30 -0400] ranjibd: exactly
+[2013-04-05 22:57:22 -0400] basic`: does anyone use centos + nagios + server_package?  It's trying to install the wrong package and I dont see a way to install nagios instead of nagios3 packages
+[2013-04-05 22:58:12 -0400] bixu: Can I employ environment-specific cases in my role.rb role definition?
+[2013-04-05 22:59:29 -0400] bixu: For example, can I set attribute_x to X in env X, and to Y in env Y?
+[2013-04-05 22:59:44 -0400] log1kal: why wouldn't you just set that attr in the environment?
+[2013-04-05 23:45:15 -0400] zrankfappa: back again :)
+[2013-04-05 23:47:55 -0400] zrankfappa: anyone got any solid experience with opensource chef and openstack?
+[2013-04-05 23:49:18 -0400] zrankfappa: FATAL: Cannot find sub command for: 'openstack server create
+[2013-04-05 23:57:34 -0400] tomdzk: zrankfappa: you need to install the openstack knife plugin (https://github.com/opscode/knife-openstack)
+[2013-04-05 23:57:34 -0400] zrankfappa: I did

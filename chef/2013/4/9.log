@@ -1,0 +1,977 @@
+[2013-04-09 00:00:35 -0400] jforce: Is the file resource provider meant to support binary data? Or just text?
+[2013-04-09 00:01:16 -0400] jforce: If it's just text, it should append a newline when content is set to a string that doesn't end in a newline because that's what makes a text file a text file. I don't see this issue in the bug tracker, and it's not clear from the source...
+[2013-04-09 00:05:32 -0400] kindsol: jforce: it can set either (although I don't recommend putting binaries into your cookbooks)
+[2013-04-09 00:07:10 -0400] yfeldblum: jforce, really really really not
+[2013-04-09 00:07:14 -0400] jforce: kindsol: I agree :) I ask more to determine whether it would be appropriate to file a bug. If it's for writing text files, there should always be a newline so that a user can say `content 'potato'` instead of `content "potato\n"`
+[2013-04-09 00:07:18 -0400] yfeldblum: jforce, if you need a newline, give yourself a newline
+[2013-04-09 00:07:23 -0400] kindsol: jforce: it maybe a bug, although I am not sure how that translates to windows.  I recommend opening one.  in the meantime can you just add '\n' at the end of your string?
+[2013-04-09 00:07:38 -0400] kindsol: opening one, meaning a ticket
+[2013-04-09 00:08:44 -0400] yfeldblum: jforce, http://pastie.org/private/2xjp6rvvcfqrclctbhlawg
+[2013-04-09 00:13:40 -0400] jforce: yfeldblum and kindsol : I do know how to write strings. :) Here's the thing: if I'm going to define a file inline, it's only going to be a couple of lines max. Usually just one. Otherwise I'd use a cookbook_file. I don't think this is an unusual need, so I wanted to determine whether omitting a newline is the intended behavior before I file a bug.
+[2013-04-09 00:14:25 -0400] yfeldblum: jforce, the problem with your suggestion is that you are asking for chef to do an unexpectedly wrong thing with no warning
+[2013-04-09 00:14:56 -0400] yfeldblum: jforce, how *you* use the file resource in your cookbooks isn't necessarily how it's generally used
+[2013-04-09 00:15:14 -0400] jforce: Determining the correct behavior was the point of my question. You're making a lot of assumptions. I'm filing a bug.
+[2013-04-09 00:17:25 -0400] kindsol: jforce: when in doubt, fill it out ;)
+[2013-04-09 00:17:37 -0400] kindsol: (bug report, that is)
+[2013-04-09 00:17:47 -0400] jforce: will do. thanks :)
+[2013-04-09 00:19:54 -0400] flaccid: hmm it seems this execute resource is getting run but not actually running the command, wt..
+[2013-04-09 00:20:58 -0400] csaunders: hey, I'm having an issue trying to use the users cookbook.  Mainly, I have a users/deploy.json data bag and when I try to use it the node complains that it can't find the bag (404)
+[2013-04-09 00:21:28 -0400] csaunders: I moved my code from the default.rb in the users cookbook into my own, and now it appears that the recipe runs but is a no-op since my deploy user wasn't created
+[2013-04-09 00:25:51 -0400] jforce: typed `exec 'command'` in a recipe instead of `execute 'command'` >_< lol
+[2013-04-09 00:27:10 -0400] jforce: yfeldblum kindsol : if you're interested, this is the issue I created. Thanks again. http://tickets.opscode.com/browse/CHEF-4072
+[2013-04-09 00:32:11 -0400] yfeldblum: jforce, what happens when the content should *not* end in a newline?
+[2013-04-09 00:32:27 -0400] yfeldblum: jforce, when, in fact, then content should be exactly as is given?
+[2013-04-09 00:32:52 -0400] yfeldblum: jforce, i've absolutely run into cases just like yours; the solution i linked to is the one i use
+[2013-04-09 00:32:56 -0400] jforce: they could add a directive, like `raw true`
+[2013-04-09 00:33:34 -0400] jforce: I'll let the Chef devs decide what they want to do with it, but I would think that the case that you want a newline added is the most common.
+[2013-04-09 00:33:41 -0400] yfeldblum: jforce, why not add a `text_mode true` directive instead, thus preserving backward-compatibility with all current uses of the file resource?
+[2013-04-09 00:34:01 -0400] jforce: that'd be fine, too.
+[2013-04-09 00:34:22 -0400] kindsol: +1
+[2013-04-09 00:34:36 -0400] jforce: BUT!
+[2013-04-09 00:34:54 -0400] jforce: it doesn't make sense. methods handling the content check to see if it's binary.
+[2013-04-09 00:35:00 -0400] jforce: If it's not binary, it should end in a newline.
+[2013-04-09 00:35:08 -0400] jforce: because that's what makes a text file a text file.
+[2013-04-09 00:35:31 -0400] kindsol: s/step/steps
+[2013-04-09 00:36:31 -0400] jforce: that is, there is an #is_binary? method that gets called, so at the point that they determine that it is not binary they could also check whether there's a newline and add one. This is what I suggested in my ticket submission.
+[2013-04-09 00:38:35 -0400] yfeldblum: jforce, what's the #is_binary? check then?
+[2013-04-09 00:39:18 -0400] jforce: I don't know what you're asking.
+[2013-04-09 00:39:44 -0400] yfeldblum: jforce, when would #is_binary? return true?
+[2013-04-09 00:39:49 -0400] jforce: https://github.com/opscode/chef/blob/master/lib/chef/provider/file.rb#L60
+[2013-04-09 00:40:43 -0400] jforce: If reading the file yields a string of a sufficiently deviant length from the actual length of the file (apparently), it looks like it's not text, so consider it binary.
+[2013-04-09 00:41:14 -0400] yfeldblum: jforce, that's not what it does
+[2013-04-09 00:41:19 -0400] jforce: yeah. I misread it.
+[2013-04-09 00:41:27 -0400] yfeldblum: jforce, it looks for non-printable characters within the first X bytes
+[2013-04-09 00:41:31 -0400] tomdzk: jforce: I always thought magic numbers and heuristics are used to detect text vs. binary on unix, not whether it ends in a newline (which is a valid binary character too)
+[2013-04-09 00:41:47 -0400] yfeldblum: jforce, that's not a correct test for *writing* files; it's only a good heuristic for deciding how to display file diffs in the logs
+[2013-04-09 00:41:50 -0400] jforce: I gotta go. I have a meeting.
+[2013-04-09 00:42:00 -0400] jforce: It's not about diffs. google it.
+[2013-04-09 00:42:21 -0400] jforce: a newline is how you determine that a text file is a text file in UNIX. editors care, git cares, and I care.
+[2013-04-09 00:42:53 -0400] jforce: If you want to continue this discussion, I would recommend heading to the issue on Chef's tracker.
+[2013-04-09 00:42:55 -0400] jforce: hasta.
+[2013-04-09 01:08:59 -0400] silk: If an attribute has been 'set' at a normal level via an attribute file in a cookbook, should editing that value on the node object via knife take, or should it be overwritten by the cookbook at the next chef-client run?
+[2013-04-09 01:25:03 -0400] juliancdunn: silk: it'd get overwritten at the next run
+[2013-04-09 01:25:07 -0400] juliancdunn: unless you have, well, set_unless
+[2013-04-09 01:26:11 -0400] csaunders: hey, are there any decent tutorials on how to use the users chef recipe?
+[2013-04-09 01:26:28 -0400] csaunders: I've been banging my head against a wall trying to figure out how to get my deploy user created on the server :/
+[2013-04-09 01:28:07 -0400] juliancdunn: csaunders: the users_manage LWRP you mean?
+[2013-04-09 01:28:17 -0400] csaunders: yes?
+[2013-04-09 01:28:32 -0400] juliancdunn: what problems are you running into?
+[2013-04-09 01:28:40 -0400] csaunders: yeah, that's the one. I've been trying to use it in the users/default.rb file, but it appears to run but no user is created
+[2013-04-09 01:29:10 -0400] silk: and that makes sense, except that the set value has been changed in the cookbook, but doesnt get reflected in the template.
+[2013-04-09 01:29:23 -0400] csaunders: so I'll have something like users_manage "deploy" do; group_id 2001; end
+[2013-04-09 01:29:40 -0400] csaunders: and if I try to include the data_bag directive(?) it'll complain that it can't find that data_bag
+[2013-04-09 01:30:03 -0400] juliancdunn: csaunders: well, if you just want a user created and don't want to store its details in a data bag, just use the built-in "users" resource
+[2013-04-09 01:30:20 -0400] csaunders: I'm at a bit of a loss I'm pretty sure I uploaded the data bag (knife data bag from file users data_bags/users/deploy.json)
+[2013-04-09 01:30:32 -0400] juliancdunn: the data bag would only be useful for prepopulating an SSH key or other things that aren't args to "adduser"
+[2013-04-09 01:30:46 -0400] csaunders: Oh I do want to use a data bag, since I want to include my public SSH key for cap scripts and such
+[2013-04-09 01:30:48 -0400] silk: actually, never mind. Just found them
+[2013-04-09 01:31:40 -0400] juliancdunn: csaunders: so what happens when you do "knife data bag show users"
+[2013-04-09 01:31:56 -0400] csaunders: it lists the deploy user
+[2013-04-09 01:32:35 -0400] csaunders: and showing that bag displays all the stuff I'd want (action, id, password, shell, ssh_keys, etc)
+[2013-04-09 01:32:42 -0400] csaunders: or bag item?
+[2013-04-09 01:33:05 -0400] juliancdunn: bag item I think
+[2013-04-09 01:33:11 -0400] juliancdunn: if you do "knife data bag show users deploy" you should see your user?
+[2013-04-09 01:33:56 -0400] csaunders: yep
+[2013-04-09 01:34:39 -0400] juliancdunn: can you Gist your error then?
+[2013-04-09 01:34:43 -0400] csaunders: sure
+[2013-04-09 01:35:14 -0400] csaunders: https://gist.github.com/csaunders/5342202
+[2013-04-09 01:35:23 -0400] csaunders: it's just saying 404 for some reason :/
+[2013-04-09 01:36:27 -0400] juliancdunn: 'cause you're trying to search in the 'deploy' data bag
+[2013-04-09 01:36:30 -0400] juliancdunn: the data bag is 'users'
+[2013-04-09 01:36:44 -0400] csaunders: :/
+[2013-04-09 01:37:39 -0400] csaunders: so if I use the users data bag, it runs fine but that user isn't created :/
+[2013-04-09 01:39:54 -0400] juliancdunn: make sure your search returns something?
+[2013-04-09 01:39:55 -0400] juliancdunn: https://github.com/opscode-cookbooks/users/blob/master/providers/manage.rb#L56
+[2013-04-09 01:44:03 -0400] csaunders: hrm I don't think I fully understand how chef works at all :(
+[2013-04-09 01:47:14 -0400] juliancdunn: well, "users_manage" is an LWRP -- Lightweight Resource and Provider
+[2013-04-09 01:47:20 -0400] juliancdunn: whose code sits in that file I pasted
+[2013-04-09 01:48:13 -0400] dyer: Hey guys, greetings from China :)   Question if anyone is around So in IRB on a node I would like to load all attributes from the cookbook path ..  It a single cookbook I know how to do this (    @node=Chef::Node.new;   @node.from_file(File.join(File.dirname(__FILE__), %w{.. .. attributes default.rb})) ) but I am wondeirng if there is a better way to do this on a node ?
+[2013-04-09 01:48:32 -0400] dyer: s/It a single/in a single/g
+[2013-04-09 01:48:39 -0400] csaunders: juliancdunn: yeah, I read through it.
+[2013-04-09 01:48:45 -0400] csaunders: I'm trying to figure out what the search is actually doing
+[2013-04-09 01:49:02 -0400] csaunders: from what I understand it should be trying to search for something in the user data bag
+[2013-04-09 01:50:33 -0400] juliancdunn: it's basically trying to look in your specified data bag for all items with group set to 'deploy'
+[2013-04-09 01:51:58 -0400] dyer: I found this ( http://arzur.net/2012/10/02/notebook-chef-interactive-testing-using-irb/ ) but thats for Chef Server, I am actually using ChefSolo
+[2013-04-09 01:52:07 -0400] csaunders: yeah search is returning nothing hrm...
+[2013-04-09 01:53:15 -0400] juliancdunn: csaunders: so I'd check if your data bag item for the 'deploy' user actually contains the group attribute and if that contains 'deploy' in its aray
+[2013-04-09 01:53:18 -0400] juliancdunn: s/aray/array
+[2013-04-09 01:53:19 -0400] log1kal: dyer: is there a reason you wouldn't use shef/chef-shell ?
+[2013-04-09 01:54:11 -0400] dyer: Because we are going to need to do load all the attributes in another application besides Chef, so IRB is just a 'playground' right now
+[2013-04-09 01:54:17 -0400] log1kal: ah
+[2013-04-09 01:54:33 -0400] dyer: Looking at chef/application/solo.rb right now for some ideas
+[2013-04-09 01:54:54 -0400] dyer: just wondering if anyone had / knew anything before I went down this road
+[2013-04-09 01:57:41 -0400] csaunders: oh alright. yeah that fixed it.
+[2013-04-09 01:57:54 -0400] csaunders: Alright once I get this user thing working I think I'm done for the evening :P
+[2013-04-09 01:58:03 -0400] KarlHungus: dyer: i had a similar situation where i needed to expose cookbook attributes to another application
+[2013-04-09 01:58:04 -0400] csaunders: spent waaaay too long on this :/
+[2013-04-09 01:58:17 -0400] csaunders: juliancdunn: Thanks for all the help! Apologies for being a huge newbie :P
+[2013-04-09 01:58:17 -0400] dyer: KarlHungus, how did that work out for u ?
+[2013-04-09 01:58:26 -0400] KarlHungus: dyer: i would serialize the attributes to json and write them to the filesystem when the recipe converged
+[2013-04-09 01:58:36 -0400] KarlHungus: dyer: it was a hobbile mess, and we're moving away from that ;)
+[2013-04-09 01:58:56 -0400] KarlHungus: dyer: i used it so chef could search for services, then write them out to the applications config file
+[2013-04-09 01:59:29 -0400] KarlHungus: dyer: we're moving to a system where when chef correctly converges a service it will update the SRV records for dns service discovery instead.
+[2013-04-09 01:59:33 -0400] dyer: Ideally what I would like to happen is run a converge on my own
+[2013-04-09 01:59:42 -0400] dyer: just trying to figure out how to do that
+[2013-04-09 01:59:50 -0400] dyer: ah, SRV records the joys of DNS :)
+[2013-04-09 02:00:33 -0400] dyer: http://webpulp.tv/episodes/learn-how-tropo-built-a-huge-voice-cloud-while-using-dns-for-a-key-value-store   :)
+[2013-04-09 02:00:43 -0400] KarlHungus: yeah, it works much better for us to leave behind srv records as an artifact of convergence in an environment. then leverage those in the applications to autodiscovery dependencent service endpoints
+[2013-04-09 02:01:52 -0400] KarlHungus: tightly coupling attributes to other services that consumed them was a disaster
+[2013-04-09 02:01:56 -0400] dyer: So any examples from your old methods where you are running a convergence on a node outside of "./chef-solo" or "./chef-client"
+[2013-04-09 02:02:23 -0400] KarlHungus: i wouldn't run it outside of chef. it was written out during converge
+[2013-04-09 02:02:39 -0400] dyer: yea, we need to validate attributes befor a converge
+[2013-04-09 02:03:38 -0400] dyer: Customer requirement that we check the semantics of any dna.json files to warn them if they are passing in unused attributes
+[2013-04-09 02:03:57 -0400] dyer: Kind of like http://acrmp.github.io/foodcritic/#FC034 but for dna.json
+[2013-04-09 02:04:04 -0400] dyer: ( chef-solo )
+[2013-04-09 02:04:37 -0400] KarlHungus: blah. thats hard or impossible to determine accurately
+[2013-04-09 02:04:53 -0400] KarlHungus: since the attributes used may change based on the value of other attributes
+[2013-04-09 02:05:21 -0400] KarlHungus: gross. =) i'd love to hear what you eventually come up with
+[2013-04-09 02:08:47 -0400] dyer: It is gross, I agree but customer is always right
+[2013-04-09 02:13:38 -0400] jasonr: Hi, I'm new to chef and I have a question. Let's say I work on multiple projects and I'm using vagrant with chef for provisioning.  I have a cookbooks folder in my project folder. In cookbooks I have downloaded into a couple cookbooks from the community like postgresql for instance. So my question is, where do I put my customizations for postgresql keeping in mind that at some point I might want to update the cookbook to a newer version l
+[2013-04-09 02:14:09 -0400] juliancdunn: jasonr: don't "customize" postgresql
+[2013-04-09 02:14:24 -0400] juliancdunn: instead, make yourself a wrapper cookbook that overrides attributes from postgresql that you want to change
+[2013-04-09 02:14:57 -0400] juliancdunn: jasonr: here's an example from the place I used to work: https://github.com/secondmarket-cookbooks/smpostgresql
+[2013-04-09 02:15:14 -0400] juliancdunn: also, read this to find out what this pattern is all about - http://devopsanywhere.blogspot.com/2012/11/how-to-write-reusable-chef-cookbooks.html
+[2013-04-09 02:16:12 -0400] jasonr: Ok, sounds like something I'm looking for.  A better example might be a cpan cookbook and I need to specify all the CPAN modules I want to install. I'll start looking at the links you posted.  Thanks.
+[2013-04-09 02:17:04 -0400] juliancdunn: np
+[2013-04-09 02:17:54 -0400] juliancdunn: jasonr: also not to overwhelm you, but if you use berkshelf (berkshelf.com) then you don't need to download the community cookbooks at all
+[2013-04-09 02:18:05 -0400] juliancdunn: that tool manages them all for you
+[2013-04-09 02:18:58 -0400] geggam: who manages berkshelf... (to butt into an ongoing conversation im interested in )
+[2013-04-09 02:20:00 -0400] geggam: n/m... read more
+[2013-04-09 02:20:26 -0400] jasonr: I came across berkshelf this morning but for some reason dismissed it... I'll look into it again.
+[2013-04-09 02:27:13 -0400] KarlHungus: dyer: *hugs*
+[2013-04-09 02:28:32 -0400] KarlHungus: dyer: i just beat head on desk figuring out that ebs volume device requests for /dev/xvd#{letter} equate to /dev/xbd#{letter.ord-97} on freebsd. fun.
+[2013-04-09 02:28:52 -0400] dyer: computers are fun aren't they
+[2013-04-09 02:28:53 -0400] dyer: :)
+[2013-04-09 02:36:17 -0400] peter_: Hello, anyone could teach me on using artifact cookbook please
+[2013-04-09 02:43:33 -0400] juliancdunn: peter_: what do you mean
+[2013-04-09 03:39:43 -0400] enb201: hey! I'm trying to install chef using chef-solo...
+[2013-04-09 03:39:57 -0400] enb201: on CentoOS 6 and I am receiving this error
+[2013-04-09 03:39:59 -0400] enb201: NoMethodError: gem_package[chef-server-api] (chef-server::rubygems-install line 83) had an error: NoMethodError: undefined method `full_name' for nil:NilClass
+[2013-04-09 03:43:33 -0400] petecheslock: can you gist up the rubygems-install.rb inside the chef-server cookbook?  probably a typo there (line 83 from your error message)
+[2013-04-09 03:50:05 -0400] enb201: Pete, first thanks for looking at this, second here is line 83 from the rubygems-install.rb
+[2013-04-09 03:50:07 -0400] enb201: gem_package gem do
+[2013-04-09 03:50:22 -0400] enb201: server_gems.each do |gem|
+[2013-04-09 03:50:23 -0400] enb201:   gem_package gem do
+[2013-04-09 03:50:23 -0400] enb201:     version node['chef_packages']['chef']['version']
+[2013-04-09 03:50:23 -0400] enb201:   end
+[2013-04-09 03:50:23 -0400] enb201: end
+[2013-04-09 03:51:18 -0400] enb201: /tmp/chef-solo/cookbooks/chef-server/recipes/rubygems-install.rb
+[2013-04-09 03:53:07 -0400] tolland: sed -n '83p' /tmp/chef-solo/cookbooks/chef-server/recipes/rubygems-install.rb
+[2013-04-09 03:55:24 -0400] tolland: server_gems is nil?
+[2013-04-09 03:55:54 -0400] enb201:  sed -n '83p' /tmp/chef-solo/cookbooks/chef-server/recipes/rubygems-install.rb
+[2013-04-09 03:55:54 -0400] enb201:   gem_package gem do
+[2013-04-09 03:55:56 -0400] tolland: or you are clobbering the gem var with a local declaration
+[2013-04-09 03:56:25 -0400] tolland: "gem_package gem do" is referencing an existing variable gem
+[2013-04-09 03:56:43 -0400] tolland: "server_gems.each do |gem|" creates a nested "gem" variable?
+[2013-04-09 03:56:54 -0400] tolland: (im not a ruby dev, so I am just guessing)
+[2013-04-09 03:57:17 -0400] tolland: oh, i see
+[2013-04-09 03:57:19 -0400] tolland: forget that
+[2013-04-09 03:57:38 -0400] enb201: ok
+[2013-04-09 03:58:05 -0400] tolland: gist your recipe as petecheslock said, its confusing in irc
+[2013-04-09 03:59:54 -0400] tolland: or pastebin
+[2013-04-09 03:59:57 -0400] tolland: old skool
+[2013-04-09 04:00:05 -0400] tolland: i remember pastebin when it was cool
+[2013-04-09 04:00:13 -0400] tolland: before new fangled gists
+[2013-04-09 04:01:11 -0400] enb201: hehe... sorry I had to google gist...
+[2013-04-09 04:01:12 -0400] enb201: https://gist.github.com/anonymous/5342855
+[2013-04-09 04:02:03 -0400] enb201: basically, following these directions.
+[2013-04-09 04:02:03 -0400] enb201: https://github.com/nclouds/chef-cookbooks/wiki/Install-Chef-Server-on-Centos-RedHat
+[2013-04-09 04:08:03 -0400] enb201: any luck?
+[2013-04-09 04:12:12 -0400] peter_: Hello, anyone ever deploying java war file using http://community.opscode.com/cookbooks/artifact?
+[2013-04-09 04:17:26 -0400] enb201: Pete or Tolland? Do you have any suggestions?
+[2013-04-09 04:27:53 -0400] tolland: enb201: I would make the version explicit to check whether its something to do with the "version node['chef_packages']['chef']['version']" part, or double check that is set, as you are using chef-solo
+[2013-04-09 04:29:23 -0400] dougireton: I'm trying out the Opscode Jenkins cookbook, but I get errors when I run 'kitchen test' after running 'bundle':
+[2013-04-09 04:29:38 -0400] dougireton: Unable to activate chef-11.4.0, because mixlib-cli-1.2.2 conflicts with mixlib-cli (~> 1.3.0), net-ssh-2.2.2 conflicts with net-ssh (~> 2.6) (Gem::LoadError)
+[2013-04-09 04:29:51 -0400] dougireton: any one else hit this or know what to do?
+[2013-04-09 04:29:59 -0400] tolland: and then try replacing the loop with the actual values you want... gem_package "chef-server-api" do.... version "x.y.z" ...end
+[2013-04-09 04:31:12 -0400] tolland: and then at some point you realiase that chef-solo is like a regrettable neglected child of opscode-chef, and just use hosted chef for everything
+[2013-04-09 04:46:15 -0400] enb201: I don't think using hosted-chef will be an option...
+[2013-04-09 04:46:40 -0400] enb201: and though I've used Puppet for a few years our devel group wants to run chef.
+[2013-04-09 04:47:59 -0400] petecheslock: enb201 - all those docs are going to be for chef-server pre chef 11
+[2013-04-09 04:48:30 -0400] petecheslock: you can solve this in about 30 seconds if you can get an ubuntu node up - http://www.opscode.com/chef/install/
+[2013-04-09 04:48:35 -0400] petecheslock: install the deb - run a command, done
+[2013-04-09 04:48:36 -0400] jeremyolliver: This may be a wild shot in the dark, but has anyone used fail2ban and ufw together?
+[2013-04-09 04:49:00 -0400] petecheslock: or like others have said - hosted chef - you'll be up and running even quicker
+[2013-04-09 04:49:53 -0400] jeremyolliver: ufw/iptables is blocking outbound connections despite having outoing defaulted to allow
+[2013-04-09 04:50:09 -0400] jeremyolliver: I suspect fail2ban is the culprit, but digging or fixing is proving tricky
+[2013-04-09 04:50:59 -0400] flaccid: hmm when i run librarian-chef update sometimes i get /opt/vagrant_ruby/lib/ruby/gems/1.8/gems/librarian-0.1.0/lib/librarian/manifest_set.rb:141:in `dependencies_of': undefined method `dependencies' for nil:NilClass (NoMethodError) and can't work out why. any ideas?
+[2013-04-09 05:00:48 -0400] enb201: so if I go the package method
+[2013-04-09 05:01:10 -0400] enb201: do anyone know if chef-server-ctl supports socks_proxies?
+[2013-04-09 05:04:22 -0400] jeremyolliver: enb201: I had a lot of difficulties setting up a chef server behind a proxy (this was about a year ago)
+[2013-04-09 05:04:42 -0400] jeremyolliver: the main problem being recipes that try to download stuff that doesn't account for being behind a proxy
+[2013-04-09 05:06:01 -0400] jeremyolliver: some worked okay with a passwordless proxy, but didn't support setting passwords in the url, or having a proxy password option
+[2013-04-09 05:06:13 -0400] holoway: enb201: what are you trying to do?
+[2013-04-09 05:06:37 -0400] jeremyolliver: I ended up working around by having an internal squid that connected to the authenticated upstream proxy and allowing passwordless proxy only to the IP's of the nodes I was setting up
+[2013-04-09 05:07:06 -0400] jeremyolliver: so if socks_proxies isn't supported, doing something similar might be an option for you
+[2013-04-09 05:08:18 -0400] enb201: right now just trying to setup the infrastructure to start managing 1400 hosts...
+[2013-04-09 05:08:36 -0400] enb201: the proxy is passwordless...
+[2013-04-09 05:09:23 -0400] holoway: enb201: chef-server-ctl doesn't really need a proxy - is the issue you need the hosts to connect via a proxy?
+[2013-04-09 05:10:01 -0400] enb201: holoway: it looks like chef-server-ctl downloads a lot of dependencies..
+[2013-04-09 05:10:53 -0400] jeremyolliver: there's a lot of dependencies, but already packaged within the .deb package for chef-server
+[2013-04-09 05:10:54 -0400] enb201: the prod chef server will only have access to the internet via a socks proxy...
+[2013-04-09 05:11:10 -0400] enb201: so, I just need the RPM?
+[2013-04-09 05:11:24 -0400] jeremyolliver: yeah, all dependencies are bundled within it
+[2013-04-09 05:11:30 -0400] jeremyolliver: that's why it's like 200M or so
+[2013-04-09 05:11:49 -0400] jeremyolliver: I can confirm I downloaded that and installed from it at a hacking event without external net access
+[2013-04-09 05:11:58 -0400] enb201: then that may work...
+[2013-04-09 05:12:12 -0400] jeremyolliver: the ctl command just configures I believe
+[2013-04-09 05:12:32 -0400] holoway: enb201: exactly - it has 0 deps
+[2013-04-09 05:12:46 -0400] enb201: cool.. I appreciate everyones help...
+[2013-04-09 05:13:00 -0400] enb201: going to get some sleep, it's late here.
+[2013-04-09 05:13:01 -0400] enb201: night.
+[2013-04-09 05:23:11 -0400] flaccid: yfeldblum: heya there, i wouldn't mind poking you about a librarian-chef issue/question when you online next..
+[2013-04-09 05:34:08 -0400] erratic: ......
+[2013-04-09 05:38:07 -0400] erratic: Where is a someone who is know how to write cookbook
+[2013-04-09 05:39:35 -0400] holoway: /win 2
+[2013-04-09 06:01:32 -0400] peter_: question: for example you have installed jenkins using cookbook, do you actually need to do another configuration? (i,e setup git plugin or setup maven)?
+[2013-04-09 06:15:56 -0400] erratic: Heh
+[2013-04-09 06:34:52 -0400] BryanWB: spox, around?
+[2013-04-09 06:36:37 -0400] veda_: Hi
+[2013-04-09 06:36:56 -0400] veda_: Anybody there.. I have a problem with Knife
+[2013-04-09 06:37:22 -0400] veda_: how to install knife?
+[2013-04-09 06:37:29 -0400] veda_: I am getting below error
+[2013-04-09 06:37:44 -0400] veda_: root@chef:~# gem install knife ERROR:  Could not find a valid gem 'knife' (>= 0) in any repository ERROR:  While executing gem ... (Gem::RemoteFetcher::FetchError)     SocketError: getaddrinfo: Name or service not known (http://rubygems.org/latest_specs.4.8.gz)
+[2013-04-09 06:38:13 -0400] Mithrandir: veda_: it's in the chef gem
+[2013-04-09 06:40:55 -0400] veda_: I installed chef by " dpkg -i chef-server_11.0.4-1.ubuntu.12.04_amd64.deb  && sudo chef-server-ctl reconfigure" command
+[2013-04-09 06:41:11 -0400] veda_: and trying " knife configure "
+[2013-04-09 06:41:13 -0400] veda_: it failed
+[2013-04-09 06:41:42 -0400] veda_: how to install knife , gem
+[2013-04-09 06:42:16 -0400] Mithrandir: it's in the chef package, not the chef-server package.
+[2013-04-09 06:45:50 -0400] flaccid: gem install chef
+[2013-04-09 07:24:26 -0400] tnarik: hi, I am playing with chef-solo to automate the installation of some Solaris DEV boxes via Vagrant
+[2013-04-09 07:25:09 -0400] tnarik: and was wondering which would be the best practices when requiring external packages such as, let's say, the JAVA distribution from Oracle
+[2013-04-09 07:25:28 -0400] tnarik: which requires some manual interaction for the downloading
+[2013-04-09 07:25:59 -0400] tnarik: I could get the whole binary and make it part of the cookbook, I guess, but it doesn't seem right
+[2013-04-09 07:26:16 -0400] flaccid: you could try to hack it with expect or simply don't use stuff like that :) if its a deb sometimes you can add it to apt policy
+[2013-04-09 07:27:41 -0400] tnarik: are there no steps that can be applied to "prepare a cookbook", right after getting it from a repository
+[2013-04-09 07:27:42 -0400] tnarik: ?
+[2013-04-09 07:27:57 -0400] flaccid: chef is non interactive
+[2013-04-09 07:28:04 -0400] tnarik: something like a syntax validation, but at the level of cookbook integrity?
+[2013-04-09 07:28:31 -0400] tnarik: no, that I understand, what I mean is, some pre-task, to be run in the server
+[2013-04-09 07:28:44 -0400] flaccid: i don't understand sorry
+[2013-04-09 07:28:45 -0400] tnarik: or after copying the cookbook, but integrated with the Chef workflow
+[2013-04-09 07:28:59 -0400] tnarik: ok, let me try to explain it better
+[2013-04-09 07:29:26 -0400] tnarik: 1. I got my vagrant base box, my project with a Vagrant file in a share folder somewhere
+[2013-04-09 07:29:45 -0400] tnarik: 2. I tell a developer to install vagrant, to grab my base box and install it
+[2013-04-09 07:30:28 -0400] tnarik: 3. the cookbooks part of the Vagrant project are almost 100% complete, but they are missing some resources such as the JAVA package from Oracle
+[2013-04-09 07:30:52 -0400] tnarik: if the developer tries to 'vagrant up' that box, it wouldn't install everything (because of the missing package)
+[2013-04-09 07:31:09 -0400] tnarik: and Chef cannot grab that unless I hack the downloading interaction
+[2013-04-09 07:31:33 -0400] flaccid: include it in the base box if you can't install it non interactive with chef
+[2013-04-09 07:31:36 -0400] tnarik: but I was trying to find out if I could add a step to ask the developer to grab that file
+[2013-04-09 07:32:09 -0400] flaccid: raise "Go grab that file first, then run again!"
+[2013-04-09 07:32:19 -0400] tnarik: and I know I can do that, but what I don't know if Chef can verify the 'integrity' of the cookbook (check that the files are there)
+[2013-04-09 07:32:29 -0400] tnarik: or if I need to use just ruby to catch that
+[2013-04-09 07:32:40 -0400] flaccid: you don't put binaries in the cookbook
+[2013-04-09 07:34:39 -0400] tnarik: oh, I see.. so it's better downloading it externally to the shared vagrant folder (for instance), and let the cookbook install that from the shared file system
+[2013-04-09 07:35:04 -0400] tnarik: and handle it as a step previous to the 'vagrant up'
+[2013-04-09 07:35:18 -0400] flaccid: you can use remote_file if its not in a system repos, but chef can't install it natively if its interactive and needs to accept a license
+[2013-04-09 07:36:00 -0400] tnarik: ok, thanks a lot, flaccid
+[2013-04-09 07:36:08 -0400] flaccid: np
+[2013-04-09 07:39:33 -0400] peter_: Hello, when using cookbook (ideally), should we do additional configuration?
+[2013-04-09 07:41:00 -0400] flaccid: peter_: answer to your question. it depends on if the cookbook already does that for you or not.
+[2013-04-09 07:41:29 -0400] peter_: have you ever use jenkins before?
+[2013-04-09 07:41:48 -0400] peter_: i mean the cookbook
+[2013-04-09 07:51:58 -0400] flaccid: hmm with chef_gem on ominibus version of chef, where do the gems get installed to?
+[2013-04-09 08:01:47 -0400] nebrera: helllo
+[2013-04-09 08:02:26 -0400] nebrera: at the recipie I would like to execute a command after the service has restarted
+[2013-04-09 08:02:33 -0400] nebrera: how could I do it ?
+[2013-04-09 08:58:06 -0400] xrl: I'm having a hard time getting the database cookbook to work with my recipe
+[2013-04-09 08:58:27 -0400] xrl: I want to use postgres_database do ... but it's failing to find the provider
+[2013-04-09 08:58:37 -0400] xrl: even though I do ```include_recipe "database::postgresql"```
+[2013-04-09 08:59:45 -0400] xrl: flaccid: chef_gem goes in to "/opt/chef/embedded/lib/ruby/gems/1.9.1/gems" or similar
+[2013-04-09 09:38:25 -0400] dn: I do a ' node.set[:provides] = [["mmonit", {'credentials' => 'monit:monit'}]] ' in a recipe and expect to e.g. in the nodes view in the chef-ui to see the attribute - but it uses the default from the attribute file ' default['provides'] = [] ' - I'm unsure what I do wrong.
+[2013-04-09 09:38:57 -0400] matti: Meh, symbols.
+[2013-04-09 09:40:13 -0400] dn: @matti do you try to say that I shouldn't use symbols for whatever reason? http://www.opscode.com/blog/2013/02/05/chef-11-in-depth-attributes-changes/ is e.g. using symbols in their examples.
+[2013-04-09 10:10:11 -0400] veda_: hi
+[2013-04-09 10:12:10 -0400] veda_: I have installed server and agent of the rackspace environment , but chef server installation fails... can any one let me know what is the reason
+[2013-04-09 10:14:05 -0400] matti: And it fails with what error?
+[2013-04-09 10:19:37 -0400] yiha: hi, I try to install magic_shell cookbook, but it compains RROR: IOError: Cannot open or read
+[2013-04-09 10:19:57 -0400] yiha: does anybody know the problem?
+[2013-04-09 10:22:10 -0400] yiha: ??
+[2013-04-09 10:42:00 -0400] jwilf: Hi all, my couchdb filled up the disk so I stopped it and moved it to a new partition, and now I get errors like ERROR: Server returned error for http://localhost:5984/chef/_design/id_map/_view/name_to_id?include_docs=true&key=[%22client%22,%22chef-validator%22]
+[2013-04-09 10:42:24 -0400] jwilf: and chef server won't start
+[2013-04-09 10:53:52 -0400] dsdeiz: hey all
+[2013-04-09 10:55:03 -0400] TotalEvil: hi2all
+[2013-04-09 10:55:43 -0400] TotalEvil: anyone) know is there any way for dynamic auto-assign role or runlist to node by nodename or hostname
+[2013-04-09 11:00:21 -0400] dsdeiz: possible to use opscode community as the chef server?
+[2013-04-09 11:00:44 -0400] dn: TotalEvil: make a 'default' recipe add it to the nodes that need the logic and in the recipe you add the roles based on your rules.
+[2013-04-09 11:01:11 -0400] TotalEvil: dn
+[2013-04-09 11:01:26 -0400] TotalEvil: but if my node auto-register at chef?
+[2013-04-09 11:02:05 -0400] TotalEvil: node upping from presaved image allready with chef-client
+[2013-04-09 11:02:31 -0400] willejs: when passing in attributes into chef-client via the -j directive, are these attributes permanently added to the node? or just for that run?
+[2013-04-09 11:03:59 -0400] dn: TotalEvil: you could e.g. do it via a cronjob and search via knife for nodes and add it - not really '100% automatic' but kinda close - as far as I know there is no 'default' recipe/role logic or hook for nodes
+[2013-04-09 11:04:32 -0400] TotalEvil: permanently
+[2013-04-09 11:04:50 -0400] TotalEvil: dn) mb it's solution
+[2013-04-09 11:04:57 -0400] TotalEvil: can u show me knife commad example
+[2013-04-09 11:05:01 -0400] TotalEvil: for that?
+[2013-04-09 11:06:43 -0400] dn: TotalEvil: You could also create something like first-boot.json and if the machine registers itself you execute chef-client -j first-boot.json that loads the default recipe and does everything you want
+[2013-04-09 11:06:47 -0400] dn: I think that's even easier
+[2013-04-09 11:07:09 -0400] TotalEvil: hmm
+[2013-04-09 11:07:19 -0400] TotalEvil: mb it's an option
+[2013-04-09 11:07:29 -0400] TotalEvil: ls
+[2013-04-09 11:08:13 -0400] TotalEvil: is there any exmaples of that?
+[2013-04-09 11:08:54 -0400] dn: chef-client -j /etc/chef/first-boot.json -L /var/log/chef/client.log -l debug --once
+[2013-04-09 11:08:59 -0400] TotalEvil: in current firstboot i see "run_list":["recipe[chef-client]"]}
+[2013-04-09 11:09:14 -0400] dn:  cat /etc/chef/first-boot.json
+[2013-04-09 11:09:15 -0400] dn: {
+[2013-04-09 11:09:16 -0400] dn:  "run_list": [ "role[base]", . ] }
+[2013-04-09 11:09:33 -0400] TotalEvil: oky) will try
+[2013-04-09 11:09:36 -0400] TotalEvil: many thx to u
+[2013-04-09 11:09:55 -0400] jwilf: anyone know how i can get chef to recreate the chef db in couch?
+[2013-04-09 11:10:00 -0400] jwilf: ie. like first run
+[2013-04-09 11:10:58 -0400] jwilf: ah, i'll try what dn just said :)
+[2013-04-09 11:12:50 -0400] TotalEvil: )))
+[2013-04-09 11:12:58 -0400] TotalEvil: u have solo?
+[2013-04-09 11:13:17 -0400] jwilf: ok that didn't work
+[2013-04-09 11:29:17 -0400] dickymoo: Hey, has anyone had any experience with the graphite cookbook?
+[2013-04-09 11:30:00 -0400] dickymoo: It seems to be fail if python-dev isn't already present on the system...
+[2013-04-09 11:30:09 -0400] dickymoo: I mean on the node
+[2013-04-09 11:34:39 -0400] zrankfappa: hi all
+[2013-04-09 11:35:01 -0400] dickymoo: hello
+[2013-04-09 11:36:08 -0400] zrankfappa: finally made progress my openstack and chef adventure and it feels GOOD! :)
+[2013-04-09 11:36:27 -0400] zrankfappa: lots of stuff left to do but over the main hurdles of buidling openstack and bootstrapping my first node
+[2013-04-09 11:37:19 -0400] dickymoo: It feels great donesn't it. I got up and running last week and a big grin accompanied my work all dat
+[2013-04-09 11:37:22 -0400] dickymoo: day
+[2013-04-09 11:37:35 -0400] zrankfappa: aye
+[2013-04-09 11:37:45 -0400] zrankfappa: you sure do learn alot on the way
+[2013-04-09 11:37:53 -0400] zrankfappa: i got about 1000 lines of notes :)
+[2013-04-09 11:38:33 -0400] zrankfappa: i've noticed it takes a very long time to syncronize coobooks, anyone else seen this and can advise on best way to debugt?
+[2013-04-09 11:38:35 -0400] zrankfappa: debug*
+[2013-04-09 11:38:36 -0400] dickymoo: Me too. Didn't know I'd get to be so proficient with Ruby along the way
+[2013-04-09 11:38:50 -0400] zrankfappa: haha, i've not even touched ruby yet!
+[2013-04-09 11:38:57 -0400] dickymoo: I'm not having that problem. Are you using hosted chef?
+[2013-04-09 11:39:06 -0400] zrankfappa: opensource chef server
+[2013-04-09 11:39:21 -0400] zrankfappa: i've only got 5 cookbooks and it takes about 20mins to sync
+[2013-04-09 11:40:09 -0400] dickymoo: My cookbooks sync in a number of seconds, but that's using the opscode hosted version
+[2013-04-09 11:40:43 -0400] dickymoo: Are the resources on your chef server getting hammered when you sync?
+[2013-04-09 11:41:12 -0400] zrankfappa: nope
+[2013-04-09 11:41:29 -0400] zrankfappa: it's a fresh openstack install tbh and I'm noob with openstack
+[2013-04-09 11:41:33 -0400] zrankfappa: so maybe a few underlying issue
+[2013-04-09 11:42:26 -0400] dickymoo: I haven't used it at all so I'm not sure what to do about that, sorry. You using more than 5 nodes?
+[2013-04-09 11:42:35 -0400] zrankfappa: in a week i've found 2 second hand servers, built them into ubuntu instances, turned them into a full folsom cluster then built chef server, wrk station and nodes, maybe I'm expecting too much it too little time :)
+[2013-04-09 11:42:55 -0400] dickymoo: haha that seems pretty quick to me!
+[2013-04-09 11:42:55 -0400] zrankfappa: it's all new so quite a lot to absorb
+[2013-04-09 11:42:59 -0400] zrankfappa: aye
+[2013-04-09 11:43:03 -0400] zrankfappa: quite a few late nights
+[2013-04-09 11:44:37 -0400] dickymoo: If you want a quicker turnaround on your cookbooks while you're developing them, you could always use the free opscode hosted chef which seems really quick
+[2013-04-09 11:46:11 -0400] zrankfappa: yea, I might have to give that a try
+[2013-04-09 11:46:44 -0400] zrankfappa: i'll just start out using the ready made ones tbh, i need to go back to infrastructure after this is fully working and upgrade my openstack to grizzly
+[2013-04-09 11:47:19 -0400] zrankfappa: you running openstack?
+[2013-04-09 11:47:33 -0400] dickymoo: what's grizzly?
+[2013-04-09 11:47:54 -0400] zrankfappa: latest and greatest openstack
+[2013-04-09 11:48:02 -0400] kisoku_: grizzly is a release of openstack
+[2013-04-09 11:48:07 -0400] dickymoo: Ah I see.
+[2013-04-09 11:48:24 -0400] dickymoo: No at the moment I'm jsut getting to grips with chef on a private cloud
+[2013-04-09 11:48:26 -0400] dickymoo: running ubuntu
+[2013-04-09 11:48:32 -0400] dickymoo: and windows workstations
+[2013-04-09 11:49:34 -0400] dickymoo: But once I've got the cookbooks written up I'll be using a cloud provider but haven't considered openstack
+[2013-04-09 11:50:19 -0400] zrankfappa: kk
+[2013-04-09 11:50:23 -0400] zrankfappa: it's worth looking at
+[2013-04-09 11:50:37 -0400] dickymoo: Thanks for that
+[2013-04-09 11:50:41 -0400] zrankfappa: i think I'll end up using openstack for training/dev and amazon for prod
+[2013-04-09 11:50:45 -0400] dickymoo: I'm having a look at the video now
+[2013-04-09 11:50:51 -0400] zrankfappa: until openstack matures a bit further
+[2013-04-09 11:51:10 -0400] dickymoo: Right
+[2013-04-09 11:51:23 -0400] dickymoo: The thing that's shocked me here is that openstack is actually an OS too?
+[2013-04-09 11:51:33 -0400] zrankfappa: I just needed something I could play with for automation that didn't cost me anything everytime i spin up a box
+[2013-04-09 11:51:47 -0400] kisoku_: openstack is not an os
+[2013-04-09 11:51:50 -0400] dickymoo: Yeah I know that feeling
+[2013-04-09 11:52:06 -0400] dickymoo: Ah ok, I didn't think it was but it said that on their homepage. I was like WTF?!
+[2013-04-09 11:52:41 -0400] dickymoo: Ah ok it says Openstack DELIVERS a scalable OS.
+[2013-04-09 11:52:56 -0400] dickymoo: I thought it was it IS a scalable OS. *needs more sleep*
+[2013-04-09 11:53:20 -0400] zrankfappa: it's so much bigger than an OS :)
+[2013-04-09 11:53:28 -0400] dickymoo: haha :)
+[2013-04-09 11:53:52 -0400] zrankfappa: it's BIG
+[2013-04-09 11:54:27 -0400] zrankfappa: once i get my base stable i'll convert it into a project and split it across multiple teams
+[2013-04-09 11:54:31 -0400] dickymoo: They're a cloud server provider, right? Like rackspace
+[2013-04-09 11:54:48 -0400] zrankfappa: rackspace run it
+[2013-04-09 11:55:26 -0400] zrankfappa: there are a few good pictures that break down the components
+[2013-04-09 11:55:38 -0400] dickymoo: Ah! *penny drops*
+[2013-04-09 11:56:02 -0400] zrankfappa: many different ways to build it too
+[2013-04-09 11:56:11 -0400] dickymoo: It looks really good
+[2013-04-09 11:56:36 -0400] zrankfappa: can sit on different hypervisors, use different network platforms , nexus, openvswitch etc
+[2013-04-09 11:56:44 -0400] nebrera: hi again. I would like to test new chef-server. The problem it looks that it has embebed most of the thing on the rpm
+[2013-04-09 11:56:55 -0400] nebrera: could I use my own rabbitmq server ?
+[2013-04-09 11:57:05 -0400] nebrera: or my own postgress server  ?
+[2013-04-09 11:57:24 -0400] zrankfappa: <-- chef noob
+[2013-04-09 11:58:14 -0400] dickymoo: <-- also chef noob
+[2013-04-09 11:58:50 -0400] dickymoo: What do you mean rpm, nebrera?
+[2013-04-09 11:59:29 -0400] nebrera: I have downloaded a rpm for chef-client and chef-server
+[2013-04-09 11:59:45 -0400] nebrera: with 10.X I used to install chef-server installing the gem
+[2013-04-09 11:59:56 -0400] nebrera: now you provide a rpm, isn't ?
+[2013-04-09 12:00:06 -0400] dickymoo: Ah I see.
+[2013-04-09 12:00:25 -0400] nebrera: thats because it is now not ruby and it is erland
+[2013-04-09 12:00:28 -0400] dickymoo: Sorry I'm using opscode hosted chef so I don't know what can do, sorry
+[2013-04-09 12:00:32 -0400] nebrera: *erlang
+[2013-04-09 12:01:04 -0400] nebrera: anyone could help me ?
+[2013-04-09 12:03:26 -0400] dickymoo: I've heard this place gets a lot busier when the US wakes up.
+[2013-04-09 12:03:47 -0400] zrankfappa: if it's just for proof of concept why not just build it standalone on a vm play with it and if you like it work out how to plug it into your existing message server?
+[2013-04-09 12:04:08 -0400] zrankfappa: takes about 10mins to install from fresh following the docs on chef site
+[2013-04-09 12:04:38 -0400] zrankfappa: you can still bootstrap existing nodes to test it out
+[2013-04-09 12:18:40 -0400] ptrf: hello, I was wondering if the free 5-node plan for hosted chef has a timelimit?
+[2013-04-09 12:20:23 -0400] cwj: ptrf: afaik its not a trial, there's no time limit
+[2013-04-09 12:20:35 -0400] ptrf: thanks
+[2013-04-09 12:20:54 -0400] cwj: no problem
+[2013-04-09 12:21:00 -0400] ptrf: it does say "free trial"
+[2013-04-09 12:21:06 -0400] ptrf: i'll just ask sales@
+[2013-04-09 12:21:19 -0400] ptrf: i dont know when we will need to scale for more than 5 boxen
+[2013-04-09 12:21:51 -0400] cwj: fwiw i think i've been using the 5 node free tier for my home machines going on over a year now
+[2013-04-09 12:24:14 -0400] ptrf: cwj: nice, alrighty then
+[2013-04-09 12:30:38 -0400] smt: aruntomar: I am getting this error Read-only file system. When reconfiguring chef-server(chef-server-ctl reconfigure) ?
+[2013-04-09 12:57:05 -0400] dsdeiz: do i put my cookbooks in cookbooks dir or site-cookbooks?
+[2013-04-09 12:57:54 -0400] zrankfappa: guys, anyone got a sec to help with role creation, I'm missing a trick somewhere
+[2013-04-09 12:58:15 -0400] zrankfappa: i was able to bootstrap build essentials, install it remotely via a role no problem
+[2013-04-09 12:58:42 -0400] zrankfappa: when i tried to make a webserver role with nginx it allows me to create it, but when I apply it to a node it craps out during syncing cookbooks
+[2013-04-09 12:58:53 -0400] zrankfappa:  FATAL: TypeError: can't convert Net::ReadAdapter into String
+[2013-04-09 12:59:04 -0400] zrankfappa: i'm using opensource chef latest version
+[2013-04-09 12:59:16 -0400] zrankfappa: Starting Chef Client, version 11.4.0
+[2013-04-09 13:01:52 -0400] zrankfappa: paste is here: http://pastebin.com/4PNpw53k
+[2013-04-09 13:06:43 -0400] dickymoo: Has anyone here had experience of using the Graphite cookbook?
+[2013-04-09 13:06:57 -0400] zrankfappa: not me sry
+[2013-04-09 13:07:40 -0400] dickymoo: It seems to be fail if python-dev isn't already present on the node. Which kind of defeats the purpose.
+[2013-04-09 13:08:15 -0400] dickymoo: sorry, installing phython-dev manually before converging the node defeats the purpose of using Chef.
+[2013-04-09 13:08:37 -0400] dickymoo: Thanks zrank
+[2013-04-09 13:10:17 -0400] zrankfappa: maybe there is another cookobook that handles the deps?
+[2013-04-09 13:15:43 -0400] matti: dickymoo: Bad cookbook has nothing to do with Chef.
+[2013-04-09 13:16:01 -0400] matti: dickymoo: Most community cookbooks are really bad in terms of how they want to do things.
+[2013-04-09 13:24:25 -0400] dickymoo: OK, thanks matti. You don't know if there's a better channel to be talking about cookbooks, is there?
+[2013-04-09 13:24:48 -0400] adamjk-dev: dickymoo: a coworker just starting using the graphite cookbook
+[2013-04-09 13:27:20 -0400] dickymoo: Ah really. Is your coworker having the same problem as me? ie failing to install python-dev?
+[2013-04-09 13:27:28 -0400] adamjk-dev: dickymoo: my coworker changed the default recipe to install python-devel
+[2013-04-09 13:27:49 -0400] adamjk-dev: dickymoo: well, wait... I am asking them to take a look
+[2013-04-09 13:28:35 -0400] dickymoo: adamjk-dev: That's really interesting. Thanks for letting me know.
+[2013-04-09 13:29:35 -0400] adamjk-dev: dickymoo: I am looking at their cookbook, that may not be true in fact
+[2013-04-09 13:31:01 -0400] dsdeiz: i've created a recipe and used the web_app definition. do i need to copy the sample template and add it on my cookbook as well?
+[2013-04-09 13:31:06 -0400] adamjk-dev: dickymoo: It isn't immediately apparent, since their cookbook installs a bunch of packages, it is possible that one of them brings in the python-dev package
+[2013-04-09 13:31:22 -0400] dickymoo: adamjk-dev: Yes, it looks like that's what's happening
+[2013-04-09 13:32:37 -0400] dsdeiz: um, anyone? :(
+[2013-04-09 13:32:38 -0400] dickymoo: adamjk-dev: None of the packages specified are python-dev, so I guess it's a dependency of one of the packages it does install...
+[2013-04-09 13:33:06 -0400] adamjk-dev: dickymoo: Possibly, well I meant my coworker has their own version of the cookbook, so it likely even differs from the opscode one
+[2013-04-09 13:33:30 -0400] adamjk-dev: dickymoo: they are checking right now, if they handled it in the graphite cookbook or possibly a different one
+[2013-04-09 13:34:31 -0400] dickymoo: adamjk-dev: It's just got this line in the cookbook, which I assume is responsible include_recipe "python"
+[2013-04-09 13:34:39 -0400] dickymoo: adamjk-dev: A that's great, thanks
+[2013-04-09 13:34:58 -0400] adamjk-dev: dickymoo: Yeah, they said that their graphite cookbook depends on the python cookbook
+[2013-04-09 13:35:11 -0400] adamjk-dev: dickymoo: np
+[2013-04-09 13:37:45 -0400] jwilf: anyone know a way to re-register a node if its client.pem is invalid? i tried bootstrap but it runs chef-client which fails because the old key is invalid
+[2013-04-09 13:38:09 -0400] knuckolls: jwilf: remove the old key before bootstrap?
+[2013-04-09 13:38:48 -0400] jwilf: knuckolls: aha yes, that did it :)
+[2013-04-09 13:38:54 -0400] knuckolls: hooray
+[2013-04-09 13:47:04 -0400] zrankfappa: guys, anyone got a sec to talk about role creation ?
+[2013-04-09 13:47:09 -0400] zrankfappa: I think I'm doing something wrong
+[2013-04-09 13:47:30 -0400] zrankfappa: I'm just after a good example for how to create a basic webserver role using nginx
+[2013-04-09 13:47:55 -0400] zrankfappa: my role is bombing out, I've googled the error and guess it's just down to user error
+[2013-04-09 13:48:05 -0400] alexbst: good luck, er, fappa.
+[2013-04-09 13:48:52 -0400] tomduckering: Hello. I'm trying to make use of the idiom described in here: http://wiki.opscode.com/display/ChefCN/Passing+data+from+various+recipes+to+one+definition, my code is this: https://gist.github.com/tomduckering/5345788. The template resource is being executed the first time the definition is used. I'd like it to run at the end after all the data for the template has been collated. Can anyone shed any light?
+[2013-04-09 13:49:40 -0400] zrankfappa: I need it alex :)
+[2013-04-09 13:56:11 -0400] nebrera: the new chef-server needs couchdb ?
+[2013-04-09 13:56:33 -0400] knuckolls: nebrera: pretty sure it's all postgres all the time now
+[2013-04-09 13:56:47 -0400] knuckolls: knife-server will set up a chef 11 server for you, just check out what it does
+[2013-04-09 13:56:49 -0400] nebrera: ok
+[2013-04-09 13:57:18 -0400] nebrera: but knife server is for amazon, isn't ?
+[2013-04-09 13:57:40 -0400] knuckolls: nebera: "An Opscode Chef knife plugin to manage Chef Servers. Bootstrap a new Chef Server on Amazon's EC2 or a standalone server."
+[2013-04-09 13:57:48 -0400] knuckolls: you can pull one up in a vagrant to see what happens
+[2013-04-09 13:57:57 -0400] knuckolls: i wouldn't set up a chef server any other way
+[2013-04-09 14:00:25 -0400] nebrera: ok
+[2013-04-09 14:00:28 -0400] nebrera: I will jave a look
+[2013-04-09 14:00:29 -0400] nebrera: thanks
+[2013-04-09 14:01:26 -0400] nebrera: is: https://github.com/fnichol/knife-server ??
+[2013-04-09 14:01:47 -0400] knuckolls: yes
+[2013-04-09 14:01:49 -0400] knuckolls: http://fnichol.github.io/knife-server/
+[2013-04-09 14:07:04 -0400] zrankfappa: well, sorted my problem and it turned out to be pretty darn simple
+[2013-04-09 14:07:37 -0400] zrankfappa: run list of deps was in wrong order, rejigged as they were displayed by 'syncing cookbooks' and it all works
+[2013-04-09 14:39:48 -0400] sanguisdex: where can I man-up on the syntax of adding attributes setting to my role? (I know this is #learnchef topic but I got silence there for the past hour)
+[2013-04-09 14:42:17 -0400] BlackMaria1: hiyal,  any starting point suggestions for multimaster mysql:  scripts experiences best practices etc?
+[2013-04-09 14:42:27 -0400] knuckolls: sanguisdex: you want to override attributes in your role?
+[2013-04-09 14:43:04 -0400] sanguisdex: knuckolls: I want to be able to specify the attributes fopr say mysql
+[2013-04-09 14:44:24 -0400] knuckolls: sanguisdex: http://docs.opscode.com/essentials_roles_formats.html that's probably what you want to read. you can define the override attributes to configure your cookbooks
+[2013-04-09 14:44:55 -0400] bharghav9: Hi Opscoders....I have one query....I want "group" resource block to be execute only when "execute" resource block command returns successful return value "0".....Can anyone guide me on how I can achieve this?...I didn't find any attribute such as "depends" etc
+[2013-04-09 14:45:48 -0400] sanguisdex: knuckolls: thanks read
+[2013-04-09 14:46:17 -0400] jwitrick: Is there a way to determine if a resource is already in the queue to run?
+[2013-04-09 14:48:16 -0400] knuckolls: bharghav9: you can use the :nothing action on the dependent group resource, and put a notifies statement on the execute resource. so if the execute resource runs, it'll subsequently notify the group resource to run. you can control whether or not the execute resource runs with a not_if / only_if statement. i think it'll work that way
+[2013-04-09 14:49:03 -0400] knuckolls: jwitrick: look into how chef-rewind is written. it's a very small codebase, it lets you edit resources that are already in the queue to be run before they're run.
+[2013-04-09 14:49:46 -0400] jwitrick: knuckolls: thanks I will take a loook
+[2013-04-09 14:52:08 -0400] knuckolls: jwitrick: this may also be helpful http://erik.hollensbe.org/2013/03/16/the-chef-resource-run-queue/
+[2013-04-09 14:52:53 -0400] bharghav9: Thanks Knuckolls...I will just go through what you said and try to implement it..Thanks for your guidance.
+[2013-04-09 14:55:48 -0400] Kzim: hi
+[2013-04-09 14:56:03 -0400] Kzim: is the Deploy resource only for git ?
+[2013-04-09 15:05:14 -0400] enb201: I've worked through installing the chef-server via rpm and the chef-server-ctl reconfigure and chef-server-ctl test both run without issue.
+[2013-04-09 15:05:30 -0400] enb201: Now I am to setting up a workstation.
+[2013-04-09 15:05:58 -0400] enb201: where would the knife.rb be located on the server?
+[2013-04-09 15:06:29 -0400] rep0st: enb201: knife.rb typically doesn't live on the chef server. It typically lives on the workstation. You can create a knife.rb on your workstation via knife configure
+[2013-04-09 15:09:29 -0400] yfeldblum: flaccid, around
+[2013-04-09 15:10:07 -0400] enb201: thanks rep0st...
+[2013-04-09 15:11:40 -0400] enb201: You must place your client key in:
+[2013-04-09 15:11:40 -0400] enb201:   /root/.chef/root.pem
+[2013-04-09 15:11:48 -0400] enb201: how do I generate this key-pair?
+[2013-04-09 15:12:19 -0400] vegardx_: It is generated when the client validates the first time. Or you can generate it on the chef server.
+[2013-04-09 15:12:55 -0400] vegardx_: I think you can rengenerate it with " knife client"
+[2013-04-09 15:12:55 -0400] enb201: on the chef-server in /etc/chef-server I see admin.pem
+[2013-04-09 15:13:04 -0400] vegardx_: As long as your knife user has admin access.
+[2013-04-09 15:34:32 -0400] gyre007: ohai chefs...what library/gem are you using for interaction with Rackspace API in your recipes ?
+[2013-04-09 15:35:57 -0400] test__: I'm trying to run a 'knife winrm' with admin privileges (highest priority).  Is there a param I can add for that?  I'm already logging in as the admin user through winrm
+[2013-04-09 15:37:34 -0400] RayS: had a qq regarding the cron command, is the name the command that is going to be run, or do you set a command
+[2013-04-09 15:37:41 -0400] RayS: and name is just a label?
+[2013-04-09 15:38:07 -0400] gleam: command = command
+[2013-04-09 15:38:12 -0400] gleam: name is just a label
+[2013-04-09 15:38:24 -0400] gleam: if you do cron_d it's the name of the file in /etc/cron.d
+[2013-04-09 15:41:23 -0400] RayS: thanks gleam
+[2013-04-09 15:59:02 -0400] test__: Is there any way to run knife winrm as admin level priviledges on target station?
+[2013-04-09 16:05:04 -0400] BraveSirRobin: Hello all you culinary types :)
+[2013-04-09 16:05:40 -0400] BraveSirRobin: Just evaluating Chef for use with my company, and was wondering what "push client runs" are
+[2013-04-09 16:05:42 -0400] jrclouda1: Hello!
+[2013-04-09 16:05:54 -0400] BraveSirRobin: Are there any docs on this?
+[2013-04-09 16:07:04 -0400] jrclouda1: Push is typically when a CM server will send configs to it's clients instead of relying on nodes to check in
+[2013-04-09 16:07:14 -0400] jrclouda1: NOt sure on docs...
+[2013-04-09 16:08:05 -0400] BraveSirRobin: I guess it's the ability to push some changes out to nodes instead of waiting for clients to dial in?
+[2013-04-09 16:08:54 -0400] BraveSirRobin: We may have a requirement to deploy configuration changes simultaneously to multiple nodes, so a pull based model might not work.
+[2013-04-09 16:09:29 -0400] yfeldblum: BraveSirRobin, why?
+[2013-04-09 16:10:07 -0400] BraveSirRobin: So, if we have to update an Apache config to add in a redirect, we want it to go to all webserver nodes at once
+[2013-04-09 16:10:34 -0400] BraveSirRobin: if the clients are polling every 2 mins, the update could be staggered, we might not want that
+[2013-04-09 16:12:06 -0400] BraveSirRobin: Aaah.. my GoogleFoo is returning....
+[2013-04-09 16:12:11 -0400] BraveSirRobin: On-Demand Command Execution: Private Chef delivers Push functionality as a Chef Server plugin that enables users to select a group of servers, specify an immediate action for those resources to execute, and track the status of the request as it progresses. After a simple install of Push, users can edit and execute command code in real time to respond to changing conditions, increasing IT agility and control across ten or thousands of servers.
+[2013-04-09 16:12:15 -0400] BraveSirRobin: from http://www.opscode.com/press-releases/opscode-announces-next-generation-of-private-chef-for-the-enterprise/
+[2013-04-09 16:12:55 -0400] yfeldblum: BraveSirRobin, that just narrows the rollout window; it doesn't eliminate the rollout window
+[2013-04-09 16:13:21 -0400] BraveSirRobin: Sure
+[2013-04-09 16:13:22 -0400] yfeldblum: BraveSirRobin, you can achieve the same thing with `knife ssh roles:$ROLE 'sudo chef-client'`
+[2013-04-09 16:13:44 -0400] Valdo: hi anybody
+[2013-04-09 16:13:46 -0400] BraveSirRobin: Oh, OK, so you manually run chef client
+[2013-04-09 16:13:50 -0400] BraveSirRobin: i see
+[2013-04-09 16:14:41 -0400] jtimberman: BraveSirRobin: it's an announced, but not yet shipped, feature.
+[2013-04-09 16:14:42 -0400] yfeldblum: BraveSirRobin, if you're running chef-client *not* as a daemon, you can always trigger a run whenever you have a change you want to be applied (and you can always trigger a run just for fun, if your code is all properly idempotent)
+[2013-04-09 16:14:58 -0400] jtimberman: BraveSirRobin: I can tell you that it's *awesome* :)
+[2013-04-09 16:15:30 -0400] jtimberman: and it's not really the same thing as knife ssh. :)
+[2013-04-09 16:15:36 -0400] jtimberman: because ssh falls down at scale.
+[2013-04-09 16:16:25 -0400] Valdo: I used the opscode process to install chef server on an ubuntu precise
+[2013-04-09 16:16:36 -0400] Valdo: And they asked me the chef server url
+[2013-04-09 16:16:43 -0400] Valdo: but I mistyped it
+[2013-04-09 16:16:54 -0400] yfeldblum: jtimberman, so that's how it compares to ssh; how does it compare to mcollective?
+[2013-04-09 16:16:56 -0400] RayS: I'm using -N to set the name of my instance, I want to set the hostname to the same thing, I tried node.name cod the content of etc/hostname but its not setting the right value
+[2013-04-09 16:16:58 -0400] Valdo: how do I launch the client.rb generation again ?
+[2013-04-09 16:17:08 -0400] jtimberman: yfeldblum: It's an unreleased feature that I can't say more about :).
+[2013-04-09 16:17:17 -0400] jtimberman: Other than what is alluded in the press release.
+[2013-04-09 16:17:31 -0400] jtimberman: Valdo: you can just edit the client.rb file.
+[2013-04-09 16:17:54 -0400] Valdo: or I could use knife configure client ?
+[2013-04-09 16:18:26 -0400] yfeldblum: jtimberman, do you find that "i have this awesome toy and it's *awesome* but you can't play with it!" is generally well-received? :D
+[2013-04-09 16:18:45 -0400] jtimberman: yfeldblum: it's coming soon.
+[2013-04-09 16:18:50 -0400] yfeldblum: jtimberman, :D
+[2013-04-09 16:18:55 -0400] jtimberman: So you can't play with it *yet* :)
+[2013-04-09 16:19:15 -0400] jtimberman: But soon, you will, and you'll love it.
+[2013-04-09 16:21:50 -0400] yfeldblum: jtimberman, well i'm using oss, so :(
+[2013-04-09 16:22:32 -0400] fixingIt: hey guys
+[2013-04-09 16:23:10 -0400] rep0st: jtimberman: is opscode heading toward the direction of "we have all the cool features in private chef, and opensource chef is the red headed stepchild" type model
+[2013-04-09 16:23:45 -0400] fixingIt: im new to chef coming from puppet, i have a question, i installed chef-server-11.0.6-1.el6.x86_64.rpm, and everythings is started up, i can't create a client certificate though - i get this in the webui logs ERROR: Server returned error for http://127.0.0.1:8000/clients, retrying 1/5 in 4s
+[2013-04-09 16:29:41 -0400] jtimberman: yfeldblum: Doh!
+[2013-04-09 16:32:00 -0400] BraveSirRobin: @jtimberman - thanks for your input!
+[2013-04-09 16:32:13 -0400] BraveSirRobin: Do you know when this might ship?
+[2013-04-09 16:32:37 -0400] jtimberman: rep0st: no, not at all.
+[2013-04-09 16:34:00 -0400] rep0st: jtimberman: good to hear. Hopefully some of the cool toys will get premiered at chefconf
+[2013-04-09 16:34:26 -0400] yfeldblum: BraveSirRobin, in any event, i think there are two archetypal approaches: 1) structure your changes such that it is OK to deploy vN+1 in a rolling fashion over a brief time window across multiple machines with vN currently deployed
+[2013-04-09 16:35:07 -0400] yfeldblum: BraveSirRobin, and 2) structure your architecture such that you can do deploy a set of machines with vN+1 in parallel with a set of machines with vN and atomically switch between the two
+[2013-04-09 16:36:12 -0400] yfeldblum: BraveSirRobin, Private Chef's Push can help with (1) by shortening the time window, but if you're following that approach, you still need to structure your changes in the same way; Push doesn't change the way your changes need to be structured
+[2013-04-09 16:36:55 -0400] BraveSirRobin: Hmmm.. food for thought...
+[2013-04-09 16:37:02 -0400] BraveSirRobin: (pun not intended! :D)
+[2013-04-09 16:37:14 -0400] jtimberman: rep0st: Are you coming to ChefConf?
+[2013-04-09 16:40:18 -0400] rep0st: jtimberman: Yes sir thanks to Michael Coleman.
+[2013-04-09 16:41:51 -0400] BraveSirRobin: Thanks for you help guys - see you later :)
+[2013-04-09 16:43:43 -0400] adamjk-dev: jtimberman: I meant to ask you if you guys had planned for a Chef Best Practices Wiki or community-editable piece of documentation
+[2013-04-09 16:48:15 -0400] test__: Has anyone found a workaround for running as highest priority through knife winrm?
+[2013-04-09 16:48:26 -0400] jtimberman: rep0st: Right on.
+[2013-04-09 16:48:33 -0400] jtimberman: adamjk-dev: What do you mean?
+[2013-04-09 16:49:12 -0400] jtimberman: Best practices are subjective. e.g., we might say, "It's a best practice to use strings to refer to node attribute keys." Then everyone who's used Rails will say "fu, symbols!" :)
+[2013-04-09 16:50:35 -0400] c_t: I think people on the internets have written about what *they* consider best practices, but as jtimberman says it's subjective
+[2013-04-09 16:50:55 -0400] rep0st: adamjk-dev: best practices are determined by the boots on the ground
+[2013-04-09 16:51:54 -0400] rep0st: adamjk-dev: i can tell you what i'm doing here where i work, but since my company and your company are (i'm assuming) completey different business models. It won't apply to you.
+[2013-04-09 16:53:00 -0400] test__: possibly my issue, with running as admin priv: http://tickets.opscode.com/browse/KNIFE-24
+[2013-04-09 16:53:51 -0400] jtimberman: That said, 'foodcritic' encapsulates a lot of things the community considers to be best practices for writing Chef cookbooks.
+[2013-04-09 16:54:01 -0400] jtimberman: acrmp.github.io/foodcritic
+[2013-04-09 16:54:04 -0400] yfeldblum: jtimberman, i wouldn't say it like that
+[2013-04-09 16:56:30 -0400] yfeldblum: jtimberman, what i would say is: "Prefer a consistent way to dereference node attributes. Since the hash keys in your node data are always stored as strings, always dereferencing node attributes with string keys is a good default."
+[2013-04-09 16:57:33 -0400] jtimberman: Sure.
+[2013-04-09 16:57:35 -0400] yfeldblum: jtimberman, "Rather than mixing-and-matching string keys, symbol keys, and ruby-messages."
+[2013-04-09 16:57:50 -0400] jtimberman: But really, just use strings.
+[2013-04-09 16:58:11 -0400] yfeldblum: jtimberman, heh
+[2013-04-09 16:58:38 -0400] yfeldblum: jtimberman, for me, though, in order of descending importance, it's: (1) consistency; (2) string keys
+[2013-04-09 16:59:37 -0400] yfeldblum: jtimberman, and that it's clearly documented that node data keys are always strings under-the-hood (and if you use symbols, they're converted to strings)
+[2013-04-09 17:01:10 -0400] yfeldblum: jtimberman, there are a lot of people confused on that last item
+[2013-04-09 17:03:15 -0400] yfeldblum: jtimberman, this is from my own usage and also from helping people in this channel
+[2013-04-09 17:05:29 -0400] bharghav9: Hi Opscoders...I want to log a message after particular task is completed. For example after group had been created. Current I have add code "Chef::Log.info("Group created")" after "group_name" command. but when I see the logs...I see this message "Group created" is being displayed before actual group being created...
+[2013-04-09 17:06:26 -0400] bharghav9: Can someone guide on how to display the message between these lines
+[2013-04-09 17:06:27 -0400] bharghav9: [2013-04-09T16:56:09+00:00] DEBUG: ---- Begin output of groupadd bharghav9 ---- [2013-04-09T16:56:09+00:00] DEBUG: STDOUT:  [2013-04-09T16:56:09+00:00] DEBUG: STDERR:  [2013-04-09T16:56:09+00:00] DEBUG: ---- End output of groupadd bharghav9 ----
+[2013-04-09 17:06:56 -0400] jessicab1: bharghav9: thats because Chef::Log is basically ruby code, and its executed first.. try a log resource. just 'log "message"' should work
+[2013-04-09 17:07:40 -0400] bharghav9: ohh cool...Thanks jessicab1...for the suggestion... I will try that...
+[2013-04-09 17:08:01 -0400] bharghav9: so best way to log messages is using "log" method? instead of "Chef::Log"
+[2013-04-09 17:08:10 -0400] yfeldblum: bharghav9, *no*
+[2013-04-09 17:08:20 -0400] yfeldblum: bharghav9, the best way to log messages is to use Chef::Log
+[2013-04-09 17:08:20 -0400] adamjk-dev: jtimberman: Understood, I guess there are likely just common models for when to use data bags vs. node attributes
+[2013-04-09 17:08:42 -0400] yfeldblum: bharghav9, except in your special case, where you have requirements that are different from the requirements of most people
+[2013-04-09 17:08:55 -0400] adamjk-dev: jtimberman: Or I have hear some mention not setting node attributes at run-time, only compile time, etc.
+[2013-04-09 17:09:00 -0400] adamjk-dev: *heard
+[2013-04-09 17:09:30 -0400] jessicab: yfeldblum: i dont think it really matters? all the log resource does is a call to Chef::Log anyways :P
+[2013-04-09 17:09:39 -0400] jtimberman: yfeldblum: totally.
+[2013-04-09 17:09:58 -0400] bharghav9: ohh ok...'yfeldblum'..Can you please explain the scenarios when I should use 'Chef::Log' and when to use 'log'. I tried to find article on best practices regarding this and other queries..but couldn't find any
+[2013-04-09 17:10:08 -0400] yfeldblum: jessicab, it matters; the `log` resources defers the call to `Chef::Log.info` until during convergence
+[2013-04-09 17:10:36 -0400] jtimberman: adamjk-dev: yeah, when to use data bags vs attributes is, "is this data specific to the node, or a classification (role, environment) of nodes?"
+[2013-04-09 17:11:00 -0400] adamjk-dev: jtimberman: Good point, but do you see my point in a larger context?
+[2013-04-09 17:11:01 -0400] yfeldblum: bharghav9, you use `Chef::Log.info` whenever you have a need to log important or useful information; you use `log` when you need to insert a log message after some other resource has been converged
+[2013-04-09 17:11:03 -0400] jtimberman: adamjk-dev: data bags for things like application configuration, or users
+[2013-04-09 17:11:19 -0400] adamjk-dev: jtimberman: I started working on this stuff a few weeks ago, and the first thing I looked for was a "best practices" guide
+[2013-04-09 17:11:22 -0400] yfeldblum: jtimberman, that's how i think of it to
+[2013-04-09 17:11:45 -0400] adamjk-dev: yfeldblum: I think it would be a good idea to open up a Wiki page or some documentation and let the community sort it out (with intervention from the developers at Opscode etc.)
+[2013-04-09 17:12:07 -0400] yfeldblum: adamjk-dev, sort out what?
+[2013-04-09 17:12:10 -0400] jtimberman: sure.
+[2013-04-09 17:12:19 -0400] bharghav9: Thanks yfeldblum, jessicab1, jtimberman for clarifying my queries...
+[2013-04-09 17:12:20 -0400] jtimberman: there's implications for common style / practices when it comes to sharing cookbooks.
+[2013-04-09 17:12:56 -0400] yfeldblum: adamjk-dev, these are things that seem obvious from the perspective of a software developer (even if they're not obvious from the perspective of a sysadmin forced to learn ruby)
+[2013-04-09 17:13:00 -0400] adamjk-dev: yfeldblum: Any style or best use patterns for cookbook developments and/or resource usage, etc.
+[2013-04-09 17:13:24 -0400] adamjk-dev: yfeldblum: if you say so, but every other language and/or programming paradigm usually has best practices
+[2013-04-09 17:13:28 -0400] bharghav9: adamjk-dev :- I am new user too for chef development...and I also struggle to find best practices with respect to chef...because I want to correct any bad coding practices in the beginning itself..
+[2013-04-09 17:13:40 -0400] adamjk-dev: so.... just a suggestiong
+[2013-04-09 17:13:40 -0400] jtimberman: heh... how many Ruby style guides are there? like, three? :)
+[2013-04-09 17:13:54 -0400] adamjk-dev: there shouldn't be tons
+[2013-04-09 17:14:01 -0400] bharghav9: But when ever I had any doubt, I log into this IRC and there are always generous experts who clarify my queries or doubts...
+[2013-04-09 17:14:01 -0400] adamjk-dev: i mean.... OOD patterns
+[2013-04-09 17:14:02 -0400] adamjk-dev: etc.
+[2013-04-09 17:14:04 -0400] adamjk-dev: the same concepts
+[2013-04-09 17:14:07 -0400] adamjk-dev: applied to Chef
+[2013-04-09 17:14:07 -0400] yfeldblum: adamjk-dev, chef would be really simple for anybody who has experience using Hibernate as a Java developer
+[2013-04-09 17:14:26 -0400] adamjk-dev: yfeldblum: I am not one of those people :)
+[2013-04-09 17:14:36 -0400] adamjk-dev: i come from a very different background than likely most people here
+[2013-04-09 17:14:42 -0400] adamjk-dev: cybersecurity
+[2013-04-09 17:14:56 -0400] adamjk-dev: I just thought it would be a good idea to open up a scratch space
+[2013-04-09 17:15:05 -0400] adamjk-dev: for common models of usage, etc.
+[2013-04-09 17:15:19 -0400] adamjk-dev: not worth going on and on about
+[2013-04-09 17:15:24 -0400] adamjk-dev: but I have a feeling many others feel the same way
+[2013-04-09 17:15:35 -0400] adamjk-dev: the community is wonderful here, and a huge help, and I like having this accessibility
+[2013-04-09 17:16:03 -0400] adamjk-dev: but foodcritic won't catch dumb usages of node attributes vs. data bags etc. and any other commen sense models with Chef
+[2013-04-09 17:16:20 -0400] adamjk-dev: foodcritic and other static anaylsis tools can't capture best use cases of a framework
+[2013-04-09 17:16:40 -0400] yfeldblum: adamjk-dev, particulars will help somewhat; but the real need is for people to understand that chef is, fundamentally, a programmer's tool for programming the system; i've seen plenty of sysadmins coming into this channel in a haze of confusion about what chef is and how it works because they're thinking of it like sysadmins
+[2013-04-09 17:16:56 -0400] bharghav9: Yaa ..basic best practices guides..from experts who had learned from mistakes would be very useful...especially for people who are moving from sysadmin/middleware admin domain space to coding chef
+[2013-04-09 17:17:08 -0400] jessicab: adamjk-dev: i dunno.. personally i think best practices would be close to impossible to document, chef can get really complicated, changes constantly, and people in the community have too many opinions. i see that turning into a mess really quickly. sort of what the wiki already is anyways?
+[2013-04-09 17:17:24 -0400] yfeldblum: adamjk-dev, not that sysadmins can't use it; but that in order to make the best use of it, they will need to become chef programmers, not chef sysadmins
+[2013-04-09 17:18:38 -0400] adamjk-dev: fair enough
+[2013-04-09 17:18:42 -0400] adamjk-dev: like i said... I felt the need to bring it up
+[2013-04-09 17:18:50 -0400] adamjk-dev: i did my part :)
+[2013-04-09 17:18:54 -0400] yfeldblum: adamjk-dev, :D
+[2013-04-09 17:19:18 -0400] zrankfappa: anyone use knife openstack?
+[2013-04-09 17:19:49 -0400] zrankfappa: just wondered what the best way is to get the FQDN in host file on bootstrap
+[2013-04-09 17:19:59 -0400] yfeldblum: adamjk-dev, and indeed, foodcritic won't substitute well for a proper code-review by a programmer
+[2013-04-09 17:20:07 -0400] jessicab: adamjk-dev: recently ive been working on writing up best practices for a pretty small team.. and even with just our opinions it gets hard, too many people at varying levels of knowledge makes it particularly tricky.. since everyone kinda sees chef slightly differently when theyre learning? hard to really have multiple people work on it, a lot easier to just get one persons opinion of their best practices heh
+[2013-04-09 17:20:52 -0400] adamjk-dev: jessicab: perhaps so, that is why everyone shouldn't feel obligated to modify or set up best practices :)
+[2013-04-09 17:20:53 -0400] yfeldblum: adamjk-dev, (a proper code-review by a sysadmin is also helpful, but not very helpful necessarily for the piece that we're talking about)
+[2013-04-09 17:21:00 -0400] adamjk-dev: jessicab: people should know if they are qualified :)
+[2013-04-09 17:22:01 -0400] jessicab: adamjk-dev: heh you would hope.. but i wouldnt count on it :P
+[2013-04-09 17:22:09 -0400] adamjk-dev: thanks for the feedback though everyone
+[2013-04-09 17:22:16 -0400] adamjk-dev: im out for now
+[2013-04-09 17:22:24 -0400] adamjk-dev: sleep on it :)
+[2013-04-09 17:22:28 -0400] yfeldblum: adamjk-dev, latez
+[2013-04-09 17:22:35 -0400] adamjk-dev: I think the right answer is to set something up (it can be removed later if it fails :))
+[2013-04-09 17:23:22 -0400] dfrey_: is the user resource enough to create a new user?
+[2013-04-09 17:23:29 -0400] adamjk-dev: dfrey_: yes
+[2013-04-09 17:23:42 -0400] dfrey_: just action :create?
+[2013-04-09 17:23:55 -0400] adamjk-dev: dfrey_: i think it defaults to create if i remember correctly
+[2013-04-09 17:24:17 -0400] adamjk-dev: dfrey_: http://docs.opscode.com/resource_user.html
+[2013-04-09 17:24:28 -0400] adamjk-dev: (and yes, :create is the default)
+[2013-04-09 17:24:58 -0400] dfrey_: adamjk-dev: strange that nothing is happening then
+[2013-04-09 17:25:15 -0400] adamjk-dev: dfrey_: hm.... turn on max debugging? -VV
+[2013-04-09 17:25:21 -0400] adamjk-dev: gotta run... sorry, it should work
+[2013-04-09 17:25:31 -0400] Kzim: Hello can i run chef-client with a single recipe ? i tried chef-apply but i need the data bag and everything
+[2013-04-09 17:29:23 -0400] jtimberman: Kzim: the -o option to chef-client or chef-solo will run a single recipe.
+[2013-04-09 17:31:00 -0400] jessicab: dfrey_: thats all i do to create users just 'user "username"'.. do you not see the resource even getting executed in the logs? that doesn't set the uid, home, or password, etc though btw
+[2013-04-09 17:31:02 -0400] Kzim: jtimberman, thank you very much. i try this do deploy my application with chef but to avoid run it as root (sudo from remote deploy machine) do you think it's a good practice ?
+[2013-04-09 17:35:45 -0400] dfrey_: jessicab: i do see it executind, but the user is not actually created and neither is the home folder
+[2013-04-09 17:36:31 -0400] dfrey_: jessicab: this is all i see: INFO: Processing user[django] action create (basic_box::default line 12)
+[2013-04-09 17:36:56 -0400] bharghav9: jessicab, jtimberman, yfeldblum :- I had defied "log" resource within "group" resource and chef-client fails. Can't I define one resource within another resource?. Once I moved this "log" resource outside "group" resource, the code worked...So do I need to tie up these two with resources with "notify" ?
+[2013-04-09 17:38:00 -0400] yfeldblum: bharghav9, yes, you can use notifications to tie the two resources together
+[2013-04-09 17:38:20 -0400] yfeldblum: bharghav9, and there's no such thing, normally, as "sub"-resources
+[2013-04-09 17:39:17 -0400] bharghav9: dfrey_ :- if debug is enabled you should see some message like this below.. DEBUG: group[create apache group] group does not exist [2013-04-09T17:32:43+00:00] DEBUG: Executing groupadd bharghav9 [2013-04-09T17:32:43+00:00] DEBUG: ---- Begin output of groupadd bharghav9 ----
+[2013-04-09 17:39:38 -0400] bharghav9: Above is for group..but same should be for user too..
+[2013-04-09 17:40:32 -0400] dfrey_: bharghav9: how do i enable debug? i dont see it as an option for chef-client
+[2013-04-09 17:41:24 -0400] bharghav9: Thanks yfeldblum. I will check this...I hope there is some way I can create a generic 'log' resource and pass message as runtime parameter...or else I need to define 'log' resource for each message... I will just read the documentation and come back
+[2013-04-09 17:42:40 -0400] yfeldblum: bharghav9, remember that since `log` is a *resource*`, you must give it a *unique* name each time you declare a log resource
+[2013-04-09 17:42:48 -0400] bharghav9: you can edit '/etc/chef/client.rb' with 'log_level          :debug'...this is crude way...but may be  there is way to update from command line too.... I will research this and get back to you
+[2013-04-09 17:44:47 -0400] bharghav9: Thanks yfeldblum..ya that is fine with me...but can I pass message in runtime to this resource..for example "log generic do message <RUNTIME/PARAMER> level:info done"
+[2013-04-09 17:45:35 -0400] bharghav9: I will just read "notifies" resource and see if it has some options to pass the message to "log" resource
+[2013-04-09 17:46:52 -0400] yfeldblum: bharghav9, you can't do `log generic do` ... you *must* do `log "something-unique" do`
+[2013-04-09 17:47:59 -0400] yfeldblum: bharghav9, and yes you can assign a message attribute as an attribute rather than via the log resource's name, but the message is assigned at recipe execution time ("compile time") and not at convergence time
+[2013-04-09 17:51:22 -0400] yfeldblum: bharghav9, you can do something like this: http://pastie.org/pastes/7389835/text?key=dv2dxvgb5nprvkrjxhsmgw
+[2013-04-09 17:52:14 -0400] bharghav9_: Thanks yfeldblum
+[2013-04-09 17:52:26 -0400] bharghav9_: I will validate the suggestions given by you...
+[2013-04-09 18:24:06 -0400] enb201: trying to get a workstation configured...
+[2013-04-09 18:24:17 -0400] enb201: having a little issue
+[2013-04-09 18:24:36 -0400] enb201:  knife client list
+[2013-04-09 18:24:37 -0400] enb201: ERROR: Failed to authenticate to https://chef.jamiefargen.info:443 as root with key /root/.chef/root.pem
+[2013-04-09 18:24:37 -0400] enb201: Response:  Invalid signature for user or client 'root'
+[2013-04-09 18:25:56 -0400] RayS: if using knife ec2 and passing in a bootstrap template. is there a way to pass the node name (-N) var to chef-solo (which is part of the bootstrap) so I can use it to set a hostname
+[2013-04-09 18:29:20 -0400] monokrome: :qa
+[2013-04-09 18:29:25 -0400] monokrome: Ignore that.
+[2013-04-09 18:37:11 -0400] xrl: I'm trying to use the postgres_database provider from the 'database' cookbook but I'm getting "Cannot find a resource for postgresql_database on ubuntu version 12.10"
+[2013-04-09 18:37:37 -0400] xrl: I have added "include_recipe "database::postgresql"" before the postgres_database call but it's still not working
+[2013-04-09 18:39:59 -0400] bharghav9_: xrl...full stack trace afte debugging would be helpful to analyze the issue
+[2013-04-09 18:41:52 -0400] xrl: here's a stack trace: https://gist.github.com/xrl/9ebd6e2901b7efe46514
+[2013-04-09 18:42:48 -0400] monokrome: I have a data bag that isn't encrypted. When I sak knife to show me it, it gets mad that it can't find my secret.
+[2013-04-09 18:43:05 -0400] monokrome: Any way to see my data without setting up a secret?
+[2013-04-09 18:44:36 -0400] ponyofdeath: hi, is there a way to preven new lines from being generated inside an chef template file?
+[2013-04-09 18:47:30 -0400] xrl: bharghav9_: do I have to generate a more complete stacktrace somehow?
+[2013-04-09 18:50:16 -0400] dn: If I add a node attribute in the web interface and then run the chef-client on that node - when will this attribute be set? Because I can see the attribute in the WebUi but not on the Node with chef-shell (the recipe I try to run fails because of the missing attribute)
+[2013-04-09 18:50:33 -0400] bharghav9_: xrl...I guess not...I am trying to analyze...but just want to let you know..I am new bee to chef too....trying to figure out from your stack trace...are you using community postgresql cookbook
+[2013-04-09 18:50:44 -0400] awgross: ponyofdeath: check out the <%= -%> syntax, note the extra - at the end
+[2013-04-09 18:50:52 -0400] bharghav9_: can you provide github link for 'postgresql' cookbook
+[2013-04-09 18:50:56 -0400] ponyofdeath: awgross: ty ty
+[2013-04-09 18:56:36 -0400] bharghav9_: xrl....some expert might provide you actual cause...but from my understanding "postgresql_database" resource needs something in backend(Providers/LWRP) which does the actual job of connecting to database is missing for 'ubuntu'...
+[2013-04-09 18:57:34 -0400] bharghav9_: if you can provide the cookbook github url..I am might be able to debug further... Again I said this is my analysis from minimal knowledge I have on Chef.....Some expert...correct me if I am wrong
+[2013-04-09 18:58:38 -0400] bharghav9_: Can anyone let me know ...how I can define a variable/attribute in recipe in one of the resource and use that variable in another resource?
+[2013-04-09 19:00:27 -0400] kindsol: bharghav9_: great question.  Not sure that it can be done.
+[2013-04-09 19:00:59 -0400] xrl: bharghav9_: I would stash that variable in the node object
+[2013-04-09 19:01:09 -0400] kindsol: well it can (in a ruby_block) but you have to muck with the chef internal resource_collection
+[2013-04-09 19:01:18 -0400] xrl: bharghav9_: here's the database cookbook I'm using: https://github.com/opscode-cookbooks/database
+[2013-04-09 19:02:32 -0400] kindsol: xrl: the problem is that you can't pass that node value as a parameter to another resource, because that node attribute will be evaluated at compile time
+[2013-04-09 19:02:59 -0400] spox: delayed evaluation ftw!
+[2013-04-09 19:03:16 -0400] kindsol: if I understand bharghav9_, they want to set the value in coverage time
+[2013-04-09 19:03:33 -0400] kindsol: s/coverage/converge/
+[2013-04-09 19:03:52 -0400] spox: http://ckbk.it/delayed_evaluator
+[2013-04-09 19:03:58 -0400] kindsol: spox: is that possible?
+[2013-04-09 19:03:59 -0400] spox: will be builtin on next release
+[2013-04-09 19:04:10 -0400] kindsol: you tease me ;)
+[2013-04-09 19:05:04 -0400] bharghav9_: Thanks xrl, kindsol...my scenario  is this "I am planning to define one 'log' resource and I want to pass 'message' variable in runtime for from various other resources'...for example if I am creating a user, I will send 'user created' and log resource will log it...if I create a group I will send 'group created' and log resource will log it
+[2013-04-09 19:05:52 -0400] kindsol: spox: that is awesome!!  I've been looking for a solution to this for a while.  You've made my week!
+[2013-04-09 19:06:08 -0400] kavi: hi any one please tell me, i have installed open chef server in linux platform, now i want to add windowd machine as client. how to add using knife???
+[2013-04-09 19:06:45 -0400] kindsol: bharghav9_: you should be able to use the delayed evaluator in your log resource.
+[2013-04-09 19:07:50 -0400] kindsol: then you could have other ruby_blocks that your other resources notify which set the value which the log resource will use.
+[2013-04-09 19:07:56 -0400] xrl: kindsol: any idea why I can't use the postgres_database LWRP in https://gist.github.com/xrl/9ebd6e2901b7efe46514 ?
+[2013-04-09 19:07:58 -0400] kindsol: not super clean, but possible
+[2013-04-09 19:09:02 -0400] kindsol: xrl: looks like it can't find the postgresql_database resource defined
+[2013-04-09 19:09:26 -0400] jblaine: bharghav9_: Just use the native Chef 'log' resource as someone said.
+[2013-04-09 19:09:27 -0400] xrl: the database folder is in the cookbooks directory
+[2013-04-09 19:09:54 -0400] kindsol: I'm not familiar with that resource, but you you have the cookbook that defines it in the cookbook_path?  Do you have tp include the default recipe in your run list?
+[2013-04-09 19:10:01 -0400] tomdzk: xrl: do you have a dependency to 'database' in your metadata.rb ?
+[2013-04-09 19:10:12 -0400] xrl: tomdzk: I do not... do I need that then?
+[2013-04-09 19:11:20 -0400] bharghav9_: kindsol :- Can you explain what is delayed evaluator....
+[2013-04-09 19:11:53 -0400] bharghav9_: jblaine :- Can you elaborate on what do you mean by native Chef 'log' resource?
+[2013-04-09 19:13:02 -0400] tomdzk: xrl: in your case that would be the preferred solution I think
+[2013-04-09 19:14:04 -0400] xrl: tomdzk: you unblocked me... I'm getting new, manageable errors
+[2013-04-09 19:14:12 -0400] xrl: back on the road to success... thanks!
+[2013-04-09 19:14:14 -0400] tomdzk: cool
+[2013-04-09 19:14:43 -0400] jblaine: bharghav9_: http://docs.opscode.com/chef/resources.html#log
+[2013-04-09 19:15:03 -0400] dn: If I do a include_recipe "x:default" will the recipe be included and runed?
+[2013-04-09 19:16:31 -0400] jblaine: dn: yes
+[2013-04-09 19:17:14 -0400] MarkMaxey: Does anyone have any experience using Chef to defing file/directory auditing on Windows 2008?  I quickly found how to control permissions using Chef's Windows File Security ACLs.  Does Chef also support setting auditing failed file/directory access attempts?
+[2013-04-09 19:17:19 -0400] dfrey_: does anyone know how to run chef-client in debug mode?
+[2013-04-09 19:17:34 -0400] dn: chef-client -l debug
+[2013-04-09 19:17:52 -0400] dfrey_: thanks!
+[2013-04-09 19:18:11 -0400] bharghav9_: Thanks Jblaine...this is the document I am referring..every thing is working as expected when I hard code "message"...but some how I want to get "message" in run time
+[2013-04-09 19:19:27 -0400] bharghav9_: if this not possible..can anyone let me know...do I need to write my customer 'helpers' to perform this task?
+[2013-04-09 19:19:29 -0400] jessicab: bharghav9_: ive tried to figure out that same problem.. but i dont think there is a way. but if youre inside of a resource block already i think you can use chef::log and it wont run until the resource does? never really tried that but id think itd work
+[2013-04-09 19:20:51 -0400] knuckolls: jessicab, bharghav9: i too never got the log resource to behave like i wanted it to. i resorted to ruby_block statements inbetween the other resources that used Chef::Log.info within them. ugly, but effective.
+[2013-04-09 19:20:59 -0400] monokrome: Does anyonek now an efficient way to debug `Chef::Exceptions::ValidationFailed: Data Bag Items must contain a Hash or Mash!`?
+[2013-04-09 19:21:18 -0400] monokrome: the stacktrace is useless here
+[2013-04-09 19:21:35 -0400] jessicab: bharghav9_: the resource is already logged.. so you could also just use the name attribute to leave a helpful message and set whatever attribute that was setting instead
+[2013-04-09 19:22:17 -0400] bharghav9_: Thanks Jessicab....so you mean to say in the resource I define ' chef::log "user created."'?... Also did you mean "Chef::log"?
+[2013-04-09 19:23:49 -0400] bharghav9_: knuckolls :- Chef::Log.info is working..but its logging before the actual task is implemented(atleast thats what I see in logs)....so it might be confusing ..when the mssage is logged even though the task had failed...
+[2013-04-09 19:24:39 -0400] bharghav9_: knuckolls :- by ruby block you mean to say ..you define ruby global variable and use it across multiple resources?
+[2013-04-09 19:24:53 -0400] knuckolls: bharghav9_: i'll gist it.
+[2013-04-09 19:24:58 -0400] jessicab: bharghav9_: i might be wrong about the resource thing, but sometimes you can use ruby code in chef resources and it isnt executed until later.. perhaps something like resource "name" do Chef::Log.info("log") end *might* work.. but i usually just try to use as few log resources as possible and just notify each one
+[2013-04-09 19:27:05 -0400] cwj: bharghav9_, jessicab: why not something like https://gist.github.com/cwjohnston/5348607
+[2013-04-09 19:27:12 -0400] bharghav9_: jessicab :- Chef::Log.info("log") :- This solution worked but it logged this information way before actual task...
+[2013-04-09 19:27:39 -0400] jessicab: bharghav9_: even when it was inside of the resource block? ohwell.. guess thats not too surprising heh
+[2013-04-09 19:28:14 -0400] jessicab: cwj: yea, thats what i do.. just sometimes itd be nice to have more complicated logs, like info on attributes and stuff it used
+[2013-04-09 19:28:39 -0400] knuckolls: cwj: that's exactly what i was about to gist.
+[2013-04-09 19:28:40 -0400] bharghav9_: yaa..I had defined "Chef::Log.info("log") within the resource...and this info was being displayed way before actual processing of the task...
+[2013-04-09 19:28:48 -0400] cwj: sorry, first gist was wrong, i fixed it
+[2013-04-09 19:28:49 -0400] knuckolls: the notifies is the way to do it
+[2013-04-09 19:29:20 -0400] jroh: Is there a good way to move from upstart managed chef-client-as-a-daemon to chef-client in cron after the fact? this memory leak is driving me up the wall
+[2013-04-09 19:29:38 -0400] knuckolls: jroh: memory leak is fixed with the --fork flag
+[2013-04-09 19:29:42 -0400] knuckolls: so it forks a new process for each chef run
+[2013-04-09 19:29:52 -0400] knuckolls: one sec, i'll get you the line of code to solve your problem.
+[2013-04-09 19:30:02 -0400] bharghav9_: Thanks cwj :- This is what I am doing currently and perfectly works...but If I have 100 types of messages to be logged, I need to define 100 log resources..I am trying to avoid this by defined 1 generic log resource...and pass the message dynamically
+[2013-04-09 19:30:13 -0400] knuckolls: jroh:   node.override["chef_client"]["daemon_options"] = ["--fork"]
+[2013-04-09 19:30:17 -0400] cwj: bharghav9_: ah i see
+[2013-04-09 19:30:48 -0400] jroh: knuckolls: awesome! has anyone tracked down the source? it seems like related to search usage from the ticket that I was reading
+[2013-04-09 19:31:03 -0400] holoway: jroh: we're looking at it
+[2013-04-09 19:33:52 -0400] bharghav9_: Thanks all for your suggestions regarding logging...currently I will disable my logging feature...I will post query to 'opscode' to see if I can get good solution for this issue...
+[2013-04-09 19:34:23 -0400] bharghav9_: I am not sure if creating custom libraries, helpers is the solution for this..
+[2013-04-09 19:34:31 -0400] bharghav9_: But thanks all for sparing your time...
+[2013-04-09 19:36:21 -0400] Holos: Hi, in opscode's users cookbook, the databag can contain ssh_private_key which will be written as id_rsa or id_dsa into the home directory.. but when I put my key in, it seems to remove all the line breaks and converts it into one line, which seems to break my private key.
+[2013-04-09 19:36:33 -0400] dfrey_: i have "action :create" on a user as well as a group running usermod and groupmod. shouldn't create run useradd and groupadd instead?
+[2013-04-09 19:37:32 -0400] dfrey_: Holos: if you're storing it in json i believe you'll need to enter \n for each newline
+[2013-04-09 19:37:46 -0400] Holos: dfrey_: ok thanks
+[2013-04-09 19:41:12 -0400] bluepojo: Trying to use omnibus installer to install chef 10.24.0 but I get "Unable to retrieve valid package!"... where can I get the rpm that would be installed via install.sh?
+[2013-04-09 19:41:27 -0400] bluepojo: it seems only 11.4 is available via that installer
+[2013-04-09 19:46:41 -0400] awgross: bluepojo: what command are you running?
+[2013-04-09 19:46:58 -0400] bluepojo: sudo ./install.sh -v 10.24.0
+[2013-04-09 19:47:15 -0400] jtimberman: bluepojo: sudo bash install.sh -- -s -v 10.24.0 iirc
+[2013-04-09 19:47:16 -0400] Guest67992: So I'm shifting over from a chef-solo install to a chef-server install.  What's the easiest way to import all my existing cookbooks, roles, etc from my git repo into chef-server?
+[2013-04-09 19:47:19 -0400] jtimberman: might be -s -- -v
+[2013-04-09 19:47:27 -0400] bluepojo: I'll give that a shot
+[2013-04-09 19:47:37 -0400] jtimberman: Guest67992: if you have chef 11 on your local system, "knife upload"
+[2013-04-09 19:47:40 -0400] awgross: bluepojo: was just going to suggest that
+[2013-04-09 19:47:52 -0400] awgross: bluepojo: jtimbermans way is what i use
+[2013-04-09 19:47:59 -0400] bluepojo: https://gist.github.com/bluepojo/5348769
+[2013-04-09 19:48:30 -0400] bluepojo: that way doesn't populate the v= query param
+[2013-04-09 19:48:41 -0400] bluepojo: https://gist.github.com/bluepojo/5348775
+[2013-04-09 19:52:06 -0400] bluepojo: oddly enough
+[2013-04-09 19:52:12 -0400] bluepojo: if I copy that url and wget it
+[2013-04-09 19:52:13 -0400] bluepojo: it works
+[2013-04-09 19:52:14 -0400] bluepojo: oh well
+[2013-04-09 19:52:25 -0400] bluepojo: the one in the second gist
+[2013-04-09 19:54:35 -0400] jroh: knuckolls: holoway: thanks for tips on --fork.. I have it rolled out now. (fingers crossed)
+[2013-04-09 19:55:52 -0400] knuckolls: jroh: np i had to figure that one out the other day
+[2013-04-09 19:58:27 -0400] Guest67992: @jtimberman, tried that.  Knife doesn't recognize any of my existing roles or anything else.
+[2013-04-09 20:00:52 -0400] Guest67992: Knife upload is not a valid subcommand
+[2013-04-09 20:03:45 -0400] log1kal: It looks like a chef_handler registered using the LWRP will not be triggered if there's a bad item in the runlist. Anyone else run into this?
+[2013-04-09 20:04:01 -0400] log1kal: Is registering handlers in the client.rb the only way to catch that?
+[2013-04-09 20:04:35 -0400] Guest67992: and gem install chef-server gives me chef 10.24
+[2013-04-09 20:06:48 -0400] tomdzk: Guest67992: knife is part of the chef gem, not chef-server, gem list -r chef
+[2013-04-09 20:14:34 -0400] RayS: When using knife ec2 and passing in a bootstrap template. is there a way to pass the node name (-N) var to chef-solo (which is part of the bootstrap) so I can use it to set a hostname
+[2013-04-09 20:15:26 -0400] Majost: How would I go about iterating through the values of a databag which has multiple values?
+[2013-04-09 20:15:50 -0400] yfeldblum: Majost, huh?
+[2013-04-09 20:16:19 -0400] bluepojo: Majost: do you mean a key that has an array as it's value or an item that has multiple keys?
+[2013-04-09 20:16:20 -0400] yfeldblum: Majost, are you talking about iterating the items in a data-bag?
+[2013-04-09 20:16:24 -0400] Majost: yeah, its hard to explain that -- I need to give a gist example
+[2013-04-09 20:16:31 -0400] Majost: yfeldblum: yeah
+[2013-04-09 20:17:18 -0400] Guest67992: running an update now
+[2013-04-09 20:17:23 -0400] yfeldblum: Majost, `item_names = data_bag("my-data-bag-name")`
+[2013-04-09 20:18:55 -0400] Majost: https://gist.github.com/rhass/5349023
+[2013-04-09 20:20:20 -0400] Majost: yfeldblum: so instead of creating separate bag items, I would have multiple values in a item
+[2013-04-09 20:20:31 -0400] Majost: though, I could be abusing data bags by doing this
+[2013-04-09 20:20:35 -0400] Majost: and just not realize it
+[2013-04-09 20:20:37 -0400] yfeldblum: Majost, i have no idea what you're trying to do ...
+[2013-04-09 20:21:13 -0400] Majost: data_bag_item('mybag', 'stuff').each do |i| ....
+[2013-04-09 20:21:19 -0400] Majost: thats kinda what I was thinking
+[2013-04-09 20:21:41 -0400] miah: you can definitely stash sub-keys in a db item
+[2013-04-09 20:21:43 -0400] miah: i do it all the time
+[2013-04-09 20:22:15 -0400] yfeldblum: Majost, k ... what problem are you running into?
+[2013-04-09 20:23:14 -0400] Majost: I am attempting to have a databag which has various CA certs in it, and iterate through the bag to get the sub-key name and value so I can lay them down on disk
+[2013-04-09 20:23:24 -0400] yfeldblum: Majost, also, when iterating a Hash with #each, your block should have to params ... `data_bag_item("bag-name", "item-name").each do |key, value| ....`
+[2013-04-09 20:23:35 -0400] Majost: ah
+[2013-04-09 20:24:38 -0400] miah: indeed, and the other rule is that if you are iterating over a hash and not using a param (key, or value) to set the variable to _, eg "foo.each do |key, _|"
+[2013-04-09 20:25:05 -0400] bluepojo: less a rule and more convention
+[2013-04-09 20:25:12 -0400] miah: true
+[2013-04-09 20:25:14 -0400] bluepojo: however
+[2013-04-09 20:25:16 -0400] bluepojo: if you are doing that
+[2013-04-09 20:25:19 -0400] bluepojo: you might as well be explicit
+[2013-04-09 20:25:24 -0400] bluepojo: foo.keys.each
+[2013-04-09 20:25:29 -0400] miah: even better =)
+[2013-04-09 20:25:32 -0400] bluepojo: instead of foo.each do |key, _|
+[2013-04-09 20:25:45 -0400] Majost: why underscore?
+[2013-04-09 20:25:47 -0400] yfeldblum: static analyzers can check for it, especially in statically-typed languages and languages without `eval`
+[2013-04-09 20:25:51 -0400] miah: several ways to skin a teddy bear
+[2013-04-09 20:26:00 -0400] bluepojo: _ is a holdover from perl and such that says "I don't care about this variable"
+[2013-04-09 20:26:19 -0400] miah: i didn't realize that. thanks for informing bluepojo
+[2013-04-09 20:26:29 -0400] bluepojo: it's common in mass assignment, for instance: a, b, _ = [1, 2, 3]
+[2013-04-09 20:26:32 -0400] Majost: sounds dirty. heh
+[2013-04-09 20:27:05 -0400] jmickle: sometimes dirty is fun
+[2013-04-09 20:27:26 -0400] jordane: bluepojo: foo.keys.each is probably better written as foo.each_key
+[2013-04-09 20:27:31 -0400] jmickle: just don't forget to fork the dongle
+[2013-04-09 20:27:43 -0400] bluepojo: jordane: sure, why not
+[2013-04-09 20:27:44 -0400] jmickle: phew its safe
+[2013-04-09 20:28:06 -0400] miah: jmickle: uh. shush please
+[2013-04-09 20:28:09 -0400] jordane: there is also .each_value, and .each_pair for hashes
+[2013-04-09 20:28:13 -0400] jmickle: hehehehehe hey miah
+[2013-04-09 20:28:24 -0400] doomviking: oh dear.
+[2013-04-09 20:28:26 -0400] jmickle: how are you?
+[2013-04-09 20:28:39 -0400] Majost: hah
+[2013-04-09 20:28:55 -0400] bluepojo: _ in ruby is a bit unique in that it repeats the last value returned... never saw a practical use for that, though
+[2013-04-09 20:29:09 -0400] miah: i am as miserable as ever
+[2013-04-09 20:29:18 -0400] jmickle: ha
+[2013-04-09 20:29:21 -0400] joonas: bluepojo: plenty of times if you are poking around in IRB :)
+[2013-04-09 20:29:21 -0400] jmickle: ready for chef conf?
+[2013-04-09 20:29:25 -0400] miah: almost.
+[2013-04-09 20:29:30 -0400] joonas: it's very useful then
+[2013-04-09 20:29:35 -0400] bluepojo: I suppose so
+[2013-04-09 20:29:42 -0400] yfeldblum: bluepojo, that's in IRB only
+[2013-04-09 20:29:43 -0400] jmickle: what was your talk on again?
+[2013-04-09 20:29:55 -0400] miah: resources and providers
+[2013-04-09 20:30:00 -0400] jmickle: thats right
+[2013-04-09 20:30:01 -0400] yfeldblum: bluepojo, it's not Ruby syntax or semantics; it's only IRB
+[2013-04-09 20:30:04 -0400] bluepojo: ah, that may be why that's the only place I've ever seen it
+[2013-04-09 20:30:06 -0400] jmickle: nervous?
+[2013-04-09 20:30:11 -0400] miah: of course.
+[2013-04-09 20:30:12 -0400] bluepojo: hah
+[2013-04-09 20:30:17 -0400] jmickle: ah I'm sure you will nail it man
+[2013-04-09 20:30:25 -0400] miah: anytime i open my mouth im nervous
+[2013-04-09 20:30:28 -0400] awgross: haha
+[2013-04-09 20:30:34 -0400] jmickle: haha
+[2013-04-09 20:30:37 -0400] miah: i say really stupid things often
+[2013-04-09 20:30:43 -0400] jmickle: join the club
+[2013-04-09 20:30:53 -0400] jmickle: hence my comments 2.3 minutes ago
+[2013-04-09 20:30:53 -0400] jmickle: haha
+[2013-04-09 20:31:11 -0400] miah: mostly, i just want to make sure my talk is easy to understand and people can take away a few good things from it.
+[2013-04-09 20:31:31 -0400] jmickle: yeah
+[2013-04-09 20:31:41 -0400] awgross: miah: do HWRP!
+[2013-04-09 20:31:52 -0400] awgross: miah: at least 1 person will understand!
+[2013-04-09 20:31:55 -0400] awgross: j/k
+[2013-04-09 20:31:58 -0400] miah: heh
+[2013-04-09 20:32:22 -0400] jmickle: hmm where is the chef-conf schedule
+[2013-04-09 20:32:23 -0400] awgross: i may be writing up a blog post on them right now, hence my excitement
+[2013-04-09 20:32:29 -0400] miah: cool
+[2013-04-09 20:32:29 -0400] awgross: jmickle: http://chefconf2013.busyconf.com/schedule
+[2013-04-09 20:32:42 -0400] miah: i have a few blog posts on cookbook patterns in the works actually
+[2013-04-09 20:32:46 -0400] awgross: good
+[2013-04-09 20:32:49 -0400] awgross: its hard to find that info
+[2013-04-09 20:32:54 -0400] miah: indeed
+[2013-04-09 20:33:08 -0400] jmickle: ty
+[2013-04-09 20:33:45 -0400] miah: hard to find motivation sometimes
+[2013-04-09 20:34:38 -0400] miah: its hard for me to avoid chefconf since its a few blocks away
+[2013-04-09 20:34:45 -0400] miah: i'd go even if i wasn't speaking
+[2013-04-09 20:34:48 -0400] geekbri: Talking in front of people is difficult.  Talking in front of a group of technical people is really difficult.  Talking infront of your peers is incredibly intimidating
+[2013-04-09 20:34:50 -0400] behemphi: its hard for me 'cuz of the food
+[2013-04-09 20:34:53 -0400] geekbri: that being said, Hugs, hugs for everybody!
+[2013-04-09 20:35:05 -0400] miah: indeed
+[2013-04-09 20:35:06 -0400] behemphi: I mean chef conf = good food how apropo is that?!
+[2013-04-09 20:35:24 -0400] miah: well. its in SF. so the food better be good else you just fucked up
+[2013-04-09 20:35:25 -0400] behemphi: I wonder if Puppet Camp has like great puppet shows?
+[2013-04-09 20:35:38 -0400] mattt: geekbri: yeah, i suck at speaking in front of people
+[2013-04-09 20:36:42 -0400] awgross: behemphi: i hear all talks must be given via puppets
+[2013-04-09 20:36:43 -0400] miah: i have social anxiety, and clinical depression. i get nervous just talking to people i work with. irc is easy though.
+[2013-04-09 20:36:47 -0400] awgross: behemphi: j/k
+[2013-04-09 20:36:52 -0400] osc: Anyone know where I can find the Chef changelog/release notes? The wiki page only goes up to 10.18.0 http://wiki.opscode.com/display/chef/Release+Notes
+[2013-04-09 20:37:03 -0400] awgross: miah: just screencast and talk via IRC
+[2013-04-09 20:37:06 -0400] miah: lol
+[2013-04-09 20:37:12 -0400] awgross: have some nice mood music in the background
+[2013-04-09 20:37:42 -0400] miah: hah
+[2013-04-09 20:37:47 -0400] jessicab: osc: i think most of them are on the blog.. blog.opscode.com
+[2013-04-09 20:37:53 -0400] miah: lately mood music to me is mid-late 90's hiphop :P
+[2013-04-09 20:38:25 -0400] tomdzk: today was a good day
+[2013-04-09 20:38:37 -0400] osc: @jessicab thanks
+[2013-04-09 20:38:41 -0400] miah: i think i'll be fine actually. i've spoken infront of people numerous times in smallish groups. as long as i prepare sufficiently i'll be good.
+[2013-04-09 20:38:55 -0400] miah: and i am going to get some practice for my talk in this weekend
+[2013-04-09 20:40:18 -0400] awgross: osc: the JIRA also has all of them
+[2013-04-09 20:40:20 -0400] mattt: miah: digable planets!
+[2013-04-09 20:41:17 -0400] osc: @awgross ok thanks
+[2013-04-09 20:41:34 -0400] doomviking: we'll try to not heckle you too much.
+[2013-04-09 20:42:19 -0400] miah: :P
+[2013-04-09 20:45:01 -0400] geekbri: miah: only talking advice i ever give, is when youre practicing your speak, don't forget to practice potential interruptions
+[2013-04-09 20:45:13 -0400] miah: ya
+[2013-04-09 20:45:16 -0400] geekbri: I guess if the conference is big enough you're unlikely to be stopped mid talk but
+[2013-04-09 20:45:20 -0400] geekbri: its brutal!
+[2013-04-09 20:45:29 -0400] miah: im certain my friends will interrupt me a bit =)
+[2013-04-09 20:45:38 -0400] osc: I would edit the changelog wiki page to put that info in there, but I don't have the permission :(
+[2013-04-09 20:47:31 -0400] bluekelp: does anyone know of a recipe/cb that'll watch a dir and remove/archive/move files older than X?
+[2013-04-09 20:48:23 -0400] tomdzk: bluekelp: sounds like logrotate and friends, why would you want to do that in a recipe ?
+[2013-04-09 20:54:38 -0400] zrankfappa: lo cheffers
+[2013-04-09 20:55:30 -0400] zrankfappa: anyone well versed in knife openstack pluggin and cloud init?
+[2013-04-09 20:55:53 -0400] zrankfappa: looking for a guide on injecting hostname and IP into /etc/hosts
+[2013-04-09 20:57:34 -0400] jrclouda: Put it in a cookbook zappa
+[2013-04-09 21:01:01 -0400] jjasonclark: anyone able to help out with the chef-rvm cookbook? Cannot get ree-1.8.7 installed. And I don't see any logs. Would love to at least get logging enabled
+[2013-04-09 21:02:10 -0400] tomdzk: jjasonclark: vagrant ? add chef.log_level = :debug to the vagrantfile to get verbose logging if you haven't already
+[2013-04-09 21:02:55 -0400] zrankfappa: hmm, my cookbooks are working because it can't resolve the host
+[2013-04-09 21:02:57 -0400] jjasonclark: tomdzk: yes I've got that on.  But the chef-rvm gem logs the compiling and install of each ruby version internally. so I only get a single line of output
+[2013-04-09 21:03:01 -0400] zrankfappa: catch 22 :)
+[2013-04-09 21:03:16 -0400] zrankfappa: I heard cloud init is the way to go but unsure how it works with knife/chef
+[2013-04-09 21:03:44 -0400] knuckolls: so i've used cloudinit with knife ec2 server create
+[2013-04-09 21:03:49 -0400] knuckolls: which should be very similar
+[2013-04-09 21:04:01 -0400] knuckolls: you can pass a txt file to ec2 as user-data that cloud init looks at
+[2013-04-09 21:04:29 -0400] knuckolls: all i ever did with it was to set limits before the chef bootstrap and disable cloud-init's default apt-get update because it was conflicting with my chef run
+[2013-04-09 21:04:34 -0400] zrankfappa: sounds like what I'm after
+[2013-04-09 21:05:17 -0400] zrankfappa: i'm starting to get the feeling not alot of people are using the openstack pluggin for knife :)
+[2013-04-09 21:05:31 -0400] zrankfappa: not many people in here or in openstack channel seem to know anything about it
+[2013-04-09 21:05:32 -0400] knuckolls: --user-data $CHEF_REPO/user_data/before_bootstrap.txt
+[2013-04-09 21:05:37 -0400] knuckolls: that's what's in knife ec2
+[2013-04-09 21:05:48 -0400] knuckolls: surely there's something similar in the openstack plugin
+[2013-04-09 21:05:56 -0400] zrankfappa: cool, tahts enough for me to go on , cheers!
+[2013-04-09 21:05:58 -0400] knuckolls: or you can add it, that is if openstack has the same concept of user-data
+[2013-04-09 21:06:13 -0400] zrankfappa: i'll be the resident openstack knife guru in here soon ;)
+[2013-04-09 21:06:32 -0400] knuckolls: i wouldn't put too much stuff in cloud-init, just enough to get things clear for the bootstrap process to come in and set things up
+[2013-04-09 21:06:57 -0400] zrankfappa: how do you define the ip ?
+[2013-04-09 21:07:10 -0400] Alex_: Hi, I'm trying to install the mysql cookbook on ubuntu 12.04 (on vagrant) but get the error message "Cannot find a resource for mysql_database on ubuntu version 12.04", is this a known issue?
+[2013-04-09 21:08:07 -0400] zrankfappa: maybe some pre-req's required alex?

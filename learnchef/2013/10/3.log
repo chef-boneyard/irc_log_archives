@@ -1,0 +1,95 @@
+[2013-10-03 12:42:15 -0400] JeanMertz: Hey guys, quick question. If I use opscode's "openssl" cookbook and use the `secure_password` method, how would I get that password stored somewhere (secure) after Chef is finished? (or even printed out to me to store manually)
+[2013-10-03 18:55:50 -0400] cps: I'm having trouble getting chef server up and running. I've been following this guide, but when I get to step 5 and try to log into the webui I get the message "We're sorry, but something went wrong."
+[2013-10-03 18:55:52 -0400] cps: http://www.linuxguy.in/how-to-install-and-configure-open-source-chef-server-11/
+[2013-10-03 18:56:49 -0400] cps: can anyone help me out?
+[2013-10-03 18:59:02 -0400] sfalcon: cps: what does `sudo chef-server-ctl status` look like? Are all of the services running?
+[2013-10-03 19:01:51 -0400] cps: bookshelf, chef-expander, chef-server-webui, chef-solr, erchef, nginx, postgresql, rabbitmq all up and running
+[2013-10-03 19:02:02 -0400] cps: run: bookshelf: (pid 28155) 1302s; run: log: (pid 28154) 1302s for example
+[2013-10-03 19:03:46 -0400] sfalcon: cps: that's a good sign :)
+[2013-10-03 19:04:16 -0400] sfalcon: When you are trying to reach the webui, are you doing so from the same box or a different one?
+[2013-10-03 19:04:23 -0400] cps: same box
+[2013-10-03 19:04:28 -0400] cps: i get to the login screen fine
+[2013-10-03 19:04:43 -0400] sfalcon: ok.
+[2013-10-03 19:05:36 -0400] sfalcon: But after the login it gives you a "something went wrong" error page?
+[2013-10-03 19:05:42 -0400] cps: correct
+[2013-10-03 19:06:12 -0400] sfalcon: You can survey the logs of the component like this: sudo chef-server-ctl tail
+[2013-10-03 19:06:32 -0400] sfalcon: You can find the log files in /var/log/chef-server/$COMPONENT/*
+[2013-10-03 19:09:14 -0400] sfalcon: cps: you might start by looking at the webui log since that's what is failing.
+[2013-10-03 19:09:28 -0400] cps: chef-server-ctl tail shows it spinning trying and failing to connect
+[2013-10-03 19:10:06 -0400] cps: socket_closed_unexpectedly
+[2013-10-03 19:11:12 -0400] cps: webui current log shows internal server error 500 ActionView::Template::Error (undefined method `each' for nil:NilClass):
+[2013-10-03 19:13:12 -0400] sfalcon: hmm. And the failing to connect log is from webui or another service (if you can tell)?
+[2013-10-03 19:13:48 -0400] cps: 2013-10-03_19:13:28.71716 Error reading file /etc/chef-server/chef-webui.pem for default: {error,enoent}
+[2013-10-03 19:13:56 -0400] cps: that looks significant
+[2013-10-03 19:14:23 -0400] sfalcon: cps: did you run sudo chef-server-ctl reconfigure after the initial install? 
+[2013-10-03 19:14:45 -0400] cps: yes
+[2013-10-03 19:15:06 -0400] sfalcon: Did it complete successfully? Any error messages?
+[2013-10-03 19:15:35 -0400] cps: pretty sure it was didn't complain, but my log doesn't go back that far
+[2013-10-03 19:16:27 -0400] sfalcon: Missing /etc/chef-server/chef-webui.pem is curious. That should have been put in place during the install + reconfigure.
+[2013-10-03 19:16:37 -0400] cps: there are no .pem files in either /etc/chef or /etc/chef-server
+[2013-10-03 19:16:40 -0400] sfalcon: You can try running the reconfigure again.
+[2013-10-03 19:17:02 -0400] sfalcon: Also, should have asked, what package did you start with?
+[2013-10-03 19:17:40 -0400] cps: chef-server_11.0.8-1.ubuntu.12.04_amd64.deb
+[2013-10-03 19:18:06 -0400] sfalcon: kk, assuming you're on an ubuntu 12.04 box, that's a good choice :)
+[2013-10-03 19:19:06 -0400] cps: i am
+[2013-10-03 19:19:44 -0400] cps: reconfigured, still no pems
+[2013-10-03 19:21:48 -0400] sfalcon: hmm.
+[2013-10-03 19:28:05 -0400] cps: what generates the pems? I'm pulling my hair out trying to get this thing up and running
+[2013-10-03 19:32:31 -0400] aheler: is there a way to tell chef to run services as a specific user? I can't seem to find anything about it, and would prefer not to use a somewhat hacky workaround
+[2013-10-03 19:40:38 -0400] cps: after running reconfigure I don't have any pem files in /etc/chef or /etc/chef-server and i think this is the root of my problems
+[2013-10-03 19:40:47 -0400] cps: how do those files get generated?
+[2013-10-03 19:40:49 -0400] sfalcon: cps: the pem file is written by the bootstrap recipe which is guarded by /var/opt/chef-server/bootstrapped -- if that file exists, the recipe doesn't take actions. 
+[2013-10-03 19:41:26 -0400] sfalcon: aheler: what do you mean by "run services"?
+[2013-10-03 19:41:43 -0400] aheler: using the service resource
+[2013-10-03 19:42:00 -0400] aheler: can I have chef start the service as a specific user?
+[2013-10-03 19:42:04 -0400] cps: sfalcon: that file does exist
+[2013-10-03 19:42:11 -0400] cps: should i delete it and reconfigure?
+[2013-10-03 19:43:42 -0400] sfalcon: cps: you can give that a shot. I'm assuming this is a first install so you don't have much to lose. I'm pretty surprised/confused about how one would end up with the bootstrap file being present, but the pem files not having been written. Quite strange.
+[2013-10-03 19:44:25 -0400] cps: i've been trying for a while now to get this installed
+[2013-10-03 19:44:43 -0400] cps: i've removed chef and added it back several times
+[2013-10-03 19:44:44 -0400] sfalcon: aheler: the way we handle this is we use runit to manage services and in the runit run script is where we specify the user. If you're not using runit, you can put a similar command. See chpst
+[2013-10-03 19:45:08 -0400] sfalcon: cps: ok, and not on a vm so state persists?
+[2013-10-03 19:45:25 -0400] sfalcon: Worth a try to remove the bootstrapped file and try reconfigure again.
+[2013-10-03 19:45:35 -0400] cps: not a vm
+[2013-10-03 19:45:49 -0400] cps: reconfigure errored
+[2013-10-03 19:46:03 -0400] cps: [2013-10-03T15:44:15-04:00] ERROR: Running exception handlers [2013-10-03T15:44:15-04:00] ERROR: Exception handlers complete Chef Client failed. 9 resources updated
+[2013-10-03 19:46:23 -0400] cps: Error executing action `run` on resource 'execute[boostrap-chef-server]' in red
+[2013-10-03 19:46:53 -0400] cps: that's the first error
+[2013-10-03 19:50:12 -0400] sfalcon: cps: perhaps you can capture the log and gist it?
+[2013-10-03 19:50:44 -0400] cps: gist?
+[2013-10-03 19:51:29 -0400] sfalcon: gist is githubs pastebin service. Just a way of pasting output to a site so make it easy to share. gist.github.com e.g.
+[2013-10-03 19:51:43 -0400] sfalcon: or http://pastebin.com/ if you prefer
+[2013-10-03 19:52:43 -0400] cps: https://gist.github.com/anonymous/6816062
+[2013-10-03 19:53:14 -0400] cps: there's some character strangeness in there but you get the idea
+[2013-10-03 19:54:16 -0400] sfalcon: cps: great. need a few to read it
+[2013-10-03 19:59:02 -0400] aheler: sfalcon:  That looks like a much better way. thanks for the help.
+[2013-10-03 20:09:30 -0400] sfalcon: cps: so the log makes it look like erchef is timing out trying to talk to rabbitmq.
+[2013-10-03 20:10:10 -0400] sfalcon: Since you said you've tried a few times to get things going, I think it would be a good idea to stop all services: c-s-c stop (c-s-c == chef-server-ctl)
+[2013-10-03 20:10:24 -0400] sfalcon: Then look for stray beam processes: ps -ef|grep beam
+[2013-10-03 20:11:41 -0400] cps: sfalcon: all stopped, no stray beams
+[2013-10-03 20:11:46 -0400] sfalcon: cps: cool.
+[2013-10-03 20:12:07 -0400] cps: lot of chef stuff running though
+[2013-10-03 20:12:08 -0400] sfalcon: Next I would do: c-s-c cleanse  <- that command is intended to delete all chef data and start from scratch
+[2013-10-03 20:12:20 -0400] sfalcon: cps: what do you mean by "lot of chef stuff running?"
+[2013-10-03 20:12:38 -0400] cps: svlogd -tt /var/log/chef-server/rabbitmq
+[2013-10-03 20:12:47 -0400] cps: runsvdir -P /opt/chef-server/service log: ist?runsvdir /opt/chef-server/service: warning: unable to stat /opt/chef-server/service: file does not exist?runsvdir /opt/chef-server/service: warning: unable to stat /opt/chef-server/service: file does not exist?runsvdir /opt/chef-server/service: warning: unable to stat /opt/chef-server/service: file does not exist?control/t: 3: control/t: /opt/chef-server/embedded/bin/sv: not found?.......
+[2013-10-03 20:13:03 -0400] cps: runsv chef-server-webui
+[2013-10-03 20:13:04 -0400] sfalcon: cps: ok, that's interesting.
+[2013-10-03 20:13:11 -0400] sfalcon: try the cleanse command
+[2013-10-03 20:14:53 -0400] cps: after cleanse only /opt/chef-server/embedded/lib/erlang/erts-5.9.2/bin/epmd -daemon is running
+[2013-10-03 20:15:11 -0400] sfalcon: cps: ok, progress I think. Kill that too. You can just kill -9 it.
+[2013-10-03 20:16:48 -0400] cps: reconfigured, looks like it didn't error
+[2013-10-03 20:17:07 -0400] sfalcon: Do you have pem files now?
+[2013-10-03 20:17:43 -0400] cps: 3 in /etc/chef-server, none in /etc/chef
+[2013-10-03 20:17:50 -0400] cps: web ui works too
+[2013-10-03 20:17:59 -0400] sfalcon: \o/ 
+[2013-10-03 20:19:15 -0400] cps: thanks a bunch
+[2013-10-03 20:21:13 -0400] sfalcon: woot. np. good luck. sorry it didn't all Just Work.
+[2013-10-03 20:22:18 -0400] cps: yeah
+[2013-10-03 20:22:41 -0400] cps: i think my problem is that the quick start guides assume you want opscode hosting everything for you
+[2013-10-03 20:22:54 -0400] cps: so i got into that before i realized i wasn't setting up the box to be a chef server
+[2013-10-03 22:35:38 -0400] jgautier: were trying to use chef for nodejs deployments and often times we have multiple of the same node processes on the same box.  We are thinking of using roles to determine to which processes to run but how do we mange the number of each type of process?
+[2013-10-03 22:45:08 -0400] jimmy_zeel_com: Having a problem on this page of the quickstart guide...  https://learnchef.opscode.com/quickstart/converge/
+[2013-10-03 22:45:52 -0400] jimmy_zeel_com: When starting Vagrant I get this error.
+[2013-10-03 22:45:56 -0400] jimmy_zeel_com: vagrant up --no-color /home/jimmy/utilities/chef-repo/Vagrantfile:8:in `<top (required)>': undefined method `configure' for Vagrant:Module (NoMethodError) from /opt/vagrant/embedded/gems/gems/vagrant-1.0.2/lib/vagrant/config/loader.rb:115:in `load' from /opt/vagrant/embedded/gems/gems/vagrant-1.0.2/lib/vagrant/config/loader.rb:115:in `block in procs_for_source' from /opt/vagrant/embedded/gems/gems/vagrant-1.0.2/lib/vagra
+[2013-10-03 23:04:23 -0400] jimmy_zeel_com: Just fixed it by upgrading vagrant to 1.3.4

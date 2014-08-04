@@ -1,0 +1,934 @@
+[2013-10-02 00:00:08 -0400] coderanger: Sasi122: Thats from the error message, it isn't the code that is actually failing though
+[2013-10-02 00:01:55 -0400] Sasi122: coderanger: this is all of the outout
+[2013-10-02 00:01:56 -0400] Sasi122: http://pastebin.pw/h8hybw
+[2013-10-02 00:02:17 -0400] coderanger: Yes, the output isn't helpful in this case, you have to go find the relevant lines of code
+[2013-10-02 00:02:44 -0400] coderanger: There is a good chance it is in /mongodb-adchemy-v1/libraries/default.rb
+[2013-10-02 00:02:58 -0400] coderanger:  /var/chef/cache/chef-stacktrace.out will tell you for sure though
+[2013-10-02 00:03:03 -0400] coderanger: thats the raw stack trace
+[2013-10-02 00:04:29 -0400] Sasi122: coderanger: this is the infor from the stack trace --- http://pastebin.pw/satt4y
+[2013-10-02 00:04:50 -0400] Sasi122: coderanger: i am new to ruby, so pardon my ignorance...
+[2013-10-02 00:04:56 -0400] coderanger: So mongodb-adchemy-v1/libraries/mongodb.rb is the file that will have the code that is breaking :)
+[2013-10-02 00:05:00 -0400] coderanger: (I was close)
+[2013-10-02 00:06:31 -0400] Sasi122: coderanger: yes, i was able to get to this point, however do not know how to go from here
+[2013-10-02 00:06:39 -0400] Sasi122: the code is " databases = sharded_collections.keys.collect{ |x| x.split(".").first}.uniq     Chef::Log.info("enable sharding for these databases: '#{databases.inspect}'")"
+[2013-10-02 00:07:18 -0400] coderanger: Okay, so sounds like node['mongodb']['sharded_collections'] is nil instead of a hash of stuff
+[2013-10-02 00:07:30 -0400] coderanger: How do you usually specify that attribute?
+[2013-10-02 00:08:06 -0400] jameson__: mm
+[2013-10-02 00:08:09 -0400] jameson__: i believe that is set.
+[2013-10-02 00:08:16 -0400] Sasi122: coderanger: i dont remember ever specifying that attribute... but i can look at the role where we specify attributes again...
+[2013-10-02 00:10:21 -0400] Sasi122: coderanger: yes, we do not specify it...
+[2013-10-02 00:10:49 -0400] coderanger: So thats the error
+[2013-10-02 00:11:58 -0400] Sasi122: coderanger: interesting, this same setup was definitely working until 4 days ago...
+[2013-10-02 00:12:10 -0400] coderanger: Is that attribute defined on existing nodes?
+[2013-10-02 00:12:39 -0400] Sasi122: coderanger: all the existing nodes use the same role...
+[2013-10-02 00:12:59 -0400] coderanger: The data might have been provided directly in the node during creation
+[2013-10-02 00:14:01 -0400] Sasi122: coderanger: let me double check on the server from where all the instances are created...
+[2013-10-02 00:14:12 -0400] coderanger: You can also just use knife node show
+[2013-10-02 00:16:16 -0400] Sasi122: coderanger: i used knife and also checked the provisioning server... i do not see anyone providing this information....
+[2013-10-02 00:17:08 -0400] Sasi122: coderanger: the one and only change i know off was that the primary shard instance was upgraded from a large to an extrage large instance...
+[2013-10-02 00:17:18 -0400] Sasi122: coderanger: same IP and hostname
+[2013-10-02 00:17:41 -0400] Sasi122: coderanger: that's the only change..
+[2013-10-02 00:17:47 -0400] coderanger: No idea what changed, but from what you posted so far that attribute isn't optional
+[2013-10-02 00:18:34 -0400] Sasi122: coderanger: ok... also we just downloaded the cookbook and straight used it without modifying it...
+[2013-10-02 00:19:00 -0400] Sasi122: coderanger: the customization was in the roles...
+[2013-10-02 00:19:01 -0400] coderanger: No idea, I'm not familiar with that cookbook
+[2013-10-02 00:19:08 -0400] Sasi122: coderanger: ahhh
+[2013-10-02 00:19:41 -0400] Sasi122: coderanger: well i can sed you the complete file via pastebin
+[2013-10-02 00:19:49 -0400] coderanger: Sure
+[2013-10-02 00:20:47 -0400] Sasi122: coderanger: http://pastebin.pw/dck2wn
+[2013-10-02 00:21:12 -0400] Sasi122: coderanger: this is just the file that was metioned in the stack trace
+[2013-10-02 00:23:47 -0400] Sasi122: coderanger: so looking at the complete error, i think this is what is happening,
+[2013-10-02 00:24:17 -0400] Sasi122: coderanger: first it says "Could not connect to database: 'localhost:27017', reason Failed to connect to a master node at localhost:27017"
+[2013-10-02 00:25:19 -0400] Sasi122: coderanger: however, from the file i sent you just now, it needs to make a connection and then get a list of all the DB's to verify if they are sharded or not
+[2013-10-02 00:25:39 -0400] coderanger: It isn't doing that in this file
+[2013-10-02 00:25:55 -0400] Sasi122: coderanger: oh ok...
+[2013-10-02 00:28:37 -0400] coderanger: This looks like a straightforward config error
+[2013-10-02 00:28:58 -0400] coderanger: You are using the mongos recipe, and for that recipe the attribute listing sharded collections is required
+[2013-10-02 00:29:12 -0400] coderanger: The needed config is detailed in the readme
+[2013-10-02 00:33:03 -0400] Sasi122: coderanger: ok...thanks for the help ..i will look into this further.... my concern is that it was working and it just broke all of a sudden without any changes...
+[2013-10-02 00:33:20 -0400] broconne: first time using chef w/ a chef server...  should it be really slow at transferring cookbooks to clients?
+[2013-10-02 00:33:24 -0400] coderanger: I'm sure there was a change somewhere, the fun is in finding it :)
+[2013-10-02 00:33:34 -0400] coderanger: broconne: Depends on many many factors
+[2013-10-02 00:33:38 -0400] broconne: lie, the gem file takes 5 seconds
+[2013-10-02 00:33:40 -0400] Sasi122: coderanger: thanks :)
+[2013-10-02 00:33:46 -0400] coderanger: What kind of hardware is the server running on?
+[2013-10-02 00:33:46 -0400] broconne: two VMs running on the same box.
+[2013-10-02 00:34:08 -0400] coderanger: Define "the gem file"?
+[2013-10-02 00:34:18 -0400] broconne: the default Gemfile created by berkshelf
+[2013-10-02 00:34:22 -0400] broconne: I think it contains a line of text
+[2013-10-02 00:34:44 -0400] broconne: each file takes exactly 5 seconds.. including the license..
+[2013-10-02 00:34:54 -0400] Sasi122: coderanger: back agian with one more question....
+[2013-10-02 00:35:06 -0400] Sasi122: coderanger: is there a way to by pass this?
+[2013-10-02 00:35:53 -0400] broconne: host system is 98% idle
+[2013-10-02 00:36:05 -0400] coderanger: Sasi122: on the knife bootstrap command line you can give it JSON data to be set in the node, just do {"mongodb": {"sharded_collections": {}}}
+[2013-10-02 00:36:34 -0400] rdobbs: Hi, I'm testing out the application provider for deploying a tomcat instance, just the sample.war from apache.org. I'm somewhat stuck thyough, it's not a file that's in git, it's just a file. the documentation in the app cookbook says that in this case the revision attribute within an application block defaults to the checksum of the downloaded file .. if I set that attribute to be any type of checksum I get: Option checksum's value 89b33caa5bf4 does not match
+[2013-10-02 00:36:51 -0400] coderanger: broconne: Might want to test just the raw network I/O and file I/O to/from the server
+[2013-10-02 00:37:14 -0400] coderanger: rdobbs: What are you trying to deploy from if not git?
+[2013-10-02 00:38:06 -0400] Sasi122: coderanger: thanks for the help...i will try that....
+[2013-10-02 00:38:10 -0400] rdobbs: rdobbs: I'm just deploying a war file from a url
+[2013-10-02 00:38:59 -0400] coderanger: rdobbs: The application cookbooks don't support that currently
+[2013-10-02 00:39:03 -0400] coderanger: Its on my list though
+[2013-10-02 00:39:41 -0400] coderanger: For now it shares the file moving bits with the deploy resource it is based on, so limited to git and svn
+[2013-10-02 00:39:50 -0400] rdobbs: https://github.com/opscode-cookbooks/application_java
+[2013-10-02 00:39:50 -0400] rdobbs: under the Revision section it says, "Name of the path within releases, defaults to the checksum of the downloaded file
+[2013-10-02 00:39:51 -0400] coderanger: and maybe hg if you can bash the LWRP into functioning
+[2013-10-02 00:40:32 -0400] coderanger: Oh, it adds new stuff https://github.com/opscode-cookbooks/application_java/blob/master/libraries/provider_remote_file_deploy.rb
+[2013-10-02 00:40:33 -0400] rdobbs: so the documentation lies?
+[2013-10-02 00:40:58 -0400] rdobbs: I'm kind of confused
+[2013-10-02 00:41:09 -0400] coderanger: No, the docs for app_java are (probably) correct
+[2013-10-02 00:41:23 -0400] coderanger: It just has its own deploy backends separate from the normal app cookbook
+[2013-10-02 00:41:29 -0400] coderanger: (I didn't write app_java)
+[2013-10-02 00:41:45 -0400] rdobbs: I see
+[2013-10-02 00:41:52 -0400] rdobbs: any suggestion what kind of checksum it needs?
+[2013-10-02 00:41:52 -0400] Glace: I have a question regarding multiple app cookbooks with berkshelf on the same environment
+[2013-10-02 00:41:54 -0400] coderanger: So you have the provider set to RemoteFile?
+[2013-10-02 00:42:07 -0400] rdobbs: shasumming or md5summing doesn't give me a checksum that matches that regex
+[2013-10-02 00:42:08 -0400] Glace: lets say that the project has two apps
+[2013-10-02 00:42:09 -0400] coderanger: rdobbs: File checksums in chef are all sha256
+[2013-10-02 00:42:14 -0400] coderanger: rdobbs: (hex encoded)
+[2013-10-02 00:42:39 -0400] Glace: what would be the best way to handle environment freeze.. does berkshelf keeps track of the versioned used by other app cookbook on the same chef/server environment?
+[2013-10-02 00:43:04 -0400] broconne: coderanger: something is good even sshing between hosts.. thanks for the pointer.. looking. Just wanted to verify that chef itslef wasn't slow the first time it distrivuted cookbooks.
+[2013-10-02 00:43:35 -0400] coderanger: Glace: Just do them all in isolation, every cookbook is in effect its own product
+[2013-10-02 00:43:39 -0400] rdobbs: @codseranger: thanks for the help .. can I generate that just via sha1sum -a 256 file |base64 ?
+[2013-10-02 00:43:58 -0400] Glace: coderanger: do you suggest multiple environments?
+[2013-10-02 00:44:05 -0400] coderanger: Glace: Just make sure you get all the version dependencies correct in the cookbook metadata
+[2013-10-02 00:44:13 -0400] coderanger: Glace: Not unless they are actually separate
+[2013-10-02 00:44:21 -0400] coderanger: Glace: Do the two apps have any shared infra?
+[2013-10-02 00:44:27 -0400] Glace: yes
+[2013-10-02 00:44:31 -0400] coderanger: rdobbs: hex encoded, so no base64
+[2013-10-02 00:44:39 -0400] coderanger: Glace: Then they aren't separate envs :)
+[2013-10-02 00:44:45 -0400] Glace: so I am wondering.. if the the 2 apps.. have different version on lock files
+[2013-10-02 00:44:59 -0400] rdobbs: @coderanger: suggestion for a CLI to generate a hex-encoded checksum?
+[2013-10-02 00:45:00 -0400] Glace: of the same library cookbooks
+[2013-10-02 00:45:16 -0400] Glace: in the same environment
+[2013-10-02 00:45:37 -0400] Glace: and one library cookbook used.. broke his api in a most recent version
+[2013-10-02 00:45:43 -0400] coderanger: rdobbs: openssl sha1 -sha256 <file>
+[2013-10-02 00:45:45 -0400] Glace: and one of my app cookbook is using the old one
+[2013-10-02 00:45:58 -0400] coderanger: Glace: Did he bump the major version?
+[2013-10-02 00:46:08 -0400] Glace: yes...
+[2013-10-02 00:46:16 -0400] Glace: but my 2 apps
+[2013-10-02 00:46:17 -0400] rdobbs: thanks, my google foo failed bigtime on that one
+[2013-10-02 00:46:25 -0400] Glace: needs.. 2 different version of the same library
+[2013-10-02 00:46:36 -0400] Glace: one is not ready for the new one
+[2013-10-02 00:47:02 -0400] coderanger: Glace: The cookbook version set is computed independently for each node
+[2013-10-02 00:47:10 -0400] coderanger: So unless its a single node that needs both, you are fine
+[2013-10-02 00:47:18 -0400] rdobbs: hrm that still doesn't give me text which is matched by that regex
+[2013-10-02 00:47:19 -0400] coderanger: if a single node does need both versions, you just need to fix it
+[2013-10-02 00:47:26 -0400] Glace: coderanger: so.. if I dont freeze the environments
+[2013-10-02 00:47:38 -0400] coderanger: Glace: Freezing isn't related here
+[2013-10-02 00:47:40 -0400] Glace: the app cookbook will use the version in the lock file?
+[2013-10-02 00:47:44 -0400] rdobbs: meh, I
+[2013-10-02 00:47:50 -0400] rdobbs: 'll just write an exec.
+[2013-10-02 00:47:51 -0400] coderanger: All freeze does is prevent you from re-uploading over an existing version number
+[2013-10-02 00:48:12 -0400] Glace: coderange: I meant.. putting a specific version of a cookbook in an environment file
+[2013-10-02 00:48:20 -0400] Glace: like live environment... mysql = 3.0.6
+[2013-10-02 00:48:27 -0400] Glace: sorry about my bad wording :)
+[2013-10-02 00:48:47 -0400] coderanger: Glace: If your app cookbooks have the correct version dependencies in their metadata, it should accomplish the same thing
+[2013-10-02 00:49:12 -0400] Glace: coderanger: oh ok.. so basically.. force a specific version in the metadata
+[2013-10-02 00:49:42 -0400] coderanger: Glace: Well I would use the pessimistic version spec
+[2013-10-02 00:49:45 -0400] coderanger: but == works too
+[2013-10-02 00:49:53 -0400] coderanger: (pessimistic is that ~> one)
+[2013-10-02 00:50:06 -0400] coderanger: Thats why I asked about the major version rev
+[2013-10-02 00:51:22 -0400] coderanger: Neither, it will abort with an unsolvable version conflict
+[2013-10-02 00:51:45 -0400] Glace: coderanger: maybe im mistaken.. but for example the artifact cookbook version 1.0.9 broke compatiblity.. and its not a major
+[2013-10-02 00:52:03 -0400] coderanger: Glace: Are you familiar with the ~> operator?
+[2013-10-02 00:52:03 -0400] Glace: coderanger: ok.. thats great then.. at least it protects it
+[2013-10-02 00:52:14 -0400] Glace: coderanger: to be honest not really
+[2013-10-02 00:52:20 -0400] Glace: thats propably what im missing here
+[2013-10-02 00:52:21 -0400] coderanger: Its a rubygems thing originally but Chef stole it because its super useful
+[2013-10-02 00:52:23 -0400] coderanger: Okay, so short version
+[2013-10-02 00:52:31 -0400] coderanger: If you have ~>1.0.0
+[2013-10-02 00:52:48 -0400] coderanger: That will match 1.0.0, 1.0.1, etc, but won't match 1.1.0
+[2013-10-02 00:53:14 -0400] coderanger: Similarly ~>2.0 would match 2.0.0, 2.0.1, 2.1.0, but not 3.0 or up
+[2013-10-02 00:53:32 -0400] Glace: coderanger: ohh great
+[2013-10-02 00:53:37 -0400] coderanger: So it lets you say "I want anything up to the new minor or major rev"
+[2013-10-02 00:53:51 -0400] Glace: yes.. artifact cookbook.. is 1.10 that broke it.. your right I just double checked
+[2013-10-02 00:54:05 -0400] Glace: coderanger: thanks I didnt know this operator
+[2013-10-02 00:54:11 -0400] coderanger: as long as the other cookbook authors are good about reving version numbers correctly when they break API compat, that lets you be a bit more fluid
+[2013-10-02 00:54:36 -0400] Glace: Good
+[2013-10-02 00:55:02 -0400] Glace: and on the other end.. if I use.. one app cookbook with mysql  ==  3.0.6 and the other one with mysql == 3.0.5
+[2013-10-02 00:55:09 -0400] Glace: as long as its not running on the same server
+[2013-10-02 00:55:21 -0400] Glace: it will be using the right one.. ? if I understood properly
+[2013-10-02 00:55:47 -0400] coderanger: Yes, if app1 has depends mysql, ==3.0.6 and app2 has ==3.0.5
+[2013-10-02 00:55:55 -0400] Glace: ok.. amazing
+[2013-10-02 00:55:57 -0400] Glace: thank you!!
+[2013-10-02 00:56:02 -0400] coderanger: then it should do its best to sort things out
+[2013-10-02 00:56:16 -0400] coderanger: Just if you put app1 and app2 on the same node, it will go boom
+[2013-10-02 00:56:24 -0400] Glace: yes.. thats fine :)
+[2013-10-02 00:56:42 -0400] Glace: 2 diferrent app shouldnt me on the same node with our architecture
+[2013-10-02 00:57:58 -0400] Glace: the hardest part to convert fully to app cookbooks.. will be handling Mongodb without roles I think
+[2013-10-02 01:40:28 -0400] broconne: is there a way to get a knife status based on a runlist?
+[2013-10-02 01:43:21 -0400] broconne: I can't seem to find any examples of that.. and knife status "run_list:<recipe>" dosn't seem to work
+[2013-10-02 01:44:15 -0400] broconne: ahh.. recipes..
+[2013-10-02 01:44:30 -0400] coderanger: Yep, and roles:
+[2013-10-02 01:55:35 -0400] broconne: hmm.. this is odd.. I have a chef server running in a vagrant vm, have a client running in another vm..  it ran fine.. but chef-client doesn't work.
+[2013-10-02 01:55:47 -0400] broconne: I sort of expected it to since it provisioned it w/ chef client
+[2013-10-02 02:54:39 -0400] jblack: It hink the vagrant chef does a bunch of mounting and ssh type stuff.
+[2013-10-02 02:55:21 -0400] jblack: the actually "in-the-image" chef stuff might not be set up, though there are cheffy images out there.
+[2013-10-02 02:55:46 -0400] jblack: I set up a script that lets me do invidividual recipes via  vagrant ssh
+[2013-10-02 04:56:15 -0400] ezotrank: Good day! Maybe someone have some problem, I can not upload cookbooks via berks to chef server, log - http://cl.ly/text/0t3e2X2Q1p3w
+[2013-10-02 04:56:59 -0400] ezotrank: via gist https://gist.github.com/ezotrank/5364ef0eed9398e82c62
+[2013-10-02 05:22:22 -0400] ezotrank: ok, it's my mistake
+[2013-10-02 05:23:42 -0400] dmz: howdy y'all, i'm just getting started with chef and have played with the hosted system but would prefer to run the community version with my own sever. i can't seem to find decent docs on setting up / using your own internal community chef server; anyone have a good url i can browse?
+[2013-10-02 05:27:39 -0400] kennon: dmz, i think this is still current: http://www.opscode.com/blog/2013/03/11/chef-11-server-up-and-running/
+[2013-10-02 05:30:52 -0400] dmz: thanks let me see if that helps; i've gotten the sever running, just looking to be sure i connect correctly from my test nodes
+[2013-10-02 05:46:42 -0400] dmz: kennon thanks, that helped me get the basic server ready, now i just need to figure out how the node is configured to use it :)
+[2013-10-02 05:52:01 -0400] dmz: so once i have the server setup, i install the chef client side on the same machine & use it's git repo to manage the cookbooks submitted / managed through the server?
+[2013-10-02 05:53:51 -0400] dmz: and is there an equivalent to setting up the chef-repo from the community server?
+[2013-10-02 06:17:40 -0400] dmz: why does it seem to me that every node has it's own name & user on the chef server??
+[2013-10-02 06:55:58 -0400] z1y: hi guys. What's "persistent attributes" as in http://docs.opscode.com/chef_solo.html ?
+[2013-10-02 06:56:28 -0400] z1y: I'm studying chef-solo on my local machine, and I'm looking at chef-solo limitations
+[2013-10-02 07:18:14 -0400] log1kal: z1y: so, sometimes you want to set up a database, and you randomly generate a password for a user on it. You definitely want to keep that attribute right? You can't in chef-solo.
+[2013-10-02 07:18:29 -0400] z1y: ah I see. Thanks log1kal
+[2013-10-02 07:19:00 -0400] log1kal: https://github.com/opscode-cookbooks/mysql/blob/master/recipes/server.rb#L24-L43 is a great example
+[2013-10-02 07:20:09 -0400] log1kal: there's not a whole lot of places you'd want to use persistent attributes, so it's not that big a deal most of the time
+[2013-10-02 07:20:33 -0400] log1kal: except for that case with mysql there, we have a rule in my org to not use them if there's any way to avoid it
+[2013-10-02 07:21:24 -0400] z1y: I got it
+[2013-10-02 07:26:22 -0400] bugday_: hi all
+[2013-10-02 07:26:25 -0400] bugday_: a quick question
+[2013-10-02 07:26:36 -0400] bugday_: how can I set an environment variable in ubuntu through chef?
+[2013-10-02 07:26:57 -0400] bugday_: I would like to add /usr/local/lib to path
+[2013-10-02 07:27:41 -0400] log1kal: bugday_: whatt's your scenario?
+[2013-10-02 07:28:22 -0400] bugday_: trying to build the ffmpeg cookbook
+[2013-10-02 07:28:23 -0400] log1kal: if it's for execute resources, you what the environment attribute: http://docs.opscode.com/resource_execute.html
+[2013-10-02 07:28:30 -0400] bugday_: cant find the libx264
+[2013-10-02 07:28:32 -0400] log1kal: s/what/want
+[2013-10-02 07:28:39 -0400] bugday_: although I have it in the cookbook too
+[2013-10-02 07:28:55 -0400] bugday_: I suppose its because of that the lib folder is not in the path
+[2013-10-02 07:29:20 -0400] bugday_: thanks
+[2013-10-02 07:29:27 -0400] log1kal: no prob :)
+[2013-10-02 07:29:29 -0400] bugday_: so I should create a site-cookbook
+[2013-10-02 07:29:31 -0400] bugday_: right?
+[2013-10-02 07:29:43 -0400] log1kal: ?
+[2013-10-02 07:29:45 -0400] bugday_: which sets the path
+[2013-10-02 07:29:55 -0400] bugday_: cant do it through node attributes ?
+[2013-10-02 07:30:03 -0400] log1kal: are you using a community cookbook, and just need to add that environment hash?
+[2013-10-02 07:30:12 -0400] bugday_: yeah
+[2013-10-02 07:30:14 -0400] log1kal: or is this your own cookbook
+[2013-10-02 07:30:22 -0400] bugday_: using the community
+[2013-10-02 07:30:26 -0400] log1kal: got a link to the cookbook?
+[2013-10-02 07:30:53 -0400] log1kal: http://community.opscode.com/cookbooks/ffmpeg ?
+[2013-10-02 07:31:19 -0400] bugday_: yeah
+[2013-10-02 07:33:30 -0400] log1kal: https://github.com/enmasse-entertainment/ffmpeg-cookbook/issues/4 related at all? e.g. is libx264 actually available?, and is there a compile flag that you can use to set the path to libx264?
+[2013-10-02 07:35:19 -0400] log1kal: or change default[:ffmpeg][:install_method] = :source to :package, if it's available (in the environment, node data, or elsewhere, seems silly to write a wrapper to change one attribute)
+[2013-10-02 09:04:00 -0400] david118: is there no way for test-kitchen to reuse a given vm without a destory and full rebuild? I thought 'kitchen test --destroy=never' should do it
+[2013-10-02 10:40:54 -0400] glen: how do i see on chef-server/status page past first page? i see only handful of hosts
+[2013-10-02 10:41:19 -0400] glen: i primarily want to see which nodes are offline, i.e not checked in recently
+[2013-10-02 10:41:54 -0400] zaargy: glen: do you have knife setup? jsut use knife status
+[2013-10-02 10:42:23 -0400] glen: so, the webui is so unuseful?
+[2013-10-02 10:42:39 -0400] glen: btw, knife status shows also only 20 or so items
+[2013-10-02 10:42:58 -0400] glen: $ knife status|wc -l
+[2013-10-02 10:42:59 -0400] glen: 28
+[2013-10-02 10:43:23 -0400] glen:  knife node list|wc -l
+[2013-10-02 10:43:24 -0400] glen: 54
+[2013-10-02 10:45:25 -0400] zaargy: actually there is a status page on the webui too
+[2013-10-02 10:45:39 -0400] zaargy: the webui serves its purpose i think
+[2013-10-02 10:45:50 -0400] zaargy: glen: is it possible you have old nodes there?
+[2013-10-02 10:52:12 -0400] glen: zaargy: yes the webui status page is incomplete in my opinion, but knife status shows incomplete list as well
+[2013-10-02 10:52:18 -0400] glen: zaargy: what is "old node"?
+[2013-10-02 10:56:00 -0400] glen: in fact chef webui shows 20 nodes in status page, and i do not see any pager
+[2013-10-02 10:59:56 -0400] fishGoM00: https://gist.github.com/apsoto/668421
+[2013-10-02 11:00:17 -0400] fishGoM00: create a .rb file in chef repo and cron that to run periodically
+[2013-10-02 11:00:36 -0400] fishGoM00: via cron get the reports send to your mailbox and you know exactly what nodes have not checked in
+[2013-10-02 11:04:51 -0400] glen: thanks, but any chance to use webui or knife status correctly?
+[2013-10-02 11:09:03 -0400] glen: fishGoM00: well. wtf. but that also returns me incomplete list!
+[2013-10-02 11:09:13 -0400] glen: glen@blodnatt chef/check_checkins$ ./chef\ check\ for\ checkins|wc -l
+[2013-10-02 11:09:14 -0400] glen: 29
+[2013-10-02 11:14:15 -0400] granth: I'm generating a json config from hash in one of my recipes. anyone have any thoughts about how to avoid sending a notifies :restart every time the config file gets built? Meaning, I'd like to restart when things actually change, but not on every chef run, which is what's happening at the moment.
+[2013-10-02 11:19:19 -0400] fishGoM00: glen: it should only return a list of nodes that have not checked in
+[2013-10-02 11:19:27 -0400] fishGoM00: seems to work fine over here :P
+[2013-10-02 11:25:19 -0400] AikiLinux: Hello
+[2013-10-02 11:26:04 -0400] AikiLinux: does the call for the "package" resource always trigger a call to a software repository ?
+[2013-10-02 11:28:18 -0400] glen: fishGoM00: ok. i'll check again
+[2013-10-02 11:28:58 -0400] glen: Chef clients that have not checked in in the last 3600s
+[2013-10-02 11:29:03 -0400] glen: wiki: 574 s
+[2013-10-02 11:29:10 -0400] glen: seems it still got something wrong
+[2013-10-02 11:29:55 -0400] fishGoM00: very odd :/
+[2013-10-02 11:43:43 -0400] Mez: Hi all, is it possible to isntall Chef 0.11 using system dependencies (using the system nginx, for example) rather than random things that are bought in by chef and don't neccesarily actually get updated properly with security patches@?
+[2013-10-02 11:54:41 -0400] bigbigbang: Mez: Yes you can, you just have to configure
+[2013-10-02 12:12:26 -0400] zaargy: glen: knife status only shows successful runs btw
+[2013-10-02 12:12:30 -0400] zaargy: so maybe your other nodes are failing
+[2013-10-02 12:12:53 -0400] zaargy: by old nodes i meant maybe you deleted a node and recyled it with another name etc
+[2013-10-02 12:13:13 -0400] zaargy: or just shut it down etc
+[2013-10-02 12:15:43 -0400] glen: zaargy: but i want to see failing nodes, currently i can't get such list
+[2013-10-02 12:16:10 -0400] glen: zaargy: no, i don't think i have such old nodes, but i may have re-bootstrapped them, but the clients are not recycled then (old file is preserved)
+[2013-10-02 12:17:56 -0400] zaargy: glen: well you can setup other tools to help you see that (like chef-handler-graphite) atm or maybe setup knife lastrun then iterate through all nodes
+[2013-10-02 12:18:09 -0400] zaargy: glen: in the intermin i think your only option is going to be knife ssh chef clinet across all your nodes
+[2013-10-02 12:18:20 -0400] zaargy: you could subtract the ones you know about from knife status etc
+[2013-10-02 12:19:36 -0400] zaargy: actually maybe you could knife exec something but i can't try right now
+[2013-10-02 12:30:43 -0400] Mez: bigbigbang: Care to tell me how to configure it?  It seems running the standard reconfigure after installing does not use the system's copies of nginx/postgres, etc, but it's own verssions
+[2013-10-02 12:32:53 -0400] bigbigbang: Mez: I have only done it with system RabbitMq , I have to do something like you, but i prefer use the chef nginx instaed of system nginx ...
+[2013-10-02 12:34:20 -0400] Mez: bigbigbang: well, how did you do that? Because my version only installs their own dependencies (which, to be fair, I don't trust as much as I trust the ubuntu/debian repos)
+[2013-10-02 12:35:16 -0400] bigbigbang: Mez:  you will have to try .. but i would have delete the nginx bin from the chef embedded repository, install the system one, and then specify the path in your PATH ... perhaps it could work .. but there is a lot of web server configuration that i didn't look at, you have option for HA .... you probably don't need to rewrite them but i'm not sure ..
+[2013-10-02 12:37:36 -0400] bigbigbang: Mex: take a look at my blog, where I try a chef OSC failover ... the rabbitmq have to be changed to have a "cluster mode" .. here the link http://bigbigbangblog.blogspot.fr/2013/08/chef-osc-installation-failover.html  , the part that will probably helps you is rabbitmq ..
+[2013-10-02 12:37:47 -0400] bigbigbang: sorry Mez ^^not mex
+[2013-10-02 12:38:41 -0400] bigbigbang: I hope it will helps you
+[2013-10-02 12:38:43 -0400] Mez: bigbigbang: you seem to be installing a compiled version, not the system version
+[2013-10-02 12:38:54 -0400] Mez: and just over-riding the paths.
+[2013-10-02 12:39:11 -0400] Mez: I want to use the correct system versions, and not have to use weird things.
+[2013-10-02 12:39:18 -0400] Mez: Like 0.10 could do
+[2013-10-02 12:39:43 -0400] Mez: https://github.com/protec-cookbooks/chef-server/blob/master/recipes/default.rb
+[2013-10-02 12:44:07 -0400] bigbigbang: Mez: So i think you will have to rewrite the whole nginx recipe (/opt/chef-server/embedded/cookbooks/chef-server/recipes/nginx.rb)
+[2013-10-02 12:44:42 -0400] Mez: actually, it's more like I'd have to rewrite the recipes within omnibus
+[2013-10-02 12:48:43 -0400] bigbigbang: Mez : or you don't use chef to configure it, you do it manually (like me with rabbitmq).. if you do this, don't forgot to comment the nginx configuration in the default recipe .
+[2013-10-02 12:48:44 -0400] itwasntandy: so I've a box in EC2 (in a VPC) which ohai is not believing it to be in ec2.
+[2013-10-02 12:49:10 -0400] itwasntandy: :/
+[2013-10-02 12:49:11 -0400] itwasntandy: # /opt/chef/embedded/bin/ohai -l debug |grep -i ec2
+[2013-10-02 12:49:12 -0400] itwasntandy: [2013-10-02T12:49:01+00:00] DEBUG: Loading plugin ec2
+[2013-10-02 12:49:12 -0400] itwasntandy: [2013-10-02T12:49:01+00:00] DEBUG: has_ec2_mac? == false
+[2013-10-02 12:49:14 -0400] itwasntandy: [2013-10-02T12:49:01+00:00] DEBUG: looks_like_ec2? == false
+[2013-10-02 12:49:36 -0400] itwasntandy: does anyone know how the looks_like_ec2 bit works? if I can pursuade it my box is actually in ec2?
+[2013-10-02 12:52:18 -0400] Mez: itwasntandy: Yeah, you can set a hint... lemme find the code
+[2013-10-02 12:52:41 -0400] itwasntandy: thanks
+[2013-10-02 12:52:42 -0400] itwasntandy: just found it
+[2013-10-02 12:52:50 -0400] itwasntandy: touch /etc/chef/ohai/hints/ec2.json
+[2013-10-02 12:52:52 -0400] itwasntandy: did the trick
+[2013-10-02 12:52:56 -0400] Mez: https://github.com/opscode/ohai/blob/master/lib/ohai/plugins/ec2.rb
+[2013-10-02 12:54:30 -0400] Mez: For some reason, it doesn't always get a "looks like ec2" mac anymore... which is why the hint is failing.
+[2013-10-02 12:54:37 -0400] Mez: Can't remember what makes it get a different mac
+[2013-10-02 12:56:00 -0400] Mez: IIRC, it's something to do with not being in a VPC
+[2013-10-02 13:25:38 -0400] granth: I'm generating a json config from hash in one of my recipes. anyone have any thoughts about how to avoid sending a notifies :restart every time the config file gets built? Meaning, I'd like to restart when things actually change, but not on every chef run, which is what's happening at the moment.
+[2013-10-02 13:28:45 -0400] broconne: Not sure if this is the right place for this or not:  I am having trouble understanding some elements of the berkshelf design.. which leads me to believe I am not using it correctly.  I have a berksfile, and I have a .berkshelf/config.json in my root chef directory.  From there I can init cookbooks, or make new cookbooks.. What I don't understand is that when I make new cookbooks berkshelf creates a Vagrantfile in that cookbook.  Which leads me to believe that I
+[2013-10-02 13:47:52 -0400] trilitheus: anyone using mmail_alias cookbook?
+[2013-10-02 13:48:19 -0400] trilitheus: doesn;t seemmm to be commpletly idempotent and is notifying newaliases to run every chef run
+[2013-10-02 13:49:14 -0400] ichilton: Is there a way in bootstrap to specify the host's fqdn to use? - with knife-linode, it's creating them with localhost
+[2013-10-02 13:49:23 -0400] benner_: what is the right way to modify nginx configuration from chef-server install (http://www.opscode.com/chef/install) ?
+[2013-10-02 13:54:39 -0400] bigbigbang: benner_: edit the chef-server cookbook ? (nginx recipe)  /opt/chef-server/embedded/cookbook/chef-server/recipe/nginx.rb or the configuration itself : nano /opt/chef-server/embedded/cookbooks/chef-server/templates/default/nginx***
+[2013-10-02 14:04:30 -0400] ichilton: Need to debug a knife plugin - how can I get knife to use a local copy?
+[2013-10-02 14:07:19 -0400] teukka: ichilton: use Bundler to isolate the plugins
+[2013-10-02 14:08:08 -0400] ichilton: ah, so put a Gemfile in the local plugin dir?
+[2013-10-02 14:11:26 -0400] teukka: ichilton: well, put it where you want. then you can use the local plugin with `path` option
+[2013-10-02 14:12:01 -0400] teukka: ichilton: i.e. `gem 'knife-foo', :path => '../knife-foo'`
+[2013-10-02 14:12:17 -0400] sfb: Odd - for some reason my server won't converge using a newer version of a cookbook.
+[2013-10-02 14:13:31 -0400] teukka: ichilton: but I've seen some strange behaviour when runnin knife with `bundle ecex`. safer to create binstubs and run knife from there
+[2013-10-02 14:14:13 -0400] ichilton: k, thanks
+[2013-10-02 14:25:10 -0400] sfb: Does anyone have any advice on troubleshooting a chef-client run that uses an old version of a cookbook? It keeps running 0.1.4 and it should be running 0.20
+[2013-10-02 14:25:14 -0400] sfb: 0.2.0 I mean.
+[2013-10-02 14:25:41 -0400] fishGoM00: checked for cookbook version constraints on the environment?
+[2013-10-02 14:25:43 -0400] cpuguy83: environment locked?  Cookbook specifying the wrong version?
+[2013-10-02 14:26:45 -0400] sfb: No environment constraints.
+[2013-10-02 14:27:07 -0400] sfb: What do you mean by the cookbook specifying the wrong version?
+[2013-10-02 14:27:23 -0400] sfb: I've just added it to the runlist via the web.
+[2013-10-02 14:27:41 -0400] fishGoM00: gotta ask the basics :)
+[2013-10-02 14:28:05 -0400] sfb: fishGoM00: No problem, I didn't think of it because I don't normally use it. But good to ask.
+[2013-10-02 14:28:07 -0400] fishGoM00: have you knife cookbook upload cookbook name too?
+[2013-10-02 14:28:31 -0400] fishGoM00: you should be able to check which version is on the chef server on the cookbook tab
+[2013-10-02 14:28:36 -0400] sfb: I let berks upload. I verified that 0.2.0 is uploaded and accurate via Chef web.
+[2013-10-02 14:30:05 -0400] bean__: sfb: try nuking the servers chef cache? :)
+[2013-10-02 14:30:17 -0400] sfb: bean__: I blew away /var/chef/cache/cookbooks
+[2013-10-02 14:30:33 -0400] sfb: bean__: I thought maybe it was falsy assuming it didn't need to download. Instead it re-downloaded 0.1.4
+[2013-10-02 14:30:44 -0400] bean__: then it has to be version constrained on the env, the node, or by another cookbook
+[2013-10-02 14:30:48 -0400] sfb: That word is supposed to be falsely. (;
+[2013-10-02 14:31:04 -0400] sfb: Hmn.
+[2013-10-02 14:31:14 -0400] bean__: are there other cookbooks in the run list that might conflict?
+[2013-10-02 14:31:26 -0400] sfb: I don't think so.
+[2013-10-02 14:31:30 -0400] sfb: Let me check.
+[2013-10-02 14:31:48 -0400] bean__: :) they might have "depends xyz ~> 0.1.4 or somesuch
+[2013-10-02 14:32:16 -0400] fishGoM00: it's gotta be that or a env constraint
+[2013-10-02 14:32:20 -0400] sfb: Nothing else should depend on this - it's an app cookbook.
+[2013-10-02 14:32:28 -0400] fishGoM00: otherwise it should download the newest version from the chef server on each run
+[2013-10-02 14:32:30 -0400] sfb: But I'm checking the roles.
+[2013-10-02 14:34:10 -0400] dmz: quick question; how do i set my chef client to not verify a ssl cert as it is a wildcard
+[2013-10-02 14:34:27 -0400] bean__: a wildcard should still verify :)
+[2013-10-02 14:34:28 -0400] dmz: i found a post about disablign with Ridley.new(...,ssl:{verify:false}) but don't know where to put that
+[2013-10-02 14:34:35 -0400] dmz: well it's a self signed wildcard currently :)
+[2013-10-02 14:34:47 -0400] bean__: ah, the self-signed part is the part that matters.
+[2013-10-02 14:34:50 -0400] dmz: :)
+[2013-10-02 14:34:54 -0400] bean__: are you using berkshelf?
+[2013-10-02 14:34:56 -0400] dmz: yes
+[2013-10-02 14:34:59 -0400] dmz: well trying to
+[2013-10-02 14:35:17 -0400] jtimberman: dmz: chef-client? use: ssl_verify_mode :verify_none in your /etc/chef/client.rb
+[2013-10-02 14:35:22 -0400] siezer: check the last line in your ~/.berkshelf/config.rb
+[2013-10-02 14:35:30 -0400] bean__: dmz: https://github.com/RiotGames/berkshelf/issues/380
+[2013-10-02 14:35:31 -0400] bean__: :)
+[2013-10-02 14:35:39 -0400] jtimberman: siezer: s/config.rb/config.json/
+[2013-10-02 14:35:40 -0400] bean__: or
+[2013-10-02 14:35:41 -0400] bean__: https://github.com/RiotGames/berkshelf
+[2013-10-02 14:35:44 -0400] siezer: oh right
+[2013-10-02 14:35:47 -0400] bean__: has it documented as well
+[2013-10-02 14:36:06 -0400] jtimberman: siezer: also, ohai :)
+[2013-10-02 14:36:09 -0400] siezer: OHAI
+[2013-10-02 14:36:15 -0400] siezer: I'm on the internet!
+[2013-10-02 14:36:22 -0400] siezer: *highfive*
+[2013-10-02 14:37:41 -0400] jtimberman: o/
+[2013-10-02 14:38:47 -0400] gchristensen: how do people manage IP blocks and assignments?
+[2013-10-02 14:39:41 -0400] siezer: dhcp
+[2013-10-02 14:40:05 -0400] dmz: yeah, thanks y'all
+[2013-10-02 14:40:35 -0400] gchristensen: siezer: on the hardware side of things that is fine, but I mean in meat-space when looking at what IPs are allocated where
+[2013-10-02 14:40:45 -0400] dmz: now just gotta figure out what i'm doign w/chef :) got the server running and just checked in a test cookbook w/berks, now just gotta figure out how to get clients to work :)
+[2013-10-02 14:40:51 -0400] jtimberman: gchristensen: we use ipplan internally. it's not super awesome but "works"
+[2013-10-02 14:41:24 -0400] jtimberman: also, i don't know much about ipplan, other than where to look to find the iDRAC IP for a specific physical system :)
+[2013-10-02 14:41:26 -0400] gchristensen: jtimberman: (omg) "written in php 4" cool, thank you :)
+[2013-10-02 14:41:41 -0400] gchristensen: ahh iDRAC... jtimberman: do you use windows machines to deal with drac?
+[2013-10-02 14:41:50 -0400] jtimberman: gchristensen: unfortunately :)
+[2013-10-02 14:41:52 -0400] pabst^: ipplan is pretty awesome.
+[2013-10-02 14:42:11 -0400] jtimberman: gchristensen: i have windows 7 VM on my laptop to run IE for accessing "java apps" to reach remote consoles.
+[2013-10-02 14:42:25 -0400] ichilton: jtimberman: Hi Joshua!
+[2013-10-02 14:42:33 -0400] gchristensen: jtimberman: okay, I thought that might be the case. I couldn't get my VM working and ended up buying a windows laptop to recover a device
+[2013-10-02 14:42:35 -0400] jtimberman: let's just say that the world of managing hardware hasn't changed *at all* in the last 10 years.
+[2013-10-02 14:42:49 -0400] lmickh: gchristensen:  check out device42 as well if your looking asset info along with your IP reservations
+[2013-10-02 14:42:54 -0400] ichilton: jtimberman: how do you go about working on a knife plugin? - i.e how to you get knife to run your local copy?
+[2013-10-02 14:43:06 -0400] gchristensen: jtimberman: have all your DRAC SSL certs expired too?  :)
+[2013-10-02 14:43:12 -0400] jtimberman: some of the java GUIs sort of work on OS X+Chrome or Firefox.
+[2013-10-02 14:43:18 -0400] jtimberman: gchristensen: haven't checked, I don't DRAC often.
+[2013-10-02 14:43:33 -0400] gchristensen: okay
+[2013-10-02 14:43:58 -0400] jtimberman: ichilton: put it in ./.chef/plugins/knife if its repo specific or ~/.chef/plugins/knife if you want it everywhere you work.
+[2013-10-02 14:44:07 -0400] jtimberman: "everywhere" by that i mean any directory you're in.
+[2013-10-02 14:44:20 -0400] jtimberman: ichilton: or make it a gem and install in your local ruby environment.
+[2013-10-02 14:44:28 -0400] ichilton: odd, I tried putting it in ~/.chef/plugins/knife/knife-linode and it didn't seem to use it
+[2013-10-02 14:44:40 -0400] sfb: I just can't find a version constraint anywhere.
+[2013-10-02 14:44:45 -0400] dmz: ok one other question; i'm going through the various quickstart guides which all reference the commercial chef server not the community; and when adding a chef workstation it says to download the start kit "chef-repo"...what is the equivelant for the community server?
+[2013-10-02 14:44:54 -0400] ichilton: I had to create a Gemfile with gem 'knife-linode', :file => /home/vagrant/knife-linode' in and bundle exec knife
+[2013-10-02 14:44:54 -0400] sfb: It doesn't make any sense.
+[2013-10-02 14:45:26 -0400] gchristensen: lmickh: that looks really promising
+[2013-10-02 14:45:41 -0400] ichilton: jtimberman: any ideas why that would be?
+[2013-10-02 14:45:58 -0400] jtimberman: ichilton: is the file knife-linode.rb?
+[2013-10-02 14:46:08 -0400] jtimberman: does it subclass Chef::Knife?
+[2013-10-02 14:46:25 -0400] ichilton: jtimberman: it was a git checkout from github:opscode/knife-linode
+[2013-10-02 14:46:27 -0400] jtimberman: here's a knife plugin i created primarily as an example: https://rubygems.org/gems/knife-config
+[2013-10-02 14:46:28 -0400] tscanausa: gchristensen: I used to use netdot when I worked for a company with alot of ip addresses
+[2013-10-02 14:46:46 -0400] jtimberman: ichilton: you should install the gem
+[2013-10-02 14:46:51 -0400] ichilton: jtimberman: ah, ok
+[2013-10-02 14:47:38 -0400] ichilton: jtimberman: incidently, any chance of arranging a new release of the knife-linode gem - I just spent an hour or so debugging bugs only to find out using the one from github fixed the problems!
+[2013-10-02 14:48:37 -0400] ichilton: jtimberman: the one in ruby gems doesn't default to distro chef-full so fails on an ubuntu 12.04 image and doesn't support json-attributes - both seem to work fine using the master branch from github
+[2013-10-02 14:49:00 -0400] gchristensen: tscanausa: interesting...
+[2013-10-02 14:49:10 -0400] gchristensen: my ideal would be atool that I could import from chef :)
+[2013-10-02 14:49:35 -0400] jtimberman: ichilton: best thing to do is follow-up on the mailing list. i'm not involved in the release process for our knife plugins.
+[2013-10-02 14:49:43 -0400] ichilton: ok, ta
+[2013-10-02 14:50:02 -0400] ichilton: jtimberman: while you are here, is there a way of executing something interactive (like apt-get dist-upgrade) with knife ssh ?
+[2013-10-02 14:50:50 -0400] asasd: hi, i've just installed erchef 11, what are the default user/pw for accesing webinterface?
+[2013-10-02 14:50:58 -0400] tscanausa: gchristensen: I think it has an api, before I left we considered using it with one of the config management systems to update dns records in netdot then push them out automatically.
+[2013-10-02 14:51:39 -0400] 17SADFNJW: anyone from opscode in here
+[2013-10-02 14:52:37 -0400] gchristensen: 17SADFNJW: everyone op'd is from opscode
+[2013-10-02 14:52:55 -0400] jtimberman: gchristensen: not everyone :)
+[2013-10-02 14:53:05 -0400] gchristensen: oh! huh!
+[2013-10-02 14:53:05 -0400] 17SADFNJW: do we have any eta on when there will be a release with the nested attributes searches fixed?
+[2013-10-02 14:53:10 -0400] gchristensen: who isn't, jtimberman?
+[2013-10-02 14:53:10 -0400] mccullod: Hello all, is it possible to do High Availability in Open Source Chef?
+[2013-10-02 14:53:19 -0400] jtimberman: not all the people who work for opscode are +o either.
+[2013-10-02 14:53:25 -0400] gchristensen: I figured that was the case
+[2013-10-02 14:54:13 -0400] jtimberman: heh yeah.
+[2013-10-02 14:54:24 -0400] jtimberman: ichilton: use -y?
+[2013-10-02 14:54:31 -0400] 17SADFNJW: i think it was supposed to be fixed in the latest release but it hasnt
+[2013-10-02 14:54:36 -0400] jtimberman: i don't do non-interactive dist-upgrades myself though
+[2013-10-02 14:56:01 -0400] siezer: dist-upgrade has never worked
+[2013-10-02 14:56:07 -0400] siezer: danger will robinson
+[2013-10-02 14:56:09 -0400] jtimberman: siezer: haha
+[2013-10-02 14:56:19 -0400] jtimberman: yeah, i do aptitude safe-upgrade
+[2013-10-02 14:56:30 -0400] 17SADFNJW: According to @btm at opscode, 11.0.10 is scheduled for delivery in September.  I haven't managed to get a daily build to work properly.  Can we hold out until, potentially, the end of September for the nested-search bug fix?  Or should I put more energy into determining if a downgrade or daily will work?  (I don't think the dailies are currently stable).
+[2013-10-02 14:56:42 -0400] 17SADFNJW: this was the convo we had
+[2013-10-02 14:56:58 -0400] 17SADFNJW: but we were told this was suposed to be released in september
+[2013-10-02 14:57:05 -0400] jtimberman: siezer: well, i *have* done dist-upgrade successfully. i went from ubuntu 6 lts -> 8 lts -> 10 lts. by the time i was ready to go to 12.04, i had to rebuild due to new hardware anyway :)
+[2013-10-02 14:57:10 -0400] 17SADFNJW: if anyone has any info on this it would begreat!
+[2013-10-02 14:57:51 -0400] jtimberman: 17SADFNJW: i don't think any of the two active folks from opscode right now (myself and siezer) have any more updated information about release schedules.
+[2013-10-02 14:58:13 -0400] sfb: AH HA
+[2013-10-02 14:58:14 -0400] sfb: Found it.
+[2013-10-02 14:58:39 -0400] 17SADFNJW: sigh ok
+[2013-10-02 14:59:29 -0400] fishGoM00: sfb: where was the constraint?
+[2013-10-02 14:59:43 -0400] sfb: So the version problem is that I had one cookbook requiring application 4.0.0 and another using application_java 3.0.0
+[2013-10-02 15:00:02 -0400] siezer: 17SADFNJW what is this nested-search bug you speak of out of curiosity
+[2013-10-02 15:00:08 -0400] asasd: any ideas, how can I access chef11 web console? i've created new user with admin rights, but the login on web console does not work, Accesscing chef  with knife works.
+[2013-10-02 15:00:24 -0400] 17SADFNJW: moment let me find the bug report
+[2013-10-02 15:00:32 -0400] ichilton: jtimberman: that doesn't stop the ncurses stuff coming up though
+[2013-10-02 15:00:54 -0400] ichilton: jtimberman: so for example yesterday it was doing a grub update and popped up and I couldn't interact with it
+[2013-10-02 15:01:20 -0400] siezer: jtimberman last time I tried a dist-upgrade it was from debian sarge to etch. the newer kernel scanned my PCI bus the opposite way and fried my software raid. Never Again.
+[2013-10-02 15:01:30 -0400] 17SADFNJW: https://tickets.opscode.com/browse/CHEF-4377
+[2013-10-02 15:02:03 -0400] fishGoM00: siezer: ouch :/
+[2013-10-02 15:02:03 -0400] jtimberman: ichilton: there's a debconf flag to make it ignore all that and take defaults but i dont' remember it offhand
+[2013-10-02 15:02:20 -0400] jtimberman: siezer: all the more reason to use omnios/smartos + zfs :)
+[2013-10-02 15:02:37 -0400] danger_: hi guys is there a way I can weakly associate and external cookbook
+[2013-10-02 15:02:38 -0400] ichilton: jtimberman: ah, ok
+[2013-10-02 15:02:47 -0400] 17SADFNJW: siezer its really holding us back in a severe way
+[2013-10-02 15:02:50 -0400] ichilton: jtimberman: no way to more generically run interactive stuff with knife ssh though?
+[2013-10-02 15:02:58 -0400] gabrtv: ichilton: DEBIAN_FRONTEND=noninteractive apt-get install <pkg>
+[2013-10-02 15:03:13 -0400] jtimberman: ichilton: not natively with knife ssh, it runs whatever command you want
+[2013-10-02 15:03:19 -0400] ichilton: gabrtv: cool, thanks
+[2013-10-02 15:03:25 -0400] jtimberman: so you have to find the commandline options for it
+[2013-10-02 15:03:27 -0400] jtimberman: to do that
+[2013-10-02 15:03:29 -0400] ichilton: jtimberman: ok, thanks
+[2013-10-02 15:03:30 -0400] sfb: fishGoM00: I kicked back application to "3.0.0
+[2013-10-02 15:03:46 -0400] sfb: "~> 3.0.0" and that version of my cookbook started being accepted.
+[2013-10-02 15:04:06 -0400] fishGoM00: sfb: nice, glad you got it sorted :)
+[2013-10-02 15:04:06 -0400] siezer: 17SADFNJW really weird that it works with nodes but not data bags.
+[2013-10-02 15:04:32 -0400] 17SADFNJW: this was submitted in july
+[2013-10-02 15:04:44 -0400] sfb: fishGoM00: This wo uld all be a lot easier if I had a physical Linux machine around here to experiment with.
+[2013-10-02 15:04:47 -0400] 17SADFNJW: apparently its been fixed but no relaase on it
+[2013-10-02 15:04:51 -0400] sfb: fishGoM00: So... no vagrant.
+[2013-10-02 15:04:57 -0400] 17SADFNJW: i dont think doing a daily build is a good idea for prod
+[2013-10-02 15:05:00 -0400] siezer: are you on hosted or
+[2013-10-02 15:05:05 -0400] 17SADFNJW: im not no
+[2013-10-02 15:05:11 -0400] gchristensen: sfb: why no vagrant?
+[2013-10-02 15:05:17 -0400] 17SADFNJW: if i need to to get a fix i will
+[2013-10-02 15:05:19 -0400] sfb: gchristensen: Can't run VirtualBox in a VM
+[2013-10-02 15:05:24 -0400] 17SADFNJW: its handicapping us severly
+[2013-10-02 15:05:28 -0400] sfb: gchristensen: And we're not allowed to have Linux desktops.
+[2013-10-02 15:05:37 -0400] sfb: gchristensen: So my only Linux is VM servers.
+[2013-10-02 15:05:40 -0400] gchristensen: wat
+[2013-10-02 15:05:43 -0400] sfb: Yeah.
+[2013-10-02 15:06:02 -0400] 17SADFNJW: siezer also http://community.opscode.com/questions/396
+[2013-10-02 15:06:03 -0400] siezer: how does it behave with databags?
+[2013-10-02 15:06:18 -0400] gchristensen: sfb: perhaps you work for bureaucracy inc.?
+[2013-10-02 15:06:24 -0400] fishGoM00: sfb: http://aws.amazon.com/free/
+[2013-10-02 15:06:32 -0400] fishGoM00: muck around on the free tier?
+[2013-10-02 15:07:13 -0400] danger_: I am new to chef . I have depends cookbook_X  in my metadata.rb  and i access the cookbook_X on runtime from another cookbook_A  .... i want to add coookbook_Y, cookbook_Z in metadata.rb as well....but not necessary that they exsists . Is there a way to achive this i.e weakly associate external cookbook and it does not matter if they do not exists
+[2013-10-02 15:08:24 -0400] siezer: 17SADFNJW can you update the ticket with some more information about how its "not working"? does it return a specific error? or garbage? or
+[2013-10-02 15:08:35 -0400] 17SADFNJW: let me cbeck again
+[2013-10-02 15:08:37 -0400] 17SADFNJW: its been a while
+[2013-10-02 15:08:51 -0400] gchristensen: 17SADFNJW: is it not working -> is it laying on the couch eating potato chips all day?
+[2013-10-02 15:09:02 -0400] 17SADFNJW: its not working
+[2013-10-02 15:10:45 -0400] jeff_r: when I "knife ec2 server delete i-xxxxxxx --node-name mynode", I get "Corresponding node and client for the i-xxxxxx server were not deleted and remain registered with the Chef Server". How can I delete an ec2 instance and its node/client in a single command?
+[2013-10-02 15:17:25 -0400] 17SADFNJW: siezer im going to put something together
+[2013-10-02 15:17:27 -0400] 17SADFNJW: for you to see
+[2013-10-02 15:17:30 -0400] 17SADFNJW: give me a few
+[2013-10-02 15:25:48 -0400] sfb: gchristensen: Close. I work for a hospital.
+[2013-10-02 15:26:32 -0400] sfb: So. The 'tomcat' cookbook assumes it can install Tomcat 7 via a package called tomcat7 and claims to be redhat compatible.
+[2013-10-02 15:26:35 -0400] sfb: haha
+[2013-10-02 15:27:23 -0400] gchristensen: ouch
+[2013-10-02 15:31:52 -0400] fak3r: can we tell why chef-client is dying with some yum command here? https://gist.github.com/philcryer/6795590
+[2013-10-02 15:33:54 -0400] jchauncey: any noticed a slow down in uploading cookbooks to hosted chef?
+[2013-10-02 15:34:33 -0400] juliancdunn: fak3r: yum is doing something that's taking longer than 900 seconds
+[2013-10-02 15:35:30 -0400] danger_: I am new to chef . I have depends cookbook_X  in my metadata.rb  and i access the cookbook_X on runtime from another cookbook_A  .... i want to add coookbook_Y, cookbook_Z in metadata.rb as well....but not necessary that they exsists . Is there a way to achive this i.e weakly associate external cookbook and it does not matter if they do not exists
+[2013-10-02 15:35:37 -0400] danger_: any feed back is appriciated
+[2013-10-02 15:36:07 -0400] fak3r: juliancdunn:  some are saying that yum's fastmirrors func is failing.. could be our corp network thou
+[2013-10-02 15:36:11 -0400] juliancdunn: sfb: which tomcat cookbook? the Opscode one tries to install Tomcat 6
+[2013-10-02 15:36:37 -0400] fak3r: so should I not run recipe[yum] on servers that are already setup by chef? I mean, we don't have to update anything, why is it talking via yum anyway then?
+[2013-10-02 15:36:51 -0400] juliancdunn: danger_: no, that's not possible.
+[2013-10-02 15:37:27 -0400] jchauncey: danger_: you can only specify dependencies that exist
+[2013-10-02 15:37:34 -0400] jchauncey: if they dont matter if they exist why use them?
+[2013-10-02 15:37:37 -0400] juliancdunn: fak3r: the default yum recipe doesn't do anything, so adding recipe[yum] is a no-op
+[2013-10-02 15:37:51 -0400] jtimberman: jchauncey: no its totally fast all the time ;)
+[2013-10-02 15:38:14 -0400] jchauncey: jtimberman: dude we are seeing like 5+ minute upload times over the past few days
+[2013-10-02 15:38:31 -0400] jchauncey: eli submitted a support ticket but that didnt seem to get him anywhere
+[2013-10-02 15:38:36 -0400] jtimberman: jchauncey: wat
+[2013-10-02 15:38:55 -0400] juliancdunn: fak3r: but any time you invoke a "package" resource on a RHEL system, it just calls yum under the hood
+[2013-10-02 15:39:03 -0400] jtimberman: jchauncey: what are you uploading? maven-built jars? :)
+[2013-10-02 15:39:18 -0400] juliancdunn: fak3r: even if it's just to query that said package is installed
+[2013-10-02 15:39:21 -0400] jtimberman: jchauncey: tho srsly, are you getting retry/backoff from the API, or is the transfer itself slow?
+[2013-10-02 15:39:28 -0400] jtimberman: jchauncey: debug output for example..
+[2013-10-02 15:39:38 -0400] jchauncey: looks like the transfer is slow.. let me see if i can get the ticket from eli and ill paste it here
+[2013-10-02 15:40:05 -0400] jtimberman: i don't know if the ticket will help much here.
+[2013-10-02 15:40:39 -0400] jchauncey: i think he got some debug from berkshelf that had some of that info
+[2013-10-02 15:43:53 -0400] jchauncey: jtimberman: it's ticket number 15793
+[2013-10-02 15:44:00 -0400] danger_: jchauncey i wanted to invoke cookbook name at runtime and trigger if they exists
+[2013-10-02 15:44:05 -0400] jchauncey: just check it out, if that doesnt help let me know
+[2013-10-02 15:44:08 -0400] danger_: and fail it not
+[2013-10-02 15:44:29 -0400] jchauncey: they cookbooks will always be there if you make them dependencies
+[2013-10-02 15:44:41 -0400] jchauncey: they will be fetched from your chef server if they are not on the machine yet
+[2013-10-02 15:47:25 -0400] danger_: thanks jchauncey i had one last question  i looked at http://docs.opscode.com/essentials_cookbook_metadata.html "suggests" keyword .... does that key works???
+[2013-10-02 15:47:39 -0400] jtimberman: danger_: suggests doesn't do anything
+[2013-10-02 15:47:47 -0400] danger_: oh :(
+[2013-10-02 15:47:56 -0400] jtimberman: https://tickets.opscode.com/browse/CHEF-3870
+[2013-10-02 15:49:50 -0400] danger_: thanks
+[2013-10-02 15:50:40 -0400] jchauncey: not sure i understnad when you would use suggests
+[2013-10-02 15:51:46 -0400] fak3r: here's the stacktrace from my timeout, looks like chef was checking an installed rpm maybe timing out querying the rpm db? Mixlib::ShellOut::CommandTimeout: package[tzdata] (timezone-ii::default line 16) had an error: Mixlib::ShellOut::CommandTimeout: command timed out:
+[2013-10-02 15:51:52 -0400] fak3r: https://gist.github.com/philcryer/6795590
+[2013-10-02 15:51:53 -0400] zanshin: I'm wrappering the java cookbook so I can install both JDK6 and JDK 7 on a VM. The wrapper has two recipes, jdk6 and jdk7 that both depend upon java. It seems that when I include them both in my run list only the first one works. The second one is ignored. It silently does nothing. I'm stumped.
+[2013-10-02 15:52:32 -0400] cpuguy83: zanshin: Well, it couldn't loudly do nothing :)
+[2013-10-02 15:52:51 -0400] cpuguy83: zanshin: Do you have cookbook posted somewhere?
+[2013-10-02 15:53:39 -0400] juliancdunn: fak3r: yep, run Chef in debug mode and it'll tell you the yum command that's being run and timing out
+[2013-10-02 15:53:48 -0400] juliancdunn: then you can figure that out (outside of Chef)
+[2013-10-02 15:53:52 -0400] zanshin: It's in a private repo on Github. Here's the basic layout of the jdk[6|7] recipes
+[2013-10-02 15:55:14 -0400] zanshin: node.default[:java][:install_flavor] = "oracle"
+[2013-10-02 15:55:14 -0400] zanshin: node.default[:java][:jdk_version] = '6'
+[2013-10-02 15:55:14 -0400] zanshin: node.default[:java][:oracle][:accept_oracle_download_terms] = true
+[2013-10-02 15:55:14 -0400] zanshin: # node.default[:java][:arch] = kernel[:machine] =~ /x86_64/ ? "x86_64" : "i586"
+[2013-10-02 15:55:15 -0400] zanshin: node.default[:java][:openjdk_packages] = []
+[2013-10-02 15:55:15 -0400] zanshin: include_recipe "java::oracle"
+[2013-10-02 15:55:22 -0400] sfb: juliancdunn: If you say set['tomcat']['base_version'] = '7' it tries to install "tomcat#{node['tomcat
+[2013-10-02 15:55:34 -0400] sfb: juliancdunn: If you say set['tomcat']['base_version'] = '7' it tries to install "tomcat#{node['tomcat']['base_version']"
+[2013-10-02 15:55:40 -0400] sfb: Well, whatever youget the idea.
+[2013-10-02 15:55:47 -0400] fak3r: juliancdunn: k, good idea
+[2013-10-02 15:55:49 -0400] jtimberman: jchauncey: "suggests" and "recommends" are packaging dependency hints for Debian/Ubuntu 'apt' installation. You can tell apt that you want to install recommended or suggested packages that are listed as such for a particular package that doesn't directly require them to be present.
+[2013-10-02 15:55:54 -0400] juliancdunn: sfb: well yes... there's no guarantee that will work on your OS if you don't have those packages :-)
+[2013-10-02 15:56:18 -0400] mindlace: any reason why chef would fail to include a file in a cookbook's libraries before evaluating the default recipe?
+[2013-10-02 15:56:20 -0400] fak3r: juliancdunn: I think its our corp network causing yum to fail
+[2013-10-02 15:56:22 -0400] sfb: juliancdunn: And as soon as the rest of the world is using Tomcat 8 they'll finally add Tomcat7 to the damn repos for RHEL
+[2013-10-02 15:56:23 -0400] jtimberman: for example, i'd *love* to have suggests/recommends available and doing something for cookbooks that optionally support alternative process supervision (like runit, bluepill, etc)
+[2013-10-02 15:56:43 -0400] juliancdunn: sfb: well, you can talk to RedHat about that :-)
+[2013-10-02 15:57:07 -0400] sfb: juliancdunn: I'm just surprised that it's not in repos like EPEL
+[2013-10-02 15:57:21 -0400] fishGoM00: sfb: that's why we stopped using RHEL
+[2013-10-02 15:57:44 -0400] juliancdunn: zanshin: it's probably because the Java cookbook is going to define the resources (package, service, etc.) with a single name
+[2013-10-02 15:57:49 -0400] fishGoM00: sf: just too out of date in the modern security concious world :/
+[2013-10-02 15:57:53 -0400] juliancdunn: e.g. package "java" (I don't remember what it says exactly)
+[2013-10-02 15:58:05 -0400] fak3r: juliancdunn: but the problem is, the last 3 chef-client runs have gone perfectly
+[2013-10-02 15:58:40 -0400] zanshin1: juliancdunn: Even if I have the attributes in each recipe?
+[2013-10-02 15:58:48 -0400] juliancdunn: fak3r: I dunno what to tell you other than Chef is just gonna call whatever system utilities are under the hood
+[2013-10-02 15:59:22 -0400] juliancdunn: zanshin1: yes, because the resource collection will have duplicate resources of the same name, and Chef is only going to execute them the first time it sees them
+[2013-10-02 15:59:49 -0400] zanshin1: So how do I install both JDKs in one run of the Vagrantfile then?
+[2013-10-02 16:00:00 -0400] sfb: fishGoM00: "But OMG how do you get support!?!@#!!"
+[2013-10-02 16:00:03 -0400] sfb: fishGoM00: \=
+[2013-10-02 16:00:12 -0400] juliancdunn: zanshin1: the Java cookbook doesn't support installing multiple JDKs on the system - it assumes you want just one
+[2013-10-02 16:00:35 -0400] fak3r: juliancdunn: agreed, just making sure (chef is new here, so *every* issue ppl yell, "oh it's chef" even if it's not!)
+[2013-10-02 16:00:36 -0400] zanshin1: So I should abandon it and write my own.
+[2013-10-02 16:00:45 -0400] jtimberman: the reason it makes that assumption is probably not correct. :)
+[2013-10-02 16:01:06 -0400] jtimberman: like, why wouldn't you want multiple JVMs? the JVM totally supports that as long as you have enough memory :)
+[2013-10-02 16:01:35 -0400] jtimberman: but in seriousness, the *reason* is because it relies on setting up a default "system-wide" JDK that is assumed to be used w/ the "alternatives" system.
+[2013-10-02 16:01:44 -0400] zanshin1: I have a need for both JBoss AS 4.3.0 CP10 and AS 7. One wants jdk6 and the other jdk 7
+[2013-10-02 16:01:47 -0400] juliancdunn: jtimberman: that's what I figured
+[2013-10-02 16:02:11 -0400] juliancdunn: zanshin1: are you installing the JDKs from RPMs?
+[2013-10-02 16:02:26 -0400] juliancdunn: you could just write your own trivial cookbook if you don't care about all the alternatives futzery
+[2013-10-02 16:02:32 -0400] zanshin1: I'm just calling the oracle recipe and letting it do the grunt work
+[2013-10-02 16:02:48 -0400] fishGoM00: sfb: that and their recent price hike... just takes the piss :/
+[2013-10-02 16:03:07 -0400] jtimberman: juliancdunn: imo that cookbook is due for an overhaul, but who has (timeforthat)
+[2013-10-02 16:03:30 -0400] juliancdunn: fak3r: that's a common reaction :-P Chef is just your messenger, but people like to shoot the messenger
+[2013-10-02 16:03:52 -0400] sfb: fishGoM00: The problem I face is that a lot of the big bad commercial software my team maintains is only certified for RHEL, AIX, HP-UX, etc. There's no Debian or Ubuntu listed there. )=
+[2013-10-02 16:03:59 -0400] jtimberman: i recall seeing a ticket somewhere that separated the alternatives tomfoolery out of the "java_ark" resource, which might be a step in the right direction
+[2013-10-02 16:04:01 -0400] juliancdunn: jtimberman: totally. all the head-scratching over why the oracle7 recipe wouldn't work made me realize that
+[2013-10-02 16:04:02 -0400] zanshin1: I can take a stab and a new java cookbook, but it'll be next week before I have (timeforthat)
+[2013-10-02 16:04:12 -0400] jtimberman: "Certified" for.
+[2013-10-02 16:04:41 -0400] fishGoM00: sfb: yarp... our oracle box is in that situation :/
+[2013-10-02 16:04:42 -0400] jtimberman: juliancdunn: just use openjdk. (troll)
+[2013-10-02 16:04:50 -0400] sfb: jtimberman: Meaning when I call up Oracle and they're like "are you running RHEL or OEL UEK?" "Nope" "Please reinstall and call us back."
+[2013-10-02 16:05:04 -0400] sfb: fishGoM00: (=
+[2013-10-02 16:05:35 -0400] juliancdunn: reminds me of calling HP support and them demanding to know if our HP servers had certified HP DIMMS
+[2013-10-02 16:05:43 -0400] fishGoM00: lol
+[2013-10-02 16:05:44 -0400] sfb: hahah
+[2013-10-02 16:05:47 -0400] sfb: Yup.
+[2013-10-02 16:05:50 -0400] juliancdunn: so we kept a spare set of HP DIMMS in the data center, ready to swap into the servers if they sent a field tech
+[2013-10-02 16:05:54 -0400] juliancdunn: ;-)
+[2013-10-02 16:06:24 -0400] fishGoM00: Makes you realise it's not just apple that are arseholes :)
+[2013-10-02 16:06:33 -0400] jtimberman: sfb: yah i worked in an organization taht was like that.
+[2013-10-02 16:06:57 -0400] sfb: Alright. So RHEL has Tomcat7 packages.
+[2013-10-02 16:07:06 -0400] sfb: But only on a newer release than I'm running.
+[2013-10-02 16:07:09 -0400] sfb: And OEL does not.
+[2013-10-02 16:07:16 -0400] sfb: Why the hell did they make me go OEL?
+[2013-10-02 16:07:31 -0400] sfb: All this box runs is iceScrum.
+[2013-10-02 16:07:36 -0400] fishGoM00: vendor lockin FTW
+[2013-10-02 16:07:51 -0400] sfb: the "they" in this case is a team in ops.
+[2013-10-02 16:07:51 -0400] sfb: haha
+[2013-10-02 16:27:22 -0400] Slowie: hey all
+[2013-10-02 16:27:42 -0400] Slowie: I had a question running Chef 10.16.4 on Windows
+[2013-10-02 16:28:22 -0400] Slowie: we consistently see an issue where the symbol table fills and causes chef run to stat failing, has anyone seen anything similar?
+[2013-10-02 16:46:25 -0400] gchristensen: so with the fail2ban cookbook, it looks like it doesn't support adding custom rules and filters, because the jails.conf needs updating. has anyone experience with this? I'd believe I'm jus ignorant of the facts.
+[2013-10-02 16:46:49 -0400] Urocyon: on linux we had problems with memory leaks with that version, particularly when using data bags
+[2013-10-02 16:47:14 -0400] Urocyon: Slowie: the problem was resolved for us in 10.28.0
+[2013-10-02 16:47:51 -0400] zenloop: Hey guys, anyone here have familiarity with the mysql cookbook.  I am trying to use a pre installed ami and bootstrap with the client. Problem is the password is no longer root on the image.  And things blow up.  Should I wipe out mysql (clean the ami) before installing mysql with the cookbook?  Any suggestions?  This is driving me crazy! :-)
+[2013-10-02 16:47:59 -0400] Urocyon: Slowie: it was only a problem when running chef-client as a service too not sure if that's the same as with yours.
+[2013-10-02 16:49:29 -0400] zenloop: I guess I could do node['mysql']['server_root_password'] - Set the server's root password
+[2013-10-02 16:49:30 -0400] zenloop: node['mysql']['server_repl_password'] - Set the replication user 'repl' password
+[2013-10-02 16:49:30 -0400] zenloop: node['mysql']['server_debian_password'] - Set the debian-sys-maint user password
+[2013-10-02 16:49:30 -0400] zenloop: on start.
+[2013-10-02 16:49:42 -0400] zenloop: sorry will use paste site next time.
+[2013-10-02 16:49:46 -0400] fak3r: so when I have a chef-client run fail, I'm seeing this in ps (yum-dump.py is the line) `root     19650 19509  0 11:42 ?        00:00:00 /usr/bin/python /opt/chef/embedded/lib/ruby/gems/1.9.1/gems/chef-11.6.0/lib/chef/provider/package/yum-dump.py --options --installed-provides`
+[2013-10-02 16:49:54 -0400] Urocyon: I'd like to assign a unique integer to a node for use in a cluster config file where each cluster member needs a unique number.   Any suggestions?
+[2013-10-02 17:00:49 -0400] Urocyon: I suppose I could use something like brooklynint to get a unique number.  :-)
+[2013-10-02 17:12:34 -0400] gchristensen: Urocyon: you could setup a service on your network which you query for unique IDs
+[2013-10-02 17:12:48 -0400] Urocyon: My own brooklynint.
+[2013-10-02 17:13:07 -0400] gchristensen: I'm not familiar with that, but sure :)
+[2013-10-02 17:14:04 -0400] Urocyon: broooklyintegers offers integers as a service:  http://www.brooklynintegers.com/
+[2013-10-02 17:14:22 -0400] Urocyon: artisinally hand crafted.
+[2013-10-02 17:14:30 -0400] Urocyon: and hella-beautiful.
+[2013-10-02 17:15:23 -0400] Urocyon: I was worried they might be too large, but seem to be working.
+[2013-10-02 17:15:27 -0400] gchristensen: LOL
+[2013-10-02 17:16:07 -0400] Urocyon: though I would prefer something more local, I'm not sure I want to maintain a service just for this.
+[2013-10-02 17:16:27 -0400] Urocyon: I was hoping there was somewhere a unique id number in node data I could use.
+[2013-10-02 17:16:34 -0400] Urocyon: Not finding it yet.
+[2013-10-02 17:16:38 -0400] Urocyon: if it exists.
+[2013-10-02 17:17:18 -0400] Urocyon: It doesn't really need to be worldwide unique, just unique to the cluster.
+[2013-10-02 17:17:55 -0400] Urocyon: so unique to my chef server would be sufficient
+[2013-10-02 17:18:24 -0400] gchristensen: Urocyon: you could ... pick a random number (like the time?) search for nodes with that value, regenerate until you get one that is random, force a node-save immediately, then re-verify (to ensure two nodes don't pick and save the same value at the same time)
+[2013-10-02 17:19:39 -0400] Urocyon: yeah, I thought about a search and select seemed like a lot of effort.
+[2013-10-02 17:23:12 -0400] gchristensen: guaranteed uniqueness is tricky when you have many concurrent users :)
+[2013-10-02 17:25:39 -0400] Urocyon: yep.
+[2013-10-02 17:26:28 -0400] Urocyon: I think to nail this down today I might just grab the integer from brooklyn integers.
+[2013-10-02 17:26:47 -0400] Urocyon: even if that's a little odd.
+[2013-10-02 17:30:50 -0400] broconne: anyone aware of a good tutorial on getting a chef server setup on a vagrant VM? And then getting other VMs to connect..  I am having trouble w/ the pem files I think...
+[2013-10-02 17:33:12 -0400] pcn: all how can I figure out why chef-client thinks that a template is up-to-date, when in fact if I delete the file on disk and re-run chef-client, the file comes out different?
+[2013-10-02 17:39:00 -0400] fly9: I'm trying to find a good method of adding hosts entries for nodes created via vagrant and chef solo to all my nodes as they are created and provisioned, can anyone point me towards some info for that?
+[2013-10-02 17:39:30 -0400] fly9: do I have to create a zookeeper instance for this stuff?
+[2013-10-02 17:40:27 -0400] fly9: if I spin up a proxy server (the only one that really needs to know ip info for nodes) what's the best way to have nodes report IPs and hostnames to it?
+[2013-10-02 17:41:09 -0400] fly9: do i need to use knife in some way after provisioning?
+[2013-10-02 17:42:40 -0400] mattupstate: fly9: if you're using vagrant, and thus chef-solo, there's no reporting mechanisms built in
+[2013-10-02 17:42:41 -0400] doomviking: fly9: there is the autoetchosts cookbook, whoch may or may not help you
+[2013-10-02 17:42:59 -0400] cpuguy83: There's a bunch out there
+[2013-10-02 17:43:02 -0400] mattupstate: i'm guessing you'd have to be explicit about network configuration with vagrant
+[2013-10-02 17:43:22 -0400] mattupstate: and be explicit about that network config in some sort of configuration for a hostfile
+[2013-10-02 17:43:54 -0400] fly9: I'm using vagrant-hostmaster but I don't think that will work with anything but public-IPs, and I need to manage iptables as well using the same data - ideally all automatically
+[2013-10-02 17:44:35 -0400] fly9: I don't mind some manual work if needed but I'd feel like a chump if there was a solid automation best practice
+[2013-10-02 17:44:51 -0400] fak3r: it seems that chef-client keeps restarting apache each run, even if nothing changes
+[2013-10-02 17:44:52 -0400] mattupstate: fly9: are you being specific about networking config in your vagrant file?
+[2013-10-02 17:45:00 -0400] fak3r: so I must have something config'd wrong
+[2013-10-02 17:46:20 -0400] fly9: mattupstate: I'm using digitalocean, I don't get to pick my private IP ahead of time, so I need it to be reported to a central location as droplets come up - I can bring up the proxy first so that's my candidate for the master /etc/hosts file
+[2013-10-02 17:46:52 -0400] fly9: looks like autoetchosts requires chef server
+[2013-10-02 17:47:06 -0400] mattupstate: yes, chef-server is what you need, really
+[2013-10-02 17:47:20 -0400] mattupstate: when a node comes up the IP will be reported to chef-server
+[2013-10-02 17:47:31 -0400] fly9: because then I can just read and write to a databag, yeah?
+[2013-10-02 17:47:36 -0400] mattupstate: no
+[2013-10-02 17:47:47 -0400] fly9: or I don't need to
+[2013-10-02 17:47:49 -0400] mattupstate: chef-client has standard attributes for that sort of stuff
+[2013-10-02 17:47:54 -0400] mattupstate: or chef, i should say
+[2013-10-02 17:48:09 -0400] mattupstate: and it will report IP's and hostnames and such back to cher-server when a successful chef-client run completes
+[2013-10-02 17:48:11 -0400] siezer: this whole inability to pre-plan your network topology is the raison d'etre for Chef in the first place
+[2013-10-02 17:48:21 -0400] siezer: search() via chef-server
+[2013-10-02 17:48:28 -0400] siezer: as nodes come up with random IPs
+[2013-10-02 17:48:41 -0400] mattupstate: once chef-server knows everything it can about your new node, you run chef-client on any other nodes that might need to know about it
+[2013-10-02 17:49:03 -0400] mattupstate: chef-solo is not designed for what you're trying to do
+[2013-10-02 17:49:08 -0400] fly9: righto
+[2013-10-02 17:49:53 -0400] doomviking: pretty simple to run the open source chef server
+[2013-10-02 17:50:52 -0400] arussel: I want to put my mongodb on a specific path, so I need to create the directory and set the attribute to give to the mongodb recipe.
+[2013-10-02 17:51:13 -0400] arussel: how do I set owner, group of the created directory to the mongodb user not yet created ?
+[2013-10-02 17:52:18 -0400] juliancdunn: arussel: what ultimately creates the user?
+[2013-10-02 17:52:49 -0400] mattupstate: i would think the mongodb cookbook does that for you
+[2013-10-02 17:53:43 -0400] mattupstate: yup, https://github.com/edelight/chef-mongodb/blob/master/definitions/mongodb.rb#L124-L130
+[2013-10-02 17:54:31 -0400] arussel: oh, so you just have to give the path, not an existing dir.
+[2013-10-02 17:54:42 -0400] arussel: juliancdunn, mattupstate thanks
+[2013-10-02 17:54:48 -0400] fly9: anyone know how to use something like autoetchosts to report private IPs and hostnames?
+[2013-10-02 17:55:40 -0400] mattupstate: fly9: report it to where?
+[2013-10-02 17:56:27 -0400] fly9: I'd like env-app-redis-01 to point to it's private IP rather than public
+[2013-10-02 17:56:55 -0400] fly9: so intercluster networking is via private network rather than public
+[2013-10-02 17:57:12 -0400] fly9: where eth0 is public and eth1 is private
+[2013-10-02 17:57:20 -0400] rayrod2030: to I have to include_recipe if I want to use a library from within another cookbook?
+[2013-10-02 17:57:36 -0400] mattupstate: fly9: you need chef-server or something similar
+[2013-10-02 17:57:39 -0400] jmartin: rayrod2030: yes
+[2013-10-02 17:57:41 -0400] jtimberman: rayrod2030: no, use a dependency on the other cookbook in your metadata.
+[2013-10-02 17:57:51 -0400] fly9: right, assuming I have a chef-server installed
+[2013-10-02 17:57:55 -0400] siezer: rayrod2030 nope, you only have to put "depends" other cookbook" in metadata.rb
+[2013-10-02 17:57:58 -0400] fly9: doing that now
+[2013-10-02 17:58:04 -0400] rayrod2030: great already done.  thanks guys!
+[2013-10-02 17:58:08 -0400] jmartin: jtimberman: orly? i thought you had to include it
+[2013-10-02 17:58:18 -0400] mattupstate: fly9: when you run chef-client, search for the nodes you need to know about in a recipe
+[2013-10-02 17:58:38 -0400] mattupstate: and render an appropriate hostfile given the node attributes
+[2013-10-02 17:59:08 -0400] jmartin: jtimberman: this seems a bit misleading then
+[2013-10-02 17:59:10 -0400] broconne: is there a correct way  to supply a pem file to a chef server?  chef server seems to get angry if I just copy over an old admin.pem...
+[2013-10-02 17:59:11 -0400] jmartin: https://github.com/opscode-cookbooks/users/blob/master/recipes/default.rb
+[2013-10-02 17:59:11 -0400] fly9: then loop back through all nodes after? or trigger nodes to update /etc/hosts some how when one is added?
+[2013-10-02 17:59:24 -0400] mattupstate: fly9: correct
+[2013-10-02 17:59:55 -0400] jtimberman: jmartin: include_recipe says "go over to this other recipe and add its resources to the resource collection"
+[2013-10-02 17:59:57 -0400] fly9: which one?
+[2013-10-02 18:00:22 -0400] mattupstate: fly9: not sure what the difference is, really
+[2013-10-02 18:00:37 -0400] mattupstate: but trigger a chef-client run on any nodes that need to know about the new node
+[2013-10-02 18:00:38 -0400] jtimberman: if you have cookbook bears, and you do include_recipe "clowns", you need to have depends "clowns" in the metadata of bears.
+[2013-10-02 18:00:45 -0400] fly9: can I automatically trigger nodes to update when a node is created by chef?
+[2013-10-02 18:01:07 -0400] jtimberman: if you want to clowns/libraries/clowncar_helpers.rb, you likewise need to have a depends "clowns" in bears.
+[2013-10-02 18:01:10 -0400] jmartin: jtimberman: right, but to access the clowns LWRPs i neednt have an include_recipe anwhere?
+[2013-10-02 18:01:11 -0400] fly9: and do I need to use roles for that?
+[2013-10-02 18:01:15 -0400] jtimberman: jmartin: nope
+[2013-10-02 18:01:16 -0400] mattupstate: fly9: not that i know of, but you can run chef-client on an interval
+[2013-10-02 18:01:20 -0400] jmartin: jtimberman: ah
+[2013-10-02 18:01:24 -0400] fly9: right
+[2013-10-02 18:01:41 -0400] mattupstate: fly9: or write some scripts specific to your use case to help with that
+[2013-10-02 18:25:31 -0400] sfb: This is good.
+[2013-10-02 18:25:39 -0400] sfb: I have an application block with a java_webapp
+[2013-10-02 18:25:55 -0400] sfb: When I converge it says you have to choose nothing, touch, create, etc and you choose deploy
+[2013-10-02 18:26:01 -0400] sfb: So I'm like whatever. Create.
+[2013-10-02 18:26:09 -0400] gchristensen: I want to create an LWRP which creates a single file, multiple calls would end up adding lines to the file. I want to manage the entire file, so not a line editor sort of change. is there a way I could have an lwrp store all the different calls to it somewhere, and then during convergance stage write to the file once? or is this awful and I should just try to manage part of the file
+[2013-10-02 18:26:15 -0400] sfb: Then it fails with you have to choose nothing, deploy or force-deploy and you chose create.
+[2013-10-02 18:39:43 -0400] arussel: here; https://github.com/edelight/chef-mongodb
+[2013-10-02 18:39:56 -0400] arussel: would the mongodb_instance "my_instance" do  configuration, come before or after the inclue_recipe ?
+[2013-10-02 18:41:30 -0400] miah: gchristensen: sounds awful
+[2013-10-02 18:41:35 -0400] miah: the run_queue doesn't work that way
+[2013-10-02 18:41:38 -0400] miah: and neither do resources
+[2013-10-02 18:42:17 -0400] gchristensen: miah: yeah I agree... the trouble is I want to have an lwrp for fail2ban jails, but it seems I have to write everything into one file (jail.local)
+[2013-10-02 18:42:30 -0400] miah: man iptables
+[2013-10-02 18:42:33 -0400] miah: and search for hashlimits
+[2013-10-02 18:42:37 -0400] miah: then remove fail2ban
+[2013-10-02 18:42:39 -0400] miah: =)
+[2013-10-02 18:43:33 -0400] gchristensen: miah: hah, yeah, that gets pretty complicated I think
+[2013-10-02 18:50:23 -0400] jeff_r: is there an irc channel for ridley?
+[2013-10-02 18:55:50 -0400] arussel: I can deploy without problem with 'include_recipe "mongodb:10gen_repo"
+[2013-10-02 18:56:20 -0400] arussel: but adding a conf afterward throws an error here:   /var/chef/cache/cookbooks/mongodb/definitions/mongodb.rb:120:in `block (2 levels) in from_file'
+[2013-10-02 18:56:27 -0400] arussel: wrong number of arguments (1 for 2)
+[2013-10-02 18:57:10 -0400] arussel: to configure the instance, should I use 'mongodb_instance "mongodb" do' or 'mongodb instance "mongodb::10gen_repo" do ' ?
+[2013-10-02 18:59:19 -0400] threadwaste: those are diferent things
+[2013-10-02 18:59:38 -0400] threadwaste: the 10gen_repo recipe is to add the package repositoy to accomodate the install
+[2013-10-02 18:59:57 -0400] threadwaste: mongodb_instance is too bootstrap a host to accommodate a mongodb instance (e.g. config file, data di, etc.)
+[2013-10-02 19:00:53 -0400] arussel: so mongodb:10gen_repo starts a mongo instance from 10gen debian repo
+[2013-10-02 19:01:06 -0400] threadwaste: it configures the repository to do so, yes.
+[2013-10-02 19:01:06 -0400] arussel: mongodb_instance configures it ,
+[2013-10-02 19:01:10 -0400] threadwaste: correct.
+[2013-10-02 19:01:33 -0400] arussel: it configures the repository and start an intance
+[2013-10-02 19:01:42 -0400] threadwaste: so if you were building your own packages or hosting your own mirror, you could forgo the 10gen_repo recipe entirely
+[2013-10-02 19:02:26 -0400] threadwaste: arussel: https://github.com/edelight/chef-mongodb/blob/master/recipes/10gen_repo.rb
+[2013-10-02 19:02:30 -0400] arussel: but what should I pass to mongodb_instance "XXX" do in XXX so it configures the instance done by the include_recipe and not a new instance ?
+[2013-10-02 19:02:45 -0400] btm: @opscode chef/ohai code review: join: bit.ly/19m4HoC, watch: bit.ly/19m4Et0
+[2013-10-02 19:03:13 -0400] threadwaste: arussel: i'm not sure i follow. can you pastebin what you're doing?
+[2013-10-02 19:03:49 -0400] arussel: threadwaste: http://pastebin.com/PBV9scne
+[2013-10-02 19:04:01 -0400] arussel: I had the first line only, and a new mongo instance was started
+[2013-10-02 19:04:39 -0400] threadwaste: if you had only the line "include_recipe mongodb::10gen_repo" no instance should have been started.
+[2013-10-02 19:04:45 -0400] arussel: but then I wanted to move the path of the db so added the mongo_dbinstance line, but it creates an error;
+[2013-10-02 19:04:49 -0400] juliancdunn: jeff_r: maybe try the berkshelf channel?
+[2013-10-02 19:04:54 -0400] threadwaste: what's the error?
+[2013-10-02 19:05:01 -0400] threadwaste: do you have the log in a pastebin?
+[2013-10-02 19:05:08 -0400] arussel: threadwaste: I understand, but there was an instance started
+[2013-10-02 19:05:38 -0400] arussel: threhttp://pastebin.com/6VgTyTa1
+[2013-10-02 19:05:46 -0400] arussel: threadwaste:  http://pastebin.com/6VgTyTa1
+[2013-10-02 19:09:03 -0400] threadwaste: arussel: sorry. some distractions on this side of the wire.
+[2013-10-02 19:09:09 -0400] threadwaste: do you have the default recipe calling the definiton available?
+[2013-10-02 19:09:12 -0400] threadwaste: dbscrapper/default
+[2013-10-02 19:09:44 -0400] arussel: I call directly this recipe
+[2013-10-02 19:10:03 -0400] arussel: https://github.com/edelight/chef-mongodb/issues/89
+[2013-10-02 19:10:14 -0400] arussel: http://stackoverflow.com/questions/14844942/error-during-provisioning-ec2-instance-using-chef-roles
+[2013-10-02 19:10:28 -0400] arussel: I don't feel lonely
+[2013-10-02 19:11:33 -0400] arussel: I have a single recipe that I've pasted, and this is called via a role that has as run list only this recipe
+[2013-10-02 19:12:54 -0400] broconne: I oddly can't seem to find this in the chef docs.. but chef 11.. which version of ruby does it run on?
+[2013-10-02 19:14:15 -0400] j^2: broconne: it's own bundled version in /opt/
+[2013-10-02 19:14:27 -0400] broconne: and that is 1.9?
+[2013-10-02 19:14:39 -0400] berngp: hi there. anyone using the postgresql::server recipe?
+[2013-10-02 19:15:00 -0400] j^2: broconne: ruby 1.9.3p429 (2013-05-15 revision 40747) [x86_64-linux]
+[2013-10-02 19:17:52 -0400] jtimberman: broconne: the file /opt/chef/version-manifest.txt has all the versions of everything packaged
+[2013-10-02 19:18:05 -0400] broconne: excellent... :-)
+[2013-10-02 19:18:06 -0400] jtimberman: oh damn it no it doesnt :(
+[2013-10-02 19:18:41 -0400] jtimberman: i'm thinking of Enterprise Chef :)
+[2013-10-02 19:18:48 -0400] jtimberman: sorry
+[2013-10-02 19:18:54 -0400] broconne: ok - that is our path anyway.
+[2013-10-02 19:19:03 -0400] jtimberman: but, /opt/chef/embedded/bin/ruby --version
+[2013-10-02 19:25:38 -0400] gchristensen: btm: re CHEF-4579, chef is an abstraction layer over the OS's tools. install to means install, it doesn't mean upgrade :)
+[2013-10-02 19:25:43 -0400] dgarstang1: could use a little help with http://pastebin.com/DX444uSW ... it works the first time... on second run, it's trying to format the disks again.
+[2013-10-02 19:26:06 -0400] dgarstang1: and '/sbin/e2label | grep formatted' return true
+[2013-10-02 19:26:12 -0400] gchristensen: dgarstang1: grep doesn't use exit codes like you want
+[2013-10-02 19:26:39 -0400] dgarstang1: gchristensen: Hm
+[2013-10-02 19:26:41 -0400] gchristensen: wait, it might.
+[2013-10-02 19:26:53 -0400] dgarstang1: gchristensen: worked for puppet. :)
+[2013-10-02 19:27:12 -0400] gchristensen: dgarstang1: /sbin/e2label | grep formatted ; echo $? -> this echos non-zero?
+[2013-10-02 19:27:16 -0400] arussel: has anyone a conf that deploys a mongdb instance with a dbpath set ?
+[2013-10-02 19:28:02 -0400] dgarstang1: gchristensen: oh darn. The device is missing...
+[2013-10-02 19:28:09 -0400] gchristensen: :D
+[2013-10-02 19:28:10 -0400] dgarstang1: derp
+[2013-10-02 19:28:32 -0400] dgarstang1: gchristensen: thanks for the eyeballs
+[2013-10-02 19:28:46 -0400] gchristensen: surely
+[2013-10-02 19:29:03 -0400] arussel: threadwaste: I confirm, just adding this line: include_recipe   "mongodb::10gen_repo" install AND start a mongodb instance
+[2013-10-02 19:29:18 -0400] arussel: (I understand at reading the file that it shouldn't)
+[2013-10-02 19:29:35 -0400] threadwaste: arussel: that behavior seems quite bizzare.
+[2013-10-02 19:30:07 -0400] threadwaste: are you certain you're not including the defualt recipe of the mongodb cookbook?
+[2013-10-02 19:30:15 -0400] threadwaste: as part of your run list or role.
+[2013-10-02 19:30:16 -0400] arussel: and this is the only way I found to install mongdb as all other ways throw errors
+[2013-10-02 19:30:35 -0400] threadwaste: because the default cookbook will start an instance.
+[2013-10-02 19:31:18 -0400] arussel: threadwaste: would a depends in metadata.rb do it ?
+[2013-10-02 19:31:41 -0400] Cham: Hi, I would like to know if there is a way to pre install a chef_gem beforre running chef-client
+[2013-10-02 19:32:07 -0400] Cham: The goal is to pre baked it into an ami.. to save time for boostrapping the first run since this chef_gem is huge
+[2013-10-02 19:34:15 -0400] siezer: Cham /opt/chef/embedded/bin/gem install big-ole-gem
+[2013-10-02 19:37:20 -0400] juliancdunn: berngp: I've used it
+[2013-10-02 19:37:49 -0400] broconne: so.. I am confused by this...  I have a cookbook that depends on chef-server cookbook..  I do an include_recipe "chef-server" and then later down in my recipe I copy a file from /etc/chef-server to somewhere else.. the cookbook is blowing up because the file isn't there... but its not their because the recipe I have included isn't done yet...
+[2013-10-02 19:38:08 -0400] berngp: thanks juliancdunn . I am running into some issues with 9.2.
+[2013-10-02 19:38:18 -0400] berngp: one is captured in https://tickets.opscode.com/browse/COOK-3235
+[2013-10-02 19:38:51 -0400] Cham: siezer: thank you!
+[2013-10-02 19:38:57 -0400] broconne: its like its trying to read the file when the cookbook is loaded, not after the receipe is run.
+[2013-10-02 19:39:03 -0400] broconne: soryr, when the recipe is loaded..
+[2013-10-02 19:39:19 -0400] juliancdunn: berngp: hmm yeah, that's pretty gross
+[2013-10-02 19:39:29 -0400] berngp: juliancdunn and just created another regarding the missing libpq.so.5
+[2013-10-02 19:39:36 -0400] berngp: juliancdunn: https://tickets.opscode.com/browse/COOK-3713
+[2013-10-02 19:39:58 -0400] berngp: so.. i think i just move to mysql for this usecas
+[2013-10-02 19:40:25 -0400] berngp: thanks juliancdunn
+[2013-10-02 19:40:27 -0400] juliancdunn: ragequit at pgdg for installing stuff all over tarnation
+[2013-10-02 19:41:20 -0400] berngp: to be honest juliancdunn i think those are rpm issued from pg and not the recipe
+[2013-10-02 19:41:58 -0400] juliancdunn: berngp: yeah I know -- pgdg == postgresql global development group
+[2013-10-02 19:42:07 -0400] MrBIOS: hey folks, what's the most straightforward way of seeing the differences between various versions of a given opscode-hosted community cookbook
+[2013-10-02 19:42:09 -0400] MrBIOS: in this case http://community.opscode.com/cookbooks/python
+[2013-10-02 19:42:39 -0400] juliancdunn: MrBIOS: probably best to go to the GitHub link and use its tools
+[2013-10-02 19:42:44 -0400] juliancdunn: all the cookbooks are tagged
+[2013-10-02 19:43:06 -0400] juliancdunn: or you could read the CHANGELOG.md if you don't want that much detail
+[2013-10-02 19:43:26 -0400] MrBIOS: got it thanks
+[2013-10-02 19:43:30 -0400] MrBIOS: I don't
+[2013-10-02 19:43:35 -0400] gchristensen: MrBIOS: I have a commandline utility ... `opd python 1.0.0 1.0.2` that opens up the compare viewer
+[2013-10-02 19:43:43 -0400] MrBIOS: nice
+[2013-10-02 19:43:50 -0400] MrBIOS: I was having a problem with a pip install silently failing
+[2013-10-02 19:44:00 -0400] MrBIOS: when using the pip LWRP
+[2013-10-02 19:44:01 -0400] gchristensen: alias: open http://github.com/opscode-cookbooks/python/compare/0.0.1...1.0.2
+[2013-10-02 19:44:25 -0400] arussel: threadwaste: wouldn't this log: http://pastebin.com/sXBi4c45 validate the fact that mongodb::10gen_repo installs mongodb ?
+[2013-10-02 19:44:28 -0400] broconne: anyone ever seen that issue?  its like IO.read is executed before the rest of the cookbook?
+[2013-10-02 19:45:24 -0400] MrBIOS: gchristensen: malformed URL ? https://github.com/opscode-cookbooks/python/compare/1.0.6...1.4.0
+[2013-10-02 19:45:29 -0400] MrBIOS: those are the two versions I care about
+[2013-10-02 19:45:35 -0400] juliancdunn: broconne: do you have it in a ruby_block or just dangling in the recipe?
+[2013-10-02 19:46:04 -0400] juliancdunn: if it's dangling in the recipe it will be evaluated at compile-time
+[2013-10-02 19:46:12 -0400] broconne: its the content for the chef file resource.
+[2013-10-02 19:46:20 -0400] gchristensen: MrBIOS: its tricky,if you notice it has a tag icon next to the 1.0.6 and a clock by the 1.4.0... its because opscode started prepending tasg with `v` recently.
+[2013-10-02 19:46:23 -0400] gchristensen: so change 1.4.0 to v1.4.0
+[2013-10-02 19:46:35 -0400] broconne: since i didn't see any other way to copy a file from one place on a node to another..  and the big G suggested that approach.
+[2013-10-02 19:47:11 -0400] juliancdunn: broconne: pastebin the code where you're doing the "later down in my recipe I copy a file from /etc/chef-server" ?
+[2013-10-02 19:48:08 -0400] broconne: juliancdunn:  http://pastebin.com/SXAwGkF6
+[2013-10-02 19:48:11 -0400] broconne: line 11
+[2013-10-02 19:50:26 -0400] juliancdunn: ahhh yeah that will be evaluated at compile time
+[2013-10-02 19:50:40 -0400] jmartin: juliancdunn: the windows webinar you did recently wouldn't happen to have been recorded and distributed in any way would it?
+[2013-10-02 19:51:06 -0400] juliancdunn: jmartin: yes, it's on Youtube -- youtube.com/Opscode
+[2013-10-02 19:51:17 -0400] jmartin: juliancdunn: ah sweet :D thx
+[2013-10-02 19:51:52 -0400] juliancdunn: broconne: couple options for you. use an execute resource with an idempotency guard, or, apparently "file" now takes a "local" parameter
+[2013-10-02 19:52:28 -0400] broconne: is that local in the docs?
+[2013-10-02 19:52:34 -0400] juliancdunn: hmm, maybe I'm lying about the latter
+[2013-10-02 19:52:43 -0400] broconne: or it hides nicely
+[2013-10-02 19:52:53 -0400] broconne: it seems odd I can't copy a file in chef..  but I am new :-)
+[2013-10-02 19:53:20 -0400] juliancdunn: oh, you can also use lazy attribute evaluation -- see http://docs.opscode.com/release_notes.html and search for it
+[2013-10-02 19:53:28 -0400] juliancdunn: so that the value is evaluated at execute time and not at compile time
+[2013-10-02 19:53:42 -0400] broconne: yeah I treid that
+[2013-10-02 19:53:47 -0400] broconne: it idd not take very well :-)
+[2013-10-02 19:54:04 -0400] juliancdunn: ah, here it is. remote_file now apparently takes "file:///" as a potential source
+[2013-10-02 19:54:09 -0400] juliancdunn: also in the release notes
+[2013-10-02 19:54:13 -0400] broconne: asked me what I was talking about with lazy
+[2013-10-02 19:54:37 -0400] juliancdunn: this is all Chef 11.6 talk though; it won't work on an older version
+[2013-10-02 19:54:38 -0400] broconne: maybe my syntax was wrong.. spits out undefined method lazy
+[2013-10-02 19:54:56 -0400] broconne: yep looks like the chef-cookbook pulls down 11.4
+[2013-10-02 19:55:24 -0400] broconne: hmm.. sorry that is chef solo blowing up.. that is in my court
+[2013-10-02 19:56:01 -0400] glen: hey, any ideas why my chef server redirects to short name "chef-server"?
+[2013-10-02 19:56:32 -0400] glen: i set chef_server_url to be https://chef-server.my.org, but then i get error Error connecting to https://chef-server/bookshelf/organization-00000000....
+[2013-10-02 19:56:56 -0400] glen: i'm ysing chef server in vagrant, but it happens with "plain" client as well
+[2013-10-02 19:57:57 -0400] tlr00: hmm.
+[2013-10-02 19:58:02 -0400] broconne: ok.. worked better on 11.6
+[2013-10-02 19:58:15 -0400] broconne: vagrant needs to catch up by default without omnibus :-)
+[2013-10-02 19:59:24 -0400] jmartin: juliancdunn: in your opinion is the windows integration still focused more on the application side of things or can it be used to do things i might do with GPOs on a domain for example?
+[2013-10-02 19:59:26 -0400] gchristensen: broconne: there is a vagrant-omnibus plugin
+[2013-10-02 20:03:30 -0400] btm: @opscode cookbook code review, join: https://plus.google.com/hangouts/_/dcf7352170007a255bdc8e31299c8e2f9c93d4e7 watch: http://youtu.be/QeGVaqjAxWo
+[2013-10-02 20:10:09 -0400] MrBIOS: is there any mechanism (even if it's just looking at log files on my chef server) to show when a given cookbook was last updated at?
+[2013-10-02 20:10:23 -0400] MrBIOS: via knife
+[2013-10-02 20:13:05 -0400] xtristan: what's the best resource type to use when i want to just copy a file from the cookbook files/ directory to the host?
+[2013-10-02 20:15:24 -0400] threadwaste: cookbook_file.
+[2013-10-02 20:15:35 -0400] benjohnson77: hey chef peeps ... I have a question about updating from chef 11.4.4 to 11.6 ... I need to update because it looks like google compute cloud was supported in OHAI after 11.4 and I need that
+[2013-10-02 20:15:51 -0400] xtristan: yess, that's it threadwaste, thanks
+[2013-10-02 20:15:56 -0400] benjohnson77: can I just update OHAI in some simple way
+[2013-10-02 20:16:07 -0400] benjohnson77: or do I need to upgrade lots
+[2013-10-02 20:17:17 -0400] benjohnson77: only been using chef for about 4 months and this is the first issue I came in causing me to need to upgrade.
+[2013-10-02 20:18:16 -0400] gchristensen: benjohnson77: you need to upgrade all of chef, which isn't to obad. check out the omnibus_updater cookbook
+[2013-10-02 20:20:14 -0400] benjohnson77: ok, follow up question ... I have been updating recipes, attributes files mostly ... I know know I really should do that ... how bad is it if I basically have custom version of 5 or 6 recipes
+[2013-10-02 20:21:28 -0400] gchristensen: benjohnson77: not great. http://dougireton.com/blog/2013/02/16/chef-cookbook-anti-patterns/
+[2013-10-02 20:22:28 -0400] benjohnson77: yeah i read that ... after the fact
+[2013-10-02 20:22:40 -0400] benjohnson77: ok ... I'll clean it up ... thanks
+[2013-10-02 20:23:39 -0400] gchristensen: benjohnson77: its easier now than later :)
+[2013-10-02 20:23:49 -0400] gchristensen: I've been cleaning up someone else's mess of customized cookbooks for a year
+[2013-10-02 20:23:58 -0400] benjohnson77: ouch
+[2013-10-02 20:24:19 -0400] gchristensen: ouch is right
+[2013-10-02 20:26:03 -0400] benjohnson77: do you like librarian .. berkself ... submodules ... whats your poision of choice
+[2013-10-02 20:26:52 -0400] gchristensen: benjohnson77: berkshelf seems to be the way of the future
+[2013-10-02 20:27:01 -0400] gchristensen: I went submodules -> librarian -> berkshelf
+[2013-10-02 20:28:14 -0400] benjohnson77: thanks alot ... trying omnibus update thingy
+[2013-10-02 21:20:26 -0400] dgarstang1: This is annoying. I'm formatted a hadoop namenode. The command doesn't take a disk. It formats all disks in the config file, yet I need to find a way to only run when it hasn't already been done. Would have triggered off the lock file, but there's one of those per disk.
+[2013-10-02 21:22:18 -0400] gchristensen: is hosted chef having some issues? I'm getting a few 502's
+[2013-10-02 21:37:56 -0400] bean__: dgarstang1: as in "hadoop namenode -format"
+[2013-10-02 21:38:03 -0400] bean__: ?
+[2013-10-02 21:43:25 -0400] dgarstang1: bean__: Yep, that's him.
+[2013-10-02 21:43:45 -0400] dgarstang1: bean__: Doesn't take a device as input, so I can't check each disk in turn
+[2013-10-02 21:45:53 -0400] benjohnson77: gchristensen: so I looked at the omnibus and I'm confused because the recipe didn't work
+[2013-10-02 21:46:11 -0400] gchristensen: benjohnson77: did it eat potato chips all day? (what did it do?)
+[2013-10-02 21:46:24 -0400] benjohnson77: gchristensen: raise "Unknown package type encountered for install:
+[2013-10-02 21:46:28 -0400] gchristensen: oh my
+[2013-10-02 21:47:24 -0400] benjohnson77: compile error ... and then points me to that line. however also see this WARN: Failed to retrieve omnibus download URL
+[2013-10-02 21:51:09 -0400] benjohnson77: gchristensen: im on 11.4.4
+[2013-10-02 21:51:21 -0400] benjohnson77: gchristensen: on debian 7
+[2013-10-02 22:01:45 -0400] voteblake: What method does the remote_file provider use to fetch data from a URL? I'm failing through a proxy.
+[2013-10-02 22:04:04 -0400] voteblake: Specifically I'm getting a connection timeout - I have set the http proxy variable through the chef-client cookbook in a role default attribute, still no luck
+[2013-10-02 22:09:33 -0400] MugsyMalone: i've got a potentially silly question about developing using berkshelf and vagrant...
+[2013-10-02 22:10:34 -0400] MugsyMalone: I'm writing a cookbook that depends on search (for role and environment). the berkshelf-vagrant config seems to really encourage the use of chef-solo however. anyone have suggestions, or do I need to tie my vagrantfile into a chef server?
+[2013-10-02 22:11:40 -0400] mattupstate: can't use search with chef-solo
+[2013-10-02 22:11:43 -0400] mattupstate: plain and simple
+[2013-10-02 22:11:50 -0400] paulczar: MugsyMalone:  you can use the chef-zero plugin instead of chef-solo
+[2013-10-02 22:12:31 -0400] MugsyMalone: for vagrant?
+[2013-10-02 22:12:46 -0400] paulczar: yeah  # vagrant plugin install vagrant-chef-zero
+[2013-10-02 22:12:56 -0400] MugsyMalone: although I guess it won't help, because without a chef server, how is going to search environments? :)
+[2013-10-02 22:13:16 -0400] paulczar: chef-zero is a chef server run all in memory
+[2013-10-02 22:13:56 -0400] paulczar: you can see it in action on the stackforge openstack-chef-repo - https://github.com/stackforge/openstack-chef-repo
+[2013-10-02 22:15:03 -0400] MugsyMalone: cool. i'll check it out
+[2013-10-02 22:20:07 -0400] bjorn248: Hey folks, strange question. I'm getting a compile error because in the same recipe I reference a file that the very same recipe is supposed to generate, but because it doesn't exist yet, it complains. However, if the recipe is run, it will exist.
+[2013-10-02 22:20:13 -0400] bjorn248: Is there a workaround?
+[2013-10-02 22:32:56 -0400] benjohnson77: having a really hard time upgrding from 11.4.4 to 11.6
+[2013-10-02 23:32:47 -0400] robbkidd: I feel I've found a bug in the python cookbook. Bouncing off you kind folks.
+[2013-10-02 23:32:58 -0400] robbkidd: 'Ere I open a ticket.
+[2013-10-02 23:33:54 -0400] robbkidd: The default recipe is documented as switching install method between source or package. But if I tell it "package", it only really installs python as a package and continues on to attempt a source install of pip and virtualenv.
+[2013-10-02 23:40:52 -0400] ignatz: maybe there's a reason why it can't use the local packages for those
+[2013-10-02 23:44:40 -0400] robbkidd: Could be.
+[2013-10-02 23:45:12 -0400] robbkidd: Seems like if I tell it to use the distro's packages, though, it ought to.
+[2013-10-02 23:45:49 -0400] robbkidd: I've got a scenario where I need to run my installs in air-gapped environments where I can't make calls to the internet to get stuff ad hoc.
+[2013-10-02 23:46:26 -0400] robbkidd: I can cache packages in a local repo.
+[2013-10-02 23:47:09 -0400] ignatz: https://github.com/opscode-cookbooks/python
+[2013-10-02 23:47:24 -0400] ignatz: those recipes install from source.
+[2013-10-02 23:47:58 -0400] robbkidd: https://github.com/opscode-cookbooks/python/blob/master/recipes/default.rb#L21
+[2013-10-02 23:48:07 -0400] robbkidd: https://github.com/opscode-cookbooks/python/blob/master/recipes/package.rb
+[2013-10-02 23:48:48 -0400] robbkidd: If I set the attribute python.install_method to "package", the default recipe will install my distro's python package.
+[2013-10-02 23:49:17 -0400] robbkidd: And then the pip and virtualenv recipes mostly ignore this install method and work from source.
+[2013-10-02 23:50:47 -0400] robbkidd: I could almost get around this by running my own recipe to install the python, pip and virtualenv distro packages, except the "nof_if" checks around the source install look for the source binary path.

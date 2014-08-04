@@ -1,0 +1,462 @@
+[2012-06-03 00:14:19 -0400] eherot: So does anyone here know, are LWRP's resigned to completely replace per-cookbook providers?
+[2012-06-03 00:24:14 -0400] yfeldblum: eherot, LWRP's are resources and providers, exactly like any other resources and providers
+[2012-06-03 00:24:34 -0400] yfeldblum: eherot, the "lightweight" part is the "lightweight" DSL, which is *purely* syntax sugar
+[2012-06-03 00:25:11 -0400] eherot: is there a good example out of there of how to write a pure ruby provider?  The example in the chef doc calls execute which makes me a bit confused
+[2012-06-03 00:27:50 -0400] yfeldblum: eherot, keeping in mind that for a lightweight provider named "xyz.rb" in the cookbook "asdf", chef constructs a class for you named Chef::Provider::AsdfXyzProvider and it inherits from Chef::Provider, and the DSL also translates `action :something do` to `def action_something ; ...`
+[2012-06-03 00:28:01 -0400] yfeldblum: eherot, other than that, it's a pure ruby provider
+[2012-06-03 00:28:20 -0400] yfeldblum: eherot, just look at any provider in https://github.com/opscode/chef/tree/master/chef/lib/chef/provider
+[2012-06-03 00:29:12 -0400] yfeldblum: hmm not sure if that's the right class name exactly ... it may actually be different from that
+[2012-06-03 00:32:16 -0400] eherot: So I can just toss a new ruby file in the cookbook "providers" directory with "class Chef::Provider::WhateverName" at the top and it will act, in my recipe, like any other Chef provider?
+[2012-06-03 00:33:01 -0400] eherot: I think I might have to Just Try This, heh.
+[2012-06-03 00:35:40 -0400] yfeldblum: eherot, no, everything in the providers directory gets the lightweight DSL
+[2012-06-03 00:35:53 -0400] yfeldblum: eherot, but you can toss it into a file in the libraries directory
+[2012-06-03 00:36:27 -0400] eherot: ahhhh
+[2012-06-03 00:36:31 -0400] eherot: gotcha
+[2012-06-03 00:38:41 -0400] yfeldblum: eherot, but you can just `def action_something ; ... end` right in the lightweight provider DSL
+[2012-06-03 00:38:53 -0400] yfeldblum: eherot, if you're OK with the autogenned class name
+[2012-06-03 00:39:52 -0400] eherot: so would it make sense to put most of my ruby code in a class in "libraries" and then create some fairly short methods like "action_create" in a file in the providers directory making calls to my new class?
+[2012-06-03 00:42:38 -0400] hoover_damm: the problem with libraries generally is how they are loaded
+[2012-06-03 00:42:50 -0400] hoover_damm: and how it can make things harder to debug when they go south
+[2012-06-03 00:43:10 -0400] eherot: hmm
+[2012-06-03 00:43:16 -0400] hoover_damm: you can do things with libraries that appear dry.  As a Ruby programmer it will feel natural to go to libraries
+[2012-06-03 00:43:37 -0400] hoover_damm: trust me I've seen what regular nasties straight up ruby devs do in chef.
+[2012-06-03 00:43:49 -0400] eherot: yes I can imagine.
+[2012-06-03 00:43:57 -0400] eherot: Hence my trying to live within the framework here
+[2012-06-03 00:43:57 -0400] hoover_damm: knowing my last job
+[2012-06-03 00:44:02 -0400] hoover_damm: ooohyeah
+[2012-06-03 00:44:17 -0400] eherot: it can be tempting
+[2012-06-03 00:44:34 -0400] hoover_damm: it's very tempting.  I admit I've used libraries to provide package providers
+[2012-06-03 00:44:59 -0400] hoover_damm: but remember.  With great power comes great responsibility.
+[2012-06-03 00:45:37 -0400] hoover_damm: Just because it works x way does not mean it is the most elegent or makes others see it just as easily
+[2012-06-03 00:45:45 -0400] eherot: I'm writing something to allow a host to add itself to our zabbix server via the zabbix api.  Right now it happens via a ruby script that a recipe shells out to run.  This is one of the first functions we ever put together in Chef and now, revisiting it, it looks like an excellent candidate to be implemented with an LWRP
+[2012-06-03 00:46:10 -0400] hoover_damm: Zabbix for monitoring?
+[2012-06-03 00:46:14 -0400] eherot: yeah
+[2012-06-03 00:46:19 -0400] hoover_damm: you could do auto-discover
+[2012-06-03 00:46:26 -0400] hoover_damm: well sort of if your on VPC
+[2012-06-03 00:46:37 -0400] eherot: yeah it's ec2
+[2012-06-03 00:46:52 -0400] hoover_damm: VPC or regular?
+[2012-06-03 00:46:58 -0400] hoover_damm: if your doing VPC you can have it search your broadcast
+[2012-06-03 00:46:59 -0400] eherot: regular
+[2012-06-03 00:47:08 -0400] hoover_damm: otherwise the api method yeah
+[2012-06-03 00:47:24 -0400] eherot: it's actually a pretty simplistic script but the way it's done now seemed pretty cludgy
+[2012-06-03 00:47:42 -0400] eherot: (shelling out from ruby to run a ruby script is, by definition, heh)
+[2012-06-03 00:48:50 -0400] hoover_damm: yep
+[2012-06-03 00:49:03 -0400] hoover_damm: now to move that ruby script into a chef recipe so you can register in the chef cookbook directly
+[2012-06-03 00:49:12 -0400] hoover_damm: and discern failure
+[2012-06-03 00:49:24 -0400] hoover_damm: there is a great joy of automating /everything/
+[2012-06-03 00:49:54 -0400] hoover_damm: I must admit.  I love Sandybridge
+[2012-06-03 00:50:11 -0400] hoover_damm: some of the Sandybridge cpu's i've been benchmarking are pure 4x faster then EC2
+[2012-06-03 00:53:06 -0400] hoover_damm: eherot, btw how does Zabbix scale on EC2?
+[2012-06-03 00:53:25 -0400] eherot: It hasn't complained much honestly
+[2012-06-03 00:53:27 -0400] hoover_damm: last time I used Zabbix was 2007 and I learned storing performance monitoring and monitoring in a relational database to be awkward
+[2012-06-03 00:53:33 -0400] eherot: It's one of several different monitoring systems we're using
+[2012-06-03 00:54:17 -0400] eherot: actually some of the other people on my team want to scrap it and we're only using it or a few basic monitoring techniques so this is probably more of an exercise than a truly important task
+[2012-06-03 00:54:18 -0400] hoover_damm: I was thinking about sensu but I just have a thing about loosing messages
+[2012-06-03 00:54:25 -0400] hoover_damm: that always dogs me about rabbitmq
+[2012-06-03 00:54:35 -0400] eherot: We're also using Ossec and m/monit
+[2012-06-03 00:54:35 -0400] hoover_damm: and to have a durable .. oi
+[2012-06-03 00:54:47 -0400] eherot: and pingdom for basic endpoint monitoring
+[2012-06-03 00:54:59 -0400] hoover_damm: Pingdom is used more often due to the 2minute times
+[2012-06-03 00:55:03 -0400] eherot: although if this particular rewrite goes well we may use it on the others
+[2012-06-03 00:55:11 -0400] hoover_damm: but truthfully, I'd rather replace pingdom with a external nagios
+[2012-06-03 00:55:12 -0400] hoover_damm: or whatever
+[2012-06-03 00:55:27 -0400] hoover_damm: just my pattern at least
+[2012-06-03 00:56:01 -0400] hoover_damm: once I start getting enough data into Graphite, I may toy with alerting on graphite
+[2012-06-03 00:56:44 -0400] hoover_damm: Wayfair looks quite nice
+[2012-06-03 00:56:51 -0400] hoover_damm: s/Wayfair/Tattle
+[2012-06-03 00:57:41 -0400] eherot: Have you used CopperEgg?
+[2012-06-03 00:57:52 -0400] eherot: I haven't but I am planning on looking into it
+[2012-06-03 00:58:02 -0400] hoover_damm: https://github.com/scobal/seyren
+[2012-06-03 00:58:04 -0400] hoover_damm: is also nice
+[2012-06-03 01:07:46 -0400] eherot: Oh yeah we're also using Cacti for that
+[2012-06-03 01:07:59 -0400] eherot: (not really my system, but yeah)
+[2012-06-03 01:08:16 -0400] hoover_damm: lol cacti
+[2012-06-03 01:08:18 -0400] hoover_damm: people still use that?
+[2012-06-03 01:08:23 -0400] eherot: apparently
+[2012-06-03 01:08:40 -0400] hoover_damm: :) I remember that thing in 2004
+[2012-06-03 01:08:49 -0400] eherot: I could say the same for Nagios :-P
+[2012-06-03 01:08:51 -0400] hoover_damm: I'll stick to graphite
+[2012-06-03 01:09:01 -0400] hoover_damm: I had a job where we had nagios and netsaint
+[2012-06-03 01:09:05 -0400] hoover_damm: ;)
+[2012-06-03 01:09:21 -0400] eherot: hmm haven't used netsaint
+[2012-06-03 01:09:37 -0400] hoover_damm: netsaint was the previous version of nagios 1.0
+[2012-06-03 01:09:45 -0400] eherot: heh
+[2012-06-03 01:10:08 -0400] hoover_damm: http://www.nagios.org/about/history
+[2012-06-03 01:12:14 -0400] hoover_damm: it's unfortunate that a product being open source is a better option more often than a product that costs money
+[2012-06-03 01:12:32 -0400] hoover_damm: but it's often about support and how you can use it beyond the normal pattern
+[2012-06-03 01:12:36 -0400] eherot: yeah the selling point would be the "hosted" part of it
+[2012-06-03 01:12:58 -0400] hoover_damm: i'm thankful to be powering down my SSD instances in EC2 next week
+[2012-06-03 01:13:04 -0400] hoover_damm: they cost us a buttload
+[2012-06-03 01:14:06 -0400] hoover_damm: it's becoming a more common trend lately
+[2012-06-03 01:14:18 -0400] hoover_damm: and after Foursquare's buildout in Equinix
+[2012-06-03 01:14:22 -0400] hoover_damm: no one wants to wait that long
+[2012-06-03 01:15:03 -0400] eherot: that's what my employer (an Amazon competitor) wants
+[2012-06-03 01:15:47 -0400] eherot: although it may mean moving to Joyent or Rackspace's OpenStack offering (if it turns out to be everything they're promising)
+[2012-06-03 01:16:05 -0400] hoover_damm: you can get SSD on Amazon
+[2012-06-03 01:16:11 -0400] hoover_damm: it's no big secret
+[2012-06-03 01:16:16 -0400] eherot: how do you do that?
+[2012-06-03 01:16:25 -0400] hoover_damm: drop the big bucks on the cluster instances
+[2012-06-03 01:16:31 -0400] hoover_damm: all their ephemeral units are SSD backed
+[2012-06-03 01:16:37 -0400] eherot: huh.
+[2012-06-03 01:16:41 -0400] hoover_damm: and the EBS disks are SSD backed
+[2012-06-03 01:16:46 -0400] hoover_damm: but they don't perform on SSD level
+[2012-06-03 01:16:55 -0400] hoover_damm: want benchmarks?
+[2012-06-03 01:17:41 -0400] eherot: seems to me it's kind of immaterial unless you can get them to guarantee a certain io performance level for a particular set of instances
+[2012-06-03 01:18:00 -0400] eherot: otherwise they kind of "reserve the right" to steal iops from you at will
+[2012-06-03 01:18:23 -0400] hoover_damm: eherot, I queried you the url.
+[2012-06-03 01:18:37 -0400] eherot: looking at it
+[2012-06-03 01:18:43 -0400] hoover_damm: roughly 10k i/ops is what I get on the bad boy
+[2012-06-03 01:18:51 -0400] hoover_damm: if you want to see a graphite graph of the actual I/O performance
+[2012-06-03 01:19:18 -0400] hoover_damm: that was 4 Ephemeral disks LVM Striped with a 2Meg Stripe
+[2012-06-03 01:20:18 -0400] eherot: that's...fast
+[2012-06-03 01:20:30 -0400] hoover_damm: here's a 15minute break down of the I/O
+[2012-06-03 01:20:39 -0400] hoover_damm: in query
+[2012-06-03 01:20:50 -0400] hoover_damm: you'll notice how erratic the I/O is
+[2012-06-03 01:21:07 -0400] eherot: but it's ephemeral.  Do you have another storage setup for permanent storage or are you just relying on redundancy for that?
+[2012-06-03 01:21:08 -0400] hoover_damm: previously I believed these machines were dedicated to yourself
+[2012-06-03 01:21:17 -0400] hoover_damm: but I believe actually they put 2 instances per server
+[2012-06-03 01:21:36 -0400] hoover_damm: it's throw away data thankfully
+[2012-06-03 01:21:46 -0400] hoover_damm: quite expensive for throw away data
+[2012-06-03 01:21:56 -0400] eherot: yeah i should think
+[2012-06-03 01:22:02 -0400] hoover_damm: but it was a 1-2month thing
+[2012-06-03 01:22:07 -0400] hoover_damm: we have already secured metal to move to
+[2012-06-03 01:23:08 -0400] hoover_damm: Amazon keeps hinting at more I/O
+[2012-06-03 01:23:15 -0400] hoover_damm: but personally I don't know how anyone can wait
+[2012-06-03 01:23:24 -0400] hoover_damm: or tell their boss that 'Amazon will grow in time, and then we'll stop crashing'
+[2012-06-03 01:23:27 -0400] eherot: they sort of offered it with Dynamo
+[2012-06-03 01:24:10 -0400] eherot: Was your "two instances per server" assumption based on assumed SSD bandwith /2 ?
+[2012-06-03 01:24:15 -0400] hoover_damm: yup
+[2012-06-03 01:24:26 -0400] hoover_damm: that and based on sandybridge cpu and logic
+[2012-06-03 01:24:55 -0400] hoover_damm: 128gigs of ram and 4 sandybridge eight core cpu's
+[2012-06-03 01:25:02 -0400] hoover_damm: to earn 5k/month
+[2012-06-03 01:25:46 -0400] hoover_damm: OCZ Deneva 2 that is
+[2012-06-03 01:26:05 -0400] hoover_damm: gonna secure some Intel 910's once they come out and I can find someone willing to give me a discount to buy in bulk
+[2012-06-03 01:26:59 -0400] eherot: heh, how many you buying?
+[2012-06-03 01:27:00 -0400] hoover_damm: EC2's competition is now the carriers and other companies trying to provide a bare metal cloud
+[2012-06-03 01:27:04 -0400] hoover_damm: or better clouds
+[2012-06-03 01:27:53 -0400] eherot: yeah well now everyone wants to be in the business
+[2012-06-03 01:27:55 -0400] hoover_damm: that is kind of up in the air.  I don't know the complete size of our dataset
+[2012-06-03 01:28:35 -0400] eherot: To me that makes most of it really about how good the API is provided you aren't in a business where massive per-instance I/O or cpu is hugely important.
+[2012-06-03 01:29:33 -0400] hoover_damm: well how do you handle the slower cpu's? your laptops generally have a faster cpu then a AWS instance
+[2012-06-03 01:29:41 -0400] hoover_damm: so when you run rails in a development mode it runs a lot faster
+[2012-06-03 01:29:41 -0400] eherot: quantity
+[2012-06-03 01:29:44 -0400] hoover_damm: deploy it, and it's slower
+[2012-06-03 01:30:28 -0400] hoover_damm: I guess that's what makes Rackspace better.  They have more Modern CPU's
+[2012-06-03 01:30:44 -0400] hoover_damm: a lot of companies who are on AWS made decisions back in 2008
+[2012-06-03 01:30:46 -0400] hoover_damm: it's 2012.
+[2012-06-03 01:30:51 -0400] hoover_damm: and so did AWS
+[2012-06-03 01:31:00 -0400] hoover_damm: AWS has quite a job to do
+[2012-06-03 01:31:39 -0400] eherot: It has done something that I think is not an altogether bad practice, which is to make a lot of app engineers build projects that can make up for lack of CPU by parallelizing well
+[2012-06-03 01:32:10 -0400] hoover_damm: most languages don't paralize well yet
+[2012-06-03 01:32:17 -0400] hoover_damm: at least scripting wise
+[2012-06-03 01:32:24 -0400] hoover_damm: ruby 1.9.x is doing better
+[2012-06-03 01:32:38 -0400] hoover_damm: python 3 is trying
+[2012-06-03 01:32:48 -0400] hoover_damm: but the only one who got that close to right was java
+[2012-06-03 01:33:08 -0400] hoover_damm: and other small ones that I won't mention (erlang ..)
+[2012-06-03 01:33:30 -0400] hoover_damm: but also that does greatly weigh into the CPU Scheduler as well
+[2012-06-03 01:34:46 -0400] hoover_damm: AWS has made it dead simple to sign up on a form, input a credit card and create a bunch of servers without much thought
+[2012-06-03 01:34:57 -0400] hoover_damm: That should not be discredited by any means
+[2012-06-03 01:35:28 -0400] hoover_damm: but after a point you have enough of an idea of where your going you should be able to plan and make that same cloud yourself more or less
+[2012-06-03 01:36:30 -0400] eherot: There's another big element to it though which is that you don't have to make all the cap ex investment of buying equipment for loads that may not materialize
+[2012-06-03 01:36:37 -0400] eherot: you let amazon make those bad decisions
+[2012-06-03 01:36:41 -0400] hoover_damm: Chef is what made me happy with Baremetal.  Tied it into my PXE installation, my PDU, etc
+[2012-06-03 01:36:43 -0400] dstufft: Rackspace is sort of better in a worse way in some regards. as far as their cloud servers anyways
+[2012-06-03 01:37:06 -0400] hoover_damm: back in 2009 I was provisioning metal servers to production in under 30minutes
+[2012-06-03 01:37:08 -0400] hoover_damm: from racking
+[2012-06-03 01:37:12 -0400] hoover_damm: with chef
+[2012-06-03 01:37:32 -0400] pcn: If I never have to deal with another system that dose pxe booting and image management myself it'll be too soon.
+[2012-06-03 01:37:37 -0400] hoover_damm: it's just automating it
+[2012-06-03 01:37:45 -0400] eherot: dstufft: their two problems are their old-fashioned storage model and their limited API
+[2012-06-03 01:37:48 -0400] eherot: but mainly the storage
+[2012-06-03 01:37:51 -0400] dstufft: Rackspace's Cloud Servers doesn't randomly die nearly as often as EC2's does
+[2012-06-03 01:37:54 -0400] pcn: Well, that part is easy.  Managing the lights-out management from any vendor and the bios that makes it a nightmare
+[2012-06-03 01:37:56 -0400] eherot: oh also lack of elastic IPs.
+[2012-06-03 01:38:09 -0400] eherot: yeah but when rackspace's servers die, it's a bigger problem
+[2012-06-03 01:38:09 -0400] hoover_damm: oh honestly I do IPMI mainly
+[2012-06-03 01:38:15 -0400] hoover_damm: so I know where I stand
+[2012-06-03 01:38:26 -0400] dstufft: so it's easy to fall into the trap of treating rackspaces servers like Bare Metal boxes with a fancy API
+[2012-06-03 01:38:33 -0400] hoover_damm: but I've also preferred Advocent Cyclades over LOM
+[2012-06-03 01:38:59 -0400] hoover_damm: dstufft, Rackspace's Beta Cloud I understand is quite nice
+[2012-06-03 01:39:00 -0400] dstufft: whereas EC2 is "worse" in that you have to plan for nodes to randomly die on you, but by forcing you to plan for it your app ends up better
+[2012-06-03 01:39:11 -0400] hoover_damm: dstufft, block disks.  actual network security
+[2012-06-03 01:39:13 -0400] eherot: dstufft: 'zactly.
+[2012-06-03 01:39:28 -0400] hoover_damm: if you want metal with an api... voxel.net?
+[2012-06-03 01:39:37 -0400] dstufft: and RCS doesn't really give you as nice as tools to deal with node failures either, like you said lack of EIP's
+[2012-06-03 01:39:51 -0400] hoover_damm: yeah
+[2012-06-03 01:40:11 -0400] eherot: heh, wish I could continue this informative discussion butdinnertime.  Enjoy, folks :-)
+[2012-06-03 01:40:26 -0400] hoover_damm: I've done the baremetal game far before the cloud
+[2012-06-03 01:40:29 -0400] hoover_damm: I have no problems with it
+[2012-06-03 01:40:46 -0400] dstufft: Funny this convo is occuring
+[2012-06-03 01:40:55 -0400] dstufft: A guy I know just posted a blog today about it
+[2012-06-03 01:40:56 -0400] dstufft: http://justcramer.com/2012/06/02/the-cloud-is-not-for-you/
+[2012-06-03 01:41:09 -0400] hoover_damm: it's more common
+[2012-06-03 01:41:26 -0400] eherot: One thing I do want to put out there though that I love about "the cloud" when working within a big company
+[2012-06-03 01:41:39 -0400] eherot: it's *way* easier to gradually ramp up monthly expenses than it is to get cap ex approved
+[2012-06-03 01:42:09 -0400] hoover_damm: eherot, you can 'lease' and gradually ramp up just as much
+[2012-06-03 01:43:16 -0400] hoover_damm: Basically it's quite simple, 'The Cloud' is a marketing term.  Companies want your money and if they can get your data too.  sweet!
+[2012-06-03 01:43:33 -0400] eherot: that could be one of the advantages to one of these bare metal + api type platforms
+[2012-06-03 01:43:40 -0400] hoover_damm: and because we get stuck in the pattern of booting up instances
+[2012-06-03 01:43:45 -0400] hoover_damm: it's gosh darn hard to think about moving up
+[2012-06-03 01:43:48 -0400] hoover_damm: s/up/out
+[2012-06-03 01:44:01 -0400] hoover_damm: because you have to change how you plan / scale
+[2012-06-03 01:44:21 -0400] hoover_damm: and start tracking your growth and knowing when (if possible) to add more .
+[2012-06-03 01:44:44 -0400] hoover_damm: It's different, and for that it makes people uncomfortable.
+[2012-06-03 01:45:11 -0400] hoover_damm: but I love to learn, and fail and try again... that's what life is about
+[2012-06-03 01:45:36 -0400] hoover_damm: I loved, I learned... Now I have hard numbers and more understanding to it
+[2012-06-03 01:45:42 -0400] hoover_damm: :)
+[2012-06-03 01:46:55 -0400] hoover_damm: and btw, there's nothing that says you can't have an api with baremetal
+[2012-06-03 01:47:03 -0400] hoover_damm: you just have to code it
+[2012-06-03 01:47:23 -0400] eherot: there seems to be quite a cottage industry being built around that at the moment actually
+[2012-06-03 01:47:34 -0400] hoover_damm: there really is
+[2012-06-03 01:48:14 -0400] eherot: lots of cool stuff at chefconf I have to say
+[2012-06-03 01:50:00 -0400] hoover_damm: always is
+[2012-06-03 03:47:18 -0400] hoover_damm: It's easy to get annoyed at configuring switches and PXE and this and that.  But now the only excuse is why don't you have Chef automating that?
+[2012-06-03 03:47:21 -0400] hoover_damm: :)
+[2012-06-03 04:35:15 -0400] pcn: hoover_damm does chef have a system for dealing with switches as nodes yet?
+[2012-06-03 04:36:15 -0400] yfeldblum: pcn, how do you mean?
+[2012-06-03 04:37:17 -0400] pcn: there was talk at the community conference last year of having a feature of being able to manage non-host-type devices as nodes, or some node-like objects
+[2012-06-03 05:02:44 -0400] cheeseplus: so when you are checking remote_file checksum, where is that checksum coming from?
+[2012-06-03 05:02:59 -0400] cheeseplus: is it a sha256 of the file itself?
+[2012-06-03 05:09:33 -0400] scanf: what ruby stuff should i install to run a chef server on debian
+[2012-06-03 05:17:57 -0400] vegardx: scanf: use the package manager
+[2012-06-03 05:21:52 -0400] cheeseplus: ^
+[2012-06-03 05:25:03 -0400] scanf: the answer was 'ruby and rubygems'
+[2012-06-03 05:25:31 -0400] scanf: anyways, what is the point of the hosted management console, is there a page about implementing that independently of opscode
+[2012-06-03 05:30:50 -0400] schuckles: Hi All
+[2012-06-03 05:31:14 -0400] schuckles: I'm experiencing some issues with the nagios chef cookbook
+[2012-06-03 05:31:36 -0400] schuckles: was wondering if someone's bored and may be up to help me out?
+[2012-06-03 05:32:18 -0400] vegardx: scanf: are you thinking about chef server web interface?
+[2012-06-03 05:32:55 -0400] schuckles: Here's the situation, I ran through the quickstart guide as documented at http://wiki.opscode.com/display/chef/Nagios+Quick+Start
+[2012-06-03 05:32:57 -0400] vegardx: schuckles: make a gist of the issues/errors you are seeing
+[2012-06-03 05:37:01 -0400] cheeseplus: scanf: the chef-server-webui isn't as full featured as the hosted version
+[2012-06-03 05:37:16 -0400] cheeseplus: scanf: no organization support among other things
+[2012-06-03 05:37:45 -0400] schuckles: here we go
+[2012-06-03 05:37:45 -0400] schuckles: https://gist.github.com/2862074
+[2012-06-03 05:38:18 -0400] schuckles: I first started out with the nagios quickstart, that worked fine
+[2012-06-03 05:38:47 -0400] schuckles: but not entirely what i needed, so ended up using the more complex cookbook at https://github.com/opscode-cookbooks/nagios
+[2012-06-03 05:38:57 -0400] schuckles: and that's where everything went wrong quickly
+[2012-06-03 05:39:21 -0400] schuckles: i almost wonder if it's a caching issue?
+[2012-06-03 05:42:21 -0400] scanf: cheeseplus: so if i am looking at using chef in a large datacenter deployment, i am really going to have to use hosted chef and rely on opscode?
+[2012-06-03 05:45:45 -0400] yfeldblum: scanf, no, you can use the open-source chef-server in large-scale deployments
+[2012-06-03 05:46:37 -0400] schuckles: scanf: the opensource chef-server works well, the UI is a bit clunky, but knife along with all other chef-hosted works
+[2012-06-03 06:05:09 -0400] scanf: schuckles: what functionality is missing when you dont have chef hosted?
+[2012-06-03 06:05:43 -0400] schuckles: ease
+[2012-06-03 06:06:00 -0400] scanf: ease?
+[2012-06-03 06:06:27 -0400] schuckles: imho, many of the guides/tutorials assume you have hosted chef
+[2012-06-03 06:06:42 -0400] schuckles: however, other than that, there really is no difference
+[2012-06-03 06:07:48 -0400] scanf: yeah thats the problem ive been running into
+[2012-06-03 06:08:30 -0400] scanf: im just trying to follow http://wiki.opscode.com/display/chef/Build+a+LAMP+Stack
+[2012-06-03 06:09:00 -0400] scanf: As part of the Fast Start Guide, you cloned a chef-repo and copied the Knife configuration file (knife.rb), validation certificate (ORGNAME-validator.pem) and user certificate (USERNAME.pem) to ~/chef-repo/.chef/. Copy these files to the new php-quick-start repository. You can also re-download the Knife configuration file for your organization with the Hosted Chef Management Console.
+[2012-06-03 06:09:07 -0400] scanf: is where they lost me
+[2012-06-03 06:10:10 -0400] schuckles: 1 sec
+[2012-06-03 06:10:36 -0400] jessicab: scanf - think that guide might be broken btw, didnt work for me the other day when i tested it.. but orgname-validator.pem is just validtion.pem on open source chef, and your user certificate is your knife user.. whatever you setup with knife configure on the server
+[2012-06-03 06:10:46 -0400] schuckles: type in 'knife node list' on your local workstation
+[2012-06-03 06:10:49 -0400] schuckles: what's it say?
+[2012-06-03 06:12:07 -0400] jessicab: scanf - the rails and java guides both worked fine though, it could of been something i did wrong though with the lamp guide.. didnt have time to look too far into it
+[2012-06-03 06:12:19 -0400] scanf: schuckles: ive literally just booted a fresh debian install, installed ruby/gem, and then sudo gem install knife-ec2 \
+[2012-06-03 06:14:26 -0400] schuckles: scanf: you mentioned that [snip] you were lost at  (ORGNAME-validator.pem) and user certificate (USERNAME.pem) to ~/chef-repo/.chef/
+[2012-06-03 06:15:17 -0400] schuckles: if you're pem files are not properly configured, you cannot proceed executing knife node list will tell you if it's kosher
+[2012-06-03 06:16:46 -0400] RageLink: anyone seen this on chef0.10 on ubuntu FATAL: Cannot find sub command for: 'ec2 server create'
+[2012-06-03 06:16:52 -0400] RageLink: it tells me to install the gem
+[2012-06-03 06:16:55 -0400] RageLink: but its already installed
+[2012-06-03 06:19:30 -0400] schuckles: RageLink: do you have the ec2 knife plugin installed/
+[2012-06-03 06:19:39 -0400] RageLink: yes afaik
+[2012-06-03 06:19:53 -0400] RageLink: i've followed this http://wiki.opscode.com/display/chef/Launch+Cloud+Instances+with+Knife
+[2012-06-03 06:20:43 -0400] schuckles: RageLink: type in knife ec2
+[2012-06-03 06:20:47 -0400] schuckles: what does it say?
+[2012-06-03 06:21:09 -0400] RageLink: FATAL: Cannot find sub command for: 'ec2'
+[2012-06-03 06:21:09 -0400] RageLink: The ec2 commands were moved to plugins in Chef 0.10
+[2012-06-03 06:21:09 -0400] RageLink: You can install the plugin with `(sudo) gem install knife-ec2
+[2012-06-03 06:21:16 -0400] RageLink: however i have done the gem install stuff
+[2012-06-03 06:21:24 -0400] schuckles: that means you lack the ec2 knife plugin
+[2012-06-03 06:21:42 -0400] RageLink: root@ip-10-28-219-9:~/client-config# find / -name ec2_server_list.rb
+[2012-06-03 06:21:43 -0400] RageLink: /var/lib/gems/1.8/gems/knife-ec2-0.5.12/lib/chef/knife/ec2_server_list.rb
+[2012-06-03 06:21:45 -0400] RageLink: but it is there
+[2012-06-03 06:21:46 -0400] schuckles: https://github.com/opscode/knife-ec2
+[2012-06-03 06:22:15 -0400] schuckles: are you executing this from your local workstation?
+[2012-06-03 06:22:30 -0400] RageLink: this is from the chef server itself
+[2012-06-03 06:22:42 -0400] RageLink: as the local knife i setup in there as root
+[2012-06-03 06:23:15 -0400] schuckles: from the chef server, you will still need to install the knife ec2 plugin
+[2012-06-03 06:23:22 -0400] RageLink: already done
+[2012-06-03 06:23:29 -0400] RageLink: thats whats weird
+[2012-06-03 06:24:43 -0400] schuckles: i ran into a similar issue
+[2012-06-03 06:25:08 -0400] RageLink: i found this earlier http://tickets.opscode.com/browse/CHEF-2483
+[2012-06-03 06:25:16 -0400] RageLink: but thats not my case either.. :S
+[2012-06-03 06:25:28 -0400] schuckles: try installing rvm
+[2012-06-03 06:26:17 -0400] schuckles: it's sort of a round about way of solving the issue, however it allows you to control your rubies very closely
+[2012-06-03 06:26:25 -0400] schuckles: and in the send, it worked for me
+[2012-06-03 06:26:35 -0400] RageLink: awesome illl try it out, thanks!
+[2012-06-03 06:26:44 -0400] schuckles: i hope it works
+[2012-06-03 06:39:28 -0400] scanf: schuckles: is there someplace i need to add some gem/ruby stuff to my path? i have installed knife-ec2 and chef and they still dont show in my path
+[2012-06-03 06:42:12 -0400] schuckles: scanf: are you on windows?
+[2012-06-03 06:42:41 -0400] schuckles: also, did you install RVM?
+[2012-06-03 06:43:05 -0400] scanf: schuckles: nope, debian
+[2012-06-03 06:44:31 -0400] schuckles: ok cool
+[2012-06-03 06:44:35 -0400] RageLink: seems to be a recurring theme
+[2012-06-03 06:44:48 -0400] erikh: debian installs gem binaries into a weird spot
+[2012-06-03 06:44:49 -0400] schuckles: jus making sure :-)
+[2012-06-03 06:44:58 -0400] erikh: /var/lib/gems/bin or something like that.
+[2012-06-03 06:48:46 -0400] RageLink: whats weird is i thought like deb based or ubuntu systems were the preferred for chef stuff
+[2012-06-03 06:52:04 -0400] schuckles: o they are
+[2012-06-03 06:52:29 -0400] schuckles: hold on, trying to 'mentally parse' your situation
+[2012-06-03 06:52:59 -0400] schuckles: what happens when you type in rvm?
+[2012-06-03 06:53:21 -0400] RageLink: root@ip-10-28-219-9:~/client-config# rvm
+[2012-06-03 06:53:21 -0400] RageLink: cat: /usr/share/ruby-rvm/README: No such file or directory
+[2012-06-03 06:53:36 -0400] RageLink: i had to install rvm thorugh apt-get
+[2012-06-03 06:53:43 -0400] RageLink: rvm through gem didnt seem to take
+[2012-06-03 06:53:46 -0400] RageLink: so i think the issue is gem
+[2012-06-03 06:54:02 -0400] RageLink: maybe gem paths arent in the path
+[2012-06-03 06:54:53 -0400] schuckles: oy
+[2012-06-03 06:55:50 -0400] schuckles: did you try going through http://www.christopherirish.com/2010/08/25/how-to-install-rvm-on-ubuntu-10-04/
+[2012-06-03 06:56:38 -0400] schuckles: also, somtimes you need to manually update the symbolic links in your system
+[2012-06-03 07:00:20 -0400] schuckles: also, you can do all this from your local work station
+[2012-06-03 07:01:56 -0400] RageLink: yeah my local workstatino is worse
+[2012-06-03 07:02:12 -0400] RageLink: something about /usr/lib/ruby/1.8/rubygems.rb:233:in `activate': can't activate net-ssh (~> 2.2.2, runtime) for ["chef-0.10.10", "knife-ec2-0.5.12"], already activated net-ssh-2.5.2 for ["net-scp-1.0.4", "fog-1.3.1", "knife-ec2-0.5.12"] (Gem::LoadError)
+[2012-06-03 07:02:14 -0400] RageLink: another ubuntu
+[2012-06-03 07:02:29 -0400] schuckles: those are requirements
+[2012-06-03 07:02:36 -0400] RageLink: yeah but they
+[2012-06-03 07:02:41 -0400] RageLink: they're all installed
+[2012-06-03 07:02:52 -0400] RageLink: i think it needs a newer version of something
+[2012-06-03 07:03:05 -0400] schuckles: RVM will help you with the verions
+[2012-06-03 07:03:26 -0400] schuckles: it's not entirely necessary, but will help in the long run
+[2012-06-03 07:04:21 -0400] schuckles: I'm not a ruby expert, but i ran into global vs default gems
+[2012-06-03 07:04:27 -0400] schuckles: RVM took care of that
+[2012-06-03 08:56:40 -0400] railsraider: Hi, i'm knife rackspace server create --node-name mysql5.5-test --image 112 --flavor 1 --server-name mysql55-test --run-list 'role[mySQL]' and I'm everything goes well until the chef client tries to run and fails in authorization,  Client key /etc/chef/client.pem is not present - registering - HTTP Request Returned 403 Forbidden: You are not allowed to take this action.
+[2012-06-03 08:57:22 -0400] railsraider: is it my machine or soothing past the bootstrap?
+[2012-06-03 08:57:41 -0400] railsraider: how do I get this to work
+[2012-06-03 08:58:44 -0400] railsraider: i think i missing the keys
+[2012-06-03 09:39:54 -0400] garrensmith: hey all
+[2012-06-03 09:40:51 -0400] garrensmith: really noob question, I'm learning chef using vagrant, once the a vagrant box is up and installed the recipes, how could I install another recipe or update the config of a running box?
+[2012-06-03 10:02:33 -0400] railsraider: garrensmith: add the recipe to the run list use knife cook vagrant@machine's_ip_address
+[2012-06-03 10:02:57 -0400] garrensmith: railsraider: awesome thanks
+[2012-06-03 10:03:07 -0400] railsraider: you welcome
+[2012-06-03 10:03:22 -0400] railsraider: run list should be inside the nodes folder
+[2012-06-03 10:04:00 -0400] railsraider: you need to install knife-solo to use cook command
+[2012-06-03 10:04:19 -0400] railsraider: garrensmith: https://github.com/matschaffer/knife-solo
+[2012-06-03 10:05:20 -0400] garrensmith: railsraider: I have my run list just inside the roles folder
+[2012-06-03 10:05:31 -0400] railsraider: note the right place
+[2012-06-03 10:05:40 -0400] railsraider: install knife-solo
+[2012-06-03 10:06:01 -0400] railsraider: use knife kitchen to prep a skeleton which will create the folders
+[2012-06-03 10:06:41 -0400] railsraider: garrensmith: this will make it very clear
+[2012-06-03 10:06:42 -0400] railsraider: http://www.youtube.com/watch?v=1G6bd4b91RU
+[2012-06-03 10:06:51 -0400] garrensmith: railsraider: brilliant thanks
+[2012-06-03 11:31:25 -0400] scanf: if i do 'sudo gem install knife-solo knife-ec2' i should then have the 'knife' command on my system, right?
+[2012-06-03 11:31:30 -0400] scanf: (cuz i dont)
+[2012-06-03 11:49:35 -0400] bobw: scanf: where is gem putting stuff? it may not have ended up in your path.
+[2012-06-03 11:49:53 -0400] scanf: it is all debian defaults
+[2012-06-03 11:50:09 -0400] bobw: that will be the issue then.
+[2012-06-03 11:50:34 -0400] bobw: /var/lib/gems/1.8/bin/
+[2012-06-03 11:51:14 -0400] bobw: wheezy fixes the crazy the path stuff that debian does currently
+[2012-06-03 11:52:23 -0400] bobw: possibly
+[2012-06-03 12:46:07 -0400] till__: scanf: maybe you can get the REE and use their 'gem'
+[2012-06-03 12:46:11 -0400] till__: saner paths etc.
+[2012-06-03 12:46:15 -0400] till__: just ruby 1.8 though
+[2012-06-03 12:46:23 -0400] till__: but that generally seems to work well with chef
+[2012-06-03 12:51:07 -0400] scanf: i just used the opscode deb repo
+[2012-06-03 13:20:26 -0400] railsraider: i need help bootstrapping, it doesn't place the key on the remote node and fails authorization
+[2012-06-03 13:21:21 -0400] railsraider: the only thing i did was delete the user admin from couch db and recreate it by re-running the chef bootstrap on the server maybe that's what deleted the key?
+[2012-06-03 13:23:11 -0400] railsraider: should i just re-run knife configure -i?
+[2012-06-03 13:23:17 -0400] railsraider: on the server?
+[2012-06-03 14:15:08 -0400] mguillaume: Hello everybody
+[2012-06-03 14:16:01 -0400] mguillaume: I'm having an issue with "chef_gem", if anyone is available to help :D I'm running on the full-stack install 0.10.10.
+[2012-06-03 14:16:29 -0400] mguillaume: I have a "chef_gem 'rubyzip'" followed by "require 'rubyzip'" in my provider
+[2012-06-03 14:17:05 -0400] yfeldblum: mguillaume, go on
+[2012-06-03 14:17:15 -0400] mguillaume: the gem is installed (in the correct location, I can see it in the /opt/opscode tree), but the "require" part fails: FATAL: LoadError: no such file to load -- rubyzip
+[2012-06-03 14:17:34 -0400] mguillaume: I tried with Gem.clear_paths in between, but same thin
+[2012-06-03 14:17:35 -0400] mguillaume: g
+[2012-06-03 14:18:46 -0400] yfeldblum: mguillaume, because you're requiring the wrong thing?
+[2012-06-03 14:19:31 -0400] yfeldblum: mguillaume, you probably want `require "zip/zip"`
+[2012-06-03 14:20:06 -0400] mguillaume: oh, I'll try that, thanks :) I thought the require wanted the gem name (still new at that ruby thing, obviously)
+[2012-06-03 14:20:20 -0400] yfeldblum: mguillaume, that's just a guess; you may be looking for an instance of Gem::LoadError :P
+[2012-06-03 14:20:54 -0400] yfeldblum: mguillaume, right, that's only the case when the file path the gem exports as its public interface is equal to the gem name :P
+[2012-06-03 14:21:20 -0400] mguillaume: which would be convenient!
+[2012-06-03 14:21:59 -0400] railsraider: Hi, how do i setup sysctl values inside a recipe, i have to setup a few values before installing arno iptables firewall
+[2012-06-03 14:23:31 -0400] mguillaume: you can probably just call execute with "sysctl -w key=value"
+[2012-06-03 14:23:40 -0400] yfeldblum: mguillaume, if you look at the rubyzip code, https://github.com/aussiegeek/rubyzip/blob/master/lib/zip/zip.rb
+[2012-06-03 14:24:07 -0400] yfeldblum: mguillaume, most gems add their lib directories to the ruby load path ($LOAD_PATH), including the rubyzip gem
+[2012-06-03 14:24:58 -0400] mguillaume: I don't get a load error with zip/zip so that's good :) thanks!
+[2012-06-03 14:25:01 -0400] yfeldblum: mguillaume, and ruby will search all the elements of the array $LOAD_PATH for the file you're interested in in requiring
+[2012-06-03 14:25:29 -0400] yfeldblum: mguillaume, and ruby will search *in* all the elements of the array $LOAD_PATH for the file you're interested in in requiring
+[2012-06-03 14:26:14 -0400] yfeldblum: so it will see if "#{$LOAD_PATH[0]}/zip/zip" is a requirable file, and then it will see if "#{$LOAD_PATH[1]}/zip/zip" is a requirable file, and so on
+[2012-06-03 14:26:52 -0400] yfeldblum: so the gem name has got zero to do with it
+[2012-06-03 14:35:42 -0400] garrensmith: I have the standard nginx recipe setup. Where is the best place to put/manage my custom nginx.conf?
+[2012-06-03 14:40:25 -0400] yfeldblum: garrensmith, one option is: in your own cookbook
+[2012-06-03 14:40:56 -0400] garrensmith: yfeldblum: ok cool, will go with that. seems the easiest
+[2012-06-03 14:48:14 -0400] railsraider: anyone had luck with the sysctl cookbook?
+[2012-06-03 14:48:21 -0400] railsraider: it doesn't seem to change anything
+[2012-06-03 14:49:12 -0400] railsraider: it just put them in /etc/sysctl.d/68-chef-attributes.conf but not applying it to sysctl
+[2012-06-03 14:50:27 -0400] railsraider: i tried to put this into the attributes                    default[:sysctl][:net][:netfilter][:nf_conntrack_udp_timeout] = 60
+[2012-06-03 14:50:33 -0400] railsraider: nothing happens
+[2012-06-03 14:55:52 -0400] railsraider: anyone?
+[2012-06-03 14:56:12 -0400] railsraider: would go for any other cookbook for sysctl that actually works
+[2012-06-03 15:20:50 -0400] thedeeno: when using the opscode application cookbook how do you get the private key for repository authentication onto the node?
+[2012-06-03 15:21:55 -0400] thedeeno: I see an option for the public deploy key value but the cookbook seems to assume the private key is already there
+[2012-06-03 15:32:37 -0400] garrensmith: anyone else have this issue when install postgresql with the opscode cookbook Error: /var/lib/postgresql/9.1.3/main is not accessible or does not exist
+[2012-06-03 15:34:19 -0400] yfeldblum: railsraider, to use chef effectively, you should start by figuring out the steps you as a sysadmin would take to set up your system, and then automate those steps with chef in a recipe; if you can find a pre-existing cookbook that does that for you, well and good, but if you can't, that's what you'll need to do
+[2012-06-03 15:35:15 -0400] railsraider: yfeldblum: that's what i have a file with every step of installation of a server that i noted down
+[2012-06-03 15:35:29 -0400] railsraider: I'm just trying to make chef automate that
+[2012-06-03 15:36:46 -0400] yfeldblum: railsraider, right, so what i'm saying is, make chef automate that (if a cookbook you found doesn't work for your use case, then make chef automate it yourself in your own cookbook)
+[2012-06-03 17:10:53 -0400] pthread: is there a way in knife configure to set multiple cookbook_path entries?
+[2012-06-03 17:34:33 -0400] yfeldblum: pthread, on the command line for `knife configure`? why not just write the config file to have them?
+[2012-06-03 17:37:07 -0400] pthread: yfeldblum, I'm scripting my chef set up.  I'm modifying the config with an re right now in the script, just figured I'd ask as obviously it's most future proof if I go through the knife tool itself
+[2012-06-03 17:37:29 -0400] yfeldblum: pthread, the opposite is true
+[2012-06-03 17:37:42 -0400] yfeldblum: pthread, also, scripting `knife` is a bad idea
+[2012-06-03 17:37:50 -0400] yfeldblum: pthread, it's a low-level tool for humans
+[2012-06-03 17:38:30 -0400] pthread: okay, thanks
+[2012-06-03 17:38:36 -0400] yfeldblum: pthread, better use an ERB template and drop a pre-rendered knife config file from a (ruby) script
+[2012-06-03 17:47:04 -0400] yfeldblum: pthread, don't have to use ERB per se; the point is to script the config file however you want to do it, rather than script the `knife` command line
+[2012-06-03 17:48:00 -0400] pthread: yeah, I'll take that approach with the re (don't have ERB per se, as the script is python, but same idea)
+[2012-06-03 17:48:08 -0400] pthread: thanks
+[2012-06-03 18:09:48 -0400] hoover_damm: pcn, I'm aware of some work previously but I don't know if it was published.  Seeing as puppet is now advertising some switch/etc support I'm expecting to see more people work in switch support into chef more
+[2012-06-03 18:10:31 -0400] hoover_damm: pcn, it's likely going to be some cookbook that runs on a server to configure said switch either via telnet/serial/whatever.  As having native chef-client support would make it super awesome
+[2012-06-03 18:10:52 -0400] hoover_damm: short of that, you need to hop and basically have something like ohai do show running-config parse it, then manage all the knobs
+[2012-06-03 18:22:46 -0400] pcn: hoover_damm yeah, that's OK if you've got a management system and just need to wrap it in a script, but it's less OK when you don't
+[2012-06-03 18:27:18 -0400] hoover_damm: pcn, yep.  I have seen a lot of templating software that generates configs via templates
+[2012-06-03 18:27:34 -0400] hoover_damm: pcn, but basically this is something we just gotta do :)
+[2012-06-03 18:27:40 -0400] hoover_damm: once it's done our lives will be easier
+[2012-06-03 18:31:56 -0400] yfeldblum: there should be support for recipes which are intended to configure remote systems only, rather than the local system; and providers which operate by means of querying and commanding the remote system's API in order to converge it
+[2012-06-03 18:32:41 -0400] yfeldblum: and entire run-lists of this kind
+[2012-06-03 18:33:17 -0400] yfeldblum: then a single machine could run "foreign" run-lists for dozens of remote systems at once, safely
+[2012-06-03 18:33:57 -0400] yfeldblum: there would likely need to be some kind of split between LocalRunContext and RemoteRunContext
+[2012-06-03 18:35:03 -0400] yfeldblum: with `mount` being available in the LocalRunContext but `load_balancer_backend` being available in a RemoteRunContext
+[2012-06-03 18:35:19 -0400] yfeldblum: for some subclass of RemoteRunContext
+[2012-06-03 18:38:10 -0400] yfeldblum: with a f5 provider and a cisco provider and a juniper provider etc
+[2012-06-03 18:39:41 -0400] pcn: The cisco provider would be a nightmare
+[2012-06-03 18:39:53 -0400] hoover_damm: nah
+[2012-06-03 18:40:03 -0400] hoover_damm: the juniper one would be more scary
+[2012-06-03 18:40:13 -0400] hoover_damm: or extreme
+[2012-06-03 18:40:33 -0400] hoover_damm: I've been using iOS for over almost a decade now on and off
+[2012-06-03 18:40:43 -0400] hoover_damm: and really it's not that big of a deal... (perhaps it's not iOS but ios)
+[2012-06-03 18:40:46 -0400] hoover_damm: you get the idea
+[2012-06-03 18:40:51 -0400] pcn: Cisco has a habit of changing flags and output silently in patches is all.  Probably common across lower-rent vendors, too
+[2012-06-03 18:41:12 -0400] hoover_damm: that's low hanging fruit compared to other stuff
+[2012-06-03 18:41:33 -0400] hoover_damm: juniper is more xml like
+[2012-06-03 18:41:40 -0400] pcn: It has cascading effects.
+[2012-06-03 18:41:56 -0400] yfeldblum: haha but if someone else wrote it to handle these cases and supported a single provider across multiple versions of cisco's os and cli/api, then it wouldn't be a doubleplusterrible problem
+[2012-06-03 18:42:00 -0400] hoover_damm: basically the only way we'll solve this is by trying to solve it
+[2012-06-03 18:42:08 -0400] hoover_damm: if we let the enterprise manufacterers do the work
+[2012-06-03 18:42:10 -0400] hoover_damm: we'll never be done
+[2012-06-03 18:42:23 -0400] hoover_damm: or we can be like crucially and just use linux and say screw the switches/network
+[2012-06-03 18:42:48 -0400] pcn: Oh, it's doable.  It just takes a few smart people full time work to do care and feeding with only a few types of cisco equipment
+[2012-06-03 18:43:37 -0400] yfeldblum: someone else from opscode or the chef community or cisco admins who want to use chef ;P
+[2012-06-03 18:47:45 -0400] zts: Q: when specifying a package version for the yum provider, you must specify "a complete version-release".  eg, "1.2.1-1.el6" vs "1.2.1"
+[2012-06-03 18:47:59 -0400] zts: However, yum on the commandline is happy with "yum install packagename-1.2.1"
+[2012-06-03 18:48:27 -0400] zts: Can anyone think of a good reason for that behaviour, cause it strikes me as a bit of a misfeature
+[2012-06-03 18:58:42 -0400] zts: eh, never mind.  The apt provider behaves similarly
+[2012-06-03 19:14:34 -0400] hoover_damm: pcn, right start with a few types and grow.
+[2012-06-03 19:14:36 -0400] hoover_damm: just like puppet did
+[2012-06-03 19:37:01 -0400] pratyksp: Hi
+[2012-06-03 19:38:03 -0400] pratyksp: I'm using vagrant to test the chef cookbooks.
+[2012-06-03 19:40:01 -0400] pratyksp: I've setup apt-cacher-ng to cache the packages. So how do I pull the info about the host to put in chef cookbook.
+[2012-06-03 19:40:39 -0400] hoover_damm: if you use chef-server then search is your answer.  If you use chef-solo that's a manual process
+[2012-06-03 19:40:49 -0400] hoover_damm: or you have to build something to identify where the build host is so you can pull it
+[2012-06-03 19:42:21 -0400] hoover_damm: the_recipe="recipe[apt::apt-cacher-ng] my_host=search(:node, %Q{run_list:"recipe[#{the_recipe}]"} )
+[2012-06-03 19:42:31 -0400] hoover_damm: and then my_host.fqdn is what you'd be after likely
+[2012-06-03 19:42:46 -0400] hoover_damm: or .ipaddress
+[2012-06-03 19:45:20 -0400] pratyksp: When using vagrant the gateway is the ip of the host. Can I use it.
+[2012-06-03 19:46:07 -0400] pratyksp: I'm using chef-solo
+[2012-06-03 20:06:29 -0400] miah: herp the derp?
+[2012-06-03 20:46:55 -0400] David_Mi1ler: What do you guys think of using chef on very short-lived worker nodes
+[2012-06-03 20:47:01 -0400] David_Mi1ler: that have lifetimes of a few hours
+[2012-06-03 20:56:52 -0400] yfeldblum: David_Mi1ler, should be fine; because you clearly have automation around so many short-lived workers, chef-solo may be better for your particular purpose than chef-server
+[2012-06-03 20:57:28 -0400] yfeldblum: David_Mi1ler, however there are still benefits to chef-server that chef-solo can't match, depending on your needs

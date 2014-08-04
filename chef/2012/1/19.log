@@ -1,0 +1,323 @@
+[2012-01-19 08:18:00 -0500] BryanWB: is there a sysctl provider somewhere?
+[2012-01-19 08:19:00 -0500] BryanWB: found it
+[2012-01-19 08:40:00 -0500] neuro_damage: so here's a question...I have two cookbooks, cookbook A and B, B does an include_recipe and it seems that it's executing blocks during compile time, that should be run during execution time
+[2012-01-19 08:40:00 -0500] neuro_damage: is anyone aware of this issue and what hte current workaround is?
+[2012-01-19 08:42:00 -0500] neuro_damage: http://pastie.org/private/9e8jzlbab6t5w5wle27pw
+[2012-01-19 08:42:00 -0500] neuro_damage: is the example code block I'm referring to
+[2012-01-19 11:06:00 -0500] helllen: helllo
+[2012-01-19 11:07:00 -0500] helllen: I would like to create a cookbook
+[2012-01-19 11:07:00 -0500] helllen: I would like to execute reload
+[2012-01-19 11:07:00 -0500] helllen: for the init script
+[2012-01-19 11:07:00 -0500] helllen: instead of start when a file is modified
+[2012-01-19 11:08:00 -0500] helllen: how could I do this?
+[2012-01-19 11:15:00 -0500] helllen: If I put in the action :reload instead of start
+[2012-01-19 11:15:00 -0500] helllen: it gives me an error
+[2012-01-19 11:15:00 -0500] helllen: Chef::Exceptions::UnsupportedAction: #<Chef::Provider::Service::Redhat:0x00000003db5490> does not support :reload
+[2012-01-19 11:27:00 -0500] RobbieAB: hmm?
+[2012-01-19 11:27:00 -0500] RobbieAB: restart should work
+[2012-01-19 11:27:00 -0500] RobbieAB: I think.
+[2012-01-19 11:27:00 -0500] RobbieAB: You also need to define the service as supporting reload
+[2012-01-19 11:27:00 -0500] RobbieAB: or restart
+[2012-01-19 11:27:00 -0500] RobbieAB: They are different things in RHEL
+[2012-01-19 11:32:00 -0500] ranjibd: helllen, put a notifies :reload, "service[ur service name]" inside the file resource (which will trigger thids)
+[2012-01-19 11:33:00 -0500] ranjibd: helllen, and action :start , in the service itself
+[2012-01-19 11:33:00 -0500] ranjibd: if your init.d script supports reload, set supports :reload => true in the service definition
+[2012-01-19 11:33:00 -0500] ranjibd: service?
+[2012-01-19 11:33:00 -0500] bawt: service is decent, the food is usually excellent.
+[2012-01-19 11:34:00 -0500] ranjibd: resource?
+[2012-01-19 13:14:00 -0500] `brendan: morning
+[2012-01-19 13:18:00 -0500] thom: Mithrandir: ping?
+[2012-01-19 13:18:00 -0500] Mithrandir: thom: yo
+[2012-01-19 13:19:00 -0500] thom: your "reopen resources" definition (bottom of http://wiki.opscode.com/display/chef/Definitions ); how do you cause the resource to be converged? a cookbook at the bottom of the run list?
+[2012-01-19 13:20:00 -0500] Mithrandir: it happens automatically at the point where you first use the definition, I think
+[2012-01-19 13:20:00 -0500] Mithrandir: it's added to the collection by doing     t = template "/etc/aliases" do
+[2012-01-19 13:21:00 -0500] thom: ah, of course
+[2012-01-19 13:21:00 -0500] thom: thanks
+[2012-01-19 13:22:00 -0500] Mithrandir: :-)
+[2012-01-19 13:22:00 -0500] thom: was thinking it needed to have an action called on it, but it's being used as a regular resource not in compile phase
+[2012-01-19 13:36:00 -0500] Mithrandir: yeah, for an alias it doesn't make much sense to do it in compile phase, but I guess there might be some things where you want to trigger it then, I guess you could then just prepend it to the run list
+[2012-01-19 14:04:00 -0500] yfeldblum: when a resource is declared, it is merely added to the resources collection for later execution; when the resource is reopened, it has not been executed yet; the resource that is reopened remains added to the overall resources collection at the point where the resource was first declared
+[2012-01-19 14:45:00 -0500] BryanWB: yfeldblum: see this article? http://www.igvita.com/2012/01/18/building-a-modern-web-stack-for-the-realtime-web/
+[2012-01-19 14:49:00 -0500] yfeldblum: BryanWB, there are indeed problems with the basic technologies we use: e.g. http and https are on different ports, http doesn't support bidi streams, tcp doesn't support multiplexed substreams, and loads more
+[2012-01-19 14:50:00 -0500] BryanWB: i read parts 0mq manual over xmas. it made my head spin, but i liked it
+[2012-01-19 14:51:00 -0500] yfeldblum: i'm not quite a fan of "long-lived, persistent connections" - they make it harder to support spinning up and spinning down ephemeral nodes at will
+[2012-01-19 14:53:00 -0500] yfeldblum: 0mq is nice, and you can certainly use it between proxies and upstreams if the upstreams support it, although that's not quite the 12factor model
+[2012-01-19 14:53:00 -0500] BryanWB: yeah, it isn't shit in a bag
+[2012-01-19 14:57:00 -0500] yfeldblum: the 12factor model seems like it demands that your app have a "web" process that speaks "web" (http) and an "mail" process that speaks "mail" (smtp), and that something else provide the routing layer that can route http -> http and smtp -> smtp, and likewise whatever else your app speaks
+[2012-01-19 14:57:00 -0500] yfeldblum: but i don't know how well that works for various things
+[2012-01-19 14:59:00 -0500] yfeldblum: but the routing layer can certainly work over 0mq sending frames from the proxies to the upstreams over 0mq (there just needs to be a routing agent just in front of the upstream that translates that back to http over tcp)
+[2012-01-19 14:59:00 -0500] yfeldblum: but all of that is, for the moment, beyond what i need :P
+[2012-01-19 15:00:00 -0500] yfeldblum: but of the three motivations it cites: "SSL is becoming the default, streaming is no longer an option, and long-lived persistent connections are in."
+[2012-01-19 15:00:00 -0500] yfeldblum: we definitely need SSL-by-default and we need everything to support streaming (nginx, i'm looking at you)
+[2012-01-19 15:05:00 -0500] yfeldblum: BryanWB, any pain points with the current Web they mentioned that are affecting you as well?
+[2012-01-19 15:09:00 -0500] yfeldblum: BryanWB, http://thinkrelevance.com/blog/2011/11/15/documenting-architecture-decisions ... applies equally well to chef projects
+[2012-01-19 15:15:00 -0500] BryanWB: not affecting me, but the real-time web is the future of so many apps, so i c the same kind of protocols will be used on back-end, not just front-end. i am all about riding technical waves ;)
+[2012-01-19 15:31:00 -0500] yfeldblum: BryanWB, tech surfing?
+[2012-01-19 15:56:00 -0500] Andorbal: After running "gem install knife-windows" on a windows machine, should "knife winrm etc..." be immediately available?
+[2012-01-19 15:56:00 -0500] Andorbal: The docs suggest that installing the gem is all you need to do
+[2012-01-19 16:33:00 -0500] Andorbal: Is chef on Windows designed to only use its embedded ruby or can I point it at my own install?
+[2012-01-19 16:34:00 -0500] Andorbal: I'm asking because here at work, our "sysadmins" have decided to change everyone's home paths to a network share that's rarely accessible.
+[2012-01-19 16:58:00 -0500] gmcinnes1: happy winter chefs
+[2012-01-19 17:00:00 -0500] jtimberman: wintereenmas!
+[2012-01-19 17:02:00 -0500] gmcinnes1: snow expected in Toronto today.  Close the city!!1
+[2012-01-19 17:03:00 -0500] gmcinnes1: so, how do I deal with putting un-json friendly chars in a data bag.  I've come to the conclusion that the least of some evils here is to stick a private key in an encrypted bag.
+[2012-01-19 17:04:00 -0500] gmcinnes1: But I think it's choking because of "/" chars etc in the private key.
+[2012-01-19 17:05:00 -0500] BryanWB: gmcinnes1:  i would probably fire up irb, require 'json',
+[2012-01-19 17:06:00 -0500] gmcinnes1: duh. that's too obvious. It can't possibly work :)
+[2012-01-19 17:06:00 -0500] gmcinnes1: Anyone else seen this issue tho?
+[2012-01-19 17:06:00 -0500] BryanWB: and then Json.encode(' your string')  but not sure if encode is the proper method
+[2012-01-19 17:06:00 -0500] BryanWB: won't cause a problem
+[2012-01-19 17:06:00 -0500] BryanWB: double quotes will
+[2012-01-19 17:06:00 -0500] BryanWB: gtg
+[2012-01-19 17:12:00 -0500] zambaboo: hi all
+[2012-01-19 17:13:00 -0500] zambaboo: a q about http_request get and post calls - is the response stored anywhere/
+[2012-01-19 17:16:00 -0500] laurent\: afair, nope
+[2012-01-19 17:16:00 -0500] zambaboo: too bad.. thanks, labria
+[2012-01-19 17:16:00 -0500] laurent\: i think you have to use Net::HTTP
+[2012-01-19 17:16:00 -0500] zambaboo: woops, laurent\
+[2012-01-19 17:16:00 -0500] laurent\: that's what i'm using in one of my cookbook
+[2012-01-19 17:17:00 -0500] zambaboo: i implemented something using an execute calling out curl. it works.
+[2012-01-19 17:33:00 -0500] gmcinnes1: argtgh. roger me with a carrot, and slap my face with a trout.  Has no-one stored private keys in data bags before?
+[2012-01-19 17:36:00 -0500] ashb: gmcinnes1: yeah, why?
+[2012-01-19 17:37:00 -0500] gmcinnes1: ashb: having problems with the key because json encoding falls over. And I can't see exactly why it does.
+[2012-01-19 17:38:00 -0500] cwj: any ideas how i can troubleshoot "stack level too deep"? even debug doesn't really indicate where in my recipe the error is encountered https://gist.github.com/52ba5ac339a875972084
+[2012-01-19 17:39:00 -0500] ashb: gmcinnes1: http://pastie.org/private/oeqxaut3eyjpldx0cmxvq
+[2012-01-19 17:40:00 -0500] ashb: cwj: run chef-client -l debug
+[2012-01-19 17:40:00 -0500] cwj: i have, it isn't much more helpful
+[2012-01-19 17:40:00 -0500] gmcinnes1: ashb: that's what I have. It falls over.
+[2012-01-19 17:40:00 -0500] cwj: i dont feel like trying to sanitize debug output
+[2012-01-19 17:41:00 -0500] ashb: cwj: does it not tell you what file/recipie it is processing that is causing it?
+[2012-01-19 17:41:00 -0500] ashb: gmcinnes1: all I've never had to do is replace newlines with \n
+[2012-01-19 17:41:00 -0500] renchap: and here dies irccloud
+[2012-01-19 17:41:00 -0500] ashb: dear irccloud - shutup
+[2012-01-19 17:41:00 -0500] ashb: that
+[2012-01-19 17:41:00 -0500] cwj: it indicates its falling over inside my core recipe during compilation phase
+[2012-01-19 17:42:00 -0500] cwj: but not what line
+[2012-01-19 17:42:00 -0500] ashb: cwj: a file is including itself from the looks of things
+[2012-01-19 17:42:00 -0500] ashb: i suggest you edit /usr/lib/ruby/gems/1.8/gems//chef-0.10.8/bin/../lib/chef/mixin/from_file.rb and put a debug print in then
+[2012-01-19 17:44:00 -0500] cwj: yeah ok
+[2012-01-19 17:45:00 -0500] jdeamattson: fujin, jtimberman: (and others who know the Jenkins cookbook - how do you set the update center to work properly? I am getting the following:
+[2012-01-19 17:45:00 -0500] jdeamattson: git is neither a valid file, URL, nor a plugin artifact name in the update center
+[2012-01-19 17:45:00 -0500] jdeamattson: No update center data is retrieved yet from: http://updates.jenkins-ci.org/update-center.json
+[2012-01-19 17:45:00 -0500] jdeamattson: deploy looks like a short plugin name. Did you mean 'null'?
+[2012-01-19 17:46:00 -0500] gmcinnes1: LEEEEEROY Jenkins.
+[2012-01-19 17:46:00 -0500] gmcinnes1: I'm so done with this today. Sorry.
+[2012-01-19 17:48:00 -0500] cwj: putting debug logging in there isn't telling me anything new, i can see it loading in all the recipes i have included, adding my service resource to the collection, then asplodes with out hitting my debug line
+[2012-01-19 17:49:00 -0500] cwj: last time i had to muck around with "stack level too deep" it wound up being a version incompatibility with activerecord
+[2012-01-19 17:52:00 -0500] ashb: cwj: do oyu have any except handlers?
+[2012-01-19 17:53:00 -0500] cwj: nope
+[2012-01-19 17:53:00 -0500] ashb: does /var/chef/cache/chef-stacktrace.out contain the same stacktrace as in your gist?
+[2012-01-19 17:55:00 -0500] cwj: i think ive got it now, it seems like my node wasn't getting the latest version of the recipe from opscode platform
+[2012-01-19 17:55:00 -0500] cwj: now it is, and im able to continue running the recipe
+[2012-01-19 17:56:00 -0500] ashb: bizzare error
+[2012-01-19 17:56:00 -0500] cwj: yeah its confounded me a couple times before
+[2012-01-19 17:56:00 -0500] dajia: If I have node attributes nested a few levels deep (i.e. node[:foo][:bar][:spam]) and I need to test for :spam with the attribute? method without throwing for an error, do I first have to test for :foo and :bar ?
+[2012-01-19 17:56:00 -0500] ashb: dajia: yes
+[2012-01-19 17:56:00 -0500] ashb: the other thing you can do is:
+[2012-01-19 17:56:00 -0500] ashb: node[:foo][:var][:spam] rescue nil
+[2012-01-19 17:57:00 -0500] ashb: which just stomps on the error
+[2012-01-19 17:57:00 -0500] dajia: hmmm...that's interesting.  I haven't tried that.
+[2012-01-19 17:57:00 -0500] ashb: but is indistgunishable form having a value set to nil
+[2012-01-19 17:58:00 -0500] dajia: Thanks.
+[2012-01-19 17:58:00 -0500] jtimberman: gmcinnes1: maybe this will help? http://jtimberman.housepub.org/blog/2011/08/06/encrypted-data-bag-for-postfix-sasl-authentication/
+[2012-01-19 17:59:00 -0500] gmcinnes1: I seem to have fixed it by pulling the newlines out entirely.
+[2012-01-19 17:59:00 -0500] jtimberman: oh :)
+[2012-01-19 17:59:00 -0500] gmcinnes1: In other news, is there a way to keep my data bags encrypted in the file system?
+[2012-01-19 18:03:00 -0500] hcastro: gmcinnes1: you can output them using knife encrypted
+[2012-01-19 18:04:00 -0500] hcastro: this line in jtimberman's post: knife data bag show secrets postfix -Fj > data_bags/secrets/postfix.json
+[2012-01-19 18:06:00 -0500] ssd7: Ohai Chefs!
+[2012-01-19 18:06:00 -0500] gmcinnes1: oooh. aaah. gotcha.
+[2012-01-19 18:07:00 -0500] jbz: There's also a knife plugin which performs the encryption locally, and you can just upload the encrypted version normally
+[2012-01-19 18:07:00 -0500] jbz: (that way you never have to upload a cleartext one to show and encrypt)
+[2012-01-19 18:10:00 -0500] gmcinnes1: oh sheeet. I forgot all about those plugins.
+[2012-01-19 18:10:00 -0500] gmcinnes1: there's a whole bunch of awesome therte.
+[2012-01-19 18:14:00 -0500] jbz: gmcinnes1: Yeah, that one was super useful.
+[2012-01-19 18:19:00 -0500] Andorbal: Does anyone here have experience using chef with Windows?
+[2012-01-19 18:20:00 -0500] tim1: I have a small amount
+[2012-01-19 18:20:00 -0500] Andorbal: Have you done any bootstrapping through knife-windows?
+[2012-01-19 18:20:00 -0500] Andorbal: I'm able to get WinRM to work, but only if I use http with no encryption.
+[2012-01-19 18:21:00 -0500] Andorbal: And I'd obviously prefer encryption ;)
+[2012-01-19 18:21:00 -0500] tim1: We haven't.  We had the client as part of our WDS image and we use a post install task to setup roles
+[2012-01-19 18:22:00 -0500] Andorbal: So you're saying get chef-client all setup on a machine (except actually registering the node) and then when you create a new VM from that image, have it register itself?
+[2012-01-19 18:23:00 -0500] tim1: yep
+[2012-01-19 18:23:00 -0500] tim1: I know that's not how Opscode says it should be done, but it fits our needs better
+[2012-01-19 18:24:00 -0500] Andorbal: At this point, I'm just wanting to get something working.
+[2012-01-19 18:25:00 -0500] Andorbal: I like the idea of using WinRM, but it seems like you've got to go down the Active Directory path to get encryption going, or else buy a cert for each machine
+[2012-01-19 18:26:00 -0500] tim1: if you want to do win-rm with encryption setting it up in group policy is the simplest
+[2012-01-19 18:26:00 -0500] tim1: just set it at the domain level
+[2012-01-19 18:27:00 -0500] Andorbal: I don't want to mess with active directory, though, because I don't want to manage that infrastructure
+[2012-01-19 18:30:00 -0500] tim1: then you probably don't want to bootstrap those nodes with knife
+[2012-01-19 18:30:00 -0500] tim1: how do you actually provision your systems?
+[2012-01-19 18:30:00 -0500] tim1: are they vm templates or do you use WDS?
+[2012-01-19 18:31:00 -0500] Andorbal: Right now, it's a very manual one-off process.
+[2012-01-19 18:31:00 -0500] Andorbal: I'm trying to change that, though.
+[2012-01-19 18:31:00 -0500] tim1: well for now you could just install the chef client and configure it manually
+[2012-01-19 18:31:00 -0500] tim1: long term you could add that to a provisioning step
+[2012-01-19 18:32:00 -0500] tim1: via something like WDS
+[2012-01-19 18:32:00 -0500] Andorbal: Does the chef-client need to be running as a service to be managed by the chef-server in that case?
+[2012-01-19 18:33:00 -0500] tim1: if you run the MSI there's no service
+[2012-01-19 18:33:00 -0500] tim1: I'm not sure if you could create a service
+[2012-01-19 18:33:00 -0500] tim1: this is where I get a bit confused
+[2012-01-19 18:33:00 -0500] tim1: it's not as baked out as it is on Linux
+[2012-01-19 18:34:00 -0500] Andorbal: Ya, I've really gathered that.
+[2012-01-19 18:34:00 -0500] tim1: it's also VERY resource hungry
+[2012-01-19 18:34:00 -0500] tim1: chef runs will consume all CPU for up to a minute to do basic work
+[2012-01-19 18:34:00 -0500] Andorbal: Sigh...
+[2012-01-19 18:34:00 -0500] tim1: it's not like a 10 second run on Linux
+[2012-01-19 18:35:00 -0500] tim1: It was mentioned that one of the problems was since the chef-client doesn't run as a service it has to spin up the ruby environment every time it runs
+[2012-01-19 18:35:00 -0500] tim1: but Ruby on Windows seems to be resource intensive and rather slow in general
+[2012-01-19 18:35:00 -0500] Andorbal: Ya, I've noticed that in my tests.  Running the client seems to take forever
+[2012-01-19 18:35:00 -0500] tim1: even knife commands are very slow
+[2012-01-19 18:36:00 -0500] Andorbal: I really wish I didn't have to mess with Windows.  When you get past the pointy-clicky admin, it becomes very difficult to manage
+[2012-01-19 18:39:00 -0500] tim1: do you do powershell management at all?
+[2012-01-19 18:39:00 -0500] tim1: Microsoft got that right
+[2012-01-19 18:39:00 -0500] tim1: PowerShell on Server Core is pretty cool stuff
+[2012-01-19 18:39:00 -0500] Andorbal: We don't.
+[2012-01-19 18:39:00 -0500] tim1: that might be something worth checking out down the road
+[2012-01-19 18:40:00 -0500] tim1: and Chef can execute PowerShell commands which gets you around the features that are missing
+[2012-01-19 18:40:00 -0500] Andorbal: But I'd still have to get chef to run on the servers, wouldn't I?
+[2012-01-19 18:44:00 -0500] tim1: yes
+[2012-01-19 18:44:00 -0500] tim1: chef would be a tool to execute powershell on certain systems
+[2012-01-19 18:47:00 -0500] Andorbal: I swear it may be easier to try and get our app running in mono on linux than trying to manage these Windows machines...
+[2012-01-19 18:48:00 -0500] ranjibd: Andorbal, indeed , but some legacy apps are still on windows... u cant tell ur clients to change their platform :-)
+[2012-01-19 18:51:00 -0500] Andorbal: Well, we run a multi-tennant web application, so clients wouldn't know ;)
+[2012-01-19 18:57:00 -0500] btm: Andorbal: Chef already runs on windows. Use the installer: http://www.opscode.com/blog/2011/12/15/chef-client-installer-for-windows/
+[2012-01-19 18:57:00 -0500] Andorbal: I know it does, and I've got the basics set up but I'm running into problems with remote management using WinRM
+[2012-01-19 18:58:00 -0500] Andorbal: I can get it working unencrypted, but that's not something I want to do in production.
+[2012-01-19 18:59:00 -0500] btm: Andorbal: send an email to the list and we could try it out.
+[2012-01-19 19:01:00 -0500] Andorbal: It's not chef's problem; I can't get a cert installed in Windows because the docs say WinRM won't use self-signed certs and I don't want to join the machines to a domain to use the cert server
+[2012-01-19 19:10:00 -0500] jdeamattson: jtimberman, fujin: Interesting issues with the Jenkins cookbook. Worked around issue with the Update Center not being setup for the Jenkins CLI - will figure out a patch for the Cookbook and submit it in the near future, but now am hitting a new issue.
+[2012-01-19 19:11:00 -0500] ranjibd: jdeamattson, what?
+[2012-01-19 19:11:00 -0500] jdeamattson: jtimberman, fujin: Now what is happening is that the plugin-install is running nicely, and the plugins are being downloaded to /var/lib/jenkins/plugins/download/plugins, but they are not being installed.
+[2012-01-19 19:12:00 -0500] jdeamattson: jtimberman, fujin: Also appears that the example in the README of how to install plugins has an issue. You need to complete iterating over the list of plugins prior to triggering the restart.
+[2012-01-19 19:16:00 -0500] coderanger: PyCon early bird reg ends soon, if you want to come listen to me teach Chef and Fabric you should sign up now! https://us.pycon.org/2012/schedule/presentation/286/
+[2012-01-19 19:17:00 -0500] ranjibd: coderanger, Fabric ?
+[2012-01-19 19:17:00 -0500] coderanger: ranjibd: http://docs.fabfile.org/en/1.3.4/index.html
+[2012-01-19 19:18:00 -0500] ranjibd: coderanger, i know what it is? but why fabric? u had chef...
+[2012-01-19 19:18:00 -0500] coderanger: Fabric is a remote execution layer that is a lot more powerful than `knife ssh`
+[2012-01-19 19:19:00 -0500] ranjibd: for me ,  use chef+mcollective
+[2012-01-19 19:19:00 -0500] coderanger: Not all tasks are well suited to chef, for example doing a rolling deployment over X machines
+[2012-01-19 19:19:00 -0500] coderanger: or pulling nodes out of a load balancer during upgrade
+[2012-01-19 19:19:00 -0500] ranjibd: yeah... u roll a version using chef... mcollective decides whether up or down, and when
+[2012-01-19 19:19:00 -0500] coderanger: mcollective works, but requires much heavier setup than fab
+[2012-01-19 19:20:00 -0500] ranjibd: coderanger, aha.. agreed
+[2012-01-19 19:20:00 -0500] ranjibd: coderanger?
+[2012-01-19 19:20:00 -0500] bawt: coderanger is slow this morning
+[2012-01-19 19:20:00 -0500] coderanger: Hah, probably true most days
+[2012-01-19 19:20:00 -0500] coderanger: bawt: botsnack
+[2012-01-19 19:20:00 -0500] bawt: coderanger: ta :)
+[2012-01-19 19:20:00 -0500] ranjibd: awesome! this is some serious amusement
+[2012-01-19 19:22:00 -0500] jdeamattson: ranjibd: See my follow-on comments.
+[2012-01-19 19:31:00 -0500] mgolisch: does chef work in cygwin?
+[2012-01-19 19:38:00 -0500] dajia: mgolisch: I certainly wouldn't recommend running a client that way.  Use the Windows client.
+[2012-01-19 19:41:00 -0500] mgolisch: dajia: i thought so thx
+[2012-01-19 19:51:00 -0500] geekbri: coderanger: does fabric play well with ec2 like knife does?
+[2012-01-19 19:52:00 -0500] coderanger: geekbri: Define "play well", its a programatic SSH client, it doesn't care what you are SSHing to :)
+[2012-01-19 19:53:00 -0500] geekbri: coderanger: So for example with knife you can give it a list of nodes and it will use the ec2 libraries to pull the DNS addresess and SSH to them.  Basically does fabric do that as well, or do I myself have to use the AWS sdk to pull those DNS addresses
+[2012-01-19 19:53:00 -0500] coderanger: geekbri: You just use pychef.fabric to use Chef as the data source ;-)
+[2012-01-19 19:54:00 -0500] geekbri: coderanger: ah ok, that is the answer i was looking for!
+[2012-01-19 19:55:00 -0500] coderanger: Or boto, if you just want to query EC2 directly I guess
+[2012-01-19 19:55:00 -0500] coderanger: Never tried that
+[2012-01-19 19:59:00 -0500] jnials: @coderanger, you just became my hero.   I was looking at a whole lot more ruby till just now. :)
+[2012-01-19 20:00:00 -0500] statix: I'm trying to do this in a bootstrap script, but apparently this is not legal Ruby, can someone tell me how to do this?    echo "<%= @config[:chef_node_name].split(".")[0] %>" > /etc/hostname
+[2012-01-19 20:01:00 -0500] jtimberman: mgolisch: chef's commands work fine under cmd.exe and powershell.exe... i haven't used cygwin myself.
+[2012-01-19 20:04:00 -0500] geekbri: coderanger: so what exactly can fabric do that knife can't.  What is the compelling reason to use fabric with chef?
+[2012-01-19 20:04:00 -0500] coderanger: geekbri: Things like multi-stage rollouts or poking LBs
+[2012-01-19 20:04:00 -0500] coderanger: Or really anything that isn't SSH-in-a-for-loop
+[2012-01-19 20:04:00 -0500] geekbri: coderanger: gotcha, so basically its just an alternative to mcollective.
+[2012-01-19 20:04:00 -0500] mgolisch: jtimberman: good iam just gona call it using cmd.exe then
+[2012-01-19 20:05:00 -0500] coderanger: geekbri: Something like that, just much lighter weight since you don't need to install anything on the remote side
+[2012-01-19 20:05:00 -0500] geekbri: coderanger: right, you wont need whatever message queue mcollective needs.   its the inbetween... not as heavy as mcollective, but more powerful than knife
+[2012-01-19 20:06:00 -0500] coderanger: Basically that, yes
+[2012-01-19 20:06:00 -0500] coderanger: Also, if you are more comfortable with Python, its nice to have :-)
+[2012-01-19 20:14:00 -0500] tolland: i think ive borked my chef-server-webui all the cool javascript UI is dead.
+[2012-01-19 20:14:00 -0500] tolland: has there been an update that might have done something?
+[2012-01-19 20:21:00 -0500] coderanger: tolland: What version and how did you install it?
+[2012-01-19 20:21:00 -0500] coderanger: Some of the .debs are broken because of odd Debian policies re: jQuery
+[2012-01-19 20:21:00 -0500] coderanger: but it was fixed a while ago
+[2012-01-19 20:23:00 -0500] tolland: gem 0.10.8
+[2012-01-19 20:24:00 -0500] tolland: some one mentioned that all the jquery stuff was borked a while back, but because i normally use knife i didnt notice
+[2012-01-19 20:26:00 -0500] tolland: Error: missing } after function body in javascripts/jquery-ui-1.7.1.custom.min.js
+[2012-01-19 20:37:00 -0500] basic`: coderanger: oh wow, didn't realize you were an op here.  thanks for all of that help with trace plugins a few years back :)
+[2012-01-19 20:37:00 -0500] basic`: trac*
+[2012-01-19 20:38:00 -0500] coderanger: basic`: Heh, no problem :)
+[2012-01-19 20:48:00 -0500] spicyWith: jtimberman: I'm having trouble with the postgresql cookbook on a ubuntu 11.04 running on vagrant. When trying to install the server, it tries to install the client. The problem seems to be that apt-get isn't up to date. I added the "recipe[apt]" to my run_list for the node, but it doesn't seem to be taking effect. Should I be using it in a different way?
+[2012-01-19 20:56:00 -0500] jbz: spicyWith: Is the apt db not up to date, or are the packages themselves not being upgraded?
+[2012-01-19 20:57:00 -0500] jtimberman: spicyWith: I just released a new version, can you give that a try?
+[2012-01-19 20:58:00 -0500] jtimberman: and yes, use the apt recipe, which should come before other recipes.
+[2012-01-19 21:17:00 -0500] ctrabold: Hi! Is it possible to colorize output in knife scripts?
+[2012-01-19 21:24:00 -0500] dajia: Is it possible to to set a node attribute in an ohai plugin, then reference that attribute in another ohai plugin?
+[2012-01-19 21:30:00 -0500] spheromak: anyone seen this?  never really used solo, but its bombing on any LWRP
+[2012-01-19 21:30:00 -0500] spheromak: http://pastie.org/3215577
+[2012-01-19 21:32:00 -0500] spheromak: whoa
+[2012-01-19 21:32:00 -0500] spheromak: nvm i see the issu. some tar/osx failure here with weird files
+[2012-01-19 21:33:00 -0500] ctrabold: ui.color(), color(text, COLOR) [inspired by chef/lib/chef/knife/status.rb] doesn't work...
+[2012-01-19 21:33:00 -0500] laurent\: dajia: i think there are already some ohai plugins depending on each other, pretty sure you it can be a source of inspiration :) but as far as i understand ohai doesn't/can't deal with node attributes
+[2012-01-19 21:37:00 -0500] dajia: I think my terminology was a bit off:  can I create/set *any* kind of attribute in an ohai plugin, then reference that in another ohai plugin?  Do you know of one I can look at?
+[2012-01-19 21:37:00 -0500] fujin: look at the ec2 plugin and the cloud plugin
+[2012-01-19 21:37:00 -0500] fujin: cloud plugin gets set up by loading rackspace, ec2, blah blah
+[2012-01-19 21:38:00 -0500] fujin: then extracts values from each of them and normalizes
+[2012-01-19 22:07:00 -0500] hippiehacker: I'm close to confirming that the 10.8 client .msi has issues on 2008R1, but not on 2008R2 and later
+[2012-01-19 22:07:00 -0500] hippiehacker: can anyone else verify that?
+[2012-01-19 22:08:00 -0500] jessicab: hippiehacker - think chef in general has issues with r1? its not listed as a supported os.. just r2 is
+[2012-01-19 22:09:00 -0500] jessicab: theres a list of oses on the righthand side of this page - http://wiki.opscode.com/display/chef/Fast+Start+Guide
+[2012-01-19 22:11:00 -0500] hippiehacker: jessicab: I have 10.6 working (mostly) on 2008R1
+[2012-01-19 22:19:00 -0500] hippiehacker: 10.6 works, what is the url for 10.6?
+[2012-01-19 22:29:00 -0500] hippiehacker: http://s3.amazonaws.com/opscode-full-stack/windows/chef-client-0.10.6-1.msi
+[2012-01-19 22:29:00 -0500] hippiehacker: is there a bot or irc log that goes somewhere? Would love to search the irc archives ;)
+[2012-01-19 22:30:00 -0500] hackeron: Hey, is there anything similar to facter for chef? (http://puppetlabs.com/puppet/related-projects/facter/)
+[2012-01-19 22:31:00 -0500] cwj: i am not very familiar with puppet but i believe ohai is to factor as chef is to puppet
+[2012-01-19 22:32:00 -0500] hackeron: cwj: ah, brilliant, thanks :)
+[2012-01-19 22:34:00 -0500] mkent_: hippiehacker, http://likens.us/logs/
+[2012-01-19 22:35:00 -0500] mkent_: no built in search though
+[2012-01-19 22:35:00 -0500] coderanger: hippiehacker: Stay tuned on that :D
+[2012-01-19 22:36:00 -0500] coderanger: hippiehacker: Good Things (tm) are coming
+[2012-01-19 22:37:00 -0500] lukes: could someone please explain to me how i should use the resource 'postgresql_database' described here: https://github.com/opscode/cookbooks/blob/master/database/README.md ?
+[2012-01-19 22:37:00 -0500] lukes: am i supposed to make a new cookbook and reference that in eg my_cookbook/recipes/default.rb ?
+[2012-01-19 22:40:00 -0500] coderanger: lukes: Yep
+[2012-01-19 22:40:00 -0500] coderanger: Make a recipe for your application and use it there
+[2012-01-19 22:40:00 -0500] lukes: coderanger: thanks
+[2012-01-19 22:40:00 -0500] lukes: i tried this: https://gist.github.com/603d391c9ac7126cb00c
+[2012-01-19 22:40:00 -0500] lukes: but i got errors. what should i be doing differently?
+[2012-01-19 22:41:00 -0500] coderanger: What was the error?
+[2012-01-19 22:41:00 -0500] lukes: it was then https://gist.github.com/46d8c2ccd341aff3d256
+[2012-01-19 22:41:00 -0500] lukes: after i did "knife cookbook upload postgres_challenge" (where postgres_challenge is my cookbook name)
+[2012-01-19 22:42:00 -0500] coderanger: lukes: Oh, right
+[2012-01-19 22:42:00 -0500] coderanger: welcome to ugly ruby syntax
+[2012-01-19 22:42:00 -0500] coderanger: foo {} is how you pass a lambda to a function
+[2012-01-19 22:42:00 -0500] coderanger: You either need to do foo({...})
+[2012-01-19 22:43:00 -0500] coderanger: or foo Hash.new({...})
+[2012-01-19 22:43:00 -0500] coderanger: or, in this case
+[2012-01-19 22:43:00 -0500] coderanger: just connection :host => ....
+[2012-01-19 22:43:00 -0500] coderanger: Drop the {}
+[2012-01-19 22:43:00 -0500] coderanger: Yes, this makes no smegging sense
+[2012-01-19 22:43:00 -0500] lukes: trying, thanks ...
+[2012-01-19 22:44:00 -0500] lukes: shit that worked
+[2012-01-19 22:44:00 -0500] lukes: coderanger: thanks very much, you are the man
+[2012-01-19 22:47:00 -0500] lukes: coderanger: since it's wrong here: http://community.opscode.com/cookbooks/database, should i try to help the next guy by correcting it?
+[2012-01-19 22:47:00 -0500] coderanger: lukes: Go for it! Make sure you sign a CLA before sending in the pull request though
+[2012-01-19 22:47:00 -0500] coderanger: contributing?
+[2012-01-19 22:47:00 -0500] bawt: contributing is http://wiki.opscode.com/display/chef/How+to+Contribute
+[2012-01-19 22:47:00 -0500] lukes: cheers
+[2012-01-19 22:58:00 -0500] yfeldblum: so debian has useradd and adduser, and then pgsql has createuser ... debian, wtf? pg, wtf?
+[2012-01-19 22:59:00 -0500] coderanger: adduser vs. useradd is a tale as old as dirt
+[2012-01-19 22:59:00 -0500] coderanger: one is a low-level etcpasswd editor, the other is an interactive script wrapper for the low-level
+[2012-01-19 22:59:00 -0500] cwj: a tale of woe even
+[2012-01-19 22:59:00 -0500] coderanger: The fun question, which is which
+[2012-01-19 23:15:00 -0500] nash_: Hi guys, I'm looking at this Chef recipe: https://github.com/37signals/37s_cookbooks/blob/master/nginx/recipes/default.rb line #9 tell dpkg to install from that dir, but when I provision, getting error that package is not there
+[2012-01-19 23:16:00 -0500] nash_: looking here: https://github.com/37signals/37s_cookbooks/tree/master/nginx/files/default I see the files. Should I have a separare recipe that copies them over?
+[2012-01-19 23:23:00 -0500] geoff__: hi, I've been having issues in 10.8 with chef not restarting services on notify. Most of these are in recipes unchanged since 10.4. Has there been a regression?
+[2012-01-19 23:29:00 -0500] jesserobbins: Ohai Just wanted you to know that  http://twitter.com/search?q=%23ChefConf will be May 15-17th in Burlingame, CA. Early Call for Proposals open now: http://t.co/qMjwpYyL ;-)
+[2012-01-19 23:30:00 -0500] c_t: why down there?
+[2012-01-19 23:31:00 -0500] jdeamattson: All: there is a bug in the current release version of Jenkins which causes the plug-in install/update via the jenkins_cli provider in the Jenkins cookbook to fail.
+[2012-01-19 23:31:00 -0500] jdeamattson: It has been fixed and will be released two Mondays from now.
+[2012-01-19 23:32:00 -0500] jdeamattson: But until it is, the Jenkins cookbook will not work properly for updating and installing Jenkins plugins.
+[2012-01-19 23:35:00 -0500] NightMonkey: jesserobbins: Ah, sweet! :)
+[2012-01-19 23:36:00 -0500] NightMonkey: jesserobbins: When will registration open?
+[2012-01-19 23:36:00 -0500] jesserobbins: c_t: highest user density.
+[2012-01-19 23:36:00 -0500] jesserobbins: nightmonkey: hopefully next week or the week after for super-duper early reg.
+[2012-01-19 23:36:00 -0500] mkent_: dang it, right when the baby is due :(
+[2012-01-19 23:36:00 -0500] NightMonkey: Great news.
+[2012-01-19 23:43:00 -0500] danryan: chefconf!!!
+[2012-01-19 23:58:00 -0500] rudyl313: I'm having problems with the node variable.. my json attributes file includes a key called "roles" with a value ["nginx"] .. but when I go puts "#{node[:roles]}" it returns an empty array
+[2012-01-19 23:58:00 -0500] rudyl313: is roles an existing method of the node variable or something?

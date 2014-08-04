@@ -1,0 +1,581 @@
+[2012-12-13 00:01:35 -0500] btm: jwcarman: ranjibd, no, you're right. nodes can read other node objects, which is important for being able to set up things like monitoring where you need to configure it for multiple servers.
+[2012-12-13 00:01:40 -0500] btm: https://github.com/opscode/chef/blob/10-stable/chef-server-api/app/controllers/nodes.rb#L30
+[2012-12-13 00:02:27 -0500] btm: I was thinking of validation client work I did some time ago, and I probably should pay more attention to what I'm doing than spinning fables on IRC.
+[2012-12-13 00:02:47 -0500] coderanger: jwcarman: There is no way to restrict read access in OSC
+[2012-12-13 00:03:12 -0500] coderanger: In OHC and OPC there is a more complex ACLs system which allows things like that though :)
+[2012-12-13 00:03:30 -0500] coderanger: Related: Does anyone in here make use of custom ACLs? If so I would love to talk to you
+[2012-12-13 00:08:41 -0500] ranjibd: coderanger, did some work in my past org, mainly by patching the opensource chef server
+[2012-12-13 00:08:59 -0500] coderanger: Heh, I mean the OHC/OPC ACLs system
+[2012-12-13 00:09:03 -0500] coderanger: Working on the UI for it at the moment
+[2012-12-13 00:09:22 -0500] ranjibd: oh :-) ,,, no.. nothing on those fronts
+[2012-12-13 00:13:06 -0500] benr: btm: if you have a second, i have a question about CHEF-3364
+[2012-12-13 00:13:44 -0500] btm: benr: what's up?
+[2012-12-13 00:15:17 -0500] benr: btm: I'm curious to understand about the test failure noted there.  The change representing the "failure" was simply that its now using a fully qualified path
+[2012-12-13 00:15:36 -0500] benr: I'm unsure what to do to "fix" this other than revert to unqualified path
+[2012-12-13 00:18:08 -0500] btm: benr: the unit tests are naive, because we have to stub everything out. It's very likely the fix is to just go into the test and find where the output is fixed and update it for what it should be now. super simple, I just didn't have the time to look at it myself today.
+[2012-12-13 00:18:34 -0500] benr: ok, i'll update the spec.
+[2012-12-13 00:18:36 -0500] benr: Thanks!
+[2012-12-13 00:29:58 -0500] dougireton: I'm having trouble with a windows package installer. I'm trying to install VirtualBox on Windows.
+[2012-12-13 00:30:35 -0500] PhilK: jtimberman: this merge actually breaks the runit cookbook for me. Chef::FileAccessControl wants a provider too and this doesn't specify one https://github.com/opscode-cookbooks/runit/commit/d9b34ff0bfa88de0ccb98a4ba5b9c9ab0dc295d4#L0R192
+[2012-12-13 00:30:38 -0500] dougireton: I'm using the windows_package resource with a custom installer type. VirtualBox installs fine but chef just hangs after kicking off the install
+[2012-12-13 00:30:43 -0500] PhilK: thanks for merging my fix though :D
+[2012-12-13 00:31:26 -0500] PhilK: I think it should be file_resource.provider ?
+[2012-12-13 00:32:42 -0500] jtimberman: PhilK: Hm.
+[2012-12-13 00:32:44 -0500] jtimberman: Looking.
+[2012-12-13 00:36:19 -0500] PhilK: note that before this change it would hang for me on the file touch action so I guess this is sort of progress... :)
+[2012-12-13 00:36:20 -0500] avishai: hi
+[2012-12-13 00:36:29 -0500] jtimberman: ha! :)
+[2012-12-13 00:36:34 -0500] avishai: anyone here handy with writing ohai plugins?
+[2012-12-13 00:38:09 -0500] avishai: i'm having issue with a plugin trying to rely on some other ohai data
+[2012-12-13 00:38:27 -0500] avishai: require_plugin doesn't seem to make the other plugin run before my plugin
+[2012-12-13 00:44:58 -0500] PhilK: jtimberman: so when I change it to access_control = Chef::FileAccessControl.new(file_resource, file_resource, file_resource.provider) it sort of works, access_control.set_all just doesn't do anything...though access_control.set_all! works as expected
+[2012-12-13 00:49:50 -0500] jtimberman: PhilK: okay - so do you get an ArgumentError exception that looks something like this? https://gist.github.com/6f88ad16f592ddf44e19
+[2012-12-13 00:50:11 -0500] jtimberman: without that change
+[2012-12-13 00:50:45 -0500] PhilK: jtimberman: yup, that's the one
+[2012-12-13 00:51:12 -0500] jtimberman: k, just confirming that i reproduced it :)
+[2012-12-13 00:52:47 -0500] cheeseplus: can you have multiple not_if conditions in an execute block?
+[2012-12-13 00:52:54 -0500] cheeseplus: or only_if for that matter
+[2012-12-13 00:53:04 -0500] PhilK: ok, might have a fix idea, I think it gets mixed up passing it the same file_resource, one should be the original untouched resource and one should be the resource with owner and group set
+[2012-12-13 00:55:39 -0500] redgetan: librarian deletes my custom recipe in cookbooks/foo/recipes/default.rb whenever i do librarian-chef install. Why does it do that? should i be placing my recipe somwhere else?
+[2012-12-13 00:56:01 -0500] prki: yeah, you should
+[2012-12-13 00:56:17 -0500] miah: redgetan: librarian assumes you keep _nothing_ in your cookbooks folder
+[2012-12-13 00:56:26 -0500] prki: I saw a pattern to use cookbooks for librarian managed cookbooks and site-cookbooks for yours
+[2012-12-13 00:56:33 -0500] prki: then just configure knife to use both
+[2012-12-13 00:56:34 -0500] miah: sit it in site-cookbooks if you want librarian to leave it be
+[2012-12-13 00:57:06 -0500] PhilK: jtimberman: PR. still need to create a ticket/bug report as well? https://github.com/opscode-cookbooks/runit/pull/9
+[2012-12-13 00:57:21 -0500] redgetan: ic, so i put in another folder, and then specify the folder path and recipe name in my librarian Cheffile
+[2012-12-13 00:57:45 -0500] prki: you don't need that
+[2012-12-13 00:58:06 -0500] prki: just put this in your knife.rb
+[2012-12-13 00:58:07 -0500] prki: cookbook_path            ["#{current_dir}/../cookbooks", "#{current_dir}/../site-cookbooks"]
+[2012-12-13 00:58:13 -0500] redgetan: oh ic
+[2012-12-13 00:58:17 -0500] redgetan: that make sense
+[2012-12-13 00:58:27 -0500] prki: if you put it in librarian with path
+[2012-12-13 00:58:40 -0500] prki: it would copy over that cookbook everytime
+[2012-12-13 00:59:09 -0500] prki: so you would have your cookbook in 2 places and you would need to sync them
+[2012-12-13 01:00:30 -0500] redgetan: specifying two cookbook_path definitely sounds like a better way to go
+[2012-12-13 01:02:06 -0500] miah: guh. mixlib-cli
+[2012-12-13 01:02:18 -0500] miah: even though i found a bug in Thor.. i still prefer it :P
+[2012-12-13 01:03:02 -0500] miah: i'm specifying a default on a option and when i don't pass a argument to the option its not using the default and just complaining that i need to pass an argument :/
+[2012-12-13 01:23:03 -0500] githubble: hi, how do I create a recipe to run from chef?
+[2012-12-13 01:24:03 -0500] bluepojo: knife cookbook create my_cookbook
+[2012-12-13 01:24:37 -0500] Twirrim: Set up a workstation as per : http://docs.opscode.com/install.html
+[2012-12-13 01:25:34 -0500] githubble: bluepojo ... do I edit a rb file in there to customise it once the cookbook is created?
+[2012-12-13 01:25:47 -0500] bluepojo: that will generate a skeleton of a cookbook
+[2012-12-13 01:25:51 -0500] bluepojo: that you can edit
+[2012-12-13 01:26:13 -0500] bluepojo: I am fond of this guide, if you are just getting started: vialstudios.com/guide-authoring-cookbooks.html
+[2012-12-13 01:26:28 -0500] githubble: bluepojo so I edit the metadata.rb?  is there a wiki page on creating your own cookbooks?
+[2012-12-13 01:26:58 -0500] bluepojo: that link has a detailed walk through of how to write a cookbook
+[2012-12-13 01:27:08 -0500] bluepojo: with a tool called berkshelf
+[2012-12-13 01:27:14 -0500] bluepojo: but yeah, metadata.rb is part of it
+[2012-12-13 01:27:24 -0500] bluepojo: there is also a directory called recipes
+[2012-12-13 01:27:30 -0500] bluepojo: that will contain a file called default.rb
+[2012-12-13 01:27:34 -0500] bluepojo: that is the default recipe for the cookbook
+[2012-12-13 01:27:41 -0500] bluepojo: and where you'll probably start
+[2012-12-13 01:56:36 -0500] pcn: can multiple not_if/only_if conditions be put into a resource?
+[2012-12-13 02:01:44 -0500] timsmith: Can anyone tell me why you'd get this error when creating a user:  undefined method `sp_pwdp' for nil:NilClass
+[2012-12-13 02:01:45 -0500] jtimberman: pcn: yes
+[2012-12-13 02:01:56 -0500] pcn: OK, thanks.  Testing it out
+[2012-12-13 02:02:08 -0500] jtimberman: timsmith: trying to send the #sp_pwdp method to soething that is nil would be my guess ;)
+[2012-12-13 02:02:44 -0500] timsmith: any real idea
+[2012-12-13 02:02:44 -0500] timsmith: ?
+[2012-12-13 02:02:58 -0500] timsmith: I know this has happened to me before
+[2012-12-13 02:03:02 -0500] timsmith: not sure how I magically fixed it
+[2012-12-13 02:03:27 -0500] pcn: timsmith: check out the resulting backtrace - what's on that line?
+[2012-12-13 02:04:17 -0500] timsmith: I'm going to try to generate the PW again
+[2012-12-13 02:04:27 -0500] timsmith: but I think it might also be Chef not handling me trying to create a non-unique UID
+[2012-12-13 02:04:30 -0500] timsmith: without specifying that
+[2012-12-13 02:13:39 -0500] timsmith: https://gist.github.com/4273469
+[2012-12-13 02:13:41 -0500] timsmith: still busted
+[2012-12-13 02:13:43 -0500] timsmith: generated a new PW
+[2012-12-13 02:13:48 -0500] timsmith: and added allow unique
+[2012-12-13 02:17:37 -0500] timsmith: anyone?
+[2012-12-13 02:44:16 -0500] khimera:  so its my first time booting into the cloud w/ chef.  I  am using ubuntu precise 12.0.4 and some of the packages need upgrades so I am tapping into some repos for the upgrade installations. So heres my real question, since everything is automated and the packages are constantly being upgraded is it a good idea to specify a specific version, and if so should i compiled from source instead ( to prevent things from breaking due to u
+[2012-12-13 02:44:16 -0500] khimera: perhaps? )
+[2012-12-13 02:46:03 -0500] timsmith: why would chef try to do a usermod on a user that doesn't exist and has an action or :create
+[2012-12-13 02:48:02 -0500] cwj: khimera: thats a question with many correct answers, but fwiw chef isn't going to automatically upgrade packages unless you specify an upgrade action for them
+[2012-12-13 02:53:19 -0500] khimera: cwj: Yea, I hear you. I am just thinking about when our application will be scaling and booting up new servers or replacing the old w/ new and the new repos will have a newer version of the package that could cause some issues?
+[2012-12-13 02:53:43 -0500] khimera: but i guess i could do apt-pinning?
+[2012-12-13 02:53:51 -0500] cwj: sure
+[2012-12-13 02:53:52 -0500] amsams: just what I was about to suggest :)
+[2012-12-13 02:54:31 -0500] cwj: the opscode apt cookbook provides a LWRP for pinning packages
+[2012-12-13 02:54:35 -0500] cwj: apt_preference
+[2012-12-13 02:55:27 -0500] khimera: ah nice
+[2012-12-13 02:55:34 -0500] khimera: i will take a look at that
+[2012-12-13 02:56:00 -0500] khimera: thanks.
+[2012-12-13 03:11:22 -0500] blasdelf: http://cdn.memegenerator.net/instances/250x250/31629567.jpg
+[2012-12-13 03:55:29 -0500] githubble: bluepoho ... thanks for earlier.... now I would like to create directories etc ... similar to a shell .sh script.... is this possible with a recipe?
+[2012-12-13 03:56:20 -0500] miah: githubble: you should go read: docs.opscode.com
+[2012-12-13 03:56:58 -0500] miah: and take a look at some other cookbooks to get a sense of their structure and makings
+[2012-12-13 03:57:06 -0500] githubble: miah ok I have in part ..... just a pointer would help :)
+[2012-12-13 03:57:37 -0500] miah: http://docs.opscode.com/resource.html
+[2012-12-13 04:00:42 -0500] githubble: miah seem powershell_script is my friend
+[2012-12-13 04:04:15 -0500] ssd7: Ohai Chefs
+[2012-12-13 04:04:58 -0500] pcn: hai
+[2012-12-13 04:05:13 -0500] pcn: I am running into a weird issue.
+[2012-12-13 04:06:02 -0500] pcn: 0.10.8 - I am using node.set["cassandra_seed_ip"] = `something`
+[2012-12-13 04:06:13 -0500] pcn: This is done in a ruby_block
+[2012-12-13 04:06:29 -0500] pcn: Later when I want to use that in a template, I can see that attribute
+[2012-12-13 04:06:50 -0500] pcn: E.g. p node["cassandra_seed_ip"] in a not_if shows me that I see the IP
+[2012-12-13 04:08:01 -0500] pcn: But in the template, when I set :seed => [ node["cassandra_seed_ip"] ], printing out @seed from the template is showing me [nil]
+[2012-12-13 04:09:36 -0500] pcn: Here's a gist: https://gist.github.com/4273936
+[2012-12-13 04:09:40 -0500] ssd7: pcn: The not_if is evaluated during the convergence phase while that variables block in your template is evaluated during the resouce compilation
+[2012-12-13 04:10:35 -0500] ssd7: Since the ruby_block runs during convergence, when you try to access the attribute before convergence (such as in your template definition), it isn't set and is nil
+[2012-12-13 04:11:38 -0500] ssd7: Easiest way to get around it would be to access the node directly from inside the template rather than passing in the value via variables()
+[2012-12-13 04:11:40 -0500] pcn: I was afraid that was the case.  Is there a way to delay evaluation of the assignment of the attribute?  I thought that by using the template in this manner I'd be evaluating everything during convergence
+[2012-12-13 04:12:11 -0500] pcn: I've got a religious issue with accessing node data directly from within templates.  I like interfaces.
+[2012-12-13 04:14:14 -0500] pcn: Actually, I can probably stash that under the "cassandra" key.  I think that would cause the cassandra key to be evaluated and reference passed to the template, but the keys within the hash would be malleable until the convergence finishes.
+[2012-12-13 04:18:13 -0500] khimera: anyone able to help me to grab this repo using the lwrp for the following : http://archives.dotdeb.org/dists/squeeze/php5/5.4.8/   http://pastebin.com/Ys9tEamG
+[2012-12-13 04:27:11 -0500] Glace: Question about the deploy resource or the application cookbook. Is there a way to do a block of code after that it got the "ok" that it needs to deploy but before actually copying the code from git?
+[2012-12-13 04:27:31 -0500] Glace: The before_deploy callback seems to run all the time even if it does not deploy.. so that does not work
+[2012-12-13 05:42:18 -0500] ssd7: Any Chef's know which zookeeper cookbook most people are using?
+[2012-12-13 05:47:16 -0500] matti: All of them suck.
+[2012-12-13 05:47:18 -0500] matti: ;]
+[2012-12-13 05:47:48 -0500] matti: I wrote my own, that uses CHD4.
+[2012-12-13 05:47:54 -0500] matti: Now.
+[2012-12-13 05:48:16 -0500] matti: Trying to get Exhibitor building, and then will hopefully publish cookbook for it.
+[2012-12-13 05:48:21 -0500] matti: If my company permits.
+[2012-12-13 05:50:26 -0500] ssd7: Cool
+[2012-12-13 05:51:27 -0500] matti: Meh. I will ask if I can share ZK cookbook.
+[2012-12-13 05:52:29 -0500] ssd7: Isn't a pressing need here.  Starting to look at it and usually like to aim my contributions at whatever the community has already gravitated toward
+[2012-12-13 05:53:13 -0500] matti: I dislike most of the cookbook as they pull crap from the internet.
+[2012-12-13 05:53:37 -0500] matti: And then you inherently loose control of what you have there.
+[2012-12-13 05:54:23 -0500] matti: I ended up re-packaging a lot of Hadoop-ZooKeeper-Casandra things and Java nicely.
+[2012-12-13 05:55:02 -0500] matti: I will prod you once I get permission.
+[2012-12-13 05:55:30 -0500] matti: :)
+[2012-12-13 05:55:47 -0500] ssd7: Nice, thanks :)
+[2012-12-13 05:56:37 -0500] matti: ZOMG
+[2012-12-13 05:56:43 -0500] matti: Exhibitor sends application/octet-stream
+[2012-12-13 05:56:48 -0500] matti: For index.html.
+[2012-12-13 06:09:41 -0500] bilalcochin: How to create nginx virtual-host using nginx community cookbook. I am installed nginx using nginx community cookbook
+[2012-12-13 06:18:23 -0500] aruntomar: bilalcochin: include the nginx recipe, create a template with the settings you want and use it and finally enable the site using nginx_site resource.
+[2012-12-13 06:20:27 -0500] bilalcochin: Thanks aruntomar.  I am new to chef. Any tutorial or blog post for doing the example scenario
+[2012-12-13 06:21:09 -0500] aruntomar: bilalcochin: https://gist.github.com/4274497
+[2012-12-13 06:23:14 -0500] bilalcochin: aruntomar: Add this as a new recipe?
+[2012-12-13 06:25:22 -0500] aruntomar: bilalcochin: yes
+[2012-12-13 06:25:59 -0500] aruntomar: bilalcochin: and do remember to create the template with the name as mentioned in the source attribute of the template resource
+[2012-12-13 06:26:36 -0500] bilalcochin: aruntomar: sure. Thanks
+[2012-12-13 06:45:14 -0500] BryanWB_: ohai chefs!
+[2012-12-13 06:46:12 -0500] miah: hi
+[2012-12-13 06:46:23 -0500] BryanWB_: hi miah !
+[2012-12-13 06:56:26 -0500] mattt: BryanWB_: hai
+[2012-12-13 06:59:03 -0500] aruntomar: BryanWB_: hi
+[2012-12-13 08:15:28 -0500] emanuelez: Hello. I'm trying to use a gerrit cookbook from Typo3. It does not seem to work for me so I'm trying to fix it. One problem is that the init script failed to execute, but now every further run of gerrit-client is not running it again. any way to fix this in a smart way?
+[2012-12-13 09:07:34 -0500] Dr_Cain: something is seriously wrong with the opscode apt repo
+[2012-12-13 09:07:54 -0500] Dr_Cain: when doing a "apt-get install chef chef-server"
+[2012-12-13 09:08:28 -0500] Dr_Cain: I get a Depends: chef-server-api (>= 10.16.2) but 10.12.0-1 is to be installed
+[2012-12-13 09:08:59 -0500] Dr_Cain: which is weird considering "apt-cache show chef-server-api" shows both 10.16.2-1 and 10.12.0-1
+[2012-12-13 09:10:19 -0500] emanuelez: Hello. I'm trying to use a gerrit cookbook from Typo3. It does not seem to work for me so I'm trying to fix it. One problem is that the init script failed to execute, but now every further run of gerrit-client is not running it again. any way to fix this in a smart way?
+[2012-12-13 09:13:14 -0500] Dr_Cain: this is on debian wheezy btw
+[2012-12-13 09:20:27 -0500] madteckhead: Hey Chefs, I'm struggling to work out why my attribute overrides for the nginx cookbook aren't being picked up. Does anyone have a second to ask the right questions>
+[2012-12-13 09:20:30 -0500] madteckhead: ?
+[2012-12-13 09:20:35 -0500] madteckhead: I'd be most grateful!
+[2012-12-13 09:28:39 -0500] aruntomar: madteckhead: sure. what's the issue
+[2012-12-13 09:55:25 -0500] maddoc: Hm. I have a variable that I've put in a ruby_block, as it needs to be set in run time (after some other things have finished). I'm then trying to use that variable as the filename for a template, but I get undefined local variable. Tried to set it to "" before the ruby_block, but then it doesn't seem to get updated.
+[2012-12-13 09:55:45 -0500] maddoc: s/I've put/I define/
+[2012-12-13 09:57:00 -0500] maddoc: What am I missing? Some scoping problem?
+[2012-12-13 09:59:08 -0500] maddoc: Or is it the ordering?
+[2012-12-13 09:59:17 -0500] maddoc: Run order.
+[2012-12-13 10:00:20 -0500] Guest64347: Hello all after a chef-server crash i've run into a problem with my cookbooks. after rebooting the server chef knows it has cookbooks and it knows it versions, however they do not have all/any content. For example: while runnning chef-client on a node the node can find only half the files for the openssh cookbook. for the others it returns an error that it can't find em. Has anyone ever experienced a problem like this?
+[2012-12-13 10:06:13 -0500] Chefizer: reinstalling the cookbooks doesn't help and rebuilding the index does not hack it either
+[2012-12-13 10:07:22 -0500] maddoc: Ok, think I solved it by using run_action to do the stuff I depended on in the compile phase instead.
+[2012-12-13 10:11:58 -0500] Chefizer: the files still exists in the cookbook_checksums on the server
+[2012-12-13 10:54:52 -0500] emanuelez: there's something I don't understand about notifications. if you have whatever you are notifying to in the same recipe file, wouldn't it be executed anyway? is notifies just a tool to change the order in which actions are taken?
+[2012-12-13 11:01:57 -0500] Chefizer: exit
+[2012-12-13 12:08:11 -0500] yruss972: hi- I'm using chef-solo on smartos in joyent. After I add users/groups it seems that the node variables for /etc/passwd and /etc/group are not updated
+[2012-12-13 12:08:41 -0500] yruss972: Is there anyway to reload the data without doing a completely separate run of chef?
+[2012-12-13 12:17:56 -0500] yruss972: I tried reloading ohai but it seems that the recipes won't even validate if they reference users/groups that don't exist yet
+[2012-12-13 12:52:06 -0500] RoboticCheese: yruss972: Is this what you're seeing? http://tickets.opscode.com/browse/CHEF-1699 I vaguely remember being bitten by it ages ago, but figured it'd been fixed as I haven't had it happen to me since.
+[2012-12-13 13:17:17 -0500] khanee: #puppet
+[2012-12-13 13:38:05 -0500] maznaz: Hello. I'm having problems with the opscode apache2 recipe on a clean centos 6.3 box
+[2012-12-13 13:38:09 -0500] specialsauce: emanuelez, no, because you can set the actinon of the resource
+[2012-12-13 13:38:12 -0500] maznaz: I feel like I might be missing a step.
+[2012-12-13 13:38:18 -0500] specialsauce: emanuelez, so it can have default action "none"
+[2012-12-13 13:38:25 -0500] maznaz: I'm getting the error:  No such file or directory - /usr/local/bin/apache2_module_conf_generate.pl /usr/lib64/httpd /etc/httpd/mods-available
+[2012-12-13 13:38:29 -0500] specialsauce: emanuelez, and only take action when the notifying resource changes
+[2012-12-13 13:38:39 -0500] maznaz: that file doesn't exist at that location, but does exist in some others
+[2012-12-13 13:39:16 -0500] emanuelez: specialsauce: I see, so if I specify action: nothing that that resource will not be run by default
+[2012-12-13 13:42:14 -0500] aruntomar: i'm using community yum cookbook. it runs fine on my vm's but failing on aws instance. has anyone else faced this problem? https://gist.github.com/4276444
+[2012-12-13 13:45:36 -0500] alex88: someone here from the jms serializer bundle?
+[2012-12-13 13:47:45 -0500] masterkorp: http://i.imgur.com/pFGWj.jpg
+[2012-12-13 13:47:54 -0500] masterkorp: Eleanor is that you ?
+[2012-12-13 13:50:47 -0500] maznaz: can somebody maybe tell me what part of the apache2 recipe is meant to copy that file to the location it isn't in?
+[2012-12-13 13:51:09 -0500] maznaz: the /usr/local/bin/apache2_module_conf_generate.pl file isn't there, in fact the directory is empty
+[2012-12-13 13:51:19 -0500] maznaz: but the stacktrace in /tmp just starts with that file missing
+[2012-12-13 13:52:42 -0500] specialsauce: emanuelez, correct
+[2012-12-13 13:53:07 -0500] emanuelez: specialsauce: cool, thanks!
+[2012-12-13 13:53:14 -0500] specialsauce: emanuelez, np dude
+[2012-12-13 13:54:35 -0500] emanuelez: other question: i got an init script that needs to be run only once, but only if it actually succeeds. otherwise it should be run again during the following run. is there any best practice about such a scenario?
+[2012-12-13 13:56:31 -0500] yruss972: RoboticCheese: no- not like that
+[2012-12-13 13:57:07 -0500] yruss972: The line in my chef recipe is like this: if node[:etc][:passwd].has_key?(nad_user) && ! node[:etc][:group][:nad][:members].nil? && ! node[:etc][:group][:nad][:members].include?(nad_user)
+[2012-12-13 13:57:42 -0500] specialsauce: emanuelez, you can set it not to exit on fail but continue, and it will try again on next run
+[2012-12-13 13:58:04 -0500] yruss972: and I'm getting an error that there is no method 'xxx?' on nil class (or something like that- I don't have a copy of the error message in front of me
+[2012-12-13 13:58:31 -0500] emanuelez: specialsauce: but then it would run every single time. i want it to stop running once it runs successfully once
+[2012-12-13 13:58:52 -0500] yruss972: like there is no node[:etc][:group][:nad][:members]
+[2012-12-13 13:59:05 -0500] yruss972: so there is no .nil? method
+[2012-12-13 13:59:21 -0500] specialsauce: emanuelez, it wouldn't run every time
+[2012-12-13 13:59:30 -0500] specialsauce: emanuelez, because you make sure it is idempotent
+[2012-12-13 13:59:43 -0500] yruss972: the nad group should be created during the recipe before this point
+[2012-12-13 13:59:49 -0500] specialsauce: emanuelez, an init script won't run if defined as a service and the service status reports ok
+[2012-12-13 13:59:59 -0500] specialsauce: emanuelez, it will spot that it is running already and not re-execute
+[2012-12-13 14:00:00 -0500] yruss972: but the recipe doesn't pass the parsing/validation phase
+[2012-12-13 14:00:07 -0500] specialsauce: emanuelez, brb, machine needs a reboot
+[2012-12-13 14:00:19 -0500] emanuelez: aye
+[2012-12-13 14:04:31 -0500] maznaz: https://gist.github.com/4276577
+[2012-12-13 14:04:39 -0500] maznaz: that command is creating a file, right?
+[2012-12-13 14:04:57 -0500] maznaz: if the command doesn't error, but the file is never created, what does that imply?
+[2012-12-13 14:09:56 -0500] aruntomar: maznaz: run 'chef-client -l debug'. that runs chef in debug mode and check it thoroughly if you get any error or chef is skipping that step
+[2012-12-13 14:16:39 -0500] maznaz: thank you, I'll try and work out how to get vagrant to run chef in that way
+[2012-12-13 14:23:06 -0500] RoboticCheese: yruss972: Are those conditionals inside a ruby_block or in the top level of the recipe?
+[2012-12-13 14:23:30 -0500] yruss972: RoboticCheese: top level of the recipe
+[2012-12-13 14:26:43 -0500] RoboticCheese: Ah. If the group is being created during the Chef run, the Ruby code is executing before it's created, during compile time.
+[2012-12-13 14:32:01 -0500] yruss972: RoboticCheese: if I move the conditional inside a ruby block, it will work correctly?
+[2012-12-13 14:32:46 -0500] yruss972: RoboticCheese: can I use an execute resource inside a ruby block?
+[2012-12-13 14:33:27 -0500] sc077: could someone pleeeease tell me how to pass a nested hash (e.g.: {"foo"=>{"X"=>"0", "Y"=>"1"}} to a data bag? (e.g. bag.raw_data)
+[2012-12-13 14:34:51 -0500] sc077: yruss972: I don't think so. you would probably want to use cmd = 'some bash' ; system(cmd)
+[2012-12-13 14:38:20 -0500] yruss972: what about using only_if { node[:etc][:passwd].has_key?(nad_user) && ! node[:etc][:group][:nad][:members].nil? && ! node[:etc][:group][:nad][:members].include?(nad_user) }
+[2012-12-13 14:38:27 -0500] yruss972: Will that work?
+[2012-12-13 14:39:39 -0500] yruss972: can I have multiple only_if's per block?
+[2012-12-13 14:41:57 -0500] yruss972: sc077:?
+[2012-12-13 14:42:08 -0500] yruss972: RoboticCheese: ?
+[2012-12-13 14:42:16 -0500] geekbri: Yes you can use multiple guards in a resource call
+[2012-12-13 14:42:47 -0500] yruss972: geekbri: thanks - I'll try it
+[2012-12-13 14:42:54 -0500] geekbri: :)
+[2012-12-13 14:45:19 -0500] sc077: yruss972: I've never tried multiple only_ifs.  I would use a only_if block do begin end
+[2012-12-13 14:46:22 -0500] sc077: no data bag ninjas up in here?
+[2012-12-13 14:46:44 -0500] yruss972: sc077: can you give me a more detailed example? I can put an only_if at the top level of a recipe?
+[2012-12-13 14:48:22 -0500] sc077: yruss972: did you read http://wiki.opscode.com/display/chef/Resources#Resources-ConditionalExecution
+[2012-12-13 14:48:34 -0500] geekbri: https://github.com/opscode/chef/blob/master/lib/chef/resource.rb#L213
+[2012-12-13 14:48:49 -0500] geekbri: only_if is an instance variable of the resource class. It gets initialized to an empty array
+[2012-12-13 14:49:26 -0500] geekbri: you can see here that it appends to the array
+[2012-12-13 14:49:27 -0500] geekbri: https://github.com/opscode/chef/blob/master/lib/chef/resource.rb#L503-L508
+[2012-12-13 14:49:55 -0500] geekbri: So it should be safe to go absolutely crazy and call the only_if method as much as your heart desires inside of a resource
+[2012-12-13 14:50:29 -0500] geekbri: since only_if is a method of the resource class, you don't want to use it when you are writing "plain old ruby".  Only use it inside of one of your resource calls :)
+[2012-12-13 14:50:49 -0500] yruss972: sc077: yes but I'm only pretending to understand Ruby :)
+[2012-12-13 14:52:02 -0500] geekbri: yruss972: on a side note, if you have the time (who ever does) and are interested, the book eloquent ruby by Russ Olsen is very good
+[2012-12-13 14:52:13 -0500] yruss972: geekbri: I think I understand but is there any sort of way to nest resources
+[2012-12-13 14:52:24 -0500] yruss972: right now my code is a little redundant
+[2012-12-13 14:52:34 -0500] geekbri: Well there are a couple ways for me to answer that question :)
+[2012-12-13 14:52:55 -0500] yruss972: geekbri: let me explain
+[2012-12-13 14:53:02 -0500] geekbri: If you want to just basically "alias" a resource you could use a definition but you can't notify or subscribe to definitions
+[2012-12-13 14:53:18 -0500] geekbri: If you have a particular action you reuse very frequently, you might want to turn it into a resource.
+[2012-12-13 14:53:41 -0500] geekbri: if you are just trying to have another resource go off when your resource is done you want to use notifications / subscriptions
+[2012-12-13 14:53:54 -0500] yruss972: I'm not trying to do anything that complicate ;)
+[2012-12-13 14:54:20 -0500] yruss972: The providers for modifying groups in solaris are messed up
+[2012-12-13 14:54:29 -0500] geekbri: that stinks!
+[2012-12-13 14:54:40 -0500] geekbri: ON a side note you should issue a jira ticket for that
+[2012-12-13 14:54:42 -0500] yruss972: In solaris a "user" can be a user or a "role"
+[2012-12-13 14:55:07 -0500] yruss972: if I want to add a group to a role I need to use rolemod instead of usermod
+[2012-12-13 14:55:22 -0500] yruss972: it would be best if the provider figured out which to use
+[2012-12-13 14:55:28 -0500] yruss972: transparently
+[2012-12-13 14:55:47 -0500] yruss972: because sometimes users change into roles and vice versa
+[2012-12-13 14:56:10 -0500] jfl0wers: is remote_file supposed to download every time even when the checksum is specified?
+[2012-12-13 14:56:18 -0500] yruss972: so basically I have a loop of usernames which may be users or roles which I'm trying to add to a group
+[2012-12-13 14:56:23 -0500] geekbri: jfl0wers: remote file is only supposed to download if the file isn't already present
+[2012-12-13 14:56:33 -0500] yruss972: inside the loop I have two execute blocks
+[2012-12-13 14:56:49 -0500] yruss972: one uses roleadd if the user is a role
+[2012-12-13 14:57:00 -0500] yruss972: rolemod (sorry)
+[2012-12-13 14:57:06 -0500] yruss972: and one uses usermod
+[2012-12-13 14:57:20 -0500] geekbri: jfl0wers: sorry, or if the existing file doesn't match the checksum :)
+[2012-12-13 14:57:32 -0500] jfl0wers: every time I run it hangs at the remote_file resource for this large file
+[2012-12-13 14:57:36 -0500] yruss972: but I don't want to run either block if the user/role is already part of the group
+[2012-12-13 14:57:49 -0500] yruss972: so I had this conditional at the top level of the recipe
+[2012-12-13 14:57:57 -0500] jfl0wers: I assume that it is redownloading
+[2012-12-13 14:57:58 -0500] yruss972: which was being evaluated at the wrong time
+[2012-12-13 14:58:16 -0500] jfl0wers: if the checksum was invalid it would fail, correct?
+[2012-12-13 14:58:39 -0500] yruss972: I can move it into an only_if but I need to repeat it in each execute block IIUC
+[2012-12-13 14:59:54 -0500] yruss972: is there anyway to shortcut both blocks with one only_if or in some other way with it still being evaluated in order of the recipe?
+[2012-12-13 15:03:56 -0500] geekbri: yruss972: I'm sorry I'm only skimming here as I'm pretty busy but it would seem to me that you could just use a notification for this?
+[2012-12-13 15:04:07 -0500] geekbri: You have a resource that will only notify when it makes a change, and then you could have it kick off the other ones?
+[2012-12-13 15:05:15 -0500] wyrdvans: Anyone have suggestions on cookbooks to use to deploy django apps?
+[2012-12-13 15:13:44 -0500] yruss972: geekbri: It could be possible but until now I couldn't run the user creation resources and this code in the same chef run since the top level ruby conditionals were not working
+[2012-12-13 15:14:55 -0500] saharchuk: Hi, someone used recipe[users] from opscode? I had error. Update didn't help. First time recipe works, on next time I got that error "Processing user[saharchuk] action create (/var/cache/chef/cookbooks/users/providers/manage.rb line 78. ERROR: Exception: argument must be a string.". If I del it user manual, recipe works again. Give some advice please?
+[2012-12-13 15:14:57 -0500] yruss972: if I do what you suggest, I guess I don't use the conditionals on every run but only notify the resources to run when I create the user/group
+[2012-12-13 15:24:27 -0500] barnacles_: Is there a way to check if a recipe exists before including it?
+[2012-12-13 15:24:59 -0500] spox: barnacles_: what would be the use case around that?
+[2012-12-13 15:25:47 -0500] spox: barnacles_: you _can_ by catching the exception generated when a non-existent file is attempted to be loaded
+[2012-12-13 15:26:07 -0500] spox: *but* it sounds like the wrong solution
+[2012-12-13 15:26:09 -0500] barnacles_: spox: Here, let me explain my predicament and maybe you can help
+[2012-12-13 15:27:43 -0500] barnacles_: spox: I want to include the recipe if it exists (if a developer chose to add it to a cookbook) but not have it already committed to svn.
+[2012-12-13 15:28:32 -0500] killfill: hi!
+[2012-12-13 15:28:40 -0500] barnacles_: spox: The possibly existent recipe's purpose is to allow the developer to customize some features without having them accidentally commit them to svn.
+[2012-12-13 15:28:46 -0500] leif[laptop]: question:  with the link resource, I want to create a symlink for all files in another location, but the directory already exists. For example, I have /etc/asterisk/ directory already created, but I can to link the contents of /etc/.config/files/asterisk/etc/ into the /etc/asterisk directory
+[2012-12-13 15:28:49 -0500] barnacles_: spox: It's a requirement that was placed on me.
+[2012-12-13 15:28:58 -0500] leif[laptop]: I think I'm missing something trivial, but the link resource fails because /etc/asterisk exists
+[2012-12-13 15:29:33 -0500] killfill: where does node.automatic_attrs setted up?.. im using the nginx cookbook and trying to install nginx by source. the cookcook checks if it need to re-install/re-compile if i.e. node.automatic_attrs['nginx']['version'] == node['nginx']['version'] .   i see that node.automatic_attrs['nginx'] = {"version"=>nil, "configure_arguments"=>[], "prefix"=>nil, "conf_path"=>nil}
+[2012-12-13 15:29:50 -0500] killfill: why is it not getting set?
+[2012-12-13 15:30:05 -0500] killfill: becouse of that, its recompiling all the times i run the cookbook.. :P
+[2012-12-13 15:30:33 -0500] spox: barnacles_: yay requirements!
+[2012-12-13 15:30:37 -0500] barnacles_: spox: lol
+[2012-12-13 15:30:51 -0500] spox: barnacles_: anyway, you can get the desired behavior by catching the exception raised
+[2012-12-13 15:31:14 -0500] barnacles_: spox: Yar, was wondering if there was a more elegant way. Thanks mate
+[2012-12-13 15:31:30 -0500] spox: begin; include_recipe 'cookbook::recipe' ; rescue Chef::Exceptions::RecipeNotFound ; Chef::Log.warn "Recipe load failed!" ; end
+[2012-12-13 15:31:35 -0500] spox: barnacles_: something like that ^
+[2012-12-13 15:32:53 -0500] barnacles_: spox: thanks
+[2012-12-13 15:33:06 -0500] spox: barnacles_: sure :)
+[2012-12-13 15:37:50 -0500] leif[laptop]: I think the link resource just can't create links into the directory itself -- the destination directory must just not be able to exist
+[2012-12-13 15:45:14 -0500] emanuelez: gah! it looks like the java cookbook sets JAVA_HOME to a non existant folder on ubuntu :(
+[2012-12-13 15:51:31 -0500] barnacles_: spox: I'm doing this https://gist.github.com/4e591040d829bbf3b49b but getting NameError: uninitialized constant Chef::Exceptions::RecipeNotFound
+[2012-12-13 15:53:19 -0500] spox: barnacles_: chef version?
+[2012-12-13 16:00:04 -0500] willsalt: does knife ssh use ssh_config file?
+[2012-12-13 16:00:13 -0500] willsalt: it doesn't seem to on my system :(
+[2012-12-13 16:03:00 -0500] jblaine: willsalt: It's supposed to from what I see in various tickets
+[2012-12-13 16:03:13 -0500] willsalt: yeah, thats what i thought
+[2012-12-13 16:03:32 -0500] willsalt: because it uses net::ssh, and that normally picks up configs
+[2012-12-13 16:03:37 -0500] jtimberman: willsalt: knife ssh uses net-ssh-multi under the hood, and that library is *supposed* to use ~/.ssh/config
+[2012-12-13 16:03:43 -0500] jtimberman: :)
+[2012-12-13 16:05:46 -0500] willsalt: hmm its strange, because, it errors with Net::SSH::AuthenticationFailed: willsalt@*****.com
+[2012-12-13 16:06:04 -0500] willsalt: my ssh_config in ~/.ssh/config specifies another username
+[2012-12-13 16:06:14 -0500] willsalt: and ssh *****.com logs in fine
+[2012-12-13 16:07:11 -0500] willsalt: verbose doesn't show any more errors either
+[2012-12-13 16:13:09 -0500] geekbri: are you sure you are using enough verbosity?
+[2012-12-13 16:13:18 -0500] geekbri: -vvv ?
+[2012-12-13 16:13:20 -0500] willsalt: well -V is verbose right?
+[2012-12-13 16:13:33 -0500] willsalt: sweet
+[2012-12-13 16:13:34 -0500] willsalt: -VVV
+[2012-12-13 16:17:12 -0500] willsalt: knife[:ssh_user] =
+[2012-12-13 16:17:13 -0500] willsalt: knife[:ssh_identity_file] =
+[2012-12-13 16:17:16 -0500] willsalt: heh set this in knife.rb
+[2012-12-13 16:42:12 -0500] BryanWB_: good night chefs!
+[2012-12-13 16:44:07 -0500] cpasmoi: Hi there, I'd like to see the amount of memory of the node in a recipe, does ohai have that ?
+[2012-12-13 16:44:25 -0500] awgross: cpasmoi: yes
+[2012-12-13 16:44:32 -0500] spox: cpasmoi: node[:memory]
+[2012-12-13 16:44:34 -0500] cpasmoi: where can I see how to access it ?
+[2012-12-13 16:44:39 -0500] cpasmoi: great !
+[2012-12-13 16:44:46 -0500] siezer: ~.
+[2012-12-13 16:44:55 -0500] awgross: cpasmoi: if you are on *nix, run ohai | less
+[2012-12-13 16:45:01 -0500] awgross:  `ohai | less`
+[2012-12-13 16:45:12 -0500] awgross: you can browse what ohai gives you easily
+[2012-12-13 16:45:24 -0500] cpasmoi: oh yeah, that's good to know
+[2012-12-13 16:46:36 -0500] cpasmoi: so it's something like node[:memory][:total] I guess
+[2012-12-13 17:02:31 -0500] spokrandt: after apt-get update on ubuntu 12.4 the rabbitmq server is core dumping on start up which is hosing chef...   anyone experience this problem?
+[2012-12-13 17:16:22 -0500] binjured: having some trouble with a custom recipe. the nginx cookbook has some add-on module recipes included. when i create my own recipe and do, e.g., `include_recipe "nginx::http_<foo>"...include_recipe "nginx::source"', the source is never built with the <foo> module included.
+[2012-12-13 17:17:21 -0500] binjured: i can't imagine they are in the wrong order or something. each recipe modifies `node.run_state['nginx_configure_flags']' to add its own flag
+[2012-12-13 17:27:31 -0500] binjured: what's the easiest way to modify attributes as part of a recipe? just include_attribute?
+[2012-12-13 17:52:12 -0500] makmanalp: jtimberman: hio, do you mind taking a peeksie at this? http://tickets.opscode.com/browse/COOK-2053
+[2012-12-13 17:58:56 -0500] nerdcore: may I ask questions about knife-solo here or is there another forum I should use?
+[2012-12-13 18:08:06 -0500] philsturgeon: I was previously using knife with -d ubuntu12.04-gems, but now i am upgrading to 12.10
+[2012-12-13 18:08:18 -0500] philsturgeon: there is no bootstrap, and using this 12.04 with 12.10 gives errors
+[2012-12-13 18:08:21 -0500] philsturgeon: whats the play here?
+[2012-12-13 18:09:08 -0500] ranjibd: philsturgeon, use chef-full
+[2012-12-13 18:09:19 -0500] ranjibd: i think its default nay way..
+[2012-12-13 18:09:24 -0500] ranjibd: *anyway
+[2012-12-13 18:10:07 -0500] philsturgeon: ranthanks, i just removed it to see whats happening with the default action
+[2012-12-13 18:11:02 -0500] btm: philsturgeon: 12.04 bootstrap script with 12.10: http://tickets.opscode.com/browse/CHEF-3672
+[2012-12-13 18:11:35 -0500] philsturgeon: btm i spotted this, but i dont see what the value here is?
+[2012-12-13 18:12:12 -0500] philsturgeon: btm:  either A) they need to finish building the bootstrap for 12.10 or B) I have to SSH in to each box affter is been brought up, install that -dev package then run chef-client again?
+[2012-12-13 18:12:52 -0500] philsturgeon: ranjibd: using default is no good http://d.pr/i/MmRH
+[2012-12-13 18:13:21 -0500] btm: philsturgeon: edit chef/lib/chef/knife/bootstrap/ubuntu10.04-gems.erb, change the ruby1.8-dev to ruby1.9.1-dev
+[2012-12-13 18:13:45 -0500] awgross: philsturgeon: you can always pass a custom bootstrap template to knife
+[2012-12-13 18:13:47 -0500] philsturgeon: btw ahh gotcha
+[2012-12-13 18:15:14 -0500] btm: philsturgeon: you can copy that script to ~/.chef/bootstrap/ubuntu12.10-gems-local.erb to avoid overriding the one in your gem and to make sure you don't lose your changes if you upgrade.
+[2012-12-13 18:16:44 -0500] philsturgeon: btm: thanks, taking awgross's advice and making a custom template
+[2012-12-13 18:20:46 -0500] teukka: nerdcore: sure you can. btw, in IRC it is better to ask the real question and not meta questions =)
+[2012-12-13 18:33:26 -0500] philsturgeon: Ok fun new development. Running chef on ubuntu 12.10 which now has ruby 1.9.1 and its throwing: invalid byte sequence in US-ASCII http://d.pr/i/NH71 any ideas?
+[2012-12-13 18:35:22 -0500] makmanalp: philsturgeon: do you have unicode chars in your template?
+[2012-12-13 18:41:11 -0500] nerdcore: Using knife-solo I want to deploy Varnish (using the github opscode-cookbooks project), and I want it to be setup to use some % of system RAM, so that I can redeploy the same setup to many disparate systems, or have it upgrade the varnish allocation if the system ram increases. How do I do this?
+[2012-12-13 18:46:57 -0500] meineerde: nerdcore: on Linux at least, Ohai provides you with node["memory"]["total"]
+[2012-12-13 18:47:00 -0500] nerdcore: wow so I was using `knife cook varnish` just fine this morning, but then I allocated too much RAM to varnish in the config causing it to fail, and now I can no longer `knife cook varnish` because it says "no ruby in PATH/CONFIG"
+[2012-12-13 18:47:13 -0500] nerdcore: I haven't changed anything on the destination host. I'm totally stumped :(
+[2012-12-13 18:48:09 -0500] nerdcore: meineerde: where can I do a calculation, like (node['memory']['total'] * 3 / 4)?
+[2012-12-13 18:48:49 -0500] meineerde: nerdcore: wherever you like and is appropriate, e.g. in your recipe, in your template, ...
+[2012-12-13 18:49:37 -0500] nerdcore: k thx
+[2012-12-13 18:49:47 -0500] meineerde: (however, you get something like 1026556kB, so you need to first make an integer out of that, e.g. by using to_i
+[2012-12-13 18:50:20 -0500] meineerde: and make sure to get the unit right
+[2012-12-13 18:53:21 -0500] nerdcore: I know almost no Ruby unfortunately. Do you know offhand how to convert it to an integer of # of bytes?
+[2012-12-13 18:53:44 -0500] nerdcore: seems like a nice language which might have a function for that built in ;)
+[2012-12-13 18:54:42 -0500] jfl0wers: what is the config line for knife.rb that set where data bags go?
+[2012-12-13 18:56:11 -0500] jfl0wers: found it in solo config docs: data_bag_path
+[2012-12-13 18:59:10 -0500] meineerde: nerdcore: as I said, you can do something like node['memory']['total'].to_i * 1024
+[2012-12-13 19:03:31 -0500] khimera: can anyone enlighten me on why one of the apt_repo do not work? http://pastebin.com/ds8yJti5
+[2012-12-13 19:05:56 -0500] koblas: Missing something simple - (still early in my learning process) - Trying to write my custom recipe to install/configure RabbitMQ.  Do I need to put recipe[rabbitmq] in my Role definition, or can I just put into the metadata.rb file depends "rabbitmq" and have it installed (which doesn't seem to be working)?
+[2012-12-13 19:07:26 -0500] miah: you need to put it in your role
+[2012-12-13 19:07:46 -0500] miah: depends in metadata.rb will just make your cookbook inherit resource providers and such
+[2012-12-13 19:08:09 -0500] nerdcore: meineerde: sorry, you said "make sure to get the unit right". Not sure exactly what you meant
+[2012-12-13 19:08:25 -0500] koblas: miah: thanks
+[2012-12-13 19:09:57 -0500] meineerde: nerdcore: and before that i said to use to_i. The unit is important as you get KiByte from Ohai (at least on my system). confusing kibyte, mibyte or byte in such a config could lead to interesting results :)
+[2012-12-13 19:10:16 -0500] nerdcore: meineerde: gotcha. :)
+[2012-12-13 19:10:48 -0500] nerdcore: meineerde: so will to_i simply drop the 'kB' suffix in this case (and convert from string)?
+[2012-12-13 19:11:28 -0500] miah: nerdcore: yes
+[2012-12-13 19:11:29 -0500] meineerde: miah: the depends will just make sure that the cookbook is available on the host (which will also make its libraries, definitions, LWRPs and everything available). But it will not run any recipe. for that you have to explicitly but a recipe into the runlist
+[2012-12-13 19:11:48 -0500] meineerde: s/miah/koblas/ -_-"
+[2012-12-13 19:13:47 -0500] meineerde: nerdcore: http://www.ruby-doc.org/core-1.9.3/String.html#method-i-to_i
+[2012-12-13 19:15:33 -0500] nerdcore: thanks!
+[2012-12-13 19:17:00 -0500] nerdcore: seems all of a sudden I am getting this error which I never was before "Chef::Exceptions::CannotDetermineNodeName: Unable to determine node name: configure node_name or configure the system's hostname and fqdn"
+[2012-12-13 19:17:14 -0500] nerdcore: this is running 'knife cook [nodename]'
+[2012-12-13 19:25:44 -0500] sc077: are data bags limited to { "name" => "attribute" } or can one do a nested hash structure as well?
+[2012-12-13 19:25:57 -0500] awgross: sc077: nested is fine
+[2012-12-13 19:32:06 -0500] rh1n0: Im trying to use librarian for managing cookbooks. If i install a cookbook and need to add custom attribute values how do i manage it since librarian reinstalls the cookbook on the server? Im already git  ignoring the cookbooks dir as well.
+[2012-12-13 19:33:02 -0500] philsturgeon: makmanalp: sorry was AFK
+[2012-12-13 19:33:31 -0500] sc077: awgross: thx, do you know the basic syntax for a simple nest
+[2012-12-13 19:34:35 -0500] awgross: { 'key1' => 'value1',  'key2' => { 'nested_key' => 'nested_value'}  }
+[2012-12-13 19:34:50 -0500] philsturgeon: makmanalp: I have no idea if i do, the file its erroring on has nothing obvious, but if i did, how would i make ruby not bitch about it?
+[2012-12-13 19:37:38 -0500] sc077: awgross: sweet thx that did the trick
+[2012-12-13 19:43:14 -0500] philsturgeon: jtimberman: hey, so this bug is affecting me http://tickets.opscode.com/browse/CHEF-3304
+[2012-12-13 19:57:57 -0500] nstielau: Hey all!  I noticed a difference in behavior between the File provider and Template provider.  The File provider will write to a symlink, updating the linked-to file, whereas the Template provider will remove the symlink and write the to designated file.  There are security implications with following symlinks, and the expected behavior is not clear.  Does anyone feel that more consistent or explicit behavior would be an improvement?  
+[2012-12-13 20:08:33 -0500] ampledata: anyone run into problems using chef_gem to install a gem that a cookbook library depends on, specifically that the library will raise a NameError if a class or module from the gem us utilized in the library
+[2012-12-13 20:09:13 -0500] ampledata: e.g. gem_instal 'right_aws', then in a library have something like: ec2 = RightAws::Ec2Interface()
+[2012-12-13 20:10:22 -0500] ampledata: i think this is a given, i guess the question is has anyone worked around it without wrapping any calls to the gem's module/classes in a begin/rescue
+[2012-12-13 20:10:30 -0500] ampledata: same as we do with the 'requires'
+[2012-12-13 20:10:50 -0500] sc077: another data  bag question.... I have an array of values that I want to dump into a bag.  what would be the easiest way to pass values to the bag item (perhaps with array.each {|X|}) bag = { "interfaces" => { "#{node[:interface][X]}" }
+[2012-12-13 20:13:05 -0500] yfeldblum: sc077, why are you making data-bag items with a node's attributes? the node's attributes are already in the chef-server ...
+[2012-12-13 20:13:22 -0500] smw_: I am using a god cookbook which makes use of runit cookbook. How can I tell runit to NOT monitor and restart my god service when it terminates?
+[2012-12-13 20:15:57 -0500] sc077: yfeldblum: I would like to persist them outside of chef so in case of a hardware change, I can have the node repopulate udev, etc based on bag data
+[2012-12-13 20:17:11 -0500] yfeldblum: sc077, why not collect the information from a separate script running elsewhere ...?
+[2012-12-13 20:18:17 -0500] yfeldblum: sc077, knife exec 'search(:node, "*:*"){|n| insert_useful_information_into_db(n)}'
+[2012-12-13 20:19:12 -0500] sc077: yfeldblum: I'm collecting the attributes elsewhere, sure.  One approach I was going to take was to set static vars based on array.length (basically a variable for each interface)
+[2012-12-13 20:19:23 -0500] sc077: then store it in a data bag
+[2012-12-13 20:20:04 -0500] sc077: that way if a mother board or something gets swapped, I can read and compare the saved info from the bag
+[2012-12-13 20:20:29 -0500] yfeldblum: sc077, item = data_bag_item("bag", "item") ; item["some-key"] = [{"key1" => "value1"}, some_array_variable.size] ; item.save
+[2012-12-13 20:23:50 -0500] sc077: yfeldblum: sure, but isn't data_bag_item just for reading bag data?
+[2012-12-13 20:24:32 -0500] sc077: at least that's what I gather from http://wiki.opscode.com/display/chef/Data+Bags
+[2012-12-13 20:25:23 -0500] yfeldblum: sc077, https://github.com/opscode/chef/blob/master/lib/chef/dsl/data_query.rb#L56-L63
+[2012-12-13 20:25:38 -0500] yfeldblum: sc077, it instantiates a Chef::DataBagItem for you and returns it
+[2012-12-13 20:26:40 -0500] itchyouch: Anyone have a cookbook for provisioning home directories?
+[2012-12-13 20:27:15 -0500] sc077: yfeldblum: ok, cool.  I'll give that a shot, thanks.
+[2012-12-13 20:43:11 -0500] ryanschwartz: are there any known issues with package installations of chef-server on Ubuntu 12.04.1 LTS? I've uninstalled and re-installed 5 times now and always get the same result - I can create my local chef client, but cannot upload via knife
+[2012-12-13 20:46:10 -0500] sc077: error message?
+[2012-12-13 20:46:12 -0500] ryanschwartz: {"error":["cannot generate tempfile `/usr/share/chef-server-api/sandbox20121213-22636-b8qkx6-9'"]}
+[2012-12-13 20:46:53 -0500] ryanschwartz: I've confirmed same behavior hitting ports directly or proxied via apache
+[2012-12-13 20:47:28 -0500] sc077: can you connect locally on the server?
+[2012-12-13 20:47:37 -0500] ryanschwartz: also, chef-client fails to start during the dpkg postinstall
+[2012-12-13 20:47:45 -0500] ryanschwartz: and chef-solr logs "[Thu, 13 Dec 2012 17:02:17 +0000] WARN: You seem to have a legacy setting for solr_url: did you mean http://localhost:8983/solr ?
+[2012-12-13 20:47:45 -0500] ryanschwartz: "
+[2012-12-13 20:47:52 -0500] ryanschwartz: during postinst
+[2012-12-13 20:48:16 -0500] ryanschwartz: yes - I can connect locally - I can even connect remotely (create client/node/etc)
+[2012-12-13 20:48:47 -0500] sc077: do knife commands work on the server?
+[2012-12-13 20:49:28 -0500] ryanschwartz: but when I try and upload, it's like it's not using the sandbox_path specified in server.rb (and I can't backtrace where that's being read from config/set in chef-server code)
+[2012-12-13 20:49:30 -0500] ryanschwartz: let me check
+[2012-12-13 20:50:19 -0500] ryanschwartz: heh. No. I uninstalled packages and cleaned up again.
+[2012-12-13 20:50:49 -0500] ryanschwartz: let me run through an install again and I'll gist you output
+[2012-12-13 20:52:37 -0500] sc077: If you can confirm that the server is sane - I would also recommend maybe try using the omnibus installer
+[2012-12-13 20:56:16 -0500] nstielau1: itchyouch: https://github.com/mpasternacki/cookbooks/tree/master/generic-users
+[2012-12-13 21:00:52 -0500] jtnz: Hi, I'd just like some help updating chef-client on my Linux nodes. I've determined that it was installed via gems (I didn't do the initial install) by typing 'rvm gemset list_all'. I'm not familiar enough with rvm to know exactly how to update the gems in the chef gemset without breaking anything else. Can someone provide some direction?
+[2012-12-13 21:01:10 -0500] ryanschwartz_: https://gist.github.com/ba4f2d82fa8b5514ec09
+[2012-12-13 21:02:13 -0500] nstielau1: jtnz: Can you install via the omnibus?  It's easy and nicely contained
+[2012-12-13 21:02:22 -0500] nstielau1: http://www.opscode.com/chef/install/
+[2012-12-13 21:02:45 -0500] nstielau1: Should just work, might have to rip out the old gems
+[2012-12-13 21:02:49 -0500] ryanschwartz_: yeah, so I'm stumped. Guess I'll try the omnibus and see if that does it
+[2012-12-13 21:03:10 -0500] ryanschwartz_: although I'd rather figure out WTF is up with the .debs and this system
+[2012-12-13 21:03:30 -0500] sc077: ryanschwartz_: debugging broken ubuntu packages can be a real PITA
+[2012-12-13 21:03:44 -0500] nstielau1: <3 omnibus
+[2012-12-13 21:03:52 -0500] jtnz: nstielau1, I'd like to, but I can't rebuild the nodes, and I'm not sure what would happen to the gem stuff if I did install that. The gem has installed it's binaries in /usr/bin/ which is where the omnibus would install it's sym links...
+[2012-12-13 21:04:12 -0500] ryanschwartz: what's the URL for the omnibus self-hosted (opensource) server install?
+[2012-12-13 21:04:29 -0500] jtnz: ryanschwartz, same address
+[2012-12-13 21:05:12 -0500] jtnz: ryanschwartz, to a chef client/node, it's the config that makes the difference between open source/private/hosted.
+[2012-12-13 21:05:14 -0500] nstielau1: jtnz: Why would isntalling a new client rebuild nodes?
+[2012-12-13 21:05:33 -0500] ryanschwartz: jtnz: I need to install the SERVER, not the client :)
+[2012-12-13 21:05:38 -0500] ryanschwartz: client works fine
+[2012-12-13 21:05:59 -0500] jtnz: ryanschwartz, I don't think there's a omnibus for server yet
+[2012-12-13 21:06:26 -0500] jtnz: nstielau1, Sorry, to clarify, if I had new nodes, I'd just use omnibus.
+[2012-12-13 21:06:35 -0500] ryanschwartz: ok, so back to square one - is there any known issue that would cause the api backend to not pick up sandbox_path from /etc/chef/server.rb
+[2012-12-13 21:07:09 -0500] ryanschwartz: because it seems that it's trying to use /usr/share/chef-server-api as the sandbox_path (which is confirmed by the output I gisted above)
+[2012-12-13 21:08:41 -0500] jtnz: nstielau1, but with my existing Nodes that have client installed via gems, I just want to update them.
+[2012-12-13 21:09:00 -0500] ryanschwartz: I'm just going to try a bootstrap install and see if that works any better. If it does, I'll just gather data and file a bug ticket
+[2012-12-13 21:10:11 -0500] nstielau1: jtnz: What does omnibus do that installing new gems wouldn't do?  AFAIK it's just where it is dropping the gem source, and which ruby binary it is using.  We're using chef-solo, but converted live boxes from gems to omnibus
+[2012-12-13 21:10:55 -0500] nstielau1: It would overwrite the /usr/bin stubs, but that just points to the new omnibus gems
+[2012-12-13 21:11:06 -0500] sc077: can someone tell me a way to test for the existence of a data bag item.. data_bag_item("bag", "item")? isn't working
+[2012-12-13 21:12:04 -0500] jtnz: nstielau1, Well it's just that everything is already set up with the gems, i.e. the daemon, the binaries etc. Installing via omnibus would sort of drop over that stuff and I'm not 100% confident of the state that I'd then be in. Whereas just updating the gems should just simply update the bits I need.
+[2012-12-13 21:14:09 -0500] nstielau1: jtnz: ok.  I'd take omnibus over RVM, but that's just me.  Either way, you're going to want to test out the migration path.  Also, you'll probably want to move to omnibus for new nodes, so might be worth the investment (was for us).  Good luck!
+[2012-12-13 21:15:49 -0500] jtnz: nstielau1, I 100% agree with the omnibus for new nodes, I'm just not comfortable with using on existing nodes with gem installs. All I need to know is how to update the gems in the 'chef' rvm gemset.
+[2012-12-13 21:19:21 -0500] smw_: For anyone interested, I figured out an answer to my runit problem. I set the kill command to be god terminate and also figured out that I can manually kill it by calling the init script with the "once" command
+[2012-12-13 21:25:45 -0500] nstielau1: Hey, just created 'improvement' http://tickets.opscode.com/browse/CHEF-3695, if anybody cares to weigh in ;)
+[2012-12-13 21:28:48 -0500] heidi644: ok, I have a complete n00b question, but what is the preferred way to update a system after first boot chef-client run?  eg.  We have launched postgres machine via hosted chef, and now we want to rerun chef-client to update script
+[2012-12-13 21:29:29 -0500] awgross: anyone have a good pattern on how to handle packages that fail to download in aptitude because the package cache is stale (aka running apt-get update and reattempting the DL fixes the problem?) I havent found a satisfactory resolution that avoids running apt-get update every chef run (undesirable) or have lots of chunky boilerplate code
+[2012-12-13 21:33:20 -0500] ampledata: re my earlier chef_gem question: http://tickets.opscode.com/browse/COOK-2056
+[2012-12-13 21:33:37 -0500] nstielau1: heidi644: preferred way is to run it periodically in daemon mode.  You can also run by hand or via crontab when you're getting your feet wet, but eventually you'll want it running continuously
+[2012-12-13 21:33:55 -0500] nstielau1: You can log-on and run 'sudo chef-client'
+[2012-12-13 21:34:11 -0500] sc077: ugh this doesn't work either... begin ; data_bag_item("bag", "item") ; rescue ; bagitem = Chef::DataBagItem.new ; bagitem = data_bag_item("bag", "item") ; bagitem.save ; end
+[2012-12-13 21:35:31 -0500] ryanschwartz: fuuuuuuuuuuuuck me, bootstrap install didn't work either. I'm going to have to provision another VM with machine ops and see if it's a machine issue. this suuuuuucks ! :-)   (thanks all for the suggestions)
+[2012-12-13 21:35:57 -0500] heidi644: nstielau1: perfect, thanks!
+[2012-12-13 21:38:43 -0500] sc077: is data bag item item creation idempotent?
+[2012-12-13 21:46:56 -0500] anthroprose: Mixlib::ShellOut::CommandTimeout: command timed out ..... how can I increase the timeout?
+[2012-12-13 21:56:08 -0500] dyer: Anyone have any idea why creating a directory would fail in Chef-Solo ? https://gist.github.com/dc4e85f440b62b0fbd84
+[2012-12-13 22:09:32 -0500] jtnz: aruntomar, Are you around?
+[2012-12-13 22:18:16 -0500] dyer: Anyone have idea why that directory resource would be failing ?
+[2012-12-13 22:24:14 -0500] karwash: @dyer can you gist the stacktrace?
+[2012-12-13 22:25:03 -0500] leif[laptop]: has anyone used a cookbook or ended up writing something for using a chef-server with vagrant that populates the chef server with their local cookbooks?
+[2012-12-13 22:25:29 -0500] kallistec: dyer: probably better to run it in actual chef-solo for now, the irb stuff is choking the error inspector so the stack trace is meaningless
+[2012-12-13 22:25:32 -0500] leif[laptop]: e.g. install chef server for vagrant with chef_solo, then populate it so your other vagrant boxes can configure themselves from that chef server?
+[2012-12-13 22:25:33 -0500] awgross: dyer: do you have recursive true set?  it will fail if you try to create a dir w/o a parent dir
+[2012-12-13 22:25:50 -0500] kallistec: (side note: I think error inspectors choking in shef is fixed)
+[2012-12-13 22:25:51 -0500] leif[laptop]: just didn't want to reinvent the wheel if something to populate the chef-server already existed
+[2012-12-13 22:26:52 -0500] dyer: awgross, yes, I do.  Here is the chef-solo stack trace ->  https://gist.github.com/9190a7009eb49ebc3e12
+[2012-12-13 22:27:43 -0500] karwash: leif: are you try to create a local chef-server for testing in vagrant?
+[2012-12-13 22:27:57 -0500] karwash: have you seen this? http://fnichol.github.com/knife-server/
+[2012-12-13 22:28:59 -0500] leif[laptop]: karwash: ya that's what I'm doing. I have a chef server, but i want to build one within the devleopment environment for each developer
+[2012-12-13 22:29:01 -0500] leif[laptop]: karwash: looking
+[2012-12-13 22:32:50 -0500] leif[laptop]: karwash: thanks, I'll take a look at that
+[2012-12-13 22:33:46 -0500] karwash: leif: right on, glad to help
+[2012-12-13 22:34:15 -0500] dyer: Any thoughts on that gist guys ?
+[2012-12-13 22:35:59 -0500] dyer: ah, I think I found it
+[2012-12-13 22:36:04 -0500] awgross: dyer: is the directory creating still failing?
+[2012-12-13 22:36:25 -0500] awgross: dyer: because the directory you create is not the parent dir of the cookbook file you are templating, missing WEB-INF
+[2012-12-13 22:37:50 -0500] nstielau1: dyer awgross: Looks like it has WEB_INF: "[2012-12-13T16:27:15-05:00] INFO: directory[/opt/voxeo/prism/apps/tropo-client/WEB-INF] created directory /opt/voxeo/prism/apps/tropo-client/WEB-INF"
+[2012-12-13 22:38:18 -0500] dyer: no, the problem was PEBCAK
+[2012-12-13 22:38:54 -0500] dyer: my deploy script resource runs after directory, and it was cleaning removing the newly created dir
+[2012-12-13 22:39:02 -0500] dyer: (headbang)
+[2012-12-13 22:40:16 -0500] doomviking: :(
+[2012-12-13 22:43:55 -0500] awgross: dyer: heh, happens
+[2012-12-13 22:48:09 -0500] awgross: Everyone agrees we should do it, but not everyone agrees on howso reusability of common code is still an unsolved problem. Folks from the Chef community are http://post.oreilly.com/rd/9z1zptsiv716fhj0god8a460itnlla4t5lk02392d18 into how best to implement roles, cookbooks, and general patterns in large environments while producing reusable code. While discussion so far is Chef-centric, some of the patterning could have universal application. Some of it is evi
+[2012-12-13 22:48:16 -0500] awgross: the last sentence really confuses me
+[2012-12-13 22:48:47 -0500] awgross: Did they read BryanWB's post on gangam style?
+[2012-12-13 22:49:06 -0500] wamcvey: awgross: looks like your mesg was trunicated.  All I saw was "Some of it is evi"
+[2012-12-13 22:49:22 -0500] wamcvey: well, not all that I saw... that was the last of the mesg though
+[2012-12-13 22:49:29 -0500] jtnz: For Windows, can I just cheat and update chef-clients with 'gem update --no-rdoc --no-ri' rather than uninstalling and then installing the new msi?
+[2012-12-13 22:49:53 -0500] jtnz: cause gem update is a several second process vs several minutes
+[2012-12-13 22:49:54 -0500] awgross: wamcvey: https://gist.github.com/4280816
+[2012-12-13 22:50:10 -0500] awgross: hah, that is what they were referring to
+[2012-12-13 22:51:08 -0500] wamcvey: awgross: yeah... I think they were just making a joke out of the sillyness of the blog title.
+[2012-12-13 23:03:09 -0500] jhayden: I have an interesting issue with chef-server-webui
+[2012-12-13 23:03:52 -0500] jhayden: I have built a chef server system with couched and rabbitmq on their own servers and seem to have everything runnyng ok
+[2012-12-13 23:04:13 -0500] jhayden: but when I stampt to start the webui server it fails
+[2012-12-13 23:04:53 -0500] jhayden: it looks like its choking on the first line of the webui.rb file but this is a good file
+[2012-12-13 23:05:10 -0500] jhayden: and it doesn't matter what the first line is, it fails anyway
+[2012-12-13 23:05:32 -0500] jhayden: here is a gist of the error and the webui.rb file https://gist.github.com/4280935
+[2012-12-13 23:05:51 -0500] awgross: this is a good file, a standup file, a file we would all be proud to call our friend
+[2012-12-13 23:06:02 -0500] awgross: sorry, i have no help to give, just had to say it
+[2012-12-13 23:06:14 -0500] jhayden: NP
+[2012-12-13 23:06:30 -0500] miah: /etc/chef/webui.rb:1: undefined method `log_level' for main:Object (NoMethodError)
+[2012-12-13 23:06:33 -0500] jhayden: it did sound like a eulogy
+[2012-12-13 23:06:50 -0500] jhayden: that be it
+[2012-12-13 23:07:01 -0500] miah: wtf is wrong with your installation?
+[2012-12-13 23:07:50 -0500] jhayden: not sure
+[2012-12-13 23:08:13 -0500] jhayden: mere is running and its exposing port 4000 as it should
+[2012-12-13 23:08:19 -0500] jhayden: merb
+[2012-12-13 23:09:14 -0500] jhayden: root      1857  0.0  0.6 110372 25872 ?        S    Dec10   0:31 /usr/bin/ruby /usr/bin/chef-expander -d -c /etc/chef/expander.rb -L /var/log/chef/expander.log -P /var/run/chef/expander.pid -n 1 -i 1
+[2012-12-13 23:09:15 -0500] jhayden: root      1859  2.5  1.0 128748 41416 ?        S    Dec10 140:48 chef-expander worker #1 (vnodes 0-1023)
+[2012-12-13 23:09:16 -0500] jhayden: root      1874  0.0  3.0 1089180 116772 ?      Sl   Dec10   4:53 java -Xmx256M -Xms256M -Dsolr.data.dir=/var/chef/solr/data -Dsolr.solr.home=/var/chef/solr -jar /var/chef/solr-jetty/start.jar
+[2012-12-13 23:09:16 -0500] jhayden: chef      4821  0.2  1.5 189068 59580 ?        Sl   17:27   0:59 merb : chef-server (api) : worker (port 4000)
+[2012-12-13 23:15:39 -0500] masterkorp: dd if=/dev/me of=/dev/bed
+[2012-12-13 23:18:46 -0500] wamcvey: any suggestion on best way to report comment spam on community.opscode.com?
+[2012-12-13 23:20:21 -0500] btm: wamcvey: how much, one or two?
+[2012-12-13 23:20:43 -0500] wamcvey: btm: I know of two pages that include spam...
+[2012-12-13 23:20:53 -0500] wamcvey: others are likely
+[2012-12-13 23:21:21 -0500] btm: wamcvey: you can email me btm@opscode.com
+[2012-12-13 23:21:37 -0500] wamcvey: Ok... will do
+[2012-12-13 23:32:26 -0500] caryp: What is the best way to pass values from one resource to another?  For example: I have a LWRP that mounts a cloudstack-kvm volume, but the device name for the volume cannot be specified in the 'attach' api call, just discovered on the vm after the attach.  What is the best way to pass that device_name value (discovered at converge time) to another resource (e.g. mount or filesystem or lvm)?
+[2012-12-13 23:33:18 -0500] caryp: write to a file that is read by my attributes file, then use node.load_attribute_by_short_filename ?
+[2012-12-13 23:34:05 -0500] btm: caryp: set a node attribute.
+[2012-12-13 23:34:57 -0500] btm: node.set['foo_corp']['lvm']['volume'] = "/dev/null"
+[2012-12-13 23:36:07 -0500] caryp: btm: thanks for the reply.
+[2012-12-13 23:36:31 -0500] caryp: but the attribute is set in the converge phase
+[2012-12-13 23:37:17 -0500] caryp: and the attributes for the resources that I want to pass it to (mount, filesystem, lvm) are evaluated at compile time -- no?
+[2012-12-13 23:43:10 -0500] caryp: here is an simple test showing my delima
+[2012-12-13 23:43:12 -0500] caryp: http://pastie.org/5522594
+[2012-12-13 23:44:11 -0500] caryp: how do I pass the value set in the ruby block to another resource in the recipe?  Maybe the answer is "i can't"?
+[2012-12-13 23:49:21 -0500] programmerq: so, we've installed chef-client into the system wide installation that comes with our distro. Our run list installs rvm. The effect is that when you log on to the server later, and try to run chef-client, the GEM_PATH that rvm puts in your shell makes chef-client fail.
+[2012-12-13 23:50:01 -0500] spox: install chef into rvm?
+[2012-12-13 23:50:07 -0500] programmerq: we'd like to avoid having to install chef into the rvm
+[2012-12-13 23:50:10 -0500] spox: use omnibus install so you don't have to worry about it?
+[2012-12-13 23:50:21 -0500] programmerq: omnibus install crossed my mind too
+[2012-12-13 23:50:24 -0500] programmerq: will try that
+[2012-12-13 23:50:32 -0500] programmerq: concerned that GEM_PATH will cause same problem for that too
+[2012-12-13 23:50:48 -0500] spox: rvm use system
+[2012-12-13 23:50:49 -0500] spox: ?
+[2012-12-13 23:51:05 -0500] programmerq: any way to get that be the default, at least for root?
+[2012-12-13 23:51:17 -0500] spox: on login? add it to the profile?
+[2012-12-13 23:51:28 -0500] programmerq: hmm
+[2012-12-13 23:51:50 -0500] programmerq: too many affected users, would want a system-wide solution at the rvm cookbook level.
+[2012-12-13 23:52:52 -0500] programmerq: hmmm
+[2012-12-13 23:54:10 -0500] programmerq: we could of course also install rvm for only the application user
+[2012-12-13 23:54:24 -0500] programmerq: going to try omnibus-installed chef first.

@@ -1,0 +1,795 @@
+[2012-10-30 00:00:26 -0400] retr0h: cmceldowney: node['ipaddress'] && node['network']...select is about as simple as it gets
+[2012-10-30 00:01:17 -0400] retr0h: erikh: I would suggest the network addr ohai plugin (https://gist.github.com/1040543)
+[2012-10-30 00:01:35 -0400] erikh: eh, this works, and ohai plugins are a bitch to manage
+[2012-10-30 00:01:37 -0400] retr0h: you can then do node['network']['ipaddress_eth1'] instead
+[2012-10-30 00:02:03 -0400] retr0h: imo ohai plugins are very useful...
+[2012-10-30 00:02:19 -0400] cmceldowney: erikh: And to your point, yes, this model could potentially work to deal with client-specific overrides, but the problem is then I have to manage the overrides in my chef codebase, instead of allowing them to edit a .rb file inside their code repository and modify the restart behavior on their own...
+[2012-10-30 00:02:36 -0400] erikh: retr0h: they are, but they're also a pain to bootstrap
+[2012-10-30 00:02:46 -0400] erikh: so I use them when I have to
+[2012-10-30 00:02:53 -0400] retr0h: erikh: how so?  you distribute them with the ohai cookbook
+[2012-10-30 00:03:18 -0400] retr0h: the ohai cookbook pretty much takes care of it all for you
+[2012-10-30 00:03:29 -0400] erikh: except for the ohai run that already happened
+[2012-10-30 00:03:29 -0400] retr0h: even re-runs ohai if you add a new plugin
+[2012-10-30 00:03:32 -0400] retr0h: no
+[2012-10-30 00:03:34 -0400] retr0h: it runs twice ;)
+[2012-10-30 00:03:42 -0400] retr0h: if you added a new pklugin
+[2012-10-30 00:04:33 -0400] retr0h: https://github.com/opscode-cookbooks/ohai/blob/master/recipes/default.rb
+[2012-10-30 00:05:38 -0400] retr0h: i push everything i want to know site wise out into ohai plugins... eg raid configurations, lldp switch port info, ipmi addresses, VM public/private IPs, etc...
+[2012-10-30 00:05:43 -0400] erikh: I'm still not sure how that'd solve this problem
+[2012-10-30 00:05:45 -0400] erikh: sure
+[2012-10-30 00:06:04 -0400] retr0h: i'm simply responding to your statement about ohai plugins being a pain to bootstrap
+[2012-10-30 00:06:11 -0400] erikh: gotcha
+[2012-10-30 00:06:11 -0400] retr0h: which i disagree with
+[2012-10-30 00:06:13 -0400] retr0h: :)
+[2012-10-30 00:06:25 -0400] retr0h: carry on
+[2012-10-30 00:07:41 -0400] erikh: right now I'm just trying to find out who at opscode I need to beat to use mutable stdio globals instead of the constants
+[2012-10-30 00:07:57 -0400] erikh: or let me supply my own Chef::Knife::UI object at Chef::Knife.run time
+[2012-10-30 00:09:21 -0400] retr0h: fork and pull won't work?
+[2012-10-30 00:10:24 -0400] josephholsten: coderanger: if I wanted to make the application cookbook deploy artifacts from a nexus (maven) repo, would there be any sane way to do that today?
+[2012-10-30 00:11:39 -0400] bluepojo: erikh: last time I messed around with Knife objects I was able to swap out the UI object
+[2012-10-30 00:11:41 -0400] bluepojo: I forget how I did it
+[2012-10-30 00:11:57 -0400] bluepojo: I think it's as simple as Knife.ui = NewUIObject.new
+[2012-10-30 00:12:15 -0400] bluepojo: or perhaps I fed the existing UI object different IO streams
+[2012-10-30 00:12:18 -0400] bluepojo: one of those two works
+[2012-10-30 00:12:23 -0400] josephholsten: seems like I could abstract out the deploy resource, replace it with ark. or maybe it would be easier to abstract out the SCM core in the deploy resource?
+[2012-10-30 00:14:49 -0400] erikh: bluepojo: yeah, which is fine, if you know what plugin you want to use
+[2012-10-30 00:15:05 -0400] erikh: you have to rebuild a lot of Chef::Knife to do it for an arbitrary plugin, though.
+[2012-10-30 00:15:41 -0400] erikh: ... which is the road I went down initially, but I could probably make what I'm doing about 10 bajillion times easier with a 5-line, compatible patch to chef/knife.rb
+[2012-10-30 00:16:11 -0400] bluepojo: my primary complaint with Knife is that it doesn't assume you want to call #run from a ruby script
+[2012-10-30 00:16:12 -0400] hippiehacker: https://github.com/hh/windows-fromscratch could use some eyes
+[2012-10-30 00:16:24 -0400] bluepojo: it assumes #run will be called with the cli as the output in many cases
+[2012-10-30 00:16:35 -0400] bluepojo: not many perhaps all
+[2012-10-30 00:16:50 -0400] erikh: it's the way Chef::Knife::UI is instantiated in Chef::Knife.new
+[2012-10-30 00:17:00 -0400] erikh: and that part is literally a 3-line fix or easier
+[2012-10-30 00:17:11 -0400] erikh: using $stdout instead of STDOUT is the other bit
+[2012-10-30 00:17:19 -0400] erikh: (which is the right way to do it)
+[2012-10-30 00:17:28 -0400] bluepojo: and the problem that there is sporadic usage of #puts
+[2012-10-30 00:17:32 -0400] bluepojo: instead of using the UI object
+[2012-10-30 00:18:09 -0400] erikh: Kernel.puts goes to $stdout
+[2012-10-30 00:18:19 -0400] bluepojo: right
+[2012-10-30 00:18:19 -0400] bluepojo: but
+[2012-10-30 00:18:33 -0400] hippiehacker: might be interesting to use veewee/vagrant to generate windows based images for eucalyptus or openstack etc, or integrate into CI somehow for testing
+[2012-10-30 00:18:34 -0400] bluepojo: if you want to pipe to a file or something
+[2012-10-30 00:18:45 -0400] erikh: I want to grab the output
+[2012-10-30 00:18:52 -0400] bluepojo: yeah
+[2012-10-30 00:18:54 -0400] bluepojo: you can do so
+[2012-10-30 00:18:58 -0400] bluepojo: by capturing stdout
+[2012-10-30 00:19:02 -0400] erikh: yep
+[2012-10-30 00:19:04 -0400] erikh: I wrote that code :)
+[2012-10-30 00:19:04 -0400] bluepojo: but it's nicer just to use a UI object
+[2012-10-30 00:19:14 -0400] bluepojo: that can dump strings into an object
+[2012-10-30 00:19:15 -0400] bluepojo: or something
+[2012-10-30 00:19:21 -0400] bluepojo: or better yet
+[2012-10-30 00:19:26 -0400] bluepojo: leave the formatting to the UI object
+[2012-10-30 00:19:31 -0400] bluepojo: and just pass information to it
+[2012-10-30 00:19:31 -0400] erikh: I do that now
+[2012-10-30 00:19:40 -0400] bluepojo: yeah, cause you're a good programmer
+[2012-10-30 00:19:43 -0400] bluepojo: Knife, on the other hand
+[2012-10-30 00:19:49 -0400] erikh: Chef::Knife::UI already does that for the most part
+[2012-10-30 00:19:59 -0400] bluepojo: it should do it for the all part
+[2012-10-30 00:20:03 -0400] bluepojo: :D
+[2012-10-30 00:20:04 -0400] erikh: it just depends on 1) a very specific UI object and 2) STDIO constants
+[2012-10-30 00:22:05 -0400] erikh: if I could override the ui object and mutate stdio (which is what $stdout, etc were created for), this would get a lot easier
+[2012-10-30 00:22:24 -0400] erikh: right now my code starts with $VERBOSE = nil and Object.const_set, which is ... not pretty
+[2012-10-30 00:25:37 -0400] erikh: anyhow, Chef::Knife::UI more than satisfies it's charter, it just needs a few improvements for uses that really weren't anticipated
+[2012-10-30 00:25:40 -0400] erikh: not a bad problem to have
+[2012-10-30 00:26:56 -0400] bluepojo: true enough
+[2012-10-30 00:27:03 -0400] lyric: quick question: best way to share vars determined in the  default recipe into other recipes in the cookbook?
+[2012-10-30 00:27:26 -0400] bluepojo: if the vars are set there, you need to include_recipe "cookbookname" to have them set in your recipe
+[2012-10-30 00:27:49 -0400] lyric: hum, ok i did that, but it is not finding it
+[2012-10-30 00:27:56 -0400] lyric: i will look again
+[2012-10-30 00:31:08 -0400] bluepojo: are you calling node.set[:key] = 'something'
+[2012-10-30 00:31:09 -0400] bluepojo: ?
+[2012-10-30 00:31:36 -0400] bluepojo: lyric:
+[2012-10-30 00:32:17 -0400] lyric: ah, no, i was not setting it on the node
+[2012-10-30 00:32:46 -0400] lyric: was just trying to pass it in a ruby fashion
+[2012-10-30 00:33:06 -0400] lyric: is that the only/best way to pass vars between cookbooks?
+[2012-10-30 00:33:13 -0400] lyric: with node.set
+[2012-10-30 00:33:22 -0400] bluepojo: I believe node[:key] = 'something' works, but it won't work in Chef 11. It's being deprecated
+[2012-10-30 00:33:57 -0400] lyric: ok, i will try that, Thanks!
+[2012-10-30 01:01:06 -0400] maek: this is old school but my chef 0.10.4 server doesnt log anything to expander. any ideas?
+[2012-10-30 01:47:18 -0400] schuckles: can anyone recommend an amanda cookbook?
+[2012-10-30 02:17:31 -0400] letomuaddib: I'll try again my question about vagrant with chef solo executing scripts and templates with user "vagrant" instead of the user specified in the recipe
+[2012-10-30 02:17:43 -0400] letomuaddib: anyone has encountered anything like that?
+[2012-10-30 02:18:37 -0400] letomuaddib: it happened to me with the postgresql cookbook and I'm not sure why, since chef's log affirms it's using the user specified in the recipe, although I see the owner and group of the template as "vagrant:vagrant" once the recipe is done
+[2012-10-30 02:31:36 -0400] cheeseplus: letomuaddib: I can't say I have - is this the official postgres cookbook? (link?)
+[2012-10-30 02:31:48 -0400] cheeseplus: also, what OS?
+[2012-10-30 02:32:35 -0400] letomuaddib: yes, it is the official opscode postgres cookbook, and the host os where I'm running Vagrant is Mac OS X (ML) and I'm trying to create an Ubuntu 12.04 VM set up with chef
+[2012-10-30 02:32:45 -0400] hoover_damm: letomuaddib, what is the error message your getting?
+[2012-10-30 02:33:26 -0400] letomuaddib: hoover_damm: I get a few, if I do a destroy + up, the recipe fails when restarting the postgres service after creating postgres.conf from the template
+[2012-10-30 02:33:43 -0400] letomuaddib: and if I log into the machine I see all files have the postgres:postgres user except that one, which is vagrant:vagrant
+[2012-10-30 02:33:58 -0400] letomuaddib: if I change it's owner/group then it moves to pg_hba.conf and then restart fails again
+[2012-10-30 02:34:01 -0400] letomuaddib: for the same reasons
+[2012-10-30 02:34:10 -0400] hoover_damm: letomuaddib, postgres should run as postgres... not as vagrant
+[2012-10-30 02:34:20 -0400] letomuaddib: if I change that manually, the next failure is the script that is trying to reset the passwrod
+[2012-10-30 02:34:23 -0400] hoover_damm: so chef should be running as root and ensuring everything is set right
+[2012-10-30 02:34:35 -0400] hoover_damm: i know vagrant does setup the vagrant user and runs chef through sudo with that (afaik)
+[2012-10-30 02:34:52 -0400] letomuaddib: hoover_damm: I know, that's the weird part, in the log chef says it's using the proper user and group
+[2012-10-30 02:35:05 -0400] hoover_damm: is chef running as root?
+[2012-10-30 02:35:10 -0400] letomuaddib: but in reality I don't see the proper user/group assigned
+[2012-10-30 02:35:11 -0400] hoover_damm: could it be running vagrant?
+[2012-10-30 02:35:20 -0400] hoover_damm: if it runs as vagrant
+[2012-10-30 02:35:22 -0400] hoover_damm: this would make sense
+[2012-10-30 02:35:33 -0400] letomuaddib: hoover_damm: I don't know, I am using the vagrant provision command and the default chef setup
+[2012-10-30 02:35:55 -0400] letomuaddib: hoover_damm: I don't think it would be just vagrant user as I have a number of recipes running before (apt, nginx, etc.) and they seem to work ok
+[2012-10-30 02:39:30 -0400] hoover_damm: well i don't use vagrant much, i've heard folks talk about the vagrant user thing a lot but can't really personally comment on a fix
+[2012-10-30 02:39:45 -0400] hoover_damm: check for pull requests, and check other forks
+[2012-10-30 02:39:50 -0400] hoover_damm: there maybe a cookbook that works for you
+[2012-10-30 02:40:36 -0400] letomuaddib: hoover_damm: thanks for the suggestions, I will try those
+[2012-10-30 02:40:45 -0400] letomuaddib: I was hoping someone would have seen something like this before
+[2012-10-30 02:40:49 -0400] letomuaddib: but it does seem rather weird
+[2012-10-30 02:43:43 -0400] hoover_damm: letomuaddib, it's possible but without any stack trace of the actual error at hand, or any chef logs to show where it's going wrong
+[2012-10-30 02:43:48 -0400] hoover_damm: letomuaddib, we cannot do anything but guess
+[2012-10-30 02:44:49 -0400] cheeseplus: I'd have to try it out myself but unfortunately I'm a bit too busy to try it atm
+[2012-10-30 02:44:58 -0400] cheeseplus: curious but tied up
+[2012-10-30 02:45:05 -0400] hoover_damm: well i know my cookbook works on 12.04 from beginning to end
+[2012-10-30 02:45:07 -0400] hoover_damm: without a hiccup
+[2012-10-30 02:45:10 -0400] hoover_damm: but i don't count
+[2012-10-30 02:45:18 -0400] letomuaddib: https://gist.github.com/3978014
+[2012-10-30 02:45:29 -0400] hoover_damm: i don't know how well it works on vagrant and i'm not really going to look
+[2012-10-30 02:45:30 -0400] letomuaddib: I copied what seems to be the most relevant part of it
+[2012-10-30 02:45:52 -0400] letomuaddib: the first line of the gist is where the apt-get -q -y install postgresql succeded
+[2012-10-30 02:45:52 -0400] hoover_damm: letomuaddib, sounds like vagrant user
+[2012-10-30 02:46:03 -0400] letomuaddib: which means it would have been root
+[2012-10-30 02:46:12 -0400] hoover_damm: basically it's trying to restart postgresql
+[2012-10-30 02:46:12 -0400] hoover_damm:  * Error: could not read /etc/postgresql/9.1/main/postgresql.conf: Permission denied
+[2012-10-30 02:46:16 -0400] hoover_damm: but throwing that
+[2012-10-30 02:46:22 -0400] letomuaddib: right, that's what I'm saying
+[2012-10-30 02:46:29 -0400] letomuaddib: lines 21-22 indicate it changed the permissions
+[2012-10-30 02:46:36 -0400] letomuaddib: to the user postgres, group postgres
+[2012-10-30 02:46:55 -0400] letomuaddib: but still, when restarting the postgresql.conf file has the owner:group set to vagrant:vagrant
+[2012-10-30 02:47:06 -0400] letomuaddib: which is the thing I'm trying to solve
+[2012-10-30 02:47:22 -0400] hoover_damm: ouch
+[2012-10-30 02:47:24 -0400] hoover_damm: so that's basically easy
+[2012-10-30 02:47:32 -0400] hoover_damm: that should work
+[2012-10-30 02:47:33 -0400] hoover_damm: and it's not
+[2012-10-30 02:47:41 -0400] letomuaddib: exactly
+[2012-10-30 02:47:42 -0400] hoover_damm: and if you vagrant ssh
+[2012-10-30 02:47:43 -0400] hoover_damm: sudo su -
+[2012-10-30 02:47:47 -0400] hoover_damm: chef-solo
+[2012-10-30 02:47:48 -0400] hoover_damm: it would work
+[2012-10-30 02:48:08 -0400] letomuaddib: sudo su - works fine, yes
+[2012-10-30 02:48:27 -0400] hoover_damm: so the problem you have is why is vagrant putting you in an environment where you are not root
+[2012-10-30 02:48:45 -0400] letomuaddib: yeah, in particular why would it fail to do so at that point only
+[2012-10-30 02:48:53 -0400] letomuaddib: since the first step, the apt-get install clearly works
+[2012-10-30 02:49:08 -0400] hoover_damm: yep, i'm shocked that works
+[2012-10-30 02:49:23 -0400] letomuaddib: many previous recipes work just fine, actually a ton of them
+[2012-10-30 02:49:30 -0400] letomuaddib: except at that point, with templates it fails
+[2012-10-30 02:49:38 -0400] hoover_damm: and the basic problem is the results your seeing
+[2012-10-30 02:49:40 -0400] hoover_damm: you wouldn't see elsewhere
+[2012-10-30 02:50:02 -0400] hoover_damm: can't blame the cookbook for everything
+[2012-10-30 02:50:28 -0400] letomuaddib: yeah, I'm guessing at least someone has tried this on another machine and it worked well
+[2012-10-30 02:51:09 -0400] letomuaddib: but still, I tried this a number of times and every time I do it it fails at that step
+[2012-10-30 02:55:11 -0400] letomuaddib: is there any way to tell chef to display even more loging information?
+[2012-10-30 02:55:28 -0400] bluepojo: yeah there's a debug flag
+[2012-10-30 02:55:29 -0400] bluepojo: ummm
+[2012-10-30 02:55:31 -0400] bluepojo: on chef-client
+[2012-10-30 02:55:33 -0400] bluepojo: forget what it is
+[2012-10-30 02:55:47 -0400] hoover_damm: -l debug
+[2012-10-30 02:55:51 -0400] bluepojo: yeah that
+[2012-10-30 02:56:49 -0400] letomuaddib: I guess that's what the Vagrant option chef.log_level = :debug does
+[2012-10-30 03:04:50 -0400] letomuaddib: well, much to my amazement, I was able to move forward with this
+[2012-10-30 03:05:30 -0400] letomuaddib: taking note of how nginx is coded, I replaced the mode 0600 with mode "0600" and put it before the user/group specifications
+[2012-10-30 03:05:50 -0400] letomuaddib: and that got the thing to move forward just fine
+[2012-10-30 03:15:30 -0400] letomuaddib: actually forget it, I did not move things forward at all, same error, same place
+[2012-10-30 03:15:42 -0400] letomuaddib: not sure why I was under that mistaken impression of having easily fixed things
+[2012-10-30 03:15:43 -0400] letomuaddib: oh, well
+[2012-10-30 03:17:51 -0400] cheeseplus: letomuaddib: are you just using the defaults in the cookbook?
+[2012-10-30 03:17:59 -0400] cheeseplus: I may have a moment to try to replicate
+[2012-10-30 03:20:24 -0400] letomuaddib: cheeseplus: I do
+[2012-10-30 03:20:42 -0400] letomuaddib: I am installing a few cookbooks before
+[2012-10-30 03:20:48 -0400] letomuaddib: I can try to install just postgres
+[2012-10-30 03:21:05 -0400] letomuaddib: to see if you can replicate it this way
+[2012-10-30 03:22:34 -0400] letomuaddib: I'm using the base box "precise64", btw
+[2012-10-30 03:23:14 -0400] letomuaddib: and I have my own recipe "main" that is including the other recipes, in particular the one that is causing the issues, "postgresql::server"
+[2012-10-30 03:24:34 -0400] letomuaddib: so for me, if my recipe includes "apt" and "postgresql::server", the error I'm talking about still shows up
+[2012-10-30 03:24:47 -0400] letomuaddib: making me believe it's not a conflict with the other recipes
+[2012-10-30 03:51:10 -0400] cheeseplus: letomuaddib: I've got the precise64 box and I'm pulling the postgres cookbook now, will let you know in a bit
+[2012-10-30 03:52:46 -0400] letomuaddib: thanks cheeseplus
+[2012-10-30 04:18:32 -0400] letomuaddib: cheeseplus: any luck?
+[2012-10-30 04:24:14 -0400] cheeseplus: letomuaddib: took me a bit longer to get on it but it's failing in completely different ways for me right now
+[2012-10-30 04:24:37 -0400] letomuaddib: still on the postgresql recipe or even before?
+[2012-10-30 04:25:18 -0400] cheeseplus: I'm only trying to call the postgresql::server recipe
+[2012-10-30 04:27:00 -0400] letomuaddib: it does depend on a few other recipes iirc, openssl at the very least
+[2012-10-30 04:27:10 -0400] letomuaddib: but I guess you knew that
+[2012-10-30 04:29:48 -0400] cheeseplus: letomuaddib: that is what I figured out ;)
+[2012-10-30 04:29:52 -0400] cheeseplus: pulling that one down
+[2012-10-30 04:41:29 -0400] cheeseplus: letomuaddib: ok installed and chef got all the way through the run
+[2012-10-30 04:42:20 -0400] letomuaddib: well that's interesting
+[2012-10-30 04:42:52 -0400] letomuaddib: same setup, with vagrant and all?
+[2012-10-30 04:43:55 -0400] cheeseplus: vagrant - precise64, chef 10.10, postgresql, apt, and openssl cookbooks
+[2012-10-30 04:44:02 -0400] j4m3s: getting a weird error  Chef::Mixin::Template::TemplateError - undefined method `[]' for nil:NilClass -- anyone ever seen that before?
+[2012-10-30 04:44:35 -0400] cheeseplus: j4m3s: something is empty that needs to have a value it looks like
+[2012-10-30 04:44:46 -0400] letomuaddib: cheeseplus: uhm, thanks a lot for checking, so it must be something with my setup though I can't say I know where to go from here
+[2012-10-30 04:44:50 -0400] cheeseplus: ll /etc/postgresql/9.1/main/postgresql.conf
+[2012-10-30 04:44:50 -0400] cheeseplus: -rw------- 1 postgres postgres 16496 Oct 30 04:41 /etc/postgresql/9.1/main/postgresql.conf
+[2012-10-30 04:45:32 -0400] cheeseplus: letomuaddib: did you build the vagrant box yourself?
+[2012-10-30 04:45:42 -0400] letomuaddib: no, downloaded
+[2012-10-30 04:46:20 -0400] letomuaddib: and it seems to even be the exact chef 10.10 for me too
+[2012-10-30 04:46:48 -0400] j4m3s: cheeseplus, yessir indeed
+[2012-10-30 04:47:28 -0400] letomuaddib: cheeseplus, did you include the recipes from the Vagrantfile directly?
+[2012-10-30 04:48:13 -0400] cheeseplus: j4m3s: it's hard to be more helpful with that particular error without any more detail, it's a pretty common one
+[2012-10-30 04:48:30 -0400] j4m3s: cheeseplus, nope that answered it ;)
+[2012-10-30 04:48:45 -0400] cheeseplus: oh glad I helped :D
+[2012-10-30 04:49:24 -0400] cheeseplus: lots of folks want more help with that and it's easily one of the most common but least descriptive of where the actual problem is
+[2012-10-30 04:49:42 -0400] cheeseplus: letomuaddib: yep, under the chef-solo section
+[2012-10-30 04:50:14 -0400] cheeseplus: letomuaddib: https://gist.github.com/3978367
+[2012-10-30 04:50:20 -0400] cheeseplus: that is my vagrantfile
+[2012-10-30 04:50:29 -0400] letomuaddib: mkay, I must have been doing something screwy since even after a high number of destroy/up it's still failing for me
+[2012-10-30 04:51:24 -0400] cheeseplus: the only thing I can think of is that I got that vagrant box from a different source or built it myself
+[2012-10-30 04:51:31 -0400] cheeseplus: honestly don't recall at this point
+[2012-10-30 04:52:00 -0400] letomuaddib: can't see anything different from mine, not significantly so anyway
+[2012-10-30 04:52:21 -0400] letomuaddib: https://gist.github.com/3978374
+[2012-10-30 04:52:33 -0400] cheeseplus: what is the chef version of your precise64 box?
+[2012-10-30 04:52:38 -0400] letomuaddib: this one is mine, and I just tried again to run the thing and it still fails
+[2012-10-30 04:52:41 -0400] cheeseplus: I'm guessing it's that
+[2012-10-30 04:52:44 -0400] letomuaddib: 10.10 I think
+[2012-10-30 04:53:03 -0400] letomuaddib:  /opt/vagrant_ruby/lib/ruby/gems/1.8/gems/chef-0.10.10/bin/../lib/chef/application.rb:70:in `run'
+[2012-10-30 04:53:15 -0400] letomuaddib: this is one of the output lines so it seems like it's 10.10
+[2012-10-30 04:54:08 -0400] cheeseplus: letomuaddib: I'd punt that precise64 box
+[2012-10-30 04:54:26 -0400] cheeseplus: get a new copy and checksum it just to be safe
+[2012-10-30 04:54:37 -0400] letomuaddib: yeah, at this point few options other than this remain, indeed
+[2012-10-30 04:54:48 -0400] cheeseplus: may not fix the issue but it seems the most likely suspect
+[2012-10-30 04:55:25 -0400] letomuaddib: whoaaa
+[2012-10-30 04:55:27 -0400] letomuaddib: found it
+[2012-10-30 04:55:31 -0400] letomuaddib: shoot
+[2012-10-30 04:55:32 -0400] cheeseplus: I wouldn't think the vagrant/vbox bersions would have anything to do with that particular error but for what it's worth...
+[2012-10-30 04:55:35 -0400] cheeseplus: what was it?
+[2012-10-30 04:55:46 -0400] letomuaddib: it's my mapping of the "/tmp" folder........
+[2012-10-30 04:55:57 -0400] letomuaddib: I did it to see debugging output from Vagrant
+[2012-10-30 04:56:11 -0400] letomuaddib: and somehow chef does not seem to like it
+[2012-10-30 04:56:27 -0400] letomuaddib: maybe because even a destroy &  up wouldn't clean that folder
+[2012-10-30 04:56:37 -0400] letomuaddib: so on subsequent runs there were already things in there
+[2012-10-30 04:56:56 -0400] letomuaddib: and I think chef is building a predefined hierarchy of things there, not using new folders for every new run
+[2012-10-30 04:57:05 -0400] letomuaddib: vagrant-chef-1, etc.
+[2012-10-30 04:57:07 -0400] letomuaddib: shooooot
+[2012-10-30 04:57:21 -0400] letomuaddib: well thanks a whole lot for your assistance cheeseplus
+[2012-10-30 04:57:30 -0400] letomuaddib: it at least clarified that the problem was on my end
+[2012-10-30 04:57:55 -0400] cheeseplus: happy to be a sanity check ;)
+[2012-10-30 04:58:28 -0400] letomuaddib: sorry about this, I was truly convinced it was something wrong with the cookbook or chef
+[2012-10-30 04:58:40 -0400] letomuaddib: still can't say I understand why that folder would have screwed things up
+[2012-10-30 04:58:59 -0400] letomuaddib: but id does seem to have made a difference, it's the first time I'm getting a full install of that recipe
+[2012-10-30 05:02:20 -0400] letomuaddib: alright, I'll be going to bed on this note, thanks again for your help cheeseplus
+[2012-10-30 05:03:39 -0400] cheeseplus: np
+[2012-10-30 06:17:40 -0400] BryanWB_: cheeseplus: hey buddy , looking forward to talking w/ u guys tonight
+[2012-10-30 06:23:52 -0400] koaps_: heyall
+[2012-10-30 06:43:36 -0400] koaps_: any1 awake wh might be able help out?
+[2012-10-30 06:45:46 -0400] aruntomar: koaps_: hi
+[2012-10-30 06:46:00 -0400] koaps_: hey aruntomar
+[2012-10-30 06:46:28 -0400] koaps_: i'm trying to figure out why chef-server won't run as a daemon but runs fine in the foreground
+[2012-10-30 06:47:30 -0400] aruntomar: koaps_: how did u install chef-server? and do u get any errors while trying to run it as daemon?
+[2012-10-30 06:48:50 -0400] koaps_: i did a gem install of chef
+[2012-10-30 06:49:15 -0400] koaps_: I don't see any errors
+[2012-10-30 06:49:20 -0400] koaps_: the pid just exists
+[2012-10-30 06:49:27 -0400] koaps_: doesn't even log
+[2012-10-30 06:49:44 -0400] koaps_: if I take off the -d, it runs fine
+[2012-10-30 06:49:50 -0400] koaps_: clients can connect and get updates
+[2012-10-30 07:05:12 -0400] koaps_: lol nevermind, it was my bad
+[2012-10-30 07:06:12 -0400] koaps_: i saw  ~ No Gemfile found! If you're generating new app with merb-gen this is fine, otherwise run: bundle init to create Gemfile
+[2012-10-30 07:06:48 -0400] koaps_: for chef-server-api and thought I needed to run bundle init, which created a Gemfile which prevented requires from loading
+[2012-10-30 07:06:56 -0400] koaps_: removed the Gemfile and it works now
+[2012-10-30 07:34:52 -0400] aruntomar: koaps_: sorry. i was distracted by phone calls. anyways, good to know that u found the cause, as well as the solution.
+[2012-10-30 09:31:08 -0400] wonko_be: hey, is there some plugin to collectd, or integration with statsd or similar available?
+[2012-10-30 09:31:19 -0400] wonko_be: to get some metrics from the cluster parts
+[2012-10-30 11:34:48 -0400] Nopik: hi.. in few of my recipes i have common code, where i'm trying to calculate some variable, with some fallbacks. So, the block of code repeats 2-3 times in various recipes. Can I somehow extract it to standalone file and include is easily?
+[2012-10-30 11:35:06 -0400] maek: Nopik: yes, you can use a library
+[2012-10-30 11:35:10 -0400] maek: or an lwrp
+[2012-10-30 11:35:14 -0400] maek: whats the code do?
+[2012-10-30 11:36:39 -0400] Nopik: maek: it sets some ruby variable, kind of: my_hostname = node[ :my_attr ]; if my_hostname.nil? my_hostname = databag( some default ); end (although it is 3-4 more complicated). At the end I have one ruby variable, which I'm passing into template_file
+[2012-10-30 11:37:50 -0400] Nopik: so i tried to move it out to some standalone recipe, but ruby variable value was lost after include
+[2012-10-30 11:38:39 -0400] maek: you should be able to make that a library
+[2012-10-30 11:38:46 -0400] maek: make it a method
+[2012-10-30 11:39:00 -0400] Nopik: maek: ok, great. any example? i dont see any example on chef wiki
+[2012-10-30 11:39:43 -0400] Nopik: wait, found it :)
+[2012-10-30 11:40:57 -0400] maek: Nopik: https://github.com/RiotGames/cloudera-cookbook/blob/master/libraries/recipe_ext.rb
+[2012-10-30 11:41:06 -0400] maek: so then you just make that cookbook a depends
+[2012-10-30 11:41:11 -0400] maek: and you can use that method
+[2012-10-30 11:42:33 -0400] Nopik: maek: thanks, it looks exactly like what I looked for, let me play with it :)
+[2012-10-30 12:03:35 -0400] uncommitted: anyone noticing the users cookbook doesn't seem to create groups anymore?
+[2012-10-30 12:05:57 -0400] gyre008: tricky question gentlemenwould something like this work ? https://gist.github.com/3979825
+[2012-10-30 12:05:58 -0400] gyre008: :)
+[2012-10-30 12:11:12 -0400] Nopik: gyre007: what exact problem you have with this?
+[2012-10-30 12:11:50 -0400] Nopik: gyre007: ah, you want to capture command output?
+[2012-10-30 12:12:04 -0400] Nopik: gyre007: isn't it easier to use File ruby class?
+[2012-10-30 12:12:24 -0400] Nopik: (if you just want to list files in directory, that is)
+[2012-10-30 12:12:45 -0400] Nopik: gyre007: still, even if you want to execute arbitrary command, ruby have facilities for that
+[2012-10-30 12:13:27 -0400] Nopik: maek: just to confirm, indeed, libraries did the trick and my code is cleaner now, thanks ;)
+[2012-10-30 12:13:49 -0400] Nopik: too bad that Chef::Recipe need to be extended, though
+[2012-10-30 12:14:22 -0400] maek: Nopik: np :)
+[2012-10-30 12:14:31 -0400] maek: Nopik: what do you mean?
+[2012-10-30 12:15:16 -0400] Nopik: maek: I mean, it could be easier just to have def, without having to Chef::Recipe.send(:include, your_mixin)
+[2012-10-30 12:16:04 -0400] maek: im not really a real ruby dev
+[2012-10-30 12:16:07 -0400] maek: we also have these
+[2012-10-30 12:16:08 -0400] maek: class Chef
+[2012-10-30 12:16:08 -0400] maek: module RiotLocation
+[2012-10-30 12:16:09 -0400] maek: class << self
+[2012-10-30 12:16:24 -0400] maek: and then you call it like Chef::RiotLocation.method
+[2012-10-30 12:16:28 -0400] maek: for what its worth
+[2012-10-30 12:16:34 -0400] maek: module is arbitrary
+[2012-10-30 12:16:37 -0400] Nopik: maek: yeah
+[2012-10-30 12:16:52 -0400] Nopik: maek: anyway, i'm happy with current solution
+[2012-10-30 12:17:04 -0400] maek: i think you can just do straight up defs
+[2012-10-30 12:17:04 -0400] maek: in there
+[2012-10-30 12:17:06 -0400] maek: also
+[2012-10-30 12:17:09 -0400] maek: not 100% sure
+[2012-10-30 12:17:28 -0400] Nopik: maek: i think you can, but I guess that then you can't access 'node' and other things from recipe
+[2012-10-30 12:33:32 -0400] gyre008: Nopik, I have no problems with this :) Im just curious whether it will workI'm not planning to use the exact same code
+[2012-10-30 12:33:45 -0400] gyre008: it's just a theoretical question...
+[2012-10-30 12:50:18 -0400] behemphi: Quick question, I want to set the concurrency in knife.rb, but cannot find the syntax for specifying this value
+[2012-10-30 12:50:26 -0400] behemphi: anyone done this?
+[2012-10-30 12:54:13 -0400] atomic-penguin: I missed part 1 of the question
+[2012-10-30 12:54:19 -0400] gyre008: concurrency ?
+[2012-10-30 12:56:28 -0400] gyre008: is there any way in LWRP how can I make sure that certain key/val pairs exist in Hash attribute ?
+[2012-10-30 12:59:32 -0400] geekbri: gyre008: Not sure I understand the question.  Do you want to know if you can make sure a node attribute exists or just an entry in a hash/mash ?
+[2012-10-30 13:00:51 -0400] gyre008: geekbri, basically, I'll be passing a connection Hash to the LWRP providerand I want to make sure that it contains all required values like port and hosti.e. {:host => foot, :port => 80} is valid but {:host => foo} is NOT valid
+[2012-10-30 13:01:13 -0400] gyre008: I thought that there could be some handy way how to veal these in LWRP resource definition...
+[2012-10-30 13:01:55 -0400] geekbri: gyre008: you should be able to use the callback validation parameter
+[2012-10-30 13:02:23 -0400] geekbri: sorry, callbacks, not callback :
+[2012-10-30 13:02:24 -0400] gyre008: geekbri, not sure what that is :)
+[2012-10-30 13:02:25 -0400] geekbri: :)
+[2012-10-30 13:02:35 -0400] geekbri: Here hold on, It should be in the wiki give me a second
+[2012-10-30 13:03:44 -0400] geekbri: gyre008: http://wiki.opscode.com/display/chef/Lightweight+Resources+and+Providers+(LWRP)#LightweightResourcesandProviders%28LWRP%29-Keyword%3Aattribute   See: Validation parameters
+[2012-10-30 13:03:56 -0400] gyre008: geekbri, cheers, will have a look
+[2012-10-30 13:04:19 -0400] geekbri: gyre008: :)  hopefully i understood properly and that is what you are looking for
+[2012-10-30 13:10:15 -0400] gyre008: geekbri, yeah looks like thats what I'm looking forjust need to figure out how to use it ;)
+[2012-10-30 13:12:12 -0400] masterkorp: Guys is there any tool to help me dealing with multiple chef servers from knife ?
+[2012-10-30 13:19:25 -0400] geekbri: masterkorp: I just modified my knife.rb file to use certain variables based upon my git branch
+[2012-10-30 13:19:59 -0400] geekbri: masterkorp: I am pretty sure I was at a chef meetup where somebody talked about a knife plugin for such a thing.  Or that one of the existing knife plugins could handle things like that.  I've always just found it pretty straightforward to just modify my knife.rb
+[2012-10-30 13:22:02 -0400] masterkorp: Hmm, yeah but changing it by hand becomes tedious with testing servers that i do have a chef-repo under scm
+[2012-10-30 13:22:25 -0400] geekbri: masterkorp: Yes this is true.  I wish I could say I had a better memory.  I swear at some meetup I went to somebody talked about a plugin that dealt with such things
+[2012-10-30 13:22:51 -0400] masterkorp: geekbri: please ping me if you remember :)
+[2012-10-30 13:23:24 -0400] behemphi: Hey @atomic-penguin how's it going.  My question is this:  knife ssh -C 5 would work with 5 concurrent connections.  Rather than spec this on the CLI each time I run `knife ssh` I want to put it in knife.rb.  However in the doc and the wiki I cannot find where to translate CLI parameters to knife.rb config
+[2012-10-30 13:23:42 -0400] geekbri: masterkorp: If I remember I will :)
+[2012-10-30 13:23:59 -0400] behemphi: So what is the proper way to spec a CLI parameter for knife ssh in knife.rb?
+[2012-10-30 13:24:07 -0400] masterkorp: geekbri: any keyword that comes to your mind would be useful
+[2012-10-30 13:24:27 -0400] atomic-penguin: I don't know if knife has changed much.  But I really wanted configurable options for knife-ssh in knife.rb.  Haven't bothered to go back and hack on it.
+[2012-10-30 13:24:36 -0400] masterkorp: geekbri: and btw, i am jelly about the chef summit
+[2012-10-30 13:24:46 -0400] geekbri: masterkorp: unfortunately I can't say any does.  I think it was at the meetup where brightcove gave a presentation about their workflow but I couldn't be wrong.  It was well over a month or two ago :-
+[2012-10-30 13:24:48 -0400] geekbri: :-\\
+[2012-10-30 13:25:53 -0400] atomic-penguin: behemphi, I don't think you can with knife-ssh
+[2012-10-30 13:26:00 -0400] behemphi: dang, I could have sworn I heard this discussed at the community summit.  Thanks Atomic, I can quit looking at this point!
+[2012-10-30 13:26:00 -0400] geekbri: I don't believe you can either
+[2012-10-30 13:26:26 -0400] geekbri: I think the way that knife works is that the knife code loads the command line options into a hash called "config" which then the knife plugin itself uses to deteremine the options
+[2012-10-30 13:26:29 -0400] atomic-penguin: behemphi, if you want to hack on it for a bit, add knife-ssh -x $username while you're at it
+[2012-10-30 13:26:31 -0400] specialsauce: masterkorp: are you looking for "knife-block" ?
+[2012-10-30 13:26:44 -0400] atomic-penguin: So I don't have to specify -x $username
+[2012-10-30 13:26:45 -0400] masterkorp: maybe, link ?
+[2012-10-30 13:26:51 -0400] specialsauce: (don't use it myself, name has come up somewhere before)
+[2012-10-30 13:26:56 -0400] specialsauce: not sure, google it :-P
+[2012-10-30 13:27:24 -0400] masterkorp: yeah, its a very ambigyous name
+[2012-10-30 13:27:27 -0400] behemphi: @atomic-penguin I think you can do what you want with "node_name"
+[2012-10-30 13:27:29 -0400] behemphi: node_name                "behemphi"
+[2012-10-30 13:27:37 -0400] masterkorp: https://github.com/greenandsecure/knife-block
+[2012-10-30 13:27:39 -0400] specialsauce: let me have a google, hold on
+[2012-10-30 13:27:40 -0400] masterkorp: YES
+[2012-10-30 13:27:48 -0400] masterkorp: specialsauce: thank you sir
+[2012-10-30 13:28:00 -0400] geekbri: masterkorp: Thats the one!
+[2012-10-30 13:28:05 -0400] geekbri: I knew I heard somebody talking about it :-P
+[2012-10-30 13:28:06 -0400] specialsauce: https://github.com/greenandsecure/knife-block/ is the one i was thinking of i think
+[2012-10-30 13:28:10 -0400] behemphi: ah crap @atomic-penguin I read that one wrong
+[2012-10-30 13:28:11 -0400] behemphi: sorry
+[2012-10-30 13:28:14 -0400] geekbri: knife block is the one I saw mentioned at a meetup
+[2012-10-30 13:28:16 -0400] specialsauce: masterkorp: np dude
+[2012-10-30 13:28:28 -0400] masterkorp: gotta love the guys here in #chef
+[2012-10-30 13:28:32 -0400] masterkorp: thank you all
+[2012-10-30 13:28:40 -0400] atomic-penguin: behemphi, yeah I looked at this same problem a while back, and found it wasn't possible then
+[2012-10-30 13:28:46 -0400] masterkorp: finnaly i can speed up icinga cookbook
+[2012-10-30 13:30:02 -0400] geekbri: behemphi: @session ||= Net::SSH::Multi.start(:concurrent_connections => config[:concurrency], :on_error => ssh_error_handler)      Thats the line that takes the concurrent argument and uses it.  Since its not using Chef::Config[] I'm pretty sure theres no way to prepopulate that :-
+[2012-10-30 13:30:16 -0400] geekbri: It's uses the config object provided by the mixlib CLI command line parser I believe
+[2012-10-30 13:30:32 -0400] geekbri: You could monkey patch your knife ssh
+[2012-10-30 13:30:51 -0400] geekbri: probably not a great idea though "
+[2012-10-30 13:30:52 -0400] geekbri: :)
+[2012-10-30 13:32:23 -0400] behemphi: Y, I am not nearly enough of a rubyist to hack at that (yet)
+[2012-10-30 13:32:36 -0400] behemphi: I did sleep at a nice hotel last week though :-)
+[2012-10-30 13:38:04 -0400] sascha_d: question: does anyone know if omnibus fails to see /etc/gemrc? It's looking like that over here.
+[2012-10-30 13:52:00 -0400] geo20: Hello all, can you give me some useful configuration tutorials for chef, cookbook & knif ?
+[2012-10-30 13:55:05 -0400] sascha_d: how about it? /etc/gemrc and omnibus? Does omnibus read it?
+[2012-10-30 14:00:37 -0400] maruq: hey guys
+[2012-10-30 14:01:11 -0400] maruq: just as a sanity check, if I call knife ec2 server create -x ubuntu <more opts>, who does chef run as?
+[2012-10-30 14:01:39 -0400] maruq: does it run as root, as per the non-omnibus methods, or as ubuntu?
+[2012-10-30 14:01:55 -0400] ssd7: maruq: I believe knife-ec server create has some logic to run via sudo if the username is anything but root
+[2012-10-30 14:02:16 -0400] ssd7: So, it will be running as root
+[2012-10-30 14:04:11 -0400] maruq: ssd7: um, so as ubuntu with sudo, or as root? some of my node stuff seems to screw up when running as another user, as it looks for /home/ubuntu/.npm
+[2012-10-30 14:05:00 -0400] maruq: trying to establish if developer error, or because chef runs with ubuntu's settings
+[2012-10-30 14:06:54 -0400] killfill: hi
+[2012-10-30 14:07:12 -0400] killfill: chef-solo does not support data_bags or environment, does it?
+[2012-10-30 14:07:28 -0400] maruq: never mind, according to developers, it's npm being crazy and trying to use ~/.npm when you're sudoing
+[2012-10-30 14:07:36 -0400] killfill: i see this pull request https://github.com/opscode/chef/pull/359
+[2012-10-30 14:09:14 -0400] wcmaier: killfill: you can use this cookbook, too: https://github.com/edelight/chef-solo-search
+[2012-10-30 14:11:13 -0400] killfill: wcmaier: im trying to use the application cookbook wich has this: "search(:apps) do |app|"  i get "I cannot read /etc/chef/client.pem, which you told me to use to sign requests!"... using chef-solo-search will make my chef-solo tun the application cookbook, isnit? thats what it does, implement search on chef-solo?...
+[2012-10-30 14:11:19 -0400] killfill: (im pretty new to chef.. :P)
+[2012-10-30 14:11:51 -0400] wcmaier: sorry, ENOPARSE "tun the application cookbook"
+[2012-10-30 14:12:13 -0400] wcmaier: "search" on chef-solo just reads and scans through your data bags
+[2012-10-30 14:12:49 -0400] killfill: hmm
+[2012-10-30 14:13:32 -0400] wcmaier: if you include that cookbook, it'll monkeypatch chef if you're running in solo mode (https://github.com/edelight/chef-solo-search/blob/master/libraries/parser.rb)
+[2012-10-30 14:17:22 -0400] jtimberman: killfill: the recipes in the application cookbook are deprecated and will be removed.
+[2012-10-30 14:17:38 -0400] jtimberman: https://github.com/opscode-cookbooks/application/pull/22
+[2012-10-30 14:17:54 -0400] jtimberman: use the LWRP for describing your application deployment in your own application specific cookbook.
+[2012-10-30 14:21:05 -0400] killfill: jtimberman: im trying to use the application cookbook to deploy my nodejs app. im playing with this: http://pastebin.com/aiVdV5gc
+[2012-10-30 14:21:24 -0400] killfill: jtimberman: what part will be obsolete?.. not sure if i understand.. :P
+[2012-10-30 14:22:01 -0400] peiniau: hi
+[2012-10-30 14:22:25 -0400] killfill: wcmaier: why is chef-solo trying to read /etc/chef/client.pem ?...
+[2012-10-30 14:22:40 -0400] kiefx_: dang, lost my connection
+[2012-10-30 14:22:57 -0400] killfill: i thought it was becouse the app cookbook uses the search with was only available on chef-cliente
+[2012-10-30 14:23:05 -0400] peiniau: Does a library defined in an namespace Chef::Recipe::<namespace> can access to the node at runtime ?
+[2012-10-30 14:25:13 -0400] jtimberman: killfill: include_recipe "application"
+[2012-10-30 14:25:15 -0400] jtimberman: don't do that
+[2012-10-30 14:25:23 -0400] jtimberman: put a dependency in your cookbook's metadata
+[2012-10-30 14:25:29 -0400] jtimberman: depends "application"
+[2012-10-30 14:26:32 -0400] kiefx: Is there a way to use application recipe and/or deploy resource without an SCM?
+[2012-10-30 14:26:46 -0400] kiefx: Just taking the file from local file system?
+[2012-10-30 14:27:03 -0400] kiefx: s/file/files/
+[2012-10-30 14:27:52 -0400] wcmaier: kiefx: somewhat along those lines, https://github.com/RiotGames/artifact-cookbook
+[2012-10-30 14:27:54 -0400] killfill: jtimberman: oh..  :)
+[2012-10-30 14:28:41 -0400] kiefx: wcmaier: yeah, that looks like the kind of thing I'm looking for. Thx. Will poke into it.
+[2012-10-30 14:36:23 -0400] killfill: jtimberman: all recipes are obsolete... what would be the correct way to implement nodejs support?.. just like https://github.com/opscode-cookbooks/application_ruby ? doing a new cookbook with application_whatever to implenent whatever support?
+[2012-10-30 14:37:18 -0400] wassy121: What is the best way to upgrade chef from 10.16.0 -> 10.16.2 ?  I'm getting bit by the file permissions problems
+[2012-10-30 14:37:25 -0400] wassy121: just re-bootstrap?
+[2012-10-30 14:47:53 -0400] flowersj: can I get a hand with figuring out what is going wrong with my install of Chef Server?
+[2012-10-30 14:47:55 -0400] flowersj: https://gist.github.com/3980630
+[2012-10-30 14:48:45 -0400] flowersj: I am installing Chef server on top of this vagrant box 'Ubuntu Server 12.04 amd64 (with Puppet, Chef and VirtualBox 4.2.1)' from vagrantbox.es
+[2012-10-30 14:49:01 -0400] gchristensen: flowersj: it is trying to add the chef user, but the chef user is already logged in
+[2012-10-30 14:49:08 -0400] flowersj: first I upgraded the chef install to 10.16.2
+[2012-10-30 14:49:12 -0400] gchristensen: useradd -s '/bin/sh' -d '/var/lib/chef' -r chef returned 9, expected 0
+[2012-10-30 14:49:17 -0400] gchristensen: that's the relevant line that tells you what happened
+[2012-10-30 14:49:37 -0400] flowersj: does that mean that I need to delete the user?
+[2012-10-30 14:49:52 -0400] flowersj: or did I misunderstand this box and Chef Server is already installed?
+[2012-10-30 14:52:33 -0400] cheeseplus: flowersj: 9 means the user already exists
+[2012-10-30 14:54:01 -0400] flowersj: where does chef server get installed to?
+[2012-10-30 14:54:03 -0400] killfill: coderanger: hi
+[2012-10-30 14:56:51 -0400] flowersj: why would it try to add the user if it already exists?
+[2012-10-30 14:57:12 -0400] gchristensen: no, it means the user is currently *logged in*
+[2012-10-30 14:57:34 -0400] flowersj: hmm
+[2012-10-30 14:57:50 -0400] mcortesi5: hi! has anyone ever used the knife from ruby? I see that I can require chef/knife, and it works, but i want to change the configuration file knife.rb and i can't find where to set it ideas?
+[2012-10-30 14:57:56 -0400] gchristensen: I think it may mean both
+[2012-10-30 14:57:57 -0400] cheeseplus: "9 username already in use"
+[2012-10-30 14:58:01 -0400] cheeseplus: gchristensen: I'm just reading off the man page, may have misinterpreted it
+[2012-10-30 14:58:14 -0400] flowersj: I think you are right
+[2012-10-30 14:58:15 -0400] gchristensen: and I was a bit overcertain... sorry
+[2012-10-30 14:58:29 -0400] cheeseplus: np, man pages aren't always right
+[2012-10-30 14:58:41 -0400] gchristensen: I get that same error when my user is logged in already, but I don't when the user exists and isn't logged in
+[2012-10-30 14:58:51 -0400] flowersj: so I need to log the chef user off
+[2012-10-30 14:58:53 -0400] flowersj: ??
+[2012-10-30 14:59:04 -0400] gchristensen: I believe so
+[2012-10-30 14:59:08 -0400] flowersj: k
+[2012-10-30 14:59:15 -0400] flowersj: new to linux
+[2012-10-30 14:59:23 -0400] flowersj: will go look for how to do that...
+[2012-10-30 15:04:48 -0400] brownsteen: yfeldlblum:   I have a question about a direction you pointed me in, concerning a recipe accessing its own metadata.   You pointed me here:   http://community.opscode.com/chat/chef/2012-09-10#id-198040
+[2012-10-30 15:05:10 -0400] brownsteen: yfeldblum:  my question is where does the 'run_context' reference come from?
+[2012-10-30 15:05:36 -0400] brownsteen: in this statement:  cb_meta = run_context.cookbook_collection[cookbook_name].metadata ; Chef::Log.info("\n" + cb_meta.platforms.inspect)
+[2012-10-30 15:06:10 -0400] brownsteen: or anyone at all feel free to chime in... I'm trying to access a cookbook's version number from within the recipe
+[2012-10-30 15:07:00 -0400] yfeldblum: brownsteen, run_context is an instance method available in Chef::Recipe (https://github.com/opscode/chef/blob/master/chef/lib/chef/recipe.rb#L43), which is the `self` which Chef::Recipe.from_file sets when loading and running a recipe
+[2012-10-30 15:08:14 -0400] yfeldblum: brownsteen, just to clarify, an Chef::Recipe.from_file creates an instance of Chef::Recipe, setting the run_context, and then running the recipe code
+[2012-10-30 15:08:16 -0400] brownsteen: yfeldblum, I was able to identify it, but I don't know how to call that accessor from within the recipe itself
+[2012-10-30 15:08:27 -0400] j^2: chef newbie here, i'm getting a time out and i'm not sure why
+[2012-10-30 15:08:35 -0400] j^2: i'll post the error here in a sec
+[2012-10-30 15:09:03 -0400] brownsteen: yfeldblum, are you saying self.run_context  ought to work within the recipe?
+[2012-10-30 15:09:44 -0400] j^2: never mind something else broke
+[2012-10-30 15:11:20 -0400] yfeldblum: brownsteen, should be
+[2012-10-30 15:13:21 -0400] yfeldblum: brownsteen, you don't need to use `self.run_context` ; you can just use `run_context`
+[2012-10-30 15:16:47 -0400] brownsteen: yfeldblum, I see.    It does work literally as you originally posted it, for some reason did not try that first :)
+[2012-10-30 15:16:56 -0400] yfeldblum: nice
+[2012-10-30 15:17:01 -0400] yfeldblum: i never actually tested it
+[2012-10-30 15:17:07 -0400] yfeldblum: good to know
+[2012-10-30 15:20:57 -0400] brownsteen: yfeldblum, your original sample was a bit misleading... does not actually show any data because @platforms normally isn't defined by default.   Maybe that's why I felt I had it wrong
+[2012-10-30 15:21:08 -0400] yfeldblum: brownsteen, heh
+[2012-10-30 15:21:30 -0400] brownsteen: yfeldblum, just for archival purposes, my specific statement to discover the chef cookbook version number within the recipe is   cb_version = run_context.cookbook_collection[cookbook_name].metadata.version
+[2012-10-30 15:47:11 -0400] killfill: im inside an "application" block.. should i have the current_release variable set?.. becouse i dont see it.. :S
+[2012-10-30 15:49:38 -0400] yfeldblum: killfill, it will not be set; how could the current release be known by the resource declaration? that information is discovered by the provider, after the recipe has finished
+[2012-10-30 15:52:41 -0400] killfill: yfeldblum, if i wanted to execute something i.e. before_migrate, to prepare my app. what would be the correct way?
+[2012-10-30 15:53:35 -0400] yfeldblum: killfill, not sure; i don't use that cookbook
+[2012-10-30 15:53:55 -0400] killfill: :S
+[2012-10-30 15:58:58 -0400] j-v-e: Gentlemen. I'm losing bunnies... https://gist.github.com/3981140
+[2012-10-30 15:59:13 -0400] j-v-e: any idea what could be causing this ? we use a rabbitmq server on a diff host
+[2012-10-30 16:02:24 -0400] wes__: Hey guys, new to Chef here and I have a quick question.  Is it possible to run an "execute" resource that starts and backgrounds a script (and leaves it running).  It seems like chef-solo is killing the script when the provider exits.
+[2012-10-30 16:02:43 -0400] masterkorp: Guys i am using apt.opscode.com squeeze repo, yet i get E: Unable to locate package chef-expander
+[2012-10-30 16:02:57 -0400] masterkorp: trying
+[2012-10-30 16:03:00 -0400] masterkorp: sudo apt-get install chef chef-server-api chef-expander
+[2012-10-30 16:04:15 -0400] masterkorp: http://pastie.org/5138179
+[2012-10-30 16:04:26 -0400] masterkorp: so i guess the wiki page should be updated ?
+[2012-10-30 16:10:12 -0400] yfeldblum: wes__, that's not what the `execute` resource is for; what type of script is it?
+[2012-10-30 16:10:37 -0400] wes__: it is a bash script
+[2012-10-30 16:10:55 -0400] yfeldblum: wes__, is it like a daemonized service?
+[2012-10-30 16:11:30 -0400] wes__: currently it's not, it is just a script that loops forever and copies files around
+[2012-10-30 16:11:47 -0400] gchristensen: wes__: that should probably be an upstart/init/rc.d script that chef starts.
+[2012-10-30 16:12:45 -0400] wes__: ok, i can try wrapping it with init.d (this is a RHEL based system) and starting it as a daemon service, but i was just wondering if there is a "lighterweight" method to fireoff and background a script
+[2012-10-30 16:15:58 -0400] gchristensen: that's not really chef's place
+[2012-10-30 16:16:22 -0400] wes__: ok, i'll write an init.d and make it into a service
+[2012-10-30 16:16:41 -0400] wes__: on a side note, i am also having a issues start Fedora389 with chef
+[2012-10-30 16:17:07 -0400] wes__: the admin server starts up fine, but the slapd process exits with the end of the chef run (this is using chef-solo with the service resource)
+[2012-10-30 16:17:49 -0400] wes__: are there any known issues with Fedora389 right now?
+[2012-10-30 16:34:18 -0400] mattray: masterkorp: are you using the 10 repo?
+[2012-10-30 16:34:32 -0400] mattray: masterkorp: http://apt.opscode.com/dists/squeeze-0.10/
+[2012-10-30 16:36:15 -0400] masterkorp: mattray:  i am using main one : deb http://apt.opscode.com/ squeeze main
+[2012-10-30 16:36:50 -0400] mattray: masterkorp: we really should drop or rename that.
+[2012-10-30 16:36:58 -0400] mattray: the 10 one is the new stuff
+[2012-10-30 16:37:12 -0400] masterkorp: so what is the main one ?
+[2012-10-30 16:37:19 -0400] mattray: masterkorp: the 10 one
+[2012-10-30 16:37:25 -0400] masterkorp: should i enforce 10 then
+[2012-10-30 16:37:28 -0400] mattray: yes
+[2012-10-30 16:37:29 -0400] masterkorp: will do thanks
+[2012-10-30 16:37:43 -0400] mattray: we made the 10 one a different name so people didn't accidentally upgrade
+[2012-10-30 16:37:51 -0400] mattray: but we never deprecated out the old one
+[2012-10-30 16:38:04 -0400] mattray: I'll bring it up with btm
+[2012-10-30 16:38:42 -0400] masterkorp: http://pastie.org/5138340
+[2012-10-30 16:39:01 -0400] flowersj: hello again
+[2012-10-30 16:39:06 -0400] masterkorp: is it 10 or 0.10 ?
+[2012-10-30 16:39:09 -0400] flowersj: still trying to install Chef Server...
+[2012-10-30 16:39:20 -0400] flowersj: now I am getting this error: https://gist.github.com/3981394
+[2012-10-30 16:39:37 -0400] mattray: masterkorp: it went from 0.10.10 to 10.12 so we could have minor point releases
+[2012-10-30 16:39:45 -0400] mattray: masterkorp: 10.16 is the latest
+[2012-10-30 16:39:50 -0400] flowersj: it says that Gecode is not installed
+[2012-10-30 16:39:58 -0400] masterkorp: mattray: i know, i mean the repo
+[2012-10-30 16:40:14 -0400] mattray: flowersj: looks like you need build-essential
+[2012-10-30 16:40:15 -0400] masterkorp: deb http://apt.opscode.com/ squeeze 10  - does not work
+[2012-10-30 16:40:20 -0400] flowersj: but when I go to install Gecode apt-get says that it is already installed
+[2012-10-30 16:40:34 -0400] masterkorp: flowersj: are you installing from source ?
+[2012-10-30 16:40:46 -0400] flowersj: bootstrap Chef-Solo
+[2012-10-30 16:40:46 -0400] mattray: flowersj: that gist is blowing up trying to compile a gem
+[2012-10-30 16:40:47 -0400] flowersj: '
+[2012-10-30 16:41:40 -0400] mattray: masterkorp: http://wiki.opscode.com/display/chef/Opscode+Apt+Repository+Excerpt
+[2012-10-30 16:41:58 -0400] mattray: deb http://apt.opscode.com/ squeeze-0.10 main
+[2012-10-30 16:42:33 -0400] masterkorp: derp derp, i am sorry
+[2012-10-30 16:43:13 -0400] masterkorp: but it would make more sense using branch like main/stable/0.10
+[2012-10-30 16:44:32 -0400] flowersj: installing build-essentials did the job
+[2012-10-30 16:44:55 -0400] flowersj: it completed
+[2012-10-30 16:44:55 -0400] masterkorp: heh i had to do a dist-upgrade
+[2012-10-30 16:45:08 -0400] flowersj: let's see if Chef Server is running now
+[2012-10-30 16:45:11 -0400] flowersj: :-)
+[2012-10-30 16:45:28 -0400] jtimberman: bah!
+[2012-10-30 16:49:44 -0400] uncommitted: anyone have a nice tomcat7 cookbook laying around? :-)
+[2012-10-30 16:54:26 -0400] masterkorp: http://pastie.org/5138426
+[2012-10-30 16:54:29 -0400] masterkorp: welp guys
+[2012-10-30 16:54:37 -0400] masterkorp: why cant it connect to the server
+[2012-10-30 16:55:11 -0400] uncommitted: can you telnet to it on port 4000?
+[2012-10-30 16:56:36 -0400] masterkorp: restarted chef-server and bam
+[2012-10-30 16:59:06 -0400] j|: hello from NYC.
+[2012-10-30 16:59:44 -0400] holoway: hi j|
+[2012-10-30 17:00:16 -0400] uncommitted: Shouldn't you be running for cover?!
+[2012-10-30 17:00:50 -0400] j|: my neighborhood was almost totally spared
+[2012-10-30 17:01:10 -0400] j|: lost internet for a while, but that's it. No flooding (good for me and my basement apartment)
+[2012-10-30 17:01:35 -0400] uncommitted: Doesn't look so good for the folks in LI
+[2012-10-30 17:02:28 -0400] j|: yea, Manhattan also is hit pretty hard. Hoboken in NJ too
+[2012-10-30 17:02:51 -0400] j|: I'm in the North Eastern part of Williamsburg, Brooklyn, we're a bit higher up
+[2012-10-30 17:13:08 -0400] wes__: gchristensen, I created an initd script (very simple, modeled after yum-updated) that works fine from the command line (service filecopy start / status / stop) and fine from shef (pasting the service "filecopy" do/action :run/end), but from chef-solo it looks like the process starts (log file created) and then exits (lock file remains so initd script was not used to kill it).  Any ideas?
+[2012-10-30 17:13:53 -0400] gchristensen: I don't, use a logfile and some debugging
+[2012-10-30 17:14:21 -0400] wes__: is it possible to get more insight from chef-solo during it's run?
+[2012-10-30 17:14:36 -0400] gchristensen: it sounds like a problem in your script
+[2012-10-30 17:15:19 -0400] wes__: even though i am able to start and run the initd script manually and it even works through shef?
+[2012-10-30 17:15:57 -0400] gchristensen: I'd still put my concern there first, logging errors and any output to a file so you can inspect it.
+[2012-10-30 17:16:05 -0400] gchristensen: but you can pass -l debug to chef-client for more output
+[2012-10-30 17:17:34 -0400] wes__: ok, this is chef-solo by the way, looks like -l debug should work there as well, thanks again for being patient with me!
+[2012-10-30 17:23:59 -0400] wes__: gchristensen, it seems to work fine when i run chef-solo manually without a bootstrap.  Are there any side-effects of making the last line of a bootstrap invoke chef-solo that would cause it to behave differently than normal?
+[2012-10-30 17:24:15 -0400] gchristensen: I haven't a clue, never used solo
+[2012-10-30 17:25:57 -0400] wes__: ok, thank you for the help, i'll keep poking at it and see if i can get it to work
+[2012-10-30 18:10:33 -0400] bougyman: any way to accomplish include_recipe inside a provider's :create block?
+[2012-10-30 18:11:09 -0400] bougyman: i want to conditionally include a recipe
+[2012-10-30 18:11:13 -0400] bougyman: in the provider.
+[2012-10-30 18:13:31 -0400] yfeldblum: bougyman, that's not how any of the providers that ship with chef work
+[2012-10-30 18:13:42 -0400] bougyman: yfeldblum: I know.
+[2012-10-30 18:14:09 -0400] yfeldblum: bougyman, providers ought to just *do* the changes directly after directly interrogating the system, rather than making new resources
+[2012-10-30 18:14:22 -0400] bougyman: i'm wondering how I should accomplish notifying a resource from another recipe inside my provider.
+[2012-10-30 18:15:21 -0400] yfeldblum: bougyman, i can't really help you with that, but i can suggest not doing it that way to begin with
+[2012-10-30 18:16:01 -0400] bougyman: yes, there is no way to do it this way.
+[2012-10-30 18:16:17 -0400] sebastorama: trying to use the resource "interpreter".. Specifically, Chef::Resource::Script::Bash. The environment is not loaded at all, even if I pass "-l" flag =/. I need to execute this as an specific user, bur things like $HOME points to "/root". Yes, I'm setting the "user" attribute for the resource.. Any thoughts?
+[2012-10-30 18:16:21 -0400] bougyman: i'm creating a log service and need to have the main log service parse its template.
+[2012-10-30 18:16:36 -0400] bougyman: the main log service is in a recipe, whereas creation of new log services is an LWRP
+[2012-10-30 18:16:55 -0400] bougyman: so the LWRP has to trigger the main log service to reparse a template.
+[2012-10-30 18:17:50 -0400] yfeldblum: bougyman, maybe you're looking for definitions instead of Rs & Ps?
+[2012-10-30 18:18:17 -0400] bougyman: everything except notification of the main log is working.
+[2012-10-30 18:18:32 -0400] bougyman: i like it as an lwrp, definition couples it too rigidly.
+[2012-10-30 18:19:37 -0400] yfeldblum: bougyman, it's up to you, but i don't know what type of coupling you're talking about ...
+[2012-10-30 18:23:03 -0400] yfeldblum: bougyman, adding more resources during convergence can only lead to trouble
+[2012-10-30 18:24:00 -0400] yfeldblum: bougyman, you can use the technique here https://gist.github.com/d85be145f3ff824ccc07 to do it sanely
+[2012-10-30 18:28:22 -0400] bougyman: it was far simpler than that.
+[2012-10-30 18:28:35 -0400] bougyman: just include_recipe in the recipe which calls the provider.
+[2012-10-30 18:29:25 -0400] bougyman: thanks for the help, i considered a definition but this seems more straightforward.
+[2012-10-30 18:38:27 -0400] bougyman: alright, more confusion.
+[2012-10-30 18:38:47 -0400] bougyman: doesn't doing include_recipe in a recipe give that recipe access to the resources in the included recipe?
+[2012-10-30 18:39:01 -0400] fleish: can someone help me figure out why this isn't working? http://pastebin.com/paQYK4Sd
+[2012-10-30 18:39:36 -0400] fleish: basically I am porting over a chef server and this recipe used to work to build munin.conf - but now it's not populating the address. so I tried changing it to use hostname instead of IP and it at least prints the address line, but no hostname
+[2012-10-30 18:42:42 -0400] yfeldblum: bougyman, include_recipe runs the "included" recipe unless it has already been included, adding all the resources declared therein to the resources-collection (but not running resource actions of course)
+[2012-10-30 18:42:46 -0400] fleish: oh nevermind, I forgot to upload my changes to the cookbook
+[2012-10-30 18:43:14 -0400] bougyman: hrm.
+[2012-10-30 18:43:17 -0400] bougyman: that doesn't make sense then
+[2012-10-30 18:44:10 -0400] bougyman: cause I have socklog_log "unix-main" do in my socklog::unix recipe, and i'm using include_recipe in my website's default recipe, then trying to notify socklog_log["unix-main"]
+[2012-10-30 18:44:34 -0400] bougyman: but I get [2012-10-30T18:35:32+00:00] ERROR: Chef::Exceptions::ResourceNotFound: resource ruby_block[exclude_SA2_SA2_from_unix_main] is configured to notify resource socklog_log[unix-main] with action create, but socklog_log[unix-main] cannot be found in the resource collection.
+[2012-10-30 18:45:43 -0400] yfeldblum: bougyman, is socklog_log a resource?
+[2012-10-30 18:46:13 -0400] bougyman: yes
+[2012-10-30 18:46:35 -0400] bougyman: is the argument I pass to the resource always it's identifier?
+[2012-10-30 18:47:55 -0400] maplebed: so there are 2 redis cookbooks (redis, redis2) in opscode's library.  I can't tell the difference or which one I should use.  Anybody have any experience with either?
+[2012-10-30 18:48:14 -0400] maplebed: :n
+[2012-10-30 18:48:52 -0400] wcmaier: PDX folks, you might be interested in https://groups.google.com/forum/?fromgroups#!aboutgroup/pdx-chef-users-group
+[2012-10-30 18:49:15 -0400] masterkorp: bougyman: include_recipe is not really adivesed for that
+[2012-10-30 18:49:23 -0400] bougyman: masterkorp: what is?
+[2012-10-30 18:49:43 -0400] masterkorp: have the recipe in the run list
+[2012-10-30 18:49:49 -0400] bougyman: it already is.
+[2012-10-30 18:49:56 -0400] bougyman: that's what was confusing me
+[2012-10-30 18:50:13 -0400] masterkorp: bougyman: hmm, can you rediscribe the problem ?
+[2012-10-30 18:50:15 -0400] masterkorp: brb
+[2012-10-30 18:50:57 -0400] bougyman: yeah, i just want to notify a resource from my socklog::unix recipe from within my website::default recipe
+[2012-10-30 18:53:21 -0400] bougyman: interesting.
+[2012-10-30 18:53:40 -0400] bougyman: what does the argument to a resource become?
+[2012-10-30 18:54:11 -0400] bougyman: i had as a resource: socklog_log "unix-main" do; name "main"; attrib value; end <
+[2012-10-30 18:54:28 -0400] bougyman: and I have to notify socklog_log[main], not socklog_log[unix-main]
+[2012-10-30 18:54:39 -0400] bougyman: i thought the argument to the res was the identifier.
+[2012-10-30 18:58:08 -0400] JasonBox: hrm, the file resource with a nil content will just create an empty file, yes?
+[2012-10-30 18:58:32 -0400] mhoran: Yes.
+[2012-10-30 18:58:51 -0400] mhoran: Or set the provided flags on an existing file.
+[2012-10-30 19:07:09 -0400] masterkorp: bougyman: that is is easy, you use the notifies function
+[2012-10-30 19:07:48 -0400] bougyman: masterkorp: well no kidding!
+[2012-10-30 19:08:03 -0400] bougyman: my problem was using 'name' inside the resource.
+[2012-10-30 19:08:09 -0400] masterkorp: bougyman: http://wiki.opscode.com/display/chef/Resources#Resources-Notifications
+[2012-10-30 19:08:13 -0400] bougyman: changed it to log_name instead, everything is now fine.
+[2012-10-30 19:08:19 -0400] masterkorp: bougyman: can you paste your code ?
+[2012-10-30 19:08:21 -0400] bougyman: I know notifications... i was notifying what I thought the name was.
+[2012-10-30 19:08:48 -0400] bougyman: https://github.com/bougyman/socklog/blob/master/recipes/unix.rb#L20
+[2012-10-30 19:08:51 -0400] bougyman: line 20 was the problem
+[2012-10-30 19:09:05 -0400] bougyman: it used to say 'name "main"'
+[2012-10-30 19:09:11 -0400] bougyman: instead of log_name "main"
+[2012-10-30 19:09:21 -0400] bougyman: which was changing the name of the resource, of course.
+[2012-10-30 19:16:08 -0400] sebastorama: trying to use the resource "interpreter".. Specifically, Chef::Resource::Script::Bash. The environment is not loaded at all, even if I pass "-l" flag =/. I need to execute this as an specific user, bur things like $HOME points to "/root". Yes, I'm setting the "user" attribute for the resource.. Any thoughts?  (I know.. repeating..)
+[2012-10-30 19:17:21 -0400] killfill: anyone uses the application cookbook?
+[2012-10-30 19:17:57 -0400] killfill: using the before_deploy hook works, but not the others, i.e. before_migrate
+[2012-10-30 19:21:26 -0400] masterkorp: bougyman: oh sorry i misunderstood you
+[2012-10-30 19:31:49 -0400] hippiehacker: http://hh.github.com/
+[2012-10-30 19:35:31 -0400] yfeldblum: hippiehacker, sounds painful
+[2012-10-30 19:35:32 -0400] bougyman: shef is very unwieldy
+[2012-10-30 19:35:48 -0400] yfeldblum: bougyman, i don't really use it
+[2012-10-30 19:35:49 -0400] bougyman: for trying to debug a whole set of cookbooks, it seems, anyway
+[2012-10-30 19:36:00 -0400] bougyman: i was just trying to get a breakpoint in
+[2012-10-30 19:36:07 -0400] bougyman: it's gobbled up all the ram on my box.
+[2012-10-30 19:36:33 -0400] bougyman: 8G worth
+[2012-10-30 19:36:46 -0400] sebastorama: how do I use the Script::Bash resource with proper environment configuration =~~~/ ? ($HOME, $PATH etc even if I set those with the environment hash, nothing really happens )
+[2012-10-30 19:36:52 -0400] masterkorp: bougyman: oh, there are some handy function
+[2012-10-30 19:37:47 -0400] masterkorp: bougyman: https://github.com/stevendanna/knife-hacks/blob/master/shef/extras.rb
+[2012-10-30 19:37:57 -0400] masterkorp: that insert_break is handy
+[2012-10-30 19:38:01 -0400] hippiehacker: yfeldblum: hoping that this automation might lead to auto-creation of windows images for openstack, kvm etc
+[2012-10-30 19:40:14 -0400] masterkorp: windows images ? auto creation?
+[2012-10-30 19:40:26 -0400] masterkorp: those 2 in the same sentence dont go well :p
+[2012-10-30 19:41:26 -0400] hippiehacker: masterkorp: It's been a pain for sure, but it's working.... exports to vagrant .box for now
+[2012-10-30 19:41:47 -0400] hippiehacker: even downloads the isos from microsoft just like we download the isos from linux vendors 8)
+[2012-10-30 19:41:49 -0400] masterkorp: How about licences, i hope ms does not sue you :P
+[2012-10-30 19:42:05 -0400] hippiehacker: not distributing ISO, or images, just instructions
+[2012-10-30 19:42:29 -0400] masterkorp: sweet, you can never be too careful with those ms phricks
+[2012-10-30 19:43:04 -0400] masterkorp: i will bookmark this down, i maybe become in handy
+[2012-10-30 19:43:26 -0400] masterkorp: *it may become
+[2012-10-30 19:46:39 -0400] thehar: meow
+[2012-10-30 19:50:18 -0400] sebastorama: (SOLVED) trying to use the resource "interpreter".. Specifically, Chef::Resource::Script::Bash. The environment is not loaded at all, even if I pass "-l" flag =/. I need to execute this as an specific user, bur things like $HOME points to "/root". Yes, I'm setting the "user" attribute for the resource.. Any thoughts?
+[2012-10-30 19:50:48 -0400] sebastorama: did a bunch of exports on the command passed to bash
+[2012-10-30 19:51:06 -0400] sebastorama: This is likely to be a bug..
+[2012-10-30 19:52:06 -0400] qhartman: yeah, I've run into that problem too. One of the workarounds we use is to execute the chef-client run using sudo. That way the user that gets used for the environment stuff that chef references is the user calling sudo, not root.
+[2012-10-30 20:01:34 -0400] bougyman: wow, i'm so utterly confused.
+[2012-10-30 20:05:44 -0400] bougyman: is 'program' a reserved word inside providers?
+[2012-10-30 20:08:42 -0400] bougyman: i want the node data from a successful run.
+[2012-10-30 20:08:45 -0400] bougyman: soemthing isn't matching up
+[2012-10-30 20:13:33 -0400] gsymons-di: I've got a quick question...
+[2012-10-30 20:14:02 -0400] gsymons-di: If I have multiple attributes files in a cookbook, are they all loaded automatically?
+[2012-10-30 20:15:08 -0400] drewww: anyone had troubles with `knife cookbook site install COOKBOOK` complaining that site-cookbooks doesn't exist - I've definitely created it
+[2012-10-30 20:15:23 -0400] drewww: it seems like in the install process, when it checks out master, it loses the site-cookbooks directory
+[2012-10-30 20:15:32 -0400] drewww: it's there on the vender branch
+[2012-10-30 20:17:09 -0400] killfill: i dont unerstand something
+[2012-10-30 20:17:11 -0400] killfill: https://github.com/opscode-cookbooks/application/blob/master/providers/default.rb#L160
+[2012-10-30 20:17:53 -0400] killfill: before_migrate <-- that block is not getting executed.  ive put a log in there and its not logging.
+[2012-10-30 20:17:58 -0400] killfill: why is it not executing?
+[2012-10-30 20:26:37 -0400] cmceldowney: deploy_revision issue: Am trying to create a callback ruby file to execute for before_restart but can't seem to get the file in-place before it is needed. have tried using the example from http://wiki.opscode.com/display/ChefCN/Deploy+Resource but it is not working for me.
+[2012-10-30 20:27:04 -0400] cmceldowney: deploy_revision issue: anyone have specific experience with this use case?
+[2012-10-30 20:46:17 -0400] beandip: Anyone using rackspace knife plugin on v2 cloud?
+[2012-10-30 20:50:09 -0400] drewww: how do people manage git deploy asking to accept an RSA fingerprint on first connection? the -y option in knife-ssh doesn't seem to say "yes" like I would expect it do
+[2012-10-30 20:50:49 -0400] qhartman: you mean where it asks to confirm a new server?
+[2012-10-30 20:50:54 -0400] drewww: right
+[2012-10-30 20:51:04 -0400] qhartman: --no-host-key-verify
+[2012-10-30 20:51:47 -0400] drewww: I'm super new to writing recipes - how do I pass that in from my default.rb?
+[2012-10-30 20:51:59 -0400] drewww: eg "git "destination" do  blah
+[2012-10-30 20:52:01 -0400] qhartman: hmmm... I think we're not on the same page
+[2012-10-30 20:52:24 -0400] qhartman: that option is for the knife ssh command, which is what I thought you were asking about
+[2012-10-30 20:52:32 -0400] drewww: oh! hm
+[2012-10-30 20:52:33 -0400] drewww: let me try that
+[2012-10-30 20:52:35 -0400] luckymike: we write knownhosts before the deploy: https://github.com/heavywater/chef-app/blob/master/recipes/deploy_key.rb
+[2012-10-30 20:53:04 -0400] qhartman: we do the same thing luckymike does for our git deploys
+[2012-10-30 20:53:35 -0400] luckymike: drewww: you may find that cookbook useful
+[2012-10-30 20:53:37 -0400] drewww: huh
+[2012-10-30 20:53:45 -0400] luckymike: it deploys from github
+[2012-10-30 20:54:05 -0400] drewww: yep that's what I'm doing
+[2012-10-30 20:54:35 -0400] luckymike: take a look at that cookbook, no need to duplicate things that are written
+[2012-10-30 20:54:55 -0400] luckymike: (if it fits your needs)
+[2012-10-30 20:55:01 -0400] drewww: I'm not working with rails, but I can presumably extract just the deploy part easily?
+[2012-10-30 20:55:04 -0400] joonas: luckymike: handy
+[2012-10-30 20:55:32 -0400] drewww: and I'll need to include a deply_key_id_rsa somewhere for it to copy in?
+[2012-10-30 20:56:18 -0400] luckymike: yeah, whatever key you use for github
+[2012-10-30 20:56:41 -0400] luckymike: I recommend reading through the whole cookbook to see what the recipes do and the order they do it
+[2012-10-30 20:57:07 -0400] luckymike: it's proven to be an effective app deployment system, used with many clients
+[2012-10-30 20:57:20 -0400] drewww: ultimately all I really need is the key copying, which is basically trivial. just wasn't sure what best practice was for this.
+[2012-10-30 20:58:08 -0400] luckymike: that recipe is handling a number of things
+[2012-10-30 20:58:14 -0400] luckymike: the last block sets up known hosts
+[2012-10-30 20:58:23 -0400] luckymike: good luck
+[2012-10-30 21:08:33 -0400] forest: Does chef-client have a --noop or --dry-run option? I don't see that on its man page
+[2012-10-30 21:08:43 -0400] maek: forest: whyrun
+[2012-10-30 21:08:45 -0400] maek: and its new
+[2012-10-30 21:08:47 -0400] maek: in 10.16 i think
+[2012-10-30 21:08:50 -0400] maek: maybe 10.14
+[2012-10-30 21:09:28 -0400] forest: oh goody, I'm running 10.16
+[2012-10-30 21:09:28 -0400] maek: forest: http://www.opscode.com/blog/2012/09/07/chef-10-14-0-released/
+[2012-10-30 21:10:00 -0400] forest: thx maek this looks v cool
+[2012-10-30 21:10:23 -0400] maek: np
+[2012-10-30 21:34:40 -0400] stefanrusek: I'm having trouble using search() in a recipe
+[2012-10-30 21:34:53 -0400] stefanrusek: I get 400 Bad Request
+[2012-10-30 21:35:04 -0400] bougyman: masterkorp: oi
+[2012-10-30 21:35:11 -0400] masterkorp: hey
+[2012-10-30 21:35:39 -0400] stefanrusek: anyone have any ideas?
+[2012-10-30 21:35:58 -0400] masterkorp: stefanrusek: full :debug output please ?
+[2012-10-30 21:36:08 -0400] masterkorp: and the code that you're runing too
+[2012-10-30 21:36:52 -0400] masterkorp: stefanrusek: also, when you have time, take a look http://www.catb.org/esr/faqs/smart-questions.html
+[2012-10-30 21:37:15 -0400] masterkorp: or just say that chef sucks and you can do X in puppet much better
+[2012-10-30 21:37:16 -0400] stefanrusek: Here is the code: https://gist.github.com/c41eddb2bfb834401b57
+[2012-10-30 21:37:51 -0400] masterkorp: stefanrusek: did you try to run that query from knife ?
+[2012-10-30 21:37:52 -0400] stefanrusek: fails on line 4
+[2012-10-30 21:38:51 -0400] stefanrusek: works in knife
+[2012-10-30 21:38:56 -0400] holoway: why the double question marks?
+[2012-10-30 21:39:16 -0400] holoway: also, 'serach' is not 'search' on line 10
+[2012-10-30 21:39:17 -0400] masterkorp: just about to asl the same thing
+[2012-10-30 21:39:37 -0400] holoway: you want role:moist and name:WHATEVER?
+[2012-10-30 21:39:45 -0400] holoway: actually, name:WAHTEVER*
+[2012-10-30 21:41:38 -0400] stefanrusek: this is setting up a load balancer, the lb's hostname is ono-va.host.com and the web servers are like this ono-va01.host.com
+[2012-10-30 21:42:13 -0400] stefanrusek: so this is looking for all the nodes with the web app role (moist) and belong to this load balancer
+[2012-10-30 21:42:59 -0400] stefanrusek: log: https://gist.github.com/f867d9f9d2ae6043b3fc
+[2012-10-30 21:47:08 -0400] stefanrusek: I fixed the typo on line 10, still fails on line 4 (as expected)
+[2012-10-30 21:48:05 -0400] masterkorp: stefanrusek: why .map ?
+[2012-10-30 21:50:20 -0400] masterkorp: use use search() do |node|
+[2012-10-30 21:51:14 -0400] masterkorp: and if you use do use end as closer
+[2012-10-30 21:51:29 -0400] masterkorp: no need to do an {}
+[2012-10-30 21:51:46 -0400] stefanrusek: even if I'm creating a hash?
+[2012-10-30 21:52:06 -0400] masterkorp: do a small read about ruby blocks
+[2012-10-30 21:52:19 -0400] masterkorp: http://www.robertsosinski.com/2008/12/21/understanding-ruby-blocks-procs-and-lambdas/
+[2012-10-30 21:52:32 -0400] masterkorp: {} and do end are just delimiters
+[2012-10-30 22:03:04 -0400] stefanrusek: changing how the map is achieved doesn't fix the underlying 400 "Bad Request" error
+[2012-10-30 22:03:17 -0400] stefanrusek: Is there some setting or init code I'm missing?
+[2012-10-30 22:04:52 -0400] yfeldblum: stefanrusek, you need more info about why it's a 400 ...
+[2012-10-30 22:06:05 -0400] yfeldblum: stefanrusek, e.g., run with debug logging
+[2012-10-30 22:11:47 -0400] stefanrusek: The relevant lines from the debug output https://gist.github.com/ab70b8e3ce8da659921f
+[2012-10-30 22:15:15 -0400] yfeldblum: stefanrusek, hmmm what if you log the query string before running the query?
+[2012-10-30 22:16:20 -0400] stefanrusek: sounds promising
+[2012-10-30 22:17:38 -0400] stefanrusek: `hostname` is adding a \n to the end
+[2012-10-30 22:17:44 -0400] stefanrusek: that sounds like the problem thanks
+[2012-10-30 22:20:51 -0400] stefanrusek: thanks
+[2012-10-30 22:53:42 -0400] Lrrr: hello...I'm still trying to figure out how to override node[ipaddress]
+[2012-10-30 22:54:06 -0400] cheeseplus: Lrrr: that is an automatic attribute provided by Ohai
+[2012-10-30 22:54:27 -0400] cheeseplus: why are you trying to override it?
+[2012-10-30 22:54:34 -0400] Lrrr: but in the case of my target machine its not set
+[2012-10-30 22:54:51 -0400] cheeseplus: Lrrr: then how is it communicating with the Chef server?
+[2012-10-30 22:56:05 -0400] Lrrr: It doesn't mean they have no address... just that ohai doesn't set it properly
+[2012-10-30 22:57:15 -0400] cheeseplus: ok, just trying to get more information as that wasn't clear initially
+[2012-10-30 22:57:18 -0400] yfeldblum: Lrrr, with an ohai plugin?
+[2012-10-30 22:57:48 -0400] Lrrr: cheeseplus: yeah sorry... basically node[:ipaddress] is empty
+[2012-10-30 22:59:20 -0400] cheeseplus: Lrrr: hrm, I seem to recall a discussion of something like this happening before, if you run ohai locally does it have a value?
+[2012-10-30 22:59:41 -0400] Lrrr: no
+[2012-10-30 23:00:57 -0400] cmceldowney: deploy_revision: Wiki does not seem to be current RE revision deploy cache file in 10.14+ (http://wiki.opscode.com/display/chef/Deploy+Resource#DeployResource-HowtoNukeandStartOver). Anyone know where this file is in later releases of chef?
+[2012-10-30 23:01:24 -0400] Lrrr: oh gosh...
+[2012-10-30 23:01:27 -0400] Lrrr: https://github.com/cloudant/ohai_plugins/blob/master/wtf.rb
+[2012-10-30 23:01:31 -0400] Lrrr: THAT would work
+[2012-10-30 23:02:30 -0400] cheeseplus: Lrrr: indeed it would, curious why it wouldn't get set to begin with though
+[2012-10-30 23:02:33 -0400] masterkorp: shit i am depressed
+[2012-10-30 23:03:16 -0400] Lrrr: cheeseplus: I checked the relevant ohai code and it's surprisingly complex
+[2012-10-30 23:04:15 -0400] Lrrr: I think it might just be because it doesn't find the right interface
+[2012-10-30 23:04:23 -0400] Lrrr: it's just a little OpenVZ VPS
+[2012-10-30 23:04:46 -0400] cheeseplus: Lrrr: yea that is what I expect, I'm actually popping in to check one of my boxes with multiple interfaces to see what it says
+[2012-10-30 23:05:41 -0400] Lrrr: if you want the dump I can send you I guess
+[2012-10-30 23:06:20 -0400] cheeseplus: I won't be around for much longer unfortunately, have to go take care of some pets
+[2012-10-30 23:06:59 -0400] cheeseplus: Lrrr: I would be curious what the default interface ohai selects though
+[2012-10-30 23:07:00 -0400] Lrrr: on the VPS, there are several interfaces, ipv4, ipv6 and a virtual interface which actually has the right IP
+[2012-10-30 23:09:50 -0400] cheeseplus: Lrrr: ohai | grep default_interface ?
+[2012-10-30 23:11:46 -0400] Majost: is there a recommended "best practice" for setting attribute values in a cookbook which are defined in a dependent cookbook?
+[2012-10-30 23:12:11 -0400] Lrrr: cheeseplus: venet0
+[2012-10-30 23:12:35 -0400] Lrrr: but the right ip address is actually set to venet0:0
+[2012-10-30 23:12:40 -0400] Lrrr: gotta go for the kids bath
+[2012-10-30 23:12:43 -0400] Majost: include_attribute "dependant_cookbook" ?
+[2012-10-30 23:13:05 -0400] cheeseplus: Lrrr: oh man, yea that can be problematic but I'm not sure the best way around it either
+[2012-10-30 23:14:16 -0400] programmerq: hmmm. I can't remember what aaron peterson goes by here on freenode. Are you here? who are you?
+[2012-10-30 23:30:21 -0400] jtimberman: programmerq: metaxis
+[2012-10-30 23:30:28 -0400] jtimberman: programmerq: he's not online though :)
+[2012-10-30 23:38:55 -0400] dougireton: has any used chef handlers on Windows? I don't know which directory to use for node['chef_handler']['handler_path']
+[2012-10-30 23:41:41 -0400] programmerq: that sounds familiar.
+[2012-10-30 23:42:11 -0400] programmerq: jtimberman: thanks. :)
+[2012-10-30 23:42:47 -0400] programmerq: he came out and did our training a little while back, and now that I'm trying to apply what I learned (after having forgot much of it), I am finding that he's actually doing a lot of the videos that are out there.
+[2012-10-30 23:44:32 -0400] Majost: Would I use an override or something If I want to specify a specific java version for the tomcat cookbook to use and install?
+[2012-10-30 23:45:15 -0400] fdgonthier: sorry, back... I think my problem is that the default route goes through venet0 but that it's venet0:0 that has the right address

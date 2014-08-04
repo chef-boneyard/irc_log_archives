@@ -1,0 +1,295 @@
+[2013-11-10 00:03:44 -0500] xargs: hm if you destroy a node that had chef-client installed, how do you delete all the chef entries
+[2013-11-10 00:03:57 -0500] xargs: knife ec2 server delete doesn't work
+[2013-11-10 00:17:30 -0500] jbz: xargs: sorry, was away: you want knife node delete and knife client delete.
+[2013-11-10 00:18:00 -0500] jbz: I always forget to nuke the associated client, and end up having to re-figure out why my thing isn't working. :-P
+[2013-11-10 00:32:51 -0500] xargs: jbz, ta
+[2013-11-10 00:32:57 -0500] jbz: cheers
+[2013-11-10 00:33:00 -0500] xargs: jbz, downloaded the chef-client
+[2013-11-10 00:33:03 -0500] xargs: cookbook
+[2013-11-10 00:33:07 -0500] jbz: cool
+[2013-11-10 00:33:11 -0500] xargs: there's lots of recipes.
+[2013-11-10 00:33:17 -0500] jbz: (the quick and dirty way is to just set a cron)
+[2013-11-10 00:33:18 -0500] jbz: yeah
+[2013-11-10 00:33:21 -0500] xargs: scratching my head which one im supposed to use
+[2013-11-10 00:33:25 -0500] jbz: oh
+[2013-11-10 00:33:32 -0500] jbz: you pick the method you prefer and call that recipe diretly
+[2013-11-10 00:33:35 -0500] jbz: *directly
+[2013-11-10 00:33:53 -0500] xargs: from what i'm reading there's a preferred one when using knife to bootstrap
+[2013-11-10 00:34:07 -0500] xargs: recipe[chef-client::runit_service]
+[2013-11-10 00:35:20 -0500] jbz: xargs: what OS are you on?
+[2013-11-10 00:36:08 -0500] xargs: centos 6.4
+[2013-11-10 00:36:46 -0500] jbz: ah ok so
+[2013-11-10 00:36:53 -0500] jbz: if you call just the cookbook (the default recipe)
+[2013-11-10 00:37:54 -0500] jbz: it should figure out what to do; the attributes file will set the service type of 'init' and the default recipe will call the 'service' recipe, which will set up an init-based service for the chef-client.
+[2013-11-10 00:38:42 -0500] jbz: It'll enable the service to start at boot, and it will start the service at the close of the initial chef-run.
+[2013-11-10 00:39:29 -0500] xargs: looks like the client.rb is an erb
+[2013-11-10 00:39:35 -0500] jbz: yep
+[2013-11-10 00:39:42 -0500] xargs: can't see anything in there to change the URL or time
+[2013-11-10 00:40:09 -0500] jbz: oh
+[2013-11-10 00:40:13 -0500] jbz: the URL will be handled by knife
+[2013-11-10 00:40:20 -0500] jbz: the interval...
+[2013-11-10 00:41:21 -0500] jbz: the default interval is set in the attributes file
+[2013-11-10 00:41:31 -0500] jbz: ['chef-cient']['interval'] and is defaulted to 1800 secs
+[2013-11-10 00:41:55 -0500] xargs: ah ok
+[2013-11-10 00:42:01 -0500] jbz: you can change that either by putting it in the node's role or environment, or modifying the node's record directly, or by changing the default in the cookbook (usually my last choice)
+[2013-11-10 00:47:19 -0500] xargs: giving it a go
+[2013-11-10 00:47:46 -0500] xargs: do you find the 30 minute default a bit late
+[2013-11-10 00:47:57 -0500] xargs: im thinking 15 minutes is better
+[2013-11-10 00:51:25 -0500] strictlyb: anyone here has a second to chat about a best practice
+[2013-11-10 00:51:30 -0500] strictlyb: technique
+[2013-11-10 05:10:37 -0500] jhgaylor: i often see attributes described like in this readme. https://github.com/nickola/chef-ssh-keys  where can i define my attributes/runlist that way?  i currently use attributes/default.rb and have the use the [] syntax.
+[2013-11-10 06:00:28 -0500] spicy: what's the best practice for using node attributes vs template variables in templates?
+[2013-11-10 07:04:41 -0500] jhgaylor: i've added notifies :run, "bash[my_resource]" to a git resource in a recipe.  how do i make it so that my_resource won't be run except when notified?
+[2013-11-10 07:07:44 -0500] spicy: jhgaylor: add action :nothing
+[2013-11-10 07:07:54 -0500] jhgaylor: spicy: to the bash resource?
+[2013-11-10 07:09:19 -0500] spicy: yep
+[2013-11-10 07:09:22 -0500] jhgaylor: thanks
+[2013-11-10 08:26:16 -0500] michael_mbp: hi
+[2013-11-10 08:26:35 -0500] michael_mbp: if I want chef-solo's solo.rb to refer to a locally extracted 'cookbooks' path, how can I set that?
+[2013-11-10 08:27:00 -0500] michael_mbp: cookbook_path = "cookbooks" ?
+[2013-11-10 09:15:14 -0500] JeanMertz: Given a hash, how would you merge this hash into the (default) node attributes?
+[2013-11-10 09:15:16 -0500] JeanMertz: I tried "node.default.merge!(generated_hash)", but this doesn't stick. It seems I need to use node.default['a']['b'] notation, from what I can see in https://github.com/opscode/chef/blob/master/lib/chef/node/attribute.rb#L336-L338
+[2013-11-10 09:18:17 -0500] dtrott: Whats the standard way of handling third party recipes, do people just download them and add them to there own source control system ?
+[2013-11-10 09:46:46 -0500] spicy: dtrott: depends on what you mean by handling, if you have all of your cookbooks in one repo sometimes people do that, more commonly now i think people are using librarian-chef or berkshelf to manage external dependancies
+[2013-11-10 09:47:00 -0500] spicy: (personally i am using berkshelf)
+[2013-11-10 10:00:08 -0500] cruisemaniac: Hello! Can someone please point me to a tutorial on how I can create a glassfish domain with chef? I'm unable to wrap my head around the domain.rb script and how domain :create symbols must be used!
+[2013-11-10 10:00:40 -0500] cruisemaniac: I'm new to the entire thingamagic of chef and glassfish and vagrant and the likes! Asking because I've got to help a friend with her project of some sort!
+[2013-11-10 10:15:23 -0500] cruisemaniac: I am executing a vagrantfile to call chef recipes that are able to install glassfish but are not creating a domain! Is there someone that can help me with this?
+[2013-11-10 10:40:45 -0500] dtrott: spicy: Yea I have just been watching some youtube videos on berkshelf looks like its the way to go...
+[2013-11-10 10:41:06 -0500] michael_mbp: dtrott: yup
+[2013-11-10 10:41:35 -0500] michael_mbp: I'm trying to setup a chef-server with vagrant, and specially setup an older verison too... ugh..
+[2013-11-10 11:34:55 -0500] dtrott: michael_mbp: Have you got all the berkshelf stuff working with vagrant - currently going through a rabbit hole needing to install a bunch of Xcode dependencies just to compile the gem...
+[2013-11-10 12:38:34 -0500] cruisemaniac: hello folks, can someone please help me with chef for a project on a very urgent basis please? my friends masters thesis is due tomorrow! Apologies beforehand for asking this way! i'm no chef expert!
+[2013-11-10 12:40:24 -0500] cruisemaniac: she's got a requirement to setup a deployment pipeline before daybreak! we've got bits and pieces of the puzzle but are no experts in putting it through one single channel
+[2013-11-10 12:47:00 -0500] laurent\: ...
+[2013-11-10 12:59:15 -0500] michael_mbp: cruisemaniac: why wait for the last minute?
+[2013-11-10 13:00:03 -0500] cruisemaniac: @michael_mbp I came to know of it in the last minute because she spent 6 months not doing this :-/
+[2013-11-10 13:01:50 -0500] cruisemaniac: @michael_mbp right now, the situation is that she completes her thesis tomorrow or gets kicked out! feel bad for her and am hence helping out! she's obviously got her own problems and things that i couldnt care less about!
+[2013-11-10 13:02:57 -0500] dtrott: realistically how many hours have you got and what do you need to get done ?
+[2013-11-10 13:04:03 -0500] cruisemaniac: @dtrott I have about 15 hours, i have this: jenkins setup, compiling some app code and uploading to nexus. vagrant provisioning machines via chef and installing glassfish and postgresql (partially)
+[2013-11-10 13:04:58 -0500] cruisemaniac: @dtrott what needs to be done: chef to start postgresql server, import db, download and deploy war on glassfish from nexus, install selenium, run bloody 2-3 test cases, close the damn thing, and i can sleep
+[2013-11-10 13:05:35 -0500] cruisemaniac: @dtrott, i presume this is very very easy for someone who knows the shebang! but I'm new to chef and vagrant and my knowledge comes from googling and reading docs... which, given the time constraints is NOT working!
+[2013-11-10 13:05:47 -0500] cruisemaniac: so I'm around begging so her family can sleep in peace tomorrow night!
+[2013-11-10 13:07:15 -0500] dtrott: What you are trying to do is shockingly similar to what I am currently working on but my timeline is 2 weeks.....
+[2013-11-10 13:07:39 -0500] dtrott: Just working through the vagrant tutorial now ....
+[2013-11-10 13:07:44 -0500] cruisemaniac: @dtrott i am doing something similar at work starting in a couple of weeks... but right now, it needs to be done by 6am tomorrow morning or she gets fired at 8
+[2013-11-10 13:08:22 -0500] dtrott: I am telling you that I am probably at the same point in the process as you are at the minute.
+[2013-11-10 13:08:40 -0500] cruisemaniac: yeah i noticed that...
+[2013-11-10 13:09:20 -0500] cruisemaniac: i am hoping someone in the room is benevolent to share a couple of hours to help me out! :-P #sheepishly-ashamed
+[2013-11-10 13:11:09 -0500] michael_mbp: gah
+[2013-11-10 13:11:21 -0500] michael_mbp: just can't get chef-server 10.12.0 to run hmmm.
+[2013-11-10 13:12:28 -0500] cruisemaniac: okay... can someone help me with the recipe to install postgresql on an ec2 instance?
+[2013-11-10 13:13:13 -0500] cruisemaniac: right now, it will install but wont start! i have no clue what chef is doing....
+[2013-11-10 13:13:36 -0500] dtrott: http://community.opscode.com/cookbooks/postgresql
+[2013-11-10 13:23:33 -0500] cruisemaniac: @dtrott saw that but im getting it to install it... but I'm unable to start the server!
+[2013-11-10 13:24:23 -0500] dtrott: you are going to need to track down the error either in the postgres logs or during the chef run...
+[2013-11-10 13:24:27 -0500] cruisemaniac: i have psql installed but apparently pgdg_something has to be installed... and that has to be....
+[2013-11-10 13:24:46 -0500] cruisemaniac: @dtrott if i paste the chef log and give you a link, you would be able to point it?
+[2013-11-10 13:26:02 -0500] dtrott: The postgres logs are usually /usr/local/pgsql/data/logfile
+[2013-11-10 13:26:25 -0500] cruisemaniac: @dtrott: http://pastebin.com/XFJisaX7 this is the log file from chef
+[2013-11-10 13:27:20 -0500] cruisemaniac: @dtrott okay... there is no folder called /usr/local/pgsql
+[2013-11-10 13:28:12 -0500] dtrott: Try running (as root):  apt-get -y install postgresql=9.3+149.pgdg12.4+1
+[2013-11-10 13:28:34 -0500] dtrott: see if you get a better error message
+[2013-11-10 13:29:42 -0500] cruisemaniac: @dtrott worked after i ran dpkg --reconfigure -a
+[2013-11-10 13:29:42 -0500] michael_mbp: dtrott: hey
+[2013-11-10 13:29:47 -0500] michael_mbp: have you played with chef-server?
+[2013-11-10 13:29:55 -0500] michael_mbp: timeout: down: chef-server: 0s, normally up, want up
+[2013-11-10 13:30:13 -0500] dtrott: michael_mbp: I have used a chef server someone else set up but not set one up myself.
+[2013-11-10 13:30:20 -0500] michael_mbp: chef-server/expander/server-webui/solr are all down
+[2013-11-10 13:30:35 -0500] michael_mbp: dtrott: yeah I'm looking to setup a test env.
+[2013-11-10 13:30:36 -0500] dtrott: are there services for them in /etc/ini.d
+[2013-11-10 13:30:38 -0500] dtrott: init.d
+[2013-11-10 13:30:49 -0500] michael_mbp: I chose runit
+[2013-11-10 13:30:59 -0500] michael_mbp: so they are listed in /etc/sv
+[2013-11-10 13:31:10 -0500] michael_mbp: it shows each one like this
+[2013-11-10 13:31:11 -0500] michael_mbp: down: chef-server: 0s, normally up, want up; run: log: (pid 945) 1387s
+[2013-11-10 13:32:11 -0500] cruisemaniac: purged all that i had under postgresql* and am trying to re-provision now
+[2013-11-10 13:42:34 -0500] cruisemaniac: @dtrott wont work yet! I can provision postgresql if I dont ask for the additional server installs... or else, it fails!
+[2013-11-10 14:30:47 -0500] lietu_: I'm trying to set up a simple chef (latest open source version) server + workstation + node for some testing purposes, but the documentation seems to be lacking in some critical parts .. it just suddenly assumes that when I run "knife configure --initial" I have the admin's private key, as well as the validation key .. google seems to claim that the validation pem is in /etc/chef on the server, but after installing (the webui is running and everything), ...
+[2013-11-10 14:30:53 -0500] lietu_: ... that folder exists and is empty .. nothing explains where I can get the administrator's private key, I can get the public key from the webui though
+[2013-11-10 14:33:47 -0500] lietu_: ah, by blindly trying out things I seem to have solved this mystery: in the clients list I can get the public key for the validator, which is apparently the thing I needed, and for administrator I could regenerate the private key to get access to one
+[2013-11-10 14:43:41 -0500] cruisemaniac: hello folks, is there a recipe that will help me import and execute an sql script to prep up a postgres database ?
+[2013-11-10 14:44:59 -0500] shl0: Hi
+[2013-11-10 14:47:54 -0500] shl0: I wrote a definition ("wordpress_site") that, inside its body, calls another definition ("web_app"). It run, but I get very strange errors: none of the attributes I set in the web_app block are "sticking", and they all appear to be nil "inside" the web_app definition.
+[2013-11-10 14:48:06 -0500] cruisemaniac: When I provision a machine using vagrant+chef, specifically using jenkins plugin, is there a way I can get the IP address of the machine that was provisioned? considering this is on ec2... I would need that to actually dump my webapp into glassfish running on the newly provisioned vm
+[2013-11-10 14:48:12 -0500] shl0: Are nested definitions supported?
+[2013-11-10 14:48:39 -0500] shl0: The code I'm referring to is in this repo: http://github.com/shlomoswidler/shlomo-wordpress
+[2013-11-10 14:50:07 -0500] shl0: the use of the web_app definition within the wordpress_Site definition is at definitions/wordpress_site.rb:190
+[2013-11-10 14:53:25 -0500] shl0: @cruisemaniac: The public IP address of an EC2 instance is available as an HTTP response to this request, only from the instance itself: http://169.254.169.254/latest/meta-data/public-ipv4
+[2013-11-10 14:54:09 -0500] shl0: cruisemaniac: the private IP address is at  http://169.254.169.254/latest/meta-data/local-ipv4
+[2013-11-10 14:55:36 -0500] cruisemaniac: @sh10 thanks for this info... in this case, how am I supposed to approach my requirement of starting a selenium test suite on the newly provisioned vm? I'm asking coz I'm out of ideas now!
+[2013-11-10 14:56:11 -0500] michael_mbp: hey shl0 are you here?
+[2013-11-10 14:56:23 -0500] shl0: michael_mbp hi
+[2013-11-10 14:56:33 -0500] michael_mbp: or anyone who's able to help me debug why a fresh Chef server 10.12.0 refuses to start?
+[2013-11-10 14:56:35 -0500] michael_mbp: hey
+[2013-11-10 14:56:57 -0500] michael_mbp: I've essentially created a new basebox with veewee with Ubuntu 12.04
+[2013-11-10 14:57:27 -0500] shl0: cruisemaniac: you can get the IP addresses (and lots of other info) from the AWS command line tool
+[2013-11-10 14:57:31 -0500] michael_mbp: and I've installed chef-client and chef-server for 10.12.0.
+[2013-11-10 14:57:41 -0500] michael_mbp: Checking status of chef-server                                                          [fail]
+[2013-11-10 14:57:57 -0500] michael_mbp: which is the case for chef-server, chef-solr, chef-server-webui
+[2013-11-10 14:58:04 -0500] cruisemaniac: @michael_mbp where are you trying to install it?
+[2013-11-10 14:58:12 -0500] michael_mbp: geeze, even chef-client is dead
+[2013-11-10 14:58:21 -0500] cruisemaniac: i got chef-server and chef-solo installed pretty straight forward on two ec2 boxes!
+[2013-11-10 14:58:29 -0500] michael_mbp: cruisemaniac: I've installed these on my vagrant box
+[2013-11-10 14:58:33 -0500] shl0: cruisemaniac: If you install the awscli http://aws.amazon.com/cli/ on the Jenkins machine, your code can call it and parse the nice JSON repsonse to get the IP addresses
+[2013-11-10 14:58:36 -0500] michael_mbp: cruisemaniac: what version?
+[2013-11-10 14:58:45 -0500] michael_mbp: I'm having trouble with 10.12.0
+[2013-11-10 14:59:10 -0500] michael_mbp: is there an omnibus for 10.12?
+[2013-11-10 15:00:29 -0500] cruisemaniac: @michael_mbp i've got it as part of my vagrant setup
+[2013-11-10 15:00:37 -0500] cruisemaniac: total box in place... using chef-solo for provisioning ec2
+[2013-11-10 15:00:50 -0500] cruisemaniac: let me check my vagrant version in a moment... that instance is powering up
+[2013-11-10 15:00:56 -0500] michael_mbp: thanks
+[2013-11-10 15:01:08 -0500] michael_mbp: yeah I feel like I'm going to switch to chef-solo locally
+[2013-11-10 15:01:23 -0500] michael_mbp: well knife-solo, setup a kitchen for the chef server deploy
+[2013-11-10 15:02:20 -0500] cruisemaniac: @sh10 is the amazoncli available as a jenkins plugin? I'm unable to find it in the repo! that said, if I have to install the awscli, parsing json on jenkins is another task!
+[2013-11-10 15:02:57 -0500] shl0: cruisemaniac I haven't seen any Jenkins plugin for it, no.
+[2013-11-10 15:03:14 -0500] shl0: However, the AWSCLI also offers XML-formatted output - which may be easier to parse in Jenkins
+[2013-11-10 15:03:45 -0500] cruisemaniac: @sh10 would you have any ideas on how that is achieved! I'm not from this field and I'm helping my friend meet an impossible deadline is all! :-) any help is much appreciated!
+[2013-11-10 15:04:15 -0500] shl0: cruisemaniac It can be done from the command-line as well
+[2013-11-10 15:05:29 -0500] shl0: cruisemaniac Not sure what the best way to install the awscli for Jenkins is - ar eyou provisioning via chef? I wrote a simple cookbook that installs it, without adding any dependencies: http://github.com/shlomoswidler/awscli
+[2013-11-10 15:06:17 -0500] cruisemaniac: @sh10 my current setup is such: ec2 where jenkins runs, compiles code, on successful completion, uses the jenkins-vagrant plugin and a locally available vagrant file to provision a new box...
+[2013-11-10 15:07:03 -0500] cruisemaniac: @sh10 post this, i need to deploy a war to the glassfish server on the new box and run selenium cases on it... the question here is how is this communication going to take place considering its not got an ip address to talk to!
+[2013-11-10 15:08:56 -0500] cruisemaniac: @sh10 now you know my situation :-P
+[2013-11-10 15:09:11 -0500] shl0: cruisemaniac did you have this working in another environment already, or is this the first time you're using selenium?
+[2013-11-10 15:09:46 -0500] cruisemaniac: @sh10 first time with everything my friend! i got thrown in front of a moving truck!
+[2013-11-10 15:13:29 -0500] shl0: cruisemaniac: sorry, bro - wish I could help more
+[2013-11-10 15:14:24 -0500] cruisemaniac: @sh10 totally cool with that... i'm going to be around on this channel asking more questions! :-)
+[2013-11-10 15:14:29 -0500] cruisemaniac: long night ahead!
+[2013-11-10 15:21:05 -0500] shl0: Quick recap of my prior question from 30 minutes ago: Are nested definitions supported in chef?
+[2013-11-10 15:25:12 -0500] cruisemaniac: @sh10 apparently the awscli is not comfortable running off of an ec2 instance! the gem wont work for some reason! just hangs there!
+[2013-11-10 15:26:12 -0500] shl0: cruisemaniac It needs to be configured before it will run
+[2013-11-10 15:26:33 -0500] shl0: cruisemaniac see http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html
+[2013-11-10 15:26:41 -0500] cruisemaniac: @sh10 from what i read, the aws_secret key and the aws_access_key are all that are needed
+[2013-11-10 15:27:10 -0500] shl0: cruisemaniac or use cookbook I pointed to earlier to install AND configure the package
+[2013-11-10 15:27:16 -0500] shl0: cruisemaniac right
+[2013-11-10 15:27:53 -0500] shl0: cruisemaniac you will also need to specify the region on the command line each time you invoke it, unless you configure the default region
+[2013-11-10 15:29:09 -0500] cruisemaniac: @sh10 ah okay
+[2013-11-10 15:29:14 -0500] shl0: cruisemaniac can you get a shell on the machine? What happens when you execute 'aws --region us-east-1 ec2 describe-regions' ?
+[2013-11-10 15:36:59 -0500] cruisemaniac: @sh10 still wont work!
+[2013-11-10 15:52:45 -0500] shl0: cruisemaniac what output do you get?
+[2013-11-10 15:53:12 -0500] cruisemaniac: @sh10 it works now... but i'm trying to find a way to get the ec2 instance ip address and get that loaded into a variable that jenkins can pull!
+[2013-11-10 15:53:32 -0500] gchristensen: cruisemaniac: the public IP or privitae?
+[2013-11-10 15:53:44 -0500] gchristensen: tis all in node['cloud'] or node['ec2]
+[2013-11-10 15:53:52 -0500] michael_mbp: hmmm
+[2013-11-10 15:54:16 -0500] cruisemaniac: @gchristensen im not sure which one will work... i have an instance running jenkins... from there i'm powering up another instance with vagrant and want to deploy a war built on instance1 into instance2
+[2013-11-10 15:54:19 -0500] michael_mbp: I tried passing the version as '10.12.0' to chef-server (v2 in the repo) but it cameback with Could not locate chef-server package matching version '10.12.0' for node.
+[2013-11-10 15:55:31 -0500] gchristensen: michael_mbp: might be too old
+[2013-11-10 15:57:13 -0500] cruisemaniac: @sh10 still unable to find out the exact piece of information that i need for this!
+[2013-11-10 15:57:49 -0500] michael_mbp: gchristensen: I've been trying to get 10.12.0 to install all day; I spent the better part of the day setting up a basebox (with veewee Ubuntu 12.04.1) and using chef-solo to install 10.12.0 but the services just refuse to start.
+[2013-11-10 15:58:07 -0500] michael_mbp: only chef-expander runs, but all the rest (server, solr, server-webui) refuse to boot
+[2013-11-10 15:58:13 -0500] michael_mbp: I'm trying to setup a local test env.
+[2013-11-10 16:10:09 -0500] shl0: cruisemaniac I would look at this Jenkins plugin to help you get the parameter from one job into another: https://wiki.jenkins-ci.org/display/JENKINS/Parameterized+Trigger+Plugin
+[2013-11-10 16:31:17 -0500] shl0: Hey folks. Can definitions be used in a nested fashion?
+[2013-11-10 16:31:49 -0500] shl0: E.g., create a custom definition "wordpress_site" that makes use of the "web_app" definition.
+[2013-11-10 16:50:05 -0500] michael_mbp: pfft
+[2013-11-10 16:50:20 -0500] michael_mbp: chef is running (I've gone with the latest) but just can't access the server on port 4000
+[2013-11-10 16:52:02 -0500] workmad3: michael_mbp: what does 'chef-server-ctl status' tell you?
+[2013-11-10 16:52:21 -0500] michael_mbp: hey david
+[2013-11-10 16:52:33 -0500] michael_mbp: I've had a crazy day wrestling v10.12.0 but now I'm attempting with the latest
+[2013-11-10 16:52:59 -0500] michael_mbp: they are all up according to  that
+[2013-11-10 16:53:02 -0500] workmad3: also, if you haven't messed around with the config json, I'm pretty sure it all boots on ssl 443 nowadays
+[2013-11-10 16:53:15 -0500] michael_mbp: I'm connecting to my vagrant ...ah!
+[2013-11-10 16:53:17 -0500] michael_mbp: the webui?
+[2013-11-10 16:53:20 -0500] workmad3: yup
+[2013-11-10 16:53:30 -0500] workmad3: and the main API
+[2013-11-10 16:53:51 -0500] workmad3: part of the install creates an nginx proxy for it :)
+[2013-11-10 16:53:59 -0500] michael_mbp: hah it's working
+[2013-11-10 16:54:04 -0500] michael_mbp: awesome thanks.
+[2013-11-10 16:54:07 -0500] workmad3: np :)
+[2013-11-10 16:54:10 -0500] michael_mbp: ok so the 'previous' approach I took
+[2013-11-10 16:54:18 -0500] michael_mbp: was to create a basebox with veewee
+[2013-11-10 16:54:33 -0500] michael_mbp: and then I proceeded to install chef 10.12.0 with chef-solo
+[2013-11-10 16:55:05 -0500] michael_mbp: sadly in that case, server/server-webui-/solr were all failing
+[2013-11-10 16:55:23 -0500] workmad3: hmm, not dealt with chef 10 for quite some time
+[2013-11-10 16:55:43 -0500] michael_mbp: hmmm.
+[2013-11-10 16:56:15 -0500] michael_mbp: been wrestling all day with that 10.12 version
+[2013-11-10 16:56:25 -0500] michael_mbp: so many issues, from strange stuff ...to gah.
+[2013-11-10 16:56:51 -0500] workmad3: one warning with chef 11... it can have some really odd issues if you don't have enough memory... 512mb seems to be not enough :(
+[2013-11-10 16:56:58 -0500] michael_mbp: ah
+[2013-11-10 16:57:37 -0500] workmad3: so if you're installing onto a VPS, either make sure you have some swap space first, or have at least a 1024mb box
+[2013-11-10 16:58:18 -0500] michael_mbp: thanks, good to know!
+[2013-11-10 16:58:51 -0500] workmad3: there's also quite a nice 'swap' cookbook that gives you a swap resource to add swapfiles easily :)
+[2013-11-10 16:59:06 -0500] workmad3: for your other servers
+[2013-11-10 16:59:38 -0500] workmad3: still, I g2g now
+[2013-11-10 16:59:48 -0500] workmad3: hope you're more successful from this point :)
+[2013-11-10 17:00:29 -0500] michael_mbp: thanks
+[2013-11-10 17:01:08 -0500] michael_mbp: INFO: *** Chef 10.14.2 ***  ??
+[2013-11-10 17:01:12 -0500] michael_mbp: so that's not version 11?
+[2013-11-10 17:01:27 -0500] gchristensen: heh
+[2013-11-10 17:01:47 -0500] gchristensen: no that is v10.14.2 :)
+[2013-11-10 17:02:14 -0500] michael_mbp: hehe strange.
+[2013-11-10 17:02:31 -0500] michael_mbp: got "version": "latest" in my role.
+[2013-11-10 17:02:59 -0500] michael_mbp: ok I'm seeing some confusion for the key.  is it chef-server or chef_server ?
+[2013-11-10 17:03:18 -0500] michael_mbp: default_attributes ... all underscore?
+[2013-11-10 17:07:14 -0500] michael_mbp: gchristensen: still here?
+[2013-11-10 17:28:31 -0500] michael_mbp: hmm I guess 10.14 is better than 11 :)
+[2013-11-10 18:02:18 -0500] michael_mbp: gchristensen: that's the version of chef on the chef server (as in the gem), but visiting the webui/version shows it as chef-server 11.0.8
+[2013-11-10 20:05:57 -0500] holms: lol wtf can't clone this url git clone https://github.com/sstephenson/ruby-build.git
+[2013-11-10 20:06:01 -0500] holms: form laptop and vps )))
+[2013-11-10 20:06:06 -0500] holms: anybody got this issue?
+[2013-11-10 21:30:49 -0500] mr`spock: holms, trying now...
+[2013-11-10 21:31:17 -0500] mr`spock: holms, worked for me
+[2013-11-10 21:54:42 -0500] new2chef: Hello
+[2013-11-10 21:54:58 -0500] mr`spock: i
+[2013-11-10 21:55:00 -0500] mr`spock: hi
+[2013-11-10 21:55:21 -0500] new2chef: Does anyone know how I could edit the chef omnibus installer to permit it to install on Kali Linux?
+[2013-11-10 21:55:24 -0500] mr`spock: i'm new to chef, too.
+[2013-11-10 21:55:31 -0500] new2chef: It'sessentially Ubuntu
+[2013-11-10 21:55:51 -0500] mr`spock: paste the location of the sh install file
+[2013-11-10 21:56:37 -0500] new2chef: you mean like ~/install.sh
+[2013-11-10 21:56:55 -0500] mr`spock: oh. yeah. it's also available online. let me go find the link
+[2013-11-10 21:57:30 -0500] mr`spock: chef client?
+[2013-11-10 21:57:44 -0500] new2chefreturned: sorry for that.
+[2013-11-10 21:58:02 -0500] mr`spock: it's okay. are you wanting the chef-client?
+[2013-11-10 21:58:07 -0500] new2chefreturned: yes.
+[2013-11-10 21:58:18 -0500] new2chefreturned: I've installed it on ubuntu and redhat already,
+[2013-11-10 21:58:34 -0500] new2chefreturned: but I want to use vagrant to provision using my vmware workstation,
+[2013-11-10 21:58:52 -0500] mr`spock: okay. i'm looking at the install script now, so answer a couple questions for me and i should be able to tell you how to modify it.
+[2013-11-10 21:59:05 -0500] mr`spock: i take it you can't yourself?
+[2013-11-10 21:59:14 -0500] new2chefreturned: Modify it?
+[2013-11-10 21:59:26 -0500] new2chefreturned: I have it open in sublime
+[2013-11-10 21:59:43 -0500] new2chefreturned: I just didn't want to hack it to pieces and break anything I couldn't fix later.
+[2013-11-10 21:59:54 -0500] mr`spock: i'm looking around line 83 and it's showing where you can identify the system
+[2013-11-10 22:00:05 -0500] mr`spock: and i see what you're saying. i wouldn't be able to help, then
+[2013-11-10 22:00:53 -0500] mr`spock: even though i don't know anything about chef's internals, i woudn't think it has to verify the platform type for any other purposes than installation
+[2013-11-10 22:01:13 -0500] new2chefreturned: so you think I can safely comment out the platform detection in 79-81 and just set platform to 'debian'?
+[2013-11-10 22:01:26 -0500] mr`spock: i think it's worth a try
+[2013-11-10 22:03:42 -0500] new2chefreturned: hmm
+[2013-11-10 22:04:45 -0500] new2chefreturned: I was hoping for a more elegant solution.
+[2013-11-10 22:04:53 -0500] mr`spock: indeed
+[2013-11-10 22:04:57 -0500] new2chefreturned: I think that's yak shaving...
+[2013-11-10 22:05:22 -0500] mr`spock: lol, it's all i've ever known in the decade of computing i've done
+[2013-11-10 22:05:30 -0500] new2chefreturned: lol
+[2013-11-10 22:05:52 -0500] new2chefreturned: I was hoping I could just comment out the entire detection sections
+[2013-11-10 22:05:58 -0500] mr`spock: i'm 25 now, and since 15 and first playing around with mandrake linux, nothing has changed from "just gotta do what you gotta do"
+[2013-11-10 22:06:12 -0500] new2chefreturned: and someone here would know what platform and version strings to hardset
+[2013-11-10 22:06:30 -0500] new2chefreturned: or set /etc/debian-version to something more palateable to the script
+[2013-11-10 22:06:32 -0500] mr`spock: that sounds right, but it's obvious which platform string to preset.
+[2013-11-10 22:06:42 -0500] new2chefreturned: it is?
+[2013-11-10 22:06:44 -0500] mr`spock: i see. that's really smart. duh
+[2013-11-10 22:07:04 -0500] mr`spock: i presume you don't have a debian-version ?
+[2013-11-10 22:07:25 -0500] new2chefreturned: I do, but it's Kali Linux 1.0
+[2013-11-10 22:08:27 -0500] new2chefreturned: ah ha!
+[2013-11-10 22:08:34 -0500] mr`spock: i see, so it looks like it's reading it as debian 1.0
+[2013-11-10 22:08:55 -0500] new2chefreturned: I'm thinking I just boot an ubuntu vm
+[2013-11-10 22:09:13 -0500] new2chefreturned: and copy whats in /etc/issue
+[2013-11-10 22:09:50 -0500] new2chefreturned: and /etc/debian_version
+[2013-11-10 22:11:20 -0500] workmad3: new2chefreturned: the 'elegant' solution would be to fork chef (or ohai), modify the platform detection to include Kali Linux 1.0 and pass it along as debian family and the appropriate version :)
+[2013-11-10 22:11:33 -0500] workmad3: and then set up a pull-request for it to be merged back in
+[2013-11-10 22:14:03 -0500] new2chefreturned: workmad3 I agree.
+[2013-11-10 22:32:15 -0500] new2chefreturned: thanks guys, I'll come back once I have something working.
+[2013-11-10 22:32:16 -0500] new2chefreturned: :)
+[2013-11-10 23:26:07 -0500] holms: mr`spock: yeah already works, but it was definetely github problem
+[2013-11-10 23:35:38 -0500] xargs: I've downloaded a few recipes that reference LWRP - are these like input variables per server?
+[2013-11-10 23:37:13 -0500] renchap: http://docs.opscode.com/lwrp_custom.html
+[2013-11-10 23:37:51 -0500] xargs: yeah i've read that
+[2013-11-10 23:38:17 -0500] xargs: I understand the concept, i just don't know where to define it.
+[2013-11-10 23:38:22 -0500] xargs: i'm using hosted chef
+[2013-11-10 23:42:22 -0500] flaccid: xargs: in cookbooks
+[2013-11-10 23:42:57 -0500] xargs: so the cookbook that has the LWRP is selinux
+[2013-11-10 23:43:14 -0500] xargs: so i need also a new recipe to define the action: ?
+[2013-11-10 23:43:45 -0500] flaccid: the resource of an lwrp is used within recipes
+[2013-11-10 23:44:10 -0500] xargs: ;/
+[2013-11-10 23:44:49 -0500] xargs: i'm confused.
+[2013-11-10 23:48:23 -0500] xargs: Ok, i think i get it - kinda
+[2013-11-10 23:55:54 -0500] xargs: I've just added the selinux::enforcing recipe to the run list - is that right?

@@ -1,0 +1,1171 @@
+[2012-04-05 00:00:00 -0400] helllen: hello again
+[2012-04-05 00:00:16 -0400] helllen: I run chef-expander with the following command
+[2012-04-05 00:00:25 -0400] helllen:   /usr/local/rvm/rubies/ruby-1.9.3-p125/bin/ruby /usr/local/rvm/gems/ruby-1.9.3-p125/bin/chef-expander -c /etc/chef/expander.rb -P /var/run/chef/expander.pid -n 1 -i 1
+[2012-04-05 00:02:44 -0400] helllen: http://pastebin.com/QvuLyi3h
+[2012-04-05 00:03:31 -0400] jdeamattson: Any thoughts on what might be causing this problem: Errno::EAGAIN: Resource temporarily unavailable - tar xvf /tmp/site_grok-f1842b4cb221e82202ecffbc63495c4b16056601.tar
+[2012-04-05 00:09:14 -0400] jdeamattson: I have a recipe that has run without issue multiple times per day without issue and is now failing. Does anything about the following error message ring a bell?
+[2012-04-05 00:09:24 -0400] jdeamattson: Errno::EAGAIN: Resource temporarily unavailable - tar xvf /tmp/site_grok-f1842b4cb221e82202ecffbc63495c4b16056601.tar
+[2012-04-05 00:09:36 -0400] jdeamattson: Google search is only turning up stuff tied to JRuby
+[2012-04-05 00:10:18 -0400] Brad_K: jdeamattson: sorry  i saw the previous post in the channel, but i don't have a clue what could be going on, so i didn't respond.
+[2012-04-05 00:10:49 -0400] jdeamattson: Not a problem. Hoping someone from Opscode or one of my Chef Heros like fujin will have a clue.
+[2012-04-05 00:13:21 -0400] fujin: mm
+[2012-04-05 00:13:32 -0400] fujin: multiple chev processes running? something holding open the file?
+[2012-04-05 00:13:44 -0400] fujin: jdeamattson: 'lsof /tmp/site_grok-*.tar'
+[2012-04-05 00:13:58 -0400] fujin: destroy the file and converge again ^_^
+[2012-04-05 00:14:02 -0400] helllen: Brad_K, do you have any idea?
+[2012-04-05 00:14:07 -0400] fujin: I am no hero -- I just do the needful
+[2012-04-05 00:14:22 -0400] Brad_K: helllen: sorry, i don
+[2012-04-05 00:14:39 -0400] helllen: chef-expander connect with?
+[2012-04-05 00:14:40 -0400] Brad_K:  i don't know much about open source chef.  just what i've seen in this channel.
+[2012-04-05 00:14:43 -0400] helllen: rabbitmp?
+[2012-04-05 00:15:43 -0400] ryan-eme: do a lot of people here auto-converge?
+[2012-04-05 00:15:54 -0400] jdeamattson: fujin: By destroy, rm the file in question?
+[2012-04-05 00:16:00 -0400] ryan-eme: I'm curious how you deal with recipes that stop and rebuild services
+[2012-04-05 00:16:05 -0400] Brad_K: auto-converge?  isn't that all about what chef is supposed to do?!?
+[2012-04-05 00:16:27 -0400] Brad_K: stop and rebuild services?
+[2012-04-05 00:16:41 -0400] ryan-eme: yeah so like
+[2012-04-05 00:17:03 -0400] ryan-eme: I don't want to rebuild nginx every time chef-client runs
+[2012-04-05 00:17:34 -0400] Brad_K: put a guard on it to check to see if it needs to be rebuilt.
+[2012-04-05 00:17:45 -0400] Brad_K: use only_if or not_if.
+[2012-04-05 00:18:15 -0400] jdeamattson: fujin: I remove the file rm /tmp/site_grok-* and reconverted. Same error message.
+[2012-04-05 00:18:41 -0400] Brad_K: that's part of your responsibility to make your code idempotent  check to make sure whether or not some action actually needs to be taken before going ahead to take the action.
+[2012-04-05 00:18:53 -0400] ryan-eme: hmmm
+[2012-04-05 00:18:58 -0400] ryan-eme: I'm afraid, but I'll run with it
+[2012-04-05 00:18:59 -0400] ryan-eme: thanks
+[2012-04-05 00:19:18 -0400] Brad_K: the alternative is that your chef runs take longer.  it's your choice.
+[2012-04-05 00:21:36 -0400] jdeamattson: fujin:  Any further thoughts on this one?
+[2012-04-05 00:22:24 -0400] hoover_damm: jdeamattson, lsof or gist the recipe
+[2012-04-05 00:22:27 -0400] fujin: jdeamattson: seems very strange
+[2012-04-05 00:22:30 -0400] fujin: jdeamattson: what does lsof show ?
+[2012-04-05 00:22:32 -0400] hoover_damm: kinda hard to tell
+[2012-04-05 00:22:34 -0400] hoover_damm: without seeing more
+[2012-04-05 00:22:42 -0400] fujin: indeed, I'd anticipate another process interacting with it
+[2012-04-05 00:22:47 -0400] jdeamattson: fujin: lsof returns with 1 and nothing else.
+[2012-04-05 00:23:11 -0400] hoover_damm: then basically gist up the recipe
+[2012-04-05 00:24:18 -0400] fujin: jdeamattson: you want 'lsof | grep /tmp/site_grok' I guess
+[2012-04-05 00:24:21 -0400] fujin: my bad
+[2012-04-05 00:25:23 -0400] jdeamattson: I think I may have found it.
+[2012-04-05 00:25:31 -0400] jdeamattson:  7722 ?        S     62:58 /usr/bin/ruby /usr/bin/chef-client -d -c /etc/chef/client.rb -L /var/log/chef/client.log -P /var/run/chef/client.pid -i 300 -s 23
+[2012-04-05 00:25:32 -0400] jdeamattson: 32500 ?        Z      0:00 [chef-client] <defunct>
+[2012-04-05 00:25:42 -0400] jdeamattson: Looks like I have a zombie chef-client running....
+[2012-04-05 00:27:48 -0400] fujin: reboot the boxen man
+[2012-04-05 00:28:01 -0400] fujin: =)
+[2012-04-05 00:36:55 -0400] jdeamattson: It was a zombie process that would not die (killed him multiple times). Finally had to reboot the box to get rid of it.
+[2012-04-05 01:03:05 -0400] jdeamattson: Does this error ring any bells:
+[2012-04-05 01:03:07 -0400] jdeamattson: from /usr/share/rubygems1.9/rubygems/dependency.rb:256:in `to_spec'
+[2012-04-05 01:03:08 -0400] jdeamattson: from /usr/share/rubygems1.9/rubygems.rb:1210:in `gem'
+[2012-04-05 01:03:08 -0400] jdeamattson: from /usr/bin/chef-client:18:in `<main>'
+[2012-04-05 01:03:29 -0400] jdeamattson: Sorry! Stupid on my part...
+[2012-04-05 01:04:10 -0400] hoover_damm: find the parent process
+[2012-04-05 01:04:13 -0400] jdeamattson: I am getting tired. Can't even see the obvious staring me in the face :-(
+[2012-04-05 01:04:13 -0400] hoover_damm: and kill the parent process
+[2012-04-05 01:04:25 -0400] jdeamattson: hoover_damm: Done and done....
+[2012-04-05 01:04:32 -0400] hoover_damm: right you already did that
+[2012-04-05 01:04:35 -0400] hoover_damm: so what's your current problem?
+[2012-04-05 01:04:44 -0400] jdeamattson: I figured it out. Forget me....
+[2012-04-05 01:04:44 -0400] hoover_damm: gist.github.com your stack trace if you have one
+[2012-04-05 01:04:59 -0400] jdeamattson: just the act of asking caused me to figure it out :-)
+[2012-04-05 01:06:57 -0400] jdeamattson: hoover_damm: It looks like fog was what spun off the zombie process. You might want to keep an eye out for it. We a blip between us and the s3 at the time the download was happening and that appears to have wedged things.
+[2012-04-05 01:07:15 -0400] monvillalon: I new to chef and ruby, and trying to figure it out by writing my first recipe.  In my recipe I require_recipe "mysql::server" and  set my recipes attributes/default.rb I use default['mysql']['server_root_password'] to my password. But this doesn't work, probably because mysql is setup before my recipe. I guess I could change mysql recipe directly but it doesn't seem right.  Anybody care to explain what would be the "right" thing to do
+[2012-04-05 01:07:29 -0400] hoover_damm: jdeamattson, you download content with fog?
+[2012-04-05 01:07:39 -0400] hoover_damm: I guess you could if you kept it private
+[2012-04-05 01:07:50 -0400] jdeamattson: Yes. It was private.
+[2012-04-05 01:08:03 -0400] hoover_damm: unless someone has rubyfied the signature logic yet
+[2012-04-05 01:08:31 -0400] jdeamattson: hoover_damm: Which is why I am moving as quickly as possible to git based deploys vs. what I am doing now....
+[2012-04-05 01:09:10 -0400] hoover_damm: jdeamattson, http://docs.amazonwebservices.com/AmazonCloudFront/latest/DeveloperGuide/thirdpartytool.html
+[2012-04-05 01:09:36 -0400] hoover_damm: jdeamattson, worse case I guess you could write a perl or a php signature generator, fetch the signature in chef, then remote_file it down
+[2012-04-05 01:09:39 -0400] hoover_damm: and skip fog
+[2012-04-05 01:10:01 -0400] monvillalon: I know its annoying to help the newbie, but a RTFM at least=)
+[2012-04-05 01:12:09 -0400] jdeamattson: monvillalon: It depends on the situation....
+[2012-04-05 01:14:11 -0400] jdeamattson: hoover_damm: Moving to Ruby 1.9.3 and hitting an error: does this ring a bell: Chef::Mixin::Template::TemplateError: undefined method `each' for "65536":String
+[2012-04-05 01:14:41 -0400] jdeamattson: Gist coming up....
+[2012-04-05 01:14:46 -0400] hoover_damm: jdeamattson, your trying to run .each on a string
+[2012-04-05 01:14:48 -0400] hoover_damm: you can't
+[2012-04-05 01:15:08 -0400] hoover_damm: jdeamattson, so either turn it into an array, and then pop in your string
+[2012-04-05 01:15:15 -0400] hoover_damm: or treat it like a string
+[2012-04-05 01:15:16 -0400] jdeamattson: I am trying to figure out why it worked on Ruby 1.8.7 and isn't now. And that shouldn't be a stringbut is breaking on 1.9.3
+[2012-04-05 01:15:27 -0400] hoover_damm: gist the code reference
+[2012-04-05 01:15:28 -0400] hoover_damm: ?
+[2012-04-05 01:15:39 -0400] jdeamattson: gist coming up...
+[2012-04-05 01:18:27 -0400] jdeamattson: hoover_damm: The gist: https://gist.github.com/2307145
+[2012-04-05 01:24:25 -0400] hoover_damm: jdeamattson, hrm, why didn't you just enumerate from |type, values| and then print out the values?
+[2012-04-05 01:24:35 -0400] hoover_damm: you should only have 1 nofiles hard 65535
+[2012-04-05 01:24:42 -0400] hoover_damm: and 1 nofiles soft 65535
+[2012-04-05 01:25:10 -0400] hoover_damm: basically you just enumerated it way too much and 1.9.3 doesn't let you enumerate a string
+[2012-04-05 01:25:29 -0400] hoover_damm: >> "65535".each do |p|
+[2012-04-05 01:25:29 -0400] hoover_damm: ?> puts p
+[2012-04-05 01:25:29 -0400] hoover_damm: >> end
+[2012-04-05 01:25:43 -0400] jdeamattson: You have to set both the hard and soft limits.
+[2012-04-05 01:25:53 -0400] hoover_damm: ruby 1.9.3
+[2012-04-05 01:25:53 -0400] hoover_damm: irb(main):004:0>  "65535".each do |p|
+[2012-04-05 01:25:53 -0400] hoover_damm: irb(main):005:1* puts p
+[2012-04-05 01:25:54 -0400] hoover_damm: irb(main):006:1> end
+[2012-04-05 01:25:54 -0400] hoover_damm: NoMethodError: undefined method `each' for "65535":String
+[2012-04-05 01:25:56 -0400] jdeamattson: If you want them to take effect.
+[2012-04-05 01:26:10 -0400] hoover_damm: you enumerated too far
+[2012-04-05 01:26:12 -0400] hoover_damm: heh
+[2012-04-05 01:26:31 -0400] jdeamattson: Interesting. Worked in Ruby 1.8. I see the issue now.
+[2012-04-05 01:26:42 -0400] hoover_damm: right what I pasted was from irb
+[2012-04-05 01:26:43 -0400] hoover_damm: in 1.8.7
+[2012-04-05 01:26:44 -0400] hoover_damm: and in 1.9.3
+[2012-04-05 01:26:48 -0400] jdeamattson: If just drop back to type, value.
+[2012-04-05 01:26:51 -0400] hoover_damm: showing you that you can enumerate a string in 1.8.7
+[2012-04-05 01:26:59 -0400] hoover_damm: and you cannot in 1.9.3
+[2012-04-05 01:27:02 -0400] hoover_damm: try it
+[2012-04-05 01:27:04 -0400] jdeamattson: Yep. Wonderful.
+[2012-04-05 01:27:08 -0400] hoover_damm: welcome to 1.9
+[2012-04-05 01:27:10 -0400] hoover_damm: :)
+[2012-04-05 01:28:11 -0400] jdeamattson: I think this will address it: https://gist.github.com/2307188
+[2012-04-05 01:28:32 -0400] hoover_damm: should
+[2012-04-05 01:29:01 -0400] jdeamattson: hoover_damm: I owe you dinner at ChefCon. Where do you want to go? :-)
+[2012-04-05 01:29:56 -0400] hoover_damm: I'm not going to ChefCon
+[2012-04-05 01:29:59 -0400] hoover_damm: :)
+[2012-04-05 01:30:07 -0400] hoover_damm: it's in SF, no desire to visit SF
+[2012-04-05 01:30:07 -0400] jdeamattson: Where are you located?
+[2012-04-05 01:30:26 -0400] jdeamattson: Ah. Next time I am up, I will take you out to dinner. A favorite place?
+[2012-04-05 01:30:29 -0400] hoover_damm: jdeamattson, but next time i'm in SF i'll look you up
+[2012-04-05 01:30:53 -0400] hoover_damm: hrm, we can prolly do tony's if there's room... drag a few old coworkers along and have a geek night
+[2012-04-05 01:30:56 -0400] hoover_damm: :)
+[2012-04-05 01:31:50 -0400] jdeamattson: Ok. Its a date, if I am in town.
+[2012-04-05 01:32:31 -0400] hoover_damm: coo
+[2012-04-05 01:33:37 -0400] jdeamattson: More Ruby 1.9 problems. May be pinging you....
+[2012-04-05 01:38:27 -0400] jdeamattson: hoover_damm: Any thoughts on this one? https://gist.github.com/2307245
+[2012-04-05 01:39:49 -0400] jdeamattson: Interesting: https://github.com/bazaarlabs/gitdocs/pull/42
+[2012-04-05 01:40:58 -0400] hoover_damm: bigdecimal was in stdlib?
+[2012-04-05 01:41:15 -0400] hoover_damm: hrm, I can require it
+[2012-04-05 01:41:26 -0400] hoover_damm: ahh i have the gem
+[2012-04-05 01:41:39 -0400] jdeamattson: It is a gem I need to install now?
+[2012-04-05 01:41:44 -0400] hoover_damm: yep
+[2012-04-05 01:41:51 -0400] hoover_damm: dunno if it's required
+[2012-04-05 01:42:00 -0400] jdeamattson: That was the conclusion I was coming to as I pulled stuff....
+[2012-04-05 01:42:00 -0400] hoover_damm: my thought is no
+[2012-04-05 01:42:03 -0400] jdeamattson: Have to love it.
+[2012-04-05 01:42:15 -0400] hoover_damm: what are you using to tag?
+[2012-04-05 01:42:31 -0400] hoover_damm: ahh
+[2012-04-05 01:43:15 -0400] hoover_damm: jdeamattson, hrm toss it in the list of dependencies and try again
+[2012-04-05 01:43:19 -0400] jdeamattson: And it works!
+[2012-04-05 01:43:21 -0400] hoover_damm: i do use the aws sdk so that's where mine came from likely
+[2012-04-05 01:43:24 -0400] jdeamattson: Yep. I did.
+[2012-04-05 01:51:16 -0400] jdeamattson: I am guessing it is not in the dependencies for aws-sdk (which I use and install) and wasn't pulled indidn't need to do it previously, so they didn't include it.
+[2012-04-05 01:52:10 -0400] hoover_damm: jdeamattson, you'll find a few oddities coming to 1.9.x
+[2012-04-05 01:52:11 -0400] hoover_damm: but welcome
+[2012-04-05 01:52:21 -0400] hoover_damm: it's glad to see more people leaving 1.8.x behind
+[2012-04-05 01:57:05 -0400] jdeamattson: So, I only had two migration bugs in my scripts in moving from 1.8.7 to 1.9. Not too bad. And one I had no control over....
+[2012-04-05 01:58:40 -0400] hoover_damm: heh
+[2012-04-05 01:58:53 -0400] hoover_damm: I never really did fully finish that 0.6.x to 0.10.x upgrade of chef code
+[2012-04-05 01:58:58 -0400] hoover_damm: sure as heck not gonna do it now
+[2012-04-05 01:59:11 -0400] hoover_damm: actually it was rm'd 2 months ago but :)
+[2012-04-05 02:02:31 -0400] Brad_K: whoops!  should have left hours ago!
+[2012-04-05 02:10:31 -0400] jdeamattson: Get this hoover_damm you actually have to do a gem install bigdecimal, the yum installed gem will not do it for you :-)
+[2012-04-05 02:28:09 -0400] bemu: jdeamattson: Probably being installed in two different places.
+[2012-04-05 02:28:19 -0400] jdeamattson: Could be...
+[2012-04-05 02:28:50 -0400] bemu: You should coalesce behind one: package-manager managed gems (I pity you), or non-
+[2012-04-05 02:29:15 -0400] jdeamattson: Yes. SHould just use ruby gem.
+[2012-04-05 02:29:22 -0400] bemu: I concur.
+[2012-04-05 02:29:38 -0400] bemu: I also would never use a yum installed ruby package.
+[2012-04-05 02:58:01 -0400] cwj: clustering using the opscode rabbitmq cookbook does not feel very chef-like to me
+[2012-04-05 02:58:28 -0400] miah: fix it
+[2012-04-05 02:58:36 -0400] cwj: yerp
+[2012-04-05 03:03:10 -0400] jtimberman: cwj: oh?
+[2012-04-05 03:03:50 -0400] cwj: jtimberman: seems that one must provide a list of nodes as an attribute?
+[2012-04-05 03:03:59 -0400] cwj: and that feels more like a search to me
+[2012-04-05 03:04:53 -0400] jtimberman: oh
+[2012-04-05 03:04:55 -0400] jtimberman: probably :)
+[2012-04-05 03:05:06 -0400] jtimberman: it was better than what we had, which was nothing
+[2012-04-05 03:05:17 -0400] miah: version 1.0 is rarely pretty
+[2012-04-05 03:06:10 -0400] jdeamattson: jtimberman: Take a look at http://tickets.opscode.com/browse/CHEF-3011?focusedCommentId=23098#comment-23098
+[2012-04-05 03:06:39 -0400] jdeamattson: Have worked through a lot of the Amazon Ruby garbage and have put together a bootstrap file that takes you to Ruby 1.9.3 on the latest Amazon Linux.
+[2012-04-05 03:06:50 -0400] miah: wow awesome
+[2012-04-05 03:07:59 -0400] jtimberman: jdeamattson: nice :)
+[2012-04-05 03:08:08 -0400] jtimberman: i've not used amazon linux much
+[2012-04-05 03:08:25 -0400] jdeamattson: Thank you for all the support you give me that helps me work through problems. Just trying to give a little back.
+[2012-04-05 03:08:46 -0400] jdeamattson: jtimberman: Would you welcome someone roll up their sleeves and trying to fix up the ruby cookbook?
+[2012-04-05 03:12:11 -0400] miah: please do
+[2012-04-05 03:12:40 -0400] miah: pull requests are awesome
+[2012-04-05 03:13:00 -0400] miah: i need to do a few more myself
+[2012-04-05 03:16:09 -0400] hoover_damm: s/sidewise/sitewise
+[2012-04-05 03:16:12 -0400] hoover_damm: ^^ jdeamattson
+[2012-04-05 03:16:34 -0400] jdeamattson: jtimberman, hoover_damm : See https://gist.github.com/2307692
+[2012-04-05 03:16:38 -0400] jdeamattson: hoover_damm: Thanks!
+[2012-04-05 03:16:46 -0400] jtimberman: miah: yeah. big green merge button.
+[2012-04-05 03:18:40 -0400] hoover_damm: eh your bootstrap file is a little off jdeamattson
+[2012-04-05 03:18:49 -0400] jdeamattson: What's wrong?
+[2012-04-05 03:18:55 -0400] hoover_damm: or perhaps mine's off
+[2012-04-05 03:18:58 -0400] hoover_damm: hrm
+[2012-04-05 03:19:01 -0400] jdeamattson: It has worked in my testing unless I put in a typo...
+[2012-04-05 03:19:11 -0400] hoover_damm: nah it'll work
+[2012-04-05 03:19:17 -0400] jdeamattson: This is based on the latest Amazon Linux.
+[2012-04-05 03:19:24 -0400] jdeamattson: What was your concern?
+[2012-04-05 03:19:27 -0400] hoover_damm: hrm, okay my bad
+[2012-04-05 03:19:29 -0400] jdeamattson: Anything I can improve?
+[2012-04-05 03:19:36 -0400] hoover_damm: jdeamattson, I was thinking of something that was old
+[2012-04-05 03:19:38 -0400] miah: i could put the third redis cookbook on the community site.. =)
+[2012-04-05 03:19:48 -0400] hoover_damm: yum groupinstall 'Development Tools'
+[2012-04-05 03:19:50 -0400] hoover_damm: might be helpful
+[2012-04-05 03:20:10 -0400] jdeamattson: Comment the gist and I will revise as appropriate.
+[2012-04-05 03:20:12 -0400] hoover_damm: outside of that you have a regular bootstrap file
+[2012-04-05 03:20:13 -0400] hoover_damm: so shine on
+[2012-04-05 03:21:25 -0400] jdeamattson: Thanks hoover_damm - appreciate the feedback.
+[2012-04-05 03:24:46 -0400] jdeamattson: jtimberman: Have you considered giving data_bags versions?
+[2012-04-05 03:26:02 -0400] miah: jdeamattson: i'm pretty sure i've heard people talk about the subject. don't know where its at though. also think about versioning environments and roles
+[2012-04-05 03:26:56 -0400] hoover_damm: that smells of doom to me
+[2012-04-05 03:27:07 -0400] hoover_damm: if you need to version your roles make a new role
+[2012-04-05 03:27:14 -0400] miah: its tricky stuff. i manage my data bags in git so i'm able to track changes.
+[2012-04-05 03:27:22 -0400] miah: same for roles / environments
+[2012-04-05 03:27:23 -0400] hoover_damm: so do we
+[2012-04-05 03:27:25 -0400] hoover_damm: same
+[2012-04-05 03:27:44 -0400] miah: for encrypted data bags i just dump the json formatted encrypted data
+[2012-04-05 03:27:45 -0400] jtimberman: jdeamattson: store them in version control :)
+[2012-04-05 03:27:47 -0400] hoover_damm: I usually have the mindset to keep the roles/environments one way and go forward
+[2012-04-05 03:27:49 -0400] hoover_damm: moving back
+[2012-04-05 03:27:52 -0400] hoover_damm: generally makes you fail
+[2012-04-05 03:28:17 -0400] miah: yup. rolling back is really hard.
+[2012-04-05 03:28:25 -0400] hoover_damm: impossible usually
+[2012-04-05 03:28:29 -0400] hoover_damm: that's why you try to design forward
+[2012-04-05 03:28:38 -0400] hoover_damm: and if you need to go back, find a different way
+[2012-04-05 03:29:04 -0400] hoover_damm: it's not really a small change thing
+[2012-04-05 03:29:14 -0400] jtimberman: not usually, always.
+[2012-04-05 03:29:17 -0400] hoover_damm: it's making sure your changes don't break and being hyper-aware
+[2012-04-05 03:29:50 -0400] hoover_damm: when I start to do things I think will break I start making a list in my head of all the ways I want to test this cookbook
+[2012-04-05 03:29:56 -0400] hoover_damm: to ensure I didn't open a new regression box
+[2012-04-05 03:30:00 -0400] hoover_damm: full of pandora to shine
+[2012-04-05 03:30:17 -0400] jtimberman: http://velocityconf.com/velocity2012/public/schedule/detail/23203
+[2012-04-05 03:30:36 -0400] hoover_damm: unless someone's paying for my ticket... LOL
+[2012-04-05 03:30:57 -0400] miah: oh nice. that will be a interesting talk
+[2012-04-05 03:31:28 -0400] hoover_damm: lol
+[2012-04-05 03:31:34 -0400] hoover_damm: quite
+[2012-04-05 03:31:37 -0400] hoover_damm: pass
+[2012-04-05 03:31:54 -0400] miah: i started reading Mark's paper on that but havent had time to finish it
+[2012-04-05 03:32:03 -0400] miah: http://cfengine.com/markburgess/papers/totalfield.pdf
+[2012-04-05 03:32:05 -0400] hoover_damm: i hope to never be entry level again and have a boss tell me 'I want to roll back to our schema from 4 hours ago without loosing any data'
+[2012-04-05 03:32:29 -0400] hoover_damm: and don't go down or loose any inserts
+[2012-04-05 03:32:29 -0400] hoover_damm: sha
+[2012-04-05 05:26:50 -0400] BryanWB: ohai chefs! guten tag
+[2012-04-05 05:31:49 -0400] miah: moin BryanWB
+[2012-04-05 05:44:05 -0400] BryanWB: miah: i am writing a new cookbook for the dev version of haproxy, am i reinventing your wheel?
+[2012-04-05 05:46:19 -0400] bemu: BryanWB: I think it depends on what you want it to do.
+[2012-04-05 05:46:49 -0400] bemu: We use 1.5-dev and have a modified version of the community cookbook.
+[2012-04-05 05:46:54 -0400] bemu: It doesn't do any of the peering stuff.
+[2012-04-05 05:47:08 -0400] bemu: But it does do some basic ACL routing.
+[2012-04-05 05:47:16 -0400] BryanWB: bemu: i am installing the 1.5dev version from source rather than using a system package, am reusiing some of the bits from opscode version
+[2012-04-05 05:47:19 -0400] bemu: I'd like to make that more generic in the future.
+[2012-04-05 05:47:41 -0400] BryanWB: acl routing, kewl
+[2012-04-05 05:48:17 -0400] BryanWB: so i am reinventing your wheel for sure ;)
+[2012-04-05 05:49:09 -0400] bemu: Currently I only use path_beg ACLs, it should be more generic.
+[2012-04-05 05:49:12 -0400] bemu: hm, yeah
+[2012-04-05 05:49:22 -0400] bemu: But I don't think we did a lot to make it 1.5dev ready
+[2012-04-05 05:49:39 -0400] bemu: Looking.
+[2012-04-05 05:51:03 -0400] bemu: ah, I'm sorry.
+[2012-04-05 05:51:17 -0400] BryanWB: my big change is that I am using the ark resource to do the building
+[2012-04-05 05:51:17 -0400] bemu: We apparently built 1.5+dev7 packages.
+[2012-04-05 05:51:24 -0400] bemu: for ubuntu.
+[2012-04-05 05:52:42 -0400] bemu: Definitely don't use ark.
+[2012-04-05 05:52:46 -0400] bemu: So that's all you :)
+[2012-04-05 05:53:29 -0400] bemu: So for ACL based routing, I have role attributes like: https://gist.github.com/a09a3beb05ec8181a07d
+[2012-04-05 05:53:53 -0400] BryanWB: bemu: it's just an lwrp for running configure->make->install cloned from infochimps
+[2012-04-05 05:54:07 -0400] bemu: Most of the configuration files are slightly different, but they all use the same data from the search in recipe.
+[2012-04-05 05:54:32 -0400] BryanWB: interestng
+[2012-04-05 05:55:04 -0400] bemu: My major change...
+[2012-04-05 05:55:15 -0400] bemu: is that a specific proxy may have more than one pool of servers.
+[2012-04-05 05:55:30 -0400] bemu: Which isn't possible in the original cookbook.
+[2012-04-05 05:55:55 -0400] bemu: This is the meat of the recipe, modified from the original: https://gist.github.com/bb46bd11e1ab45819008
+[2012-04-05 05:55:56 -0400] BryanWB: bemu: same here, i will have several pools
+[2012-04-05 05:56:07 -0400] bemu: It's pretty messy, sorry :(
+[2012-04-05 05:56:23 -0400] BryanWB: bemu: u can route based on virtual host w/ haproxy, correct? isn't that acl routing?
+[2012-04-05 05:56:49 -0400] bemu: Well, I'm doing: fubar.com/abc and fubar.com/
+[2012-04-05 05:56:51 -0400] bemu: to different pools.
+[2012-04-05 05:57:00 -0400] bemu: But yes, you can do virtual host w/ acl routing
+[2012-04-05 05:57:06 -0400] BryanWB: perfetto
+[2012-04-05 05:58:09 -0400] BryanWB: bemu: u b at chefconf?
+[2012-04-05 05:58:33 -0400] bemu: So this is the last piece you need: https://gist.github.com/deb833f8f9d9b7798b39
+[2012-04-05 05:58:46 -0400] bemu: That's an example of lb.conf.erb
+[2012-04-05 05:59:29 -0400] bemu: A few things to note here:
+[2012-04-05 05:59:45 -0400] bemu: I left in an ACL for rejecting requests outright based on a param in the URL.
+[2012-04-05 05:59:55 -0400] bemu: As an example.
+[2012-04-05 06:00:14 -0400] bemu: and that's using the url_param routing algorithm, which you should understand how it works, and change some_param
+[2012-04-05 06:00:26 -0400] bemu: That may not be what you want, leastconn is generally a safe bet.
+[2012-04-05 06:00:53 -0400] bemu: Yes, I'll be at ChefConf, and also probably hosting a meetup a few days before in SF.
+[2012-04-05 06:01:22 -0400] jtimberman: bemu: BryanWB: are changes to the haproxy recipe required? or just the template(s)?
+[2012-04-05 06:01:25 -0400] jtimberman: for 1.5-dev
+[2012-04-05 06:01:50 -0400] bemu: Well, to get 1.5-dev installed, it would just be a change to the recipe.
+[2012-04-05 06:01:57 -0400] BryanWB: jtimberman: mostly the install
+[2012-04-05 06:02:08 -0400] BryanWB: instead of package
+[2012-04-05 06:02:15 -0400] bemu: The other stuff we're talking about are recipe/template changes I've made to add multiple pools of servers to a single haproxy.
+[2012-04-05 06:02:34 -0400] bemu: So you can do ACL based routing to different pools/roles.
+[2012-04-05 06:02:44 -0400] jtimberman: oh, to build from source?
+[2012-04-05 06:02:56 -0400] jtimberman: neckbeard status: itching.
+[2012-04-05 06:02:56 -0400] bemu: 1.5-dev would have to be built from source, yes.
+[2012-04-05 06:03:03 -0400] jtimberman: ;)
+[2012-04-05 06:03:05 -0400] bemu: We have debian packages, I'm happy to put up somewhere.
+[2012-04-05 06:03:14 -0400] bemu: We actually just include them as a cookbook file.
+[2012-04-05 06:03:16 -0400] jtimberman: may be reasonable to add a source recipe?
+[2012-04-05 06:03:23 -0400] bemu: I think that's the best choice.
+[2012-04-05 06:04:12 -0400] bemu: You should definitely check out hatop, btw.
+[2012-04-05 06:05:15 -0400] bemu: I'd be interested in working together to make the multiple pool / ACL stuff more generic, as well. :D
+[2012-04-05 06:06:01 -0400] miah: oh
+[2012-04-05 06:06:05 -0400] miah: im missing a interesting convo
+[2012-04-05 06:06:07 -0400] bemu: We finally got collectd grabbing stats from the haproxy socket, can share that as well.
+[2012-04-05 06:06:12 -0400] miah: i have a nice source recipe for haproxy =)
+[2012-04-05 06:06:54 -0400] bemu: miah: Link? :)
+[2012-04-05 06:06:57 -0400] BryanWB: miah: would love to see it ;)
+[2012-04-05 06:08:16 -0400] miah: https://gist.github.com/2308376
+[2012-04-05 06:08:42 -0400] miah: i am trying to straighten out our haproxy fork, it was my first cookbook and its rather dirty
+[2012-04-05 06:08:59 -0400] bemu: Does the multiple pool / ACL stuff interest you at all?
+[2012-04-05 06:09:06 -0400] miah: yes
+[2012-04-05 06:09:11 -0400] BryanWB: interests me ;)
+[2012-04-05 06:09:13 -0400] miah: i would gladly work with yall
+[2012-04-05 06:09:54 -0400] bemu: I've had zero problems with 1.5-dev.
+[2012-04-05 06:09:56 -0400] miah: my source.rb is rather basic, it could do lots more to set cpu stuff in make and what not
+[2012-04-05 06:10:06 -0400] miah: same. i've been running it in prod for 3 months now
+[2012-04-05 06:10:18 -0400] miah: and i'm dealing with lots of data
+[2012-04-05 06:10:58 -0400] bemu: We're pushing ~250megabytes/s through it across maybe 25 machines.
+[2012-04-05 06:11:04 -0400] miah: jtimberman: http://www.opscode.com/products/
+[2012-04-05 06:11:07 -0400] miah: jtimberman: leard
+[2012-04-05 06:11:53 -0400] bemu: maybe like 10k qps.
+[2012-04-05 06:13:20 -0400] bemu: So yeah, let's merge some forks and work on a more generic approach to ACLs!
+[2012-04-05 06:13:37 -0400] bemu: BryanWB: Are you in the Bay Area?
+[2012-04-05 06:13:54 -0400] miah: lol
+[2012-04-05 06:13:57 -0400] miah: he is in italy
+[2012-04-05 06:14:11 -0400] bemu: ah.
+[2012-04-05 06:14:30 -0400] BryanWB: bemu: in lovely Roma
+[2012-04-05 06:14:42 -0400] bemu: I should go. Have not been feeling well lately. :/
+[2012-04-05 06:14:56 -0400] miah: doh
+[2012-04-05 06:15:00 -0400] bemu: Fortunately the project I've been working on for a few months launched without a (major) hitch.
+[2012-04-05 06:15:01 -0400] miah: bemu: before you go
+[2012-04-05 06:15:04 -0400] miah: shall we set up a repo
+[2012-04-05 06:15:06 -0400] bemu: and I was able to be sick in peace :D
+[2012-04-05 06:15:07 -0400] jtimberman: miah: hm?
+[2012-04-05 06:15:09 -0400] miah: and give access?
+[2012-04-05 06:15:19 -0400] miah: jtimberman: 'Leard about Chef
+[2012-04-05 06:15:38 -0400] jtimberman: miah: ah
+[2012-04-05 06:15:47 -0400] bemu: We dropped expenses for one of our products from $250k to $25k per month.
+[2012-04-05 06:15:55 -0400] bemu: Which is a lot of money for a small startup.
+[2012-04-05 06:16:26 -0400] bemu: Yes, we should set up a repo!
+[2012-04-05 06:16:47 -0400] bemu: I have basically nothing to my name which is publicly available.
+[2012-04-05 06:17:29 -0400] miah: git@github.com:miah/chef-haproxy.git
+[2012-04-05 06:17:31 -0400] miah: poof
+[2012-04-05 06:19:40 -0400] BryanWB: miah oh no u use execute immediately, that doesn't screw up your chef runs? will run b4 everything else in the the run_list
+[2012-04-05 06:19:59 -0400] bemu: Hardcore Forking Action.
+[2012-04-05 06:25:32 -0400] miah: BryanWB: yes, but i have only_if as well =)
+[2012-04-05 06:25:55 -0400] miah: its a mess, but it works. we can definitely do better
+[2012-04-05 06:26:18 -0400] miah: i need to get to bed. i'll upload some code from my branch in the morning and submit some pulls
+[2012-04-05 06:26:31 -0400] miah: i added you as a collaborator, i dont know if bemu is bemu on github
+[2012-04-05 06:26:45 -0400] miah: ok. gnites
+[2012-04-05 06:26:50 -0400] BryanWB: awesome, tks, i think bemu is jsulinski
+[2012-04-05 06:26:56 -0400] BryanWB: gnite
+[2012-04-05 06:34:18 -0400] ranjibd: -hacking
+[2012-04-05 06:35:58 -0400] ranjibd: ohai
+[2012-04-05 06:37:24 -0400] BryanWB: ranjibd: ohai yaar!
+[2012-04-05 06:38:23 -0400] ranjibd: BryanWB, whats up dude.,.
+[2012-04-05 06:41:28 -0400] Kwanasolis: jtimberman: did you have a chance to see my comment on cook-1014?
+[2012-04-05 06:41:48 -0400] Kwanasolis: I've been meaning to ask you guys for advice on the issue for several days
+[2012-04-05 06:41:53 -0400] Kwanasolis: weeks even ;)
+[2012-04-05 06:50:15 -0400] arussel: what would be the best command to copy a file from one place to the other with ruby variable being expended ?
+[2012-04-05 06:50:38 -0400] arussel: I can't put the files in my cookbook so don't think I can use template (or can I ?).
+[2012-04-05 06:51:05 -0400] Kwanasolis: why can't you put the files in your cookbook?
+[2012-04-05 06:51:21 -0400] BryanWB: arussel: expended? expanded?
+[2012-04-05 06:51:29 -0400] Kwanasolis: well, that doesn't matter, you could sue git/remote_file
+[2012-04-05 06:51:41 -0400] BryanWB: yeah remote_file
+[2012-04-05 06:51:52 -0400] arussel: those are configuration files of an application, we use maven to build the files, I don't want to move them to the cookbook afterward.
+[2012-04-05 06:52:04 -0400] Kwanasolis: arussel: then git or remote_file
+[2012-04-05 06:52:27 -0400] Kwanasolis: somebody might have a better solution to tie to maven, but I don't know what it is
+[2012-04-05 06:52:50 -0400] BryanWB: i have a maven lwrp but it just fetches entire artifacts
+[2012-04-05 06:53:03 -0400] BryanWB: https://github.com/bryanwb/maven
+[2012-04-05 06:53:03 -0400] ranjibd: BryanWB, loved the foodfightshow 7th episode
+[2012-04-05 06:53:07 -0400] Kwanasolis: love lwrps.
+[2012-04-05 06:53:08 -0400] BryanWB: ranjibd: tks!
+[2012-04-05 06:53:16 -0400] BryanWB: lwrps are joy
+[2012-04-05 06:53:21 -0400] Kwanasolis: I wrote an s3directory one I need to push out
+[2012-04-05 06:53:31 -0400] Kwanasolis: I want to tune it as a provider for mount if I can
+[2012-04-05 06:54:00 -0400] arussel: Kwanasolis, BryanWB: thanks
+[2012-04-05 06:54:15 -0400] BryanWB: arussel: if your task can be completed w/ maven from the command line, i would love to add it to the maven lwrp
+[2012-04-05 06:55:30 -0400] arussel: I'm just building a big zip file with maven (a war files and lots of jar and configuration), upload it to s3 and get the stuff from there with chef. I haven't done anythign special with chef.
+[2012-04-05 06:56:20 -0400] arussel: with maven I can use profile so ${foo} becomes DEV for local test but #{foo} for chef deployment.
+[2012-04-05 06:56:33 -0400] arussel: and then I use attribute to set the value.
+[2012-04-05 06:56:35 -0400] BryanWB: arussel: u can download it w/ my maven lwrp and put in a specific location on disk
+[2012-04-05 06:57:03 -0400] arussel: I don't want neither maven nor git on a production server.
+[2012-04-05 06:57:14 -0400] arussel: I like it with the minimal stuff.
+[2012-04-05 06:57:23 -0400] BryanWB: arussel: then i can't help u man ;)
+[2012-04-05 06:57:40 -0400] arussel: :-) you've done far enough for chef like this.
+[2012-04-05 06:57:57 -0400] BryanWB: u can use my lwrp then cuz it installs maven localy
+[2012-04-05 06:58:34 -0400] Kwanasolis: wait
+[2012-04-05 06:58:39 -0400] Kwanasolis: git is too 'heavy' for a production server?
+[2012-04-05 06:59:53 -0400] arussel: Kwanasolis: not talking about 'heavy', I just put the minimum of stuff on the server.
+[2012-04-05 07:00:06 -0400] Kwanasolis: yeah, but git is pretty useful on a prod server
+[2012-04-05 07:00:11 -0400] Kwanasolis: least for me its a requirement
+[2012-04-05 07:00:16 -0400] Kwanasolis: ymmv of course
+[2012-04-05 07:01:07 -0400] BryanWB: bemu:  what is halog?
+[2012-04-05 07:02:16 -0400] arussel: in file and remote_file, I don't see a 'filetered' attribute to expend the #{}, is it because it is automatic?
+[2012-04-05 07:04:27 -0400] arussel: it looks like I really need the template, but I would like to give a source attribute not relative to the cookbook.
+[2012-04-05 07:04:47 -0400] Kwanasolis: arussel: that's where it gets complicated
+[2012-04-05 07:05:31 -0400] Kwanasolis: arussel: one strat could be to make a min config, that has all your loaded #{} in it, then when you run the cookbook, just call that with a list of params
+[2012-04-05 07:05:50 -0400] Kwanasolis: as long as the structure of the config doesn't change (that often) it should be fairly easy to do/maintain
+[2012-04-05 07:07:48 -0400] arussel: not sure I understand. Do you mean that #{} are always expanded ?
+[2012-04-05 07:08:12 -0400] arussel: in my config file, I only have #{}, I don't have ruby stuff apart from that.
+[2012-04-05 07:08:28 -0400] Kwanasolis: when you mean 'expanded' you should understand, the parser that does that is actually ruby not chef
+[2012-04-05 07:08:47 -0400] Kwanasolis: the template resource be handed a list of params (as a hash I believe) that can then be parsed into the template at will
+[2012-04-05 07:09:14 -0400] Kwanasolis: 'can be'
+[2012-04-05 07:12:32 -0400] arussel: it shouldn't take me more than a couple of lines to do this in ruby, I'll just have a look at the template code to see how it gets the variables.
+[2012-04-05 07:13:26 -0400] Kwanasolis: well the template code is build on a gem called erb
+[2012-04-05 07:13:28 -0400] Kwanasolis: built
+[2012-04-05 07:13:36 -0400] Kwanasolis: it's actually erb doing the heavy lifting
+[2012-04-05 07:15:06 -0400] arussel: yes, but I don't need templating, just 'variable replacement', so a copy with ruby should do.
+[2012-04-05 07:17:17 -0400] Kwanasolis: seems like your complicating things, but in that case you just need String
+[2012-04-05 07:17:49 -0400] Kwanasolis: String does the replacement automatically for anything in "", not '', so "#{var}#{@var}#{Const}#{method()}" and so on
+[2012-04-05 07:18:44 -0400] Kwanasolis: so ruby -e "replace = 'something'; here = 1;puts \"#{replace} this #{here}\"" should work
+[2012-04-05 07:18:46 -0400] Kwanasolis: but that's untested
+[2012-04-05 07:18:58 -0400] Kwanasolis: yup, works
+[2012-04-05 07:19:46 -0400] arussel: Kwanasolis: thanks
+[2012-04-05 07:20:07 -0400] jordandm: arussel: Can't imagine a server without git on it (as a client). And the ability to use the deploy resources is incredible.
+[2012-04-05 07:20:25 -0400] Kwanasolis: but I suspect, you are going to create more issues then solve, so once you start to have to monkeypatch more and more, come back and talk to us about templating ;)
+[2012-04-05 07:20:57 -0400] jordandm: arussel: Use the templating. It is incredible powerful and easy to use.
+[2012-04-05 07:21:19 -0400] jordandm: .erb is a a well established tech and works incredibly well.
+[2012-04-05 07:21:53 -0400] Kwanasolis: erb (roughly) is what powers a good chunk of the rails magic
+[2012-04-05 07:21:55 -0400] jordandm: In less than 5 lines of tempting and recipe code, I was able to setup a data driven limits file
+[2012-04-05 07:21:56 -0400] arussel: I don't want to have a server.xml to manage both in chef and in maven.
+[2012-04-05 07:22:12 -0400] jordandm: arussel: Why would you have that?
+[2012-04-05 07:22:22 -0400] Kwanasolis: yeah, you wouldn't
+[2012-04-05 07:22:29 -0400] jordandm: Chef can create it for maven if that is required...
+[2012-04-05 07:22:43 -0400] Kwanasolis: you could setup yoru variables as node attributes (as example)
+[2012-04-05 07:22:59 -0400] Kwanasolis: I typically prefer databags for more static data, point is the same, that's what templates are for
+[2012-04-05 07:23:06 -0400] jordandm: for example, I have a xml-based uwsgi configuration file.
+[2012-04-05 07:23:19 -0400] jordandm: It is generate by chef based on data bags and node attributes.
+[2012-04-05 07:23:26 -0400] arussel: jordandm: no way. You don't use chef to deploy to your own machine
+[2012-04-05 07:23:40 -0400] jordandm: arussel: Yes, I do.
+[2012-04-05 07:23:54 -0400] Kwanasolis: yeah, my deploy engine abstracts away 99% of the information, so my dev's can deploy with 3 lines of code and not need to know any technical information to do it
+[2012-04-05 07:24:13 -0400] jordandm: arussel: I generate everything from the AMI up to deployment.
+[2012-04-05 07:24:27 -0400] Kwanasolis: similiar, on linodes
+[2012-04-05 07:24:31 -0400] jordandm: All we have to do to deploy a new build is update a data bag...
+[2012-04-05 07:24:33 -0400] Kwanasolis: I haven't got the linode generation part
+[2012-04-05 07:24:56 -0400] Kwanasolis: jordandm: yup same, I make them update a repo string in a private github
+[2012-04-05 07:25:03 -0400] arussel: I'm not talking AMI, I mean doing dev on your own machine. 'mvn jetty:run'
+[2012-04-05 07:25:12 -0400] jordandm: I orchestrate a cluster....
+[2012-04-05 07:25:12 -0400] arussel: you have chef doing this ?
+[2012-04-05 07:25:30 -0400] Kwanasolis: arussel: I run vm's, but that's just because I don't want chef-client physically on my workstation
+[2012-04-05 07:25:49 -0400] Kwanasolis: nothing stops a workstation from also being a client, there is quite a bit of documentation on how to turn a workstation into a client as well
+[2012-04-05 07:26:13 -0400] jordandm: actually, we  use chef to spin up vms and dives run their clusters locally.
+[2012-04-05 07:26:33 -0400] jordandm: we serviceize everything using an init.d model.
+[2012-04-05 07:26:46 -0400] Kwanasolis: that's what I'm trying to get too, but I've got a bit of work to tie in the automation to purchase/start linodes
+[2012-04-05 07:26:48 -0400] jordandm: chef manages the services, restarting, etc. as requird.
+[2012-04-05 07:26:49 -0400] arussel: you want to use chef to do 'mvn jetty:run' and you think I'm complicated ?
+[2012-04-05 07:27:10 -0400] arussel: you change a html file, want to see the result and you use chef for this ?
+[2012-04-05 07:27:44 -0400] jordandm: arussel: what is the biggest fleet you have managed?
+[2012-04-05 07:27:46 -0400] Kwanasolis: chef is a deployment engine for scaling, not really for deving a single copy on a host, its designed to push a build to hundreds (or thousands of hosts)
+[2012-04-05 07:28:20 -0400] fujin: you can use it for a single node just fine
+[2012-04-05 07:28:22 -0400] Kwanasolis: with that being said, I'd build a stock html that can be templated with chef, then yes
+[2012-04-05 07:28:26 -0400] jordandm: at my last job we would scale in one area from 500 to 2500 nodes in a few hours.
+[2012-04-05 07:28:38 -0400] Kwanasolis: fujin:  then help us explain things better ;)
+[2012-04-05 07:28:55 -0400] fujin: what is the dilemma
+[2012-04-05 07:29:00 -0400] arussel: Kwanasolis: that was exactly my point. and because we have multiple type of deployment (dev changing an html file, dev doing pseudo prod, testing, prod) we need maven to build the server.xml file for each. Maven is really good at it.
+[2012-04-05 07:29:01 -0400] fujin: long history is long
+[2012-04-05 07:29:01 -0400] jordandm: we had to have a model that scaled from an individual developer to that full on deployment and everything was automated.
+[2012-04-05 07:29:24 -0400] Kwanasolis: fujin: we've drifted a bit too
+[2012-04-05 07:29:25 -0400] arussel: so maven is building my server.xml file and I don't want chef to also manage it.
+[2012-04-05 07:30:07 -0400] jordandm: then create a bold artifacts, check it into git, and let chef handle the deployment.
+[2012-04-05 07:30:15 -0400] Kwanasolis: jordandm: doesn't want git on his servers
+[2012-04-05 07:30:31 -0400] arussel: jordandm: this is exactly what I have done (not with git).
+[2012-04-05 07:30:40 -0400] BryanWB: git probably only uses like 10 mb of space
+[2012-04-05 07:30:44 -0400] fujin: use something like our Pennyworth suite to create a binary archive of the deployed assets, you can easily have it track a Git repository (etc)
+[2012-04-05 07:30:49 -0400] jordandm: how are you making it idompotent?
+[2012-04-05 07:30:51 -0400] arussel: but I have a big zip file with war file, jar files, and configuration files.
+[2012-04-05 07:30:52 -0400] fujin: (pennyworth is jenkins + FPM under the hood)
+[2012-04-05 07:31:09 -0400] arussel: in the configuration fiels I've got some #{} that I need chef to set.
+[2012-04-05 07:31:10 -0400] jordandm: ack! run! run!
+[2012-04-05 07:31:35 -0400] jordandm: you are going to get bit in the ass big time by the big zip file...
+[2012-04-05 07:31:47 -0400] arussel: jordandm: why ?
+[2012-04-05 07:31:51 -0400] BryanWB: arussel: then u probably want to use spice  github.com/danryan/spice
+[2012-04-05 07:32:28 -0400] fujin: arussel: that's almost the model I'm referring to, instead of a zip file, we have Jenkins produce a precompiled artifact for the target systems
+[2012-04-05 07:32:33 -0400] jordandm: it becomes extremely difficult to change a single component and seamlessly deploy that element.
+[2012-04-05 07:32:33 -0400] fujin: packaged in a native format (usually .deb dpkg)
+[2012-04-05 07:32:53 -0400] fujin: arussel: the, I have chef (usually) stamp down configs as part of post package deployment
+[2012-04-05 07:33:21 -0400] arussel: fujin: I don't use .deb, but it seems very close.
+[2012-04-05 07:33:26 -0400] Kwanasolis: fujin: and it strikes me a large part of that solution is to solve the multi-os problem, and wouldn't be needed unless you had a really diverse requirement for your builds
+[2012-04-05 07:33:45 -0400] fujin: ?_?
+[2012-04-05 07:33:58 -0400] jordandm: that is a world of difference between a huge zip archive and a .deb dpkg...
+[2012-04-05 07:34:01 -0400] Kwanasolis: let me investigate, before I insert my foot too far in my mouth, long day for me
+[2012-04-05 07:34:20 -0400] jordandm: ok. way long day for me. heading to bed.
+[2012-04-05 07:34:35 -0400] arussel: jordandm: if you gonna have you app in it, the file will be the same size
+[2012-04-05 07:34:40 -0400] jordandm: solved the Ruby 1.8.7 to Ruby 1.9.3. problem on Amazon Linux.
+[2012-04-05 07:34:44 -0400] jordandm: Very happy.
+[2012-04-05 07:35:08 -0400] fujin: I have a pretty big walkthrough for the system I am describing on my blog
+[2012-04-05 07:35:12 -0400] fujin: think bot might know about it
+[2012-04-05 07:35:13 -0400] fujin: pennyworth?
+[2012-04-05 07:35:13 -0400] bawt: pennyworth is https://github.com/heavywater/pennyworth or junglist.gen.nz/blog/2011/11/16/pennyworth-quick-start/
+[2012-04-05 07:35:18 -0400] fujin: aye, the latter link
+[2012-04-05 07:35:20 -0400] jordandm: size here is about complexity, coiling, etc.
+[2012-04-05 07:35:22 -0400] BryanWB: jordandm: how?, would love to nknow
+[2012-04-05 07:35:26 -0400] arussel: BryanWB: thanks, but the read me doesn't tell much about what it's doing
+[2012-04-05 07:35:30 -0400] fujin: details the integration between chef + databag + jenkins + fpm + .. + apt ?_?
+[2012-04-05 07:35:36 -0400] BryanWB: i am rhel 6 everywhere
+[2012-04-05 07:36:21 -0400] fujin: Kwanasolis: it mostly solves to move the build time for deployment out of the edge. no need for compilers or build time dependencies or anything
+[2012-04-05 07:36:26 -0400] jordandm: fujin: support yum?
+[2012-04-05 07:36:38 -0400] fujin: no
+[2012-04-05 07:36:44 -0400] fujin: I am not even going to bother to joke
+[2012-04-05 07:36:46 -0400] fujin: It would be a lot of work
+[2012-04-05 07:36:50 -0400] fujin: You could have fpm build rpm packages
+[2012-04-05 07:37:04 -0400] jordandm: that works.
+[2012-04-05 07:37:20 -0400] fujin: jordandm: I definitely haven't tested a full redhat/yum deployment with it for many months
+[2012-04-05 07:37:22 -0400] Kwanasolis: fujin: oh ok, that makes sense, I'm runing arch system wide, and am working on some custom repos to pre-build binaries out of AUR
+[2012-04-05 07:37:31 -0400] Kwanasolis: basically for the same reason, moving deploy time out of the edge
+[2012-04-05 07:37:39 -0400] fujin: Kwanasolis: there ya go! same deal. except Chef + jenkins drive mine, away from the edge
+[2012-04-05 07:37:44 -0400] Kwanasolis: right
+[2012-04-05 07:37:57 -0400] Kwanasolis: I went with arch to solve the 1.9.3 delimia (was a hard requirement) and decided it would just be easier to do it that way
+[2012-04-05 07:38:08 -0400] BryanWB: jordandm: would love to know your secret recipe 1.9.3
+[2012-04-05 07:38:26 -0400] Kwanasolis: well, technically 1.9.1, but you get the point
+[2012-04-05 07:38:48 -0400] fujin: omnibus + https://github.com/heavywater/pennyworth/blob/develop/data_bags/pennyworth/ruby.json is my 1.9.3 secret I guess
+[2012-04-05 07:39:09 -0400] Kwanasolis: fujin: well arch has its own issues
+[2012-04-05 07:39:23 -0400] Kwanasolis: I was just picking one battle over another ;)
+[2012-04-05 07:39:42 -0400] fujin: arch' issues are not ones I'd consider for production, I'm afraid, although a colleague does report a pleasant experience on his macbookpro
+[2012-04-05 07:39:49 -0400] jordandm: BryanWB:  https://gist.github.com/2307692
+[2012-04-05 07:40:13 -0400] Kwanasolis: fujin: if you know enough about arch, you can work around most of it, especially on a vps provider because the kernel is basically fixed
+[2012-04-05 07:40:38 -0400] Kwanasolis: fujin: the only other major quibble I've run into is the rolling release sometimes bites me when passenger is newer then the cookbook (as exmaple)
+[2012-04-05 07:41:02 -0400] BryanWB: jordandm: so ruby19 is in amazon's yum repo?
+[2012-04-05 07:41:18 -0400] jordandm: it is as of the 2012-03 releaseBryanWB
+[2012-04-05 07:42:00 -0400] jordandm: BryanWB:  the bootstrap will help you bring up a new node. the update script will update a running node to 1.9.3.
+[2012-04-05 07:43:55 -0400] BryanWB: jordandm: goddamn fuckers at redhat still haven't put out a ruby19-devel rpm
+[2012-04-05 07:45:59 -0400] jordandm: Wonderful. Well, I guess you could go via rvm. Have you looked at doing that?
+[2012-04-05 07:46:42 -0400] Kwanasolis: rvm is one solution, rbenv I've heard good thigns about as well
+[2012-04-05 07:46:52 -0400] Kwanasolis: I find rvm to be a bit bloated, and probably try rbenv next time
+[2012-04-05 07:47:01 -0400] BryanWB: jordandm: i have it working tks to rubiojr's rbel6-testing
+[2012-04-05 07:47:19 -0400] BryanWB: sorry thats' only for 1.8.7
+[2012-04-05 07:47:23 -0400] jordandm: BryanWB:  Ok. That is good.
+[2012-04-05 08:42:07 -0400] ranjibd: BryanWB, do you know anyone who is doing consultancy in /around london in devops?
+[2012-04-05 08:46:56 -0400] bdha: ranjibd: Cope_, I think.
+[2012-04-05 08:48:00 -0400] ranjibd: bdha, thanks
+[2012-04-05 08:49:41 -0400] BryanWB: ranjibd: and probbly Andrew Crump, don't know his irc name
+[2012-04-05 08:51:17 -0400] ranjibd: BryanWB, tks
+[2012-04-05 08:51:33 -0400] BryanWB: that crump dude is sharp
+[2012-04-05 08:52:45 -0400] Kwanasolis: one of the dev's changed the name of the repo and didn't tell me, just spent the last hour trying to debug something I was working on (deploy lwrp's) and I finally stopped, started looking around, and bam, well damn, that's annoying.
+[2012-04-05 08:53:13 -0400] Kwanasolis: also discovered that the git command has a nice bug where if the repo is wrong, it tells you a permissions error (not sure why)
+[2012-04-05 08:53:46 -0400] Kwanasolis: err, not git cmd, git cookbook
+[2012-04-05 10:25:51 -0400] eugenmayer: Hello. Looking for the port used for comms to a client client-node, looking here http://wiki.opscode.com/display/chef/Chef+Client
+[2012-04-05 10:29:48 -0400] ashb: eugenmayer: the server listens on port 4000 for API requests by default
+[2012-04-05 10:29:55 -0400] ashb: http://wiki.opscode.com/display/chef/Chef+Server
+[2012-04-05 10:30:02 -0400] eugenmayer: ashb: ah! its push, not pull.
+[2012-04-05 10:30:07 -0400] eugenmayer: My bad, sorry.
+[2012-04-05 10:30:21 -0400] eugenmayer: How does the deploment work actually?
+[2012-04-05 10:30:22 -0400] ashb: eugenmayer: depends on which side you think of as the primary.
+[2012-04-05 10:30:30 -0400] ashb: to me its pull by the client from the server
+[2012-04-05 10:30:34 -0400] ashb: and not push from the server
+[2012-04-05 10:30:51 -0400] eugenmayer: ashb: yeah, though its the latter one. Thank you for clearing out those!
+[2012-04-05 10:31:26 -0400] ashb: by deploment do you mean how does chef-client make changes to the node?
+[2012-04-05 10:32:01 -0400] ashb: if so start with this http://wiki.opscode.com/display/chef/Anatomy+of+a+Chef+Run
+[2012-04-05 10:32:16 -0400] eugenmayer: will read
+[2012-04-05 10:47:12 -0400] sampikesley: Just discovered this: http://acrmp.github.com/foodcritic/
+[2012-04-05 10:48:48 -0400] sampikesley: It told me my cookbooks were crappy :(
+[2012-04-05 10:49:02 -0400] proffalken: heh, ywah, it'll do that
+[2012-04-05 10:49:10 -0400] sampikesley: ALthough it thinks the opscode cookbooks are crappy to
+[2012-04-05 10:49:16 -0400] sampikesley: everyone's a critic...
+[2012-04-05 10:50:10 -0400] sampikesley: Seriously, though, I think this looks very handy
+[2012-04-05 10:53:00 -0400] BryanWB: sampikesley: big +1 for foodcritic
+[2012-04-05 10:53:51 -0400] sampikesley: something to aim for
+[2012-04-05 10:54:03 -0400] sampikesley: like getting your Python scripts past PEP8
+[2012-04-05 10:55:07 -0400] BryanWB: sampikesley: many of opscode ckbks were written 2 yrs ago before any ideas about best practices developed
+[2012-04-05 10:55:17 -0400] eugenmayer: guys, how are you maintaining /etc/hosts with chef, espcially if you have several packages providing entries there?
+[2012-04-05 10:55:26 -0400] BryanWB: u can watch jtimberman's cookbook style mature :)
+[2012-04-05 10:55:41 -0400] BryanWB: whoah, i never touch /etc/hosts
+[2012-04-05 10:55:44 -0400] BryanWB: why would u?
+[2012-04-05 10:55:57 -0400] BryanWB: is there stuff u can't put in dns?
+[2012-04-05 10:56:04 -0400] eugenmayer: Lets dont start such a discussion, please :)
+[2012-04-05 10:56:54 -0400] sampikesley: eugenmayer: just don't do it
+[2012-04-05 10:57:05 -0400] eugenmayer: BryanWB: until the DNS protocol does not get fixed up finally having hiearchical calls like "if that NS does not know the answer, move on to the next" you are pretty doomed in several setups. Alternatives like dnsmasq exist, but currently seem to be a bit of an overkill
+[2012-04-05 10:57:37 -0400] eugenmayer: Guys you might consider there are more setups then yours, with different circumumstances and needs ,-)
+[2012-04-05 10:57:46 -0400] sampikesley: /etc/hosts needs some sort of "include_this_other_file"
+[2012-04-05 10:58:11 -0400] eugenmayer: a /etc/hosts.d would be awesome, but i guess this comes all down to performance
+[2012-04-05 10:58:44 -0400] eugenmayer: i guess the only way is, introducing /etc/host.d and "compiling" those into /etc/hosts periodically
+[2012-04-05 10:58:57 -0400] eugenmayer: but before i do that, i rather start with dnsmasq i guess
+[2012-04-05 11:02:50 -0400] Kwanasolis: BryanWB: /etc/hosts is the first thing read dns resolvers, it's used for overrides or if you don't have a dnsserver
+[2012-04-05 11:03:37 -0400] Kwanasolis: wanna have fun with a coworker? edit his hosts (windows has one too) and put his favorite site on 127.0.0.1
+[2012-04-05 11:04:33 -0400] Kwanasolis: eugenmayer: why couldn't you do it all with file "" and content array.each something?
+[2012-04-05 11:04:50 -0400] Kwanasolis: or the same thing in a template
+[2012-04-05 11:05:01 -0400] BryanWB: eugenmayer: i understant that there are different setups, that why i asked, am quite curious how u use /etc/hosts
+[2012-04-05 11:05:05 -0400] helllen: helllo
+[2012-04-05 11:05:23 -0400] helllen: when I execute knife search client "*:*"
+[2012-04-05 11:05:30 -0400] helllen: I get 0 items found
+[2012-04-05 11:05:43 -0400] eugenmayer: BryanWB: should we be honest, you basically dont now my setup and absolutely dont know how i use hosts and for what, dont you? No offense.
+[2012-04-05 11:05:57 -0400] helllen: but I have nodes and I can see it with knife node list
+[2012-04-05 11:06:14 -0400] helllen: the problem should be in chef-solr and chef-expander
+[2012-04-05 11:06:16 -0400] sampikesley: helllen: knife node search "*:*" ?
+[2012-04-05 11:06:21 -0400] helllen: I think
+[2012-04-05 11:06:35 -0400] helllen: sorry
+[2012-04-05 11:06:36 -0400] helllen: knife search node "*:*"
+[2012-04-05 11:06:42 -0400] sampikesley: and you get nothing?
+[2012-04-05 11:06:50 -0400] sampikesley: Solr
+[2012-04-05 11:06:59 -0400] sampikesley: Solr has kicked me before
+[2012-04-05 11:07:26 -0400] helllen: the problem is I don't know how the debug it
+[2012-04-05 11:07:42 -0400] sampikesley: does *any* search work?
+[2012-04-05 11:08:26 -0400] helllen: no
+[2012-04-05 11:08:43 -0400] helllen: with the chef-server-webui I get no rests neither
+[2012-04-05 11:09:40 -0400] sampikesley: the first time I installed chef-server my Solr was borked, too
+[2012-04-05 11:10:25 -0400] sampikesley: which was what led to this https://github.com/pikesley/catering-college
+[2012-04-05 11:10:29 -0400] helllen: this is the debug
+[2012-04-05 11:10:31 -0400] helllen: http://pastebin.com/XqA29PFP
+[2012-04-05 11:10:39 -0400] helllen: of the chef-server
+[2012-04-05 11:14:13 -0400] helllen: I don't know what to do
+[2012-04-05 11:14:17 -0400] helllen: I am totally lost
+[2012-04-05 11:14:39 -0400] sampikesley: Solr is a black-box to me, I'm afraid
+[2012-04-05 11:15:28 -0400] helllen: np
+[2012-04-05 11:15:32 -0400] helllen: thanks
+[2012-04-05 12:33:08 -0400] zts: helllen: You'll need to look at the chef-expander logs for clues, as chef-server doesn't try to search index itself
+[2012-04-05 12:33:28 -0400] zts: helllen: unfortunately, I am no expert either, so I'm not sure exactly what to look for
+[2012-04-05 12:57:46 -0400] jinnko: could suggest the correct way to create a centralized function/resource/lwrp/etc to process a series of conditional statements and return a value.  in particular i have several cookbooks that need to get the ip address of the primary interface, which could be either bond0, mv0 or eth0, using a command like node["network"]["interfaces"][:interface]["addresses"].select { |address, data| data["family"] == "inet" }[0][0]
+[2012-04-05 12:57:57 -0400] jinnko: s/could suggest/could someone suggest/
+[2012-04-05 12:58:34 -0400] jinnko: i don't believe a provider would "return" a value, which is why i'm asking
+[2012-04-05 12:59:48 -0400] eugenmayer: hello guys. Maybe iam blind at some point, but doent this block any TCP / UDP packets:
+[2012-04-05 12:59:49 -0400] eugenmayer: fw              net             DROP            info
+[2012-04-05 12:59:53 -0400] eugenmayer: (policy)
+[2012-04-05 13:00:11 -0400] eugenmayer: it seems to block TCP, but UDP ones just get through it without issues
+[2012-04-05 13:10:18 -0400] eugenmayer: woops, sorry,wrong channel :/
+[2012-04-05 13:20:37 -0400] kaz___: Hi everyone.  I'm sure this has been asked before, but the chef recipe for java using oracle seems to be broken.  Is there a fix somewhere?
+[2012-04-05 13:21:02 -0400] BryanWB: kaz___: oracle broke it
+[2012-04-05 13:21:07 -0400] kaz___: apparently oracle now spits back a html page saying you need to accept a license agreement
+[2012-04-05 13:21:13 -0400] sampikesley: It's a deliberate device designed to make you hate Oracle a little more every day
+[2012-04-05 13:21:34 -0400] BryanWB: kaz___: u have to download it yourself, host it, and override url in cookbook (iam tthe author of said recipe)
+[2012-04-05 13:21:55 -0400] BryanWB: c the updated readme https://github.com/bryanwb/java
+[2012-04-05 13:22:11 -0400] sampikesley: set up yer own apt server or something
+[2012-04-05 13:22:15 -0400] BryanWB: i m not wasting any more time on those fuckheads
+[2012-04-05 13:22:18 -0400] sampikesley: that's what I did
+[2012-04-05 13:23:03 -0400] sampikesley: I updated my chef-server README: "Regarding Java, the delightful people at Oracle, always the friends of free software, have moved the goalposts and the oab-java6 thing no longer works. I know people have come up with workarounds for this, but no doubt these will get stepped on soon, too. Life is too short to spend it trying to outwit lawyer-driven corporations, so it now tests if Java is already installed, and if not, installs OpenJDK (which seems to work OK
+[2012-04-05 13:23:03 -0400] sampikesley:  for me)."
+[2012-04-05 13:23:04 -0400] kaz___: BryanWB:  Thanks for all your effort in creating the original recipe, we found it very useful
+[2012-04-05 13:24:39 -0400] a_a_g: noob here: anyone used the chef jenkins cookbook
+[2012-04-05 13:24:40 -0400] afallows: sampikesley: Yeah, thank you for adding that by the way, I updated my chef-server script similarly after I saw the change on GitHub
+[2012-04-05 13:24:42 -0400] a_a_g: https://github.com/fnichol/chef-jenkins
+[2012-04-05 13:24:51 -0400] kaz___: ok, thanks all -- it's really unfortunate that oracle seems bent on having people abandon their jvm.  It makes openjdk look more and more appealing
+[2012-04-05 13:25:38 -0400] afallows: I'm genuinely curious what went on in the meeting at Oracle leading up to these changes. Clearly no one in the room was a techie.
+[2012-04-05 13:25:59 -0400] afallows: At, you know, a technology company.
+[2012-04-05 13:27:32 -0400] atomic-penguin: At the meeting: hey guys, we heard BryanWB worked real hard on an LWRP to install Java, let's shut him down and all the other dirtbags using curl/wget for the lulz
+[2012-04-05 13:30:03 -0400] ranjibd: erikh, around?
+[2012-04-05 13:31:08 -0400] BryanWB: kaz___: tks
+[2012-04-05 13:33:18 -0400] atomic-penguin: Oracle has always had obstacles in place when it comes to fetching files from the OTN website, not a surprise they would eventually apply that to Java.
+[2012-04-05 13:34:18 -0400] atomic-penguin: You have to click the "accept" button so they can sue you later
+[2012-04-05 13:34:52 -0400] helllen: helllo again
+[2012-04-05 13:35:07 -0400] helllen: solr doesn't work
+[2012-04-05 13:35:11 -0400] helllen: doesn't search
+[2012-04-05 13:39:14 -0400] helllen: how sold save the data?
+[2012-04-05 13:39:21 -0400] helllen: coachdb?
+[2012-04-05 13:41:35 -0400] atomic-penguin: hmm?
+[2012-04-05 13:41:56 -0400] atomic-penguin: helllen, what version of chef-server?
+[2012-04-05 13:42:03 -0400] helllen: last
+[2012-04-05 13:42:05 -0400] helllen: 0.10.8
+[2012-04-05 13:42:44 -0400] helllen: I am seeing logs /var/chef/solr-jetty/2012_04_05.request.log
+[2012-04-05 13:42:51 -0400] sampikesley: chef-solr-installer
+[2012-04-05 13:42:53 -0400] sampikesley: ?
+[2012-04-05 13:42:56 -0400] helllen: and I do see the search querys
+[2012-04-05 13:43:25 -0400] helllen: chef-solr-installer 0.10.8
+[2012-04-05 13:43:28 -0400] atomic-penguin: helllen, you need to ensure chef-solr and chef-expander are both running
+[2012-04-05 13:43:37 -0400] helllen: yes they are
+[2012-04-05 13:44:33 -0400] helllen: I event execute:
+[2012-04-05 13:44:36 -0400] helllen:  knife index rebuild -y
+[2012-04-05 13:44:41 -0400] helllen: and I get all success
+[2012-04-05 13:44:52 -0400] helllen: I think I am getting crazy :-D
+[2012-04-05 13:45:00 -0400] helllen: I don't know what to do
+[2012-04-05 13:46:32 -0400] helllen: for example if I execute:    knife search client "*:*"
+[2012-04-05 13:46:47 -0400] helllen: I get always 0 items results
+[2012-04-05 13:46:49 -0400] helllen: always
+[2012-04-05 13:47:16 -0400] helllen: but I have clients. with knife client list
+[2012-04-05 13:47:22 -0400] helllen: I can see all of them
+[2012-04-05 13:47:57 -0400] sampikesley: rerun the chef-solr-installer maybe?
+[2012-04-05 13:48:01 -0400] sampikesley: chef-solr-installer -f
+[2012-04-05 13:48:08 -0400] sampikesley: will nuke your existing data
+[2012-04-05 13:48:14 -0400] sampikesley: but if it's hosed anyway...
+[2012-04-05 13:48:22 -0400] helllen: I event see in the log:    chef-server: INFO: Sending node(67d07b3b-4f23-40bd-9f9a-1fd331edb9e2) to the index queue for addition
+[2012-04-05 13:50:17 -0400] atomic-penguin: helllen, knife status show you anything?
+[2012-04-05 13:51:07 -0400] helllen: no output
+[2012-04-05 13:51:11 -0400] helllen: it is empty
+[2012-04-05 13:51:35 -0400] atomic-penguin: helllen, so have you actually added any chef nodes to this server yet, and run chef-client on them?
+[2012-04-05 13:51:50 -0400] helllen: yes
+[2012-04-05 13:51:59 -0400] atomic-penguin: okay, just checking
+[2012-04-05 13:52:11 -0400] helllen: knife node list   -> return japarra-32 and rb-manager
+[2012-04-05 13:52:15 -0400] helllen: two nodes now
+[2012-04-05 13:52:17 -0400] helllen: only
+[2012-04-05 13:52:53 -0400] helllen: knife search node "*:*"  -> return 0 items found
+[2012-04-05 13:53:07 -0400] helllen: I have executed chef-solr-installer -f again
+[2012-04-05 13:53:09 -0400] atomic-penguin: You need to use fqdn's you know, hostname usually won't cut it
+[2012-04-05 13:53:21 -0400] helllen: and it says:  Successfully installed Chef Solr.
+[2012-04-05 13:54:19 -0400] helllen: what do you mean?
+[2012-04-05 13:54:38 -0400] helllen: knife search node "*:*"  -> should return all nodes
+[2012-04-05 13:54:49 -0400] helllen: it doesn't matter the fqdn, isn't ?
+[2012-04-05 13:55:13 -0400] helllen: how sold search the nodes?
+[2012-04-05 13:55:14 -0400] atomic-penguin: On your chef-client's the node names should be fqdns, not hostnames
+[2012-04-05 13:55:26 -0400] helllen: I could change it
+[2012-04-05 13:55:33 -0400] helllen: just a sec
+[2012-04-05 13:55:44 -0400] atomic-penguin: like japarra-32.example.com (or whatever), not just japarra-32
+[2012-04-05 13:57:42 -0400] helllen: now I have japarra-32.demo
+[2012-04-05 13:57:46 -0400] helllen: and same problem
+[2012-04-05 13:58:02 -0400] helllen: do you know how sold store the information
+[2012-04-05 13:58:13 -0400] atomic-penguin: solr stores information in couch
+[2012-04-05 13:58:17 -0400] helllen: because I see chef-server send request to index it
+[2012-04-05 13:58:24 -0400] helllen: are you sure?
+[2012-04-05 13:58:59 -0400] sampikesley: FQDN is a red herring
+[2012-04-05 13:59:07 -0400] sampikesley: I don't think chef cares what they're called
+[2012-04-05 13:59:17 -0400] helllen: I mean about couchdb
+[2012-04-05 14:02:34 -0400] atomic-penguin: helllen, check your rabbitmq settings
+[2012-04-05 14:02:50 -0400] helllen: what do I check?
+[2012-04-05 14:02:57 -0400] atomic-penguin: http://wiki.opscode.com/display/chef/Chef+Indexer
+[2012-04-05 14:03:54 -0400] atomic-penguin: Note the "Configuring RabbitMQ..." section, it won't hurt anything to re-run those commands.  Even if they have already been ran
+[2012-04-05 14:10:06 -0400] helllen: chef-expanderctl node-status
+[2012-04-05 14:10:09 -0400] helllen: is empty
+[2012-04-05 14:10:17 -0400] helllen: do you have it empty too?
+[2012-04-05 14:11:31 -0400] helllen: I mean:   Host    PID     GUID    Vnodes    no members
+[2012-04-05 14:11:39 -0400] atomic-penguin: No, mine sees my solr instance
+[2012-04-05 14:11:55 -0400] atomic-penguin: I bet your rabbitmq settings need adjusted
+[2012-04-05 14:12:24 -0400] helllen: could you paste bin your configuration to compare it with mine?
+[2012-04-05 14:13:25 -0400] atomic-penguin: All you have to do is set up the rabbit vhost permissions and pass, as shown on the wiki page I sent
+[2012-04-05 14:14:11 -0400] helllen: yes I did
+[2012-04-05 14:14:16 -0400] helllen: seeing the logs
+[2012-04-05 14:14:25 -0400] helllen: in /var/log/rabbitmq
+[2012-04-05 14:15:13 -0400] helllen: http://pastebin.com/1BG1fx5J
+[2012-04-05 14:16:03 -0400] atomic-penguin: helllen, give the other chef daemons a quick restart
+[2012-04-05 14:16:24 -0400] helllen: what?
+[2012-04-05 14:16:32 -0400] helllen: do I change something?
+[2012-04-05 14:17:25 -0400] helllen: you can see how I executed and worked (the wiki)
+[2012-04-05 14:17:26 -0400] helllen: http://pastebin.com/egqy4pDM
+[2012-04-05 14:17:46 -0400] helllen: how do I set the password for chef user?
+[2012-04-05 14:19:12 -0400] helllen: rabbitmqctl change_password chef testing
+[2012-04-05 14:19:25 -0400] helllen: where do I specify the password ?
+[2012-04-05 14:20:14 -0400] sampikesley: man rabbitmqctl
+[2012-04-05 14:20:18 -0400] helllen: ohhhh
+[2012-04-05 14:20:20 -0400] helllen: works
+[2012-04-05 14:20:33 -0400] helllen: sampikesley so thanks
+[2012-04-05 14:20:47 -0400] helllen: was the chef-expander amp password
+[2012-04-05 14:20:54 -0400] helllen: really thanks for the clue
+[2012-04-05 14:21:06 -0400] sampikesley: and now you have data>
+[2012-04-05 14:21:06 -0400] sampikesley: ?
+[2012-04-05 14:21:20 -0400] helllen: yes
+[2012-04-05 14:21:25 -0400] helllen: really thanks
+[2012-04-05 14:21:35 -0400] helllen: I am with it for days
+[2012-04-05 15:01:28 -0400] sampikesley: my cookbooks are now fully foodcritic compliant :)
+[2012-04-05 15:01:48 -0400] webi: congrats :)
+[2012-04-05 15:02:37 -0400] atomic-penguin: sampikesley, impressive, because everytime I run it, I tend to get things that it detects incorrectly
+[2012-04-05 15:02:52 -0400] sampikesley: it made me add pointless boilerplate to my LWRPs, though
+[2012-04-05 15:03:51 -0400] sampikesley: no, take that back, default_action is supported
+[2012-04-05 15:12:48 -0400] jkyle: e
+[2012-04-05 15:13:30 -0400] kaz___: Before I go off an reinvent the wheel, does anyone know of a recipe/provider that'll synchronize the contents of two local directories and send a notification if/when the contents change?
+[2012-04-05 15:14:47 -0400] kaz___: actually synchrnoize is not what I'm looking for... I mean merely copy the contents of directory A to directory B.  And if there are contents in B that don't exist in A, remove them.
+[2012-04-05 15:15:03 -0400] sampikesley: um, I think you just described rsync
+[2012-04-05 15:15:15 -0400] afallows: +1 @ sampikesley
+[2012-04-05 15:16:04 -0400] afallows: No idea if there's already a recipe/resource for using rsync with Chef, but worst case you can use it in an execute block
+[2012-04-05 15:16:13 -0400] sampikesley: that's an rxync cron job
+[2012-04-05 15:16:16 -0400] kaz___: yeah, that's where I was headed - but the functionality I need is so similar to remote_directory,
+[2012-04-05 15:16:28 -0400] sampikesley: which you could wrap in a simple cookbook
+[2012-04-05 15:16:30 -0400] kaz___: btw, I'm running chef-solo
+[2012-04-05 15:17:28 -0400] kaz___: The problem with shelling out to rsync is that then I'd have a hard time sending a chef notification to restart a particular service
+[2012-04-05 15:17:48 -0400] afallows: I haven't even slightly used this, but http://community.opscode.com/cookbooks/rsync exists.
+[2012-04-05 15:18:17 -0400] afallows: Ack, never mind, I think that's just an installation.
+[2012-04-05 15:20:00 -0400] pwelch: has anyone seen an error like this: ERROR: Server returned error for http://chef.promedicalinc.com:4000/search/users?q=groups:sysadmin&sort=X_CHEF_id_CHEF_X%20asc&start=0&rows=1000, retrying 1/5 in 3s
+[2012-04-05 15:20:14 -0400] pwelch: getting it no matter what I search for
+[2012-04-05 15:20:24 -0400] kaz___: I'm thinking about maybe a provider for remote_directory, where "source" would be the local directory
+[2012-04-05 15:20:33 -0400] pwelch: example: knife search bag_of_data "id:username"
+[2012-04-05 15:20:36 -0400] afallows: pwelch: when doing knife search? I get that too. I haven't dug into it.
+[2012-04-05 15:20:50 -0400] sampikesley: I have seen this
+[2012-04-05 15:20:58 -0400] sampikesley: I think on badly-formatted searches
+[2012-04-05 15:21:23 -0400] pwelch: well its also happening when running a chef-recipe
+[2012-04-05 15:21:25 -0400] pwelch: in this case nagios
+[2012-04-05 15:21:41 -0400] sampikesley: that's not cool
+[2012-04-05 15:21:44 -0400] pwelch: which is from the opscode repo so i am assuming that it is my server
+[2012-04-05 15:22:10 -0400] afallows: pwelch: I only get that error on "knife status" or "knife search" calls.
+[2012-04-05 15:22:47 -0400] pwelch: just tried knife status
+[2012-04-05 15:22:50 -0400] pwelch: also getting it
+[2012-04-05 15:23:23 -0400] sampikesley: Solr is a bitch
+[2012-04-05 15:23:55 -0400] pwelch: you think it could be sold?
+[2012-04-05 15:23:58 -0400] pwelch: solr
+[2012-04-05 15:25:56 -0400] sampikesley: do any of your searches work?
+[2012-04-05 15:28:31 -0400] pwelch: sampikesley: negative
+[2012-04-05 15:28:35 -0400] pwelch: just tried some other searches
+[2012-04-05 15:28:39 -0400] pwelch: all returning the same error
+[2012-04-05 15:28:57 -0400] pwelch: any recommendations?
+[2012-04-05 15:29:28 -0400] sampikesley: kick solr in the nuts
+[2012-04-05 15:29:54 -0400] sampikesley: lots of people having problems with solr and search by the sounds of it
+[2012-04-05 15:30:06 -0400] miah: moin!
+[2012-04-05 15:30:57 -0400] pwelch: mmm tried sudo ./kick_process "solr"
+[2012-04-05 15:31:00 -0400] pwelch: no change...
+[2012-04-05 15:31:05 -0400] sampikesley: My Solr works but for all I know that's because there was a conjunction of the Moon and Uranus on the day I installed it
+[2012-04-05 15:31:09 -0400] pwelch: :)
+[2012-04-05 15:31:20 -0400] BryanWB: miah: monin!
+[2012-04-05 15:31:40 -0400] afallows: sampikesley: That's probably true, since I'm having issues with solr too, and I used your install process!
+[2012-04-05 15:32:03 -0400] sampikesley: It's an ugly Java tumour at the heart of an awesome Ruby thing
+[2012-04-05 15:32:13 -0400] sampikesley: Oh yeah, and we have Erlang too
+[2012-04-05 15:32:25 -0400] afallows: Erlang is delightful, though.
+[2012-04-05 15:32:49 -0400] sampikesley: http://www.youtube.com/watch?v=uKfKtXYLG78
+[2012-04-05 15:33:18 -0400] pwelch: ha, yeah I have actually seen that one
+[2012-04-05 15:34:02 -0400] miah: BryanWB: taking a look at your pull
+[2012-04-05 15:36:23 -0400] miah: =)
+[2012-04-05 15:36:57 -0400] helllen: hello again
+[2012-04-05 15:37:27 -0400] helllen: now I am able to see chef-server-webui and even execute knife node list or other command
+[2012-04-05 15:37:38 -0400] helllen: now I cannot upload a new cookbook
+[2012-04-05 15:37:47 -0400] helllen: why it can be?
+[2012-04-05 15:38:48 -0400] cwj: helllen: sounds like your client has not been granted administrative privileges
+[2012-04-05 15:39:37 -0400] cwj: your client needs to be an admin in order to upload cookbooks or modify other clients and/or nodes
+[2012-04-05 15:39:38 -0400] helllen: yes it has
+[2012-04-05 15:39:56 -0400] helllen: ups probably
+[2012-04-05 15:39:58 -0400] helllen: :-D
+[2012-04-05 15:40:12 -0400] helllen: ah no
+[2012-04-05 15:40:14 -0400] helllen: it is ok
+[2012-04-05 15:42:33 -0400] afallows: helllen: What is the error you get when you do 'knife cookbook upload'?
+[2012-04-05 15:43:12 -0400] helllen: ERROR: internal server error
+[2012-04-05 15:43:12 -0400] helllen: Response: No connection - socket has not been created
+[2012-04-05 15:46:46 -0400] BryanWB: miah: hope u like it, esp. hope that ark isn't too confusing
+[2012-04-05 15:46:54 -0400] BryanWB: it makes a number of assumptions
+[2012-04-05 15:46:59 -0400] helllen: but    netstat --inet -apn |grep 4000
+[2012-04-05 15:47:00 -0400] helllen: tcp        0      0 0.0.0.0:4000                0.0.0.0:*                   LISTEN      4512/merb : chef-se
+[2012-04-05 15:47:07 -0400] helllen: it is running
+[2012-04-05 15:48:34 -0400] BryanWB: gnigth
+[2012-04-05 15:48:57 -0400] miah: ark is fine =) gnite
+[2012-04-05 15:53:13 -0400] afallows: helllen: The only thing I can think of is to check that chef_Server_url in /etc/chef/client.rb is correct.
+[2012-04-05 15:54:03 -0400] helllen: should be because I can execute: knife node list
+[2012-04-05 15:54:05 -0400] helllen: for example
+[2012-04-05 15:58:11 -0400] c__: howdy, i'm having a bit of a 'mare trying to use the "wordpress" package
+[2012-04-05 15:58:37 -0400] c__: I can get apache2, php, mysql modules installed fine
+[2012-04-05 15:59:07 -0400] Hush: anyone got a couple minutes to beta test a new chef community site I'm working on?
+[2012-04-05 15:59:59 -0400] c__: the install falls over at the point at trying to create the wordpress DB
+[2012-04-05 16:00:09 -0400] c__: With this error "LoadError: no such file to load -- mysql"
+[2012-04-05 16:00:54 -0400] c__: I have a line in wordpress default.rb that I think is causing the issue "require 'mysql'"
+[2012-04-05 16:05:18 -0400] sampikesley: that's a gem
+[2012-04-05 16:07:07 -0400] cwj: Hush: i'm curious, whats the site?
+[2012-04-05 16:07:43 -0400] c__: I'm not a ruby guy...is there a way I can check if I have that gem, pretty sure I have ruby installed
+[2012-04-05 16:07:52 -0400] proffalken: Hush: throw me a link, I'll take a look
+[2012-04-05 16:08:16 -0400] c__: I am using Vagrant so I would have thought anything in my recipies should kind of just work without me touching anything ruby related
+[2012-04-05 16:11:54 -0400] atomic-penguin: Hush, lay it on us
+[2012-04-05 16:14:15 -0400] sampikesley: you need 'gem_package mysql'
+[2012-04-05 16:14:19 -0400] sampikesley: somewhere
+[2012-04-05 16:15:47 -0400] c__: ok, i'll give it a try
+[2012-04-05 16:16:57 -0400] pwelch: I am not too familiar with chef internals. If I am getting "ERROR: Server returned error for http://chef.mydomain.com:4000/search/node?q=id:*&sort=X_CHEF_id_CHEF_X%20asc&start=0&rows=1000, retrying 1/5 in 4s" is it safe to start poking at sold for the issue?
+[2012-04-05 16:17:08 -0400] pwelch: *solr
+[2012-04-05 16:18:42 -0400] c__: I will try and use "include_recipe "mysql::client"" as this apparently instalss the 'mysql' gem
+[2012-04-05 16:19:10 -0400] miah: that sounds good
+[2012-04-05 16:28:20 -0400] sampikesley: c__: that'll do it
+[2012-04-05 16:29:26 -0400] kevin_: for those that use the deploy resource and the chef-client daemon. what is the best practice for managing the keys?
+[2012-04-05 16:29:33 -0400] kevin_: a chef-client deploy key?
+[2012-04-05 16:29:45 -0400] kevin_: how do you keep it secret / keep it safe?
+[2012-04-05 16:29:55 -0400] sampikesley: never used it, but sounds like a case for an encrypted data bag
+[2012-04-05 16:30:06 -0400] sampikesley: EDBs are awesome
+[2012-04-05 16:30:15 -0400] sampikesley: and surprisingly easy to set up
+[2012-04-05 16:30:39 -0400] sampikesley: http://wiki.opscode.com/display/chef/Encrypted+Data+Bags
+[2012-04-05 16:55:37 -0400] afallows: With knife-ec2, is it possible to specify an instance's AWS-side name? The -N flag lets you set the chef-side node name, but what about an identifier in AWS?
+[2012-04-05 17:04:45 -0400] cwj: afallows: you can't change the aws instance id, but you can set tags on an instance. i set tags on aws instances using the fog gem in a recipe
+[2012-04-05 17:05:02 -0400] cwj: i dont think knife-ec2 supports setting tags at server create time
+[2012-04-05 17:05:48 -0400] cwj: a 'tag' subcommand for knife-ec2 would probably be useful
+[2012-04-05 17:06:23 -0400] jtimberman: cwj: correct, it does not. i belive there's a ticket though
+[2012-04-05 17:09:24 -0400] afallows: So then there probably isn't a way, through knife, to set the "name" field I see in the AWS EC2 management console? That's more or less what I've going for.
+[2012-04-05 17:09:28 -0400] Brad_K: afallows: does knife-ec2 support the -S argument?  that should set the AWS side of the node name.
+[2012-04-05 17:09:46 -0400] Brad_K: i know that knife-rackspace supports both the -N and -S arguments.
+[2012-04-05 17:10:29 -0400] afallows: Brad_K: Doesn't seem to. There's a -s, but it's --subnet
+[2012-04-05 17:11:25 -0400] cwj: afallows: the Name is a tag
+[2012-04-05 17:11:33 -0400] cwj: the key is Name
+[2012-04-05 17:11:46 -0400] afallows: cwj: Thanks for the info about tags, I haven't looked at those at all, I'll dig into that now.
+[2012-04-05 17:15:58 -0400] cwj: afallows: here's a gist of what i do https://gist.github.com/2312597
+[2012-04-05 17:17:16 -0400] afallows: cwj: Thanks, that'll help.
+[2012-04-05 17:31:53 -0400] cwj: afallows: no problem
+[2012-04-05 17:32:39 -0400] cwj: yfeldblum: seems like Librarian::Chef.install_path is nil when i try to run knife commands outside my chef repo dir
+[2012-04-05 17:32:59 -0400] cwj: also after moving my chef repo dir it seems like it is nil whether i am inside or outside the repo dir
+[2012-04-05 17:41:44 -0400] cwj: i dont understand how the environment is getting set, so im kind of stuck trying to figure it out
+[2012-04-05 17:43:27 -0400] cwj: https://gist.github.com/2312781
+[2012-04-05 17:45:16 -0400] cwj: oh its not even getting to Librarian::Chef.install_path
+[2012-04-05 17:45:20 -0400] cwj: the require is failing
+[2012-04-05 17:47:01 -0400] miah: cwj: chef-repo/.chef/knife.rb maybe?
+[2012-04-05 17:49:01 -0400] cwj: my .chef and knife.rb are under ~, there isn't one inside my chef-repo dir
+[2012-04-05 17:49:29 -0400] miah: ah
+[2012-04-05 17:52:55 -0400] cwj: there are only two calls to join in here https://github.com/applicationsonline/librarian/blob/master/lib/librarian/chef/integration/knife.rb
+[2012-04-05 17:53:15 -0400] cwj: i am putting debug messages in but still unclear
+[2012-04-05 17:55:11 -0400] cwj: oh maybe SecureRandom is not available in 1.8.7, but then why did this ever work for me
+[2012-04-05 17:55:32 -0400] hoover_damm: SecureRandom?
+[2012-04-05 17:56:26 -0400] hoover_damm: that's in activesupport no cwj?
+[2012-04-05 17:56:39 -0400] cwj: im not familiar
+[2012-04-05 17:56:58 -0400] cwj: just trying to figure out where librarian is getting nil
+[2012-04-05 17:57:20 -0400] hoover_damm: it requires it
+[2012-04-05 17:57:37 -0400] cwj: yes, it seems to
+[2012-04-05 17:58:24 -0400] hoover_damm: chef > SecureRandom.hex(16) => "ff4d758f9dba4f268d0e94f73a244d37"
+[2012-04-05 17:58:25 -0400] hoover_damm: hrm
+[2012-04-05 17:58:27 -0400] hoover_damm: it's in chef?
+[2012-04-05 17:58:49 -0400] hoover_damm: fired up shef
+[2012-04-05 17:58:50 -0400] hoover_damm: to find it
+[2012-04-05 17:59:42 -0400] hoover_damm: cwj, it's from uuidtools
+[2012-04-05 17:59:47 -0400] cwj: https://gist.github.com/2312870
+[2012-04-05 17:59:48 -0400] hoover_damm: cwj, that's what provides the method
+[2012-04-05 17:59:58 -0400] cwj: SecureRandom isn't causing the problem
+[2012-04-05 18:01:28 -0400] Hush: Well I'll throw this out here so more people can take a look and give feedback.  I'm still working on a couple things, but welcome any advice,feedback or banter that anyone has.  The idea is to give a spot for people to share all the gists we pass around.  http://www.chefcrumbs.com/
+[2012-04-05 18:01:43 -0400] hoover_damm:    Process.exit!(1)
+[2012-04-05 18:01:44 -0400] hoover_damm: ?
+[2012-04-05 18:02:09 -0400] hoover_damm: cwj, nah it's just hitting that whole loop
+[2012-04-05 18:02:16 -0400] hoover_damm: cwj, s/loop/rescue
+[2012-04-05 18:02:28 -0400] hoover_damm: cwj, this is just librarian-chef install right?
+[2012-04-05 18:02:31 -0400] cwj: yes
+[2012-04-05 18:02:36 -0400] hoover_damm: cwj, librarian-install -vv?
+[2012-04-05 18:02:36 -0400] cwj: well actually
+[2012-04-05 18:02:52 -0400] cwj: the real problem is that i am getting errors when i try to run any knife command
+[2012-04-05 18:02:54 -0400] cwj: so its not install
+[2012-04-05 18:02:56 -0400] gsat: "execute" resource prints command being executed in the chef-client run, is there any way i can avoid that, We have user:passwd in the command being executed, which need it to be masked.
+[2012-04-05 18:03:01 -0400] cwj: i cant even knife node list
+[2012-04-05 18:03:08 -0400] cwj: so im getting pretty frustrated
+[2012-04-05 18:03:16 -0400] hoover_damm: cwj, librarian didn't touch my knife stuff
+[2012-04-05 18:03:19 -0400] hoover_damm: is this a new thing?
+[2012-04-05 18:04:19 -0400] cwj: hoover_damm: the readme says to put Librarian::Chef.install_path in the cookbook_path instead of the path to your cookbooks dir
+[2012-04-05 18:04:31 -0400] hoover_damm: cwj, ahh i didn't do that
+[2012-04-05 18:04:31 -0400] cwj: so it can force knife to upload the stuff that matches your cheffile.lock
+[2012-04-05 18:05:12 -0400] hoover_damm: yeah i didn't do that
+[2012-04-05 18:05:21 -0400] hoover_damm: guess that's my sign
+[2012-04-05 18:05:35 -0400] hoover_damm: we haven't pushed librarian much further then initial usage sadly
+[2012-04-05 18:06:10 -0400] cwj: well its just a failsafe, but apparently not a very robust one
+[2012-04-05 18:06:12 -0400] afallows: Hush: Looks like a pretty cool site.
+[2012-04-05 18:06:16 -0400] cwj: ripped it out of my knife.rb for now
+[2012-04-05 18:13:40 -0400] cwj: i dont use it very much
+[2012-04-05 18:18:05 -0400] cwj: holy shit am i taking crazy pills today?
+[2012-04-05 18:18:12 -0400] cwj: ERROR: Could not find cookbook haystack in your cookbook path, skipping it
+[2012-04-05 18:18:33 -0400] cwj: does knife skip symlinks?
+[2012-04-05 18:18:51 -0400] cwj: i feel like i have symlinked cookbook directories before
+[2012-04-05 18:21:02 -0400] cwj: nm i ~am~ on the pills
+[2012-04-05 18:22:04 -0400] Hush: thanks afallows
+[2012-04-05 18:24:23 -0400] geekbri: I use librarian pretty heavily, I enjoy it.
+[2012-04-05 18:24:33 -0400] pwelch: anyone know how to get `knife cookbook site install` to pull from the new opscode-cookbooks repos?
+[2012-04-05 18:24:55 -0400] jtimberman: pwelch: "knife cookbook site install" does not do that.
+[2012-04-05 18:25:02 -0400] jtimberman: pwelch: it retrieves them from the community site specifically.
+[2012-04-05 18:25:19 -0400] jtimberman: pwelch: you can use librarian or knife-github.
+[2012-04-05 18:25:26 -0400] pwelch: jtimberman: ok thanks
+[2012-04-05 18:25:31 -0400] jtimberman: but, we don't recommend consuming the opscode-cookbooks repositories directly.
+[2012-04-05 18:25:40 -0400] pwelch: why not?
+[2012-04-05 18:27:49 -0400] geekbri: Its my understanding that the ones on github are identical to the ones downloaded via site install.  Why would you need to consume them individually?
+[2012-04-05 18:28:14 -0400] jtimberman: pwelch: because they're In Development.
+[2012-04-05 18:28:19 -0400] jtimberman: And Not Released.
+[2012-04-05 18:28:25 -0400] jtimberman: And not fully tested (by us).
+[2012-04-05 18:28:26 -0400] pwelch: ahh my misunderstanding...
+[2012-04-05 18:28:34 -0400] jtimberman: think of it like rubygems.
+[2012-04-05 18:28:46 -0400] pwelch: ahhh gotcha
+[2012-04-05 18:28:48 -0400] pwelch: thanks :)
+[2012-04-05 18:28:49 -0400] jtimberman: generally, you grab gems from rubygems.org, not random github repos.
+[2012-04-05 18:28:58 -0400] jtimberman: though some people rock that too and its fine.
+[2012-04-05 18:29:02 -0400] jtimberman: just be aware there might be warts :)
+[2012-04-05 18:29:27 -0400] pwelch: ok yeah that makes sense
+[2012-04-05 18:29:48 -0400] wdpro_kevin: hi all
+[2012-04-05 18:30:21 -0400] wdpro_kevin: anyone have a fix for a shef (with an s) session that will not finish loading?
+[2012-04-05 18:30:55 -0400] pwelch: i don't see a knife command to update the cookbooks (am i missing it?) kind of like gem update
+[2012-04-05 18:31:03 -0400] wdpro_kevin: I'm using -z -c with my knife.rb file
+[2012-04-05 18:31:09 -0400] Urocyon: percussive maintenance
+[2012-04-05 18:31:10 -0400] jtimberman: pwelch: there's not one yet :(
+[2012-04-05 18:31:22 -0400] jtimberman: pwelch: we have many improvements to make to the community site itself.
+[2012-04-05 18:31:42 -0400] jtimberman: I know of API improvements and per-user namespacing for cookbooks as being planned.
+[2012-04-05 18:32:01 -0400] geekbri: per-user namespacing?  Oh that will be amazing.
+[2012-04-05 18:32:05 -0400] pwelch: jtimberman: thats fine, I'm sure your list of TODOs is huge. I just like to make sure I'm not missing an obvious command
+[2012-04-05 18:32:05 -0400] jtimberman: :)
+[2012-04-05 18:32:12 -0400] jtimberman: pwelch: you're not :D
+[2012-04-05 18:32:17 -0400] pwelch: per-user namespacing would be great
+[2012-04-05 18:32:24 -0400] jtimberman: it shouldn't be *terribly* difficult to make a local plugin
+[2012-04-05 18:32:37 -0400] jtimberman: yeah its one of the oldest, most requested features for the site.
+[2012-04-05 18:32:47 -0400] pwelch: for now I can just run `knife site install cookbook version` right?
+[2012-04-05 18:32:57 -0400] jtimberman: knife cookbook site install but yeah
+[2012-04-05 18:32:58 -0400] pwelch: then delete my older version?
+[2012-04-05 18:33:09 -0400] jtimberman: if your chef-repo is a git repository
+[2012-04-05 18:33:23 -0400] jtimberman: the site install command will automatically handle branching and tagging the repo for you
+[2012-04-05 18:33:28 -0400] jtimberman: so no need to "delete" anything
+[2012-04-05 18:33:30 -0400] pwelch: git = yes
+[2012-04-05 18:33:34 -0400] jtimberman: it'll just be in the git history
+[2012-04-05 18:33:39 -0400] jtimberman: and you'll rejoice.
+[2012-04-05 18:33:40 -0400] pwelch: oh ok awesome
+[2012-04-05 18:33:42 -0400] jtimberman: git branch
+[2012-04-05 18:33:43 -0400] jtimberman: git tag
+[2012-04-05 18:33:53 -0400] jtimberman: check those out after doing a site install
+[2012-04-05 18:34:01 -0400] pwelch: ok
+[2012-04-05 18:35:54 -0400] pwelch: so much to learn with chef
+[2012-04-05 18:35:58 -0400] pwelch: when is another chef book coming out?
+[2012-04-05 18:36:17 -0400] pwelch: never mind found it. not until August :(
+[2012-04-05 18:36:38 -0400] jtimberman: this may be helpful: https://github.com/opscode/chef-fundamentals
+[2012-04-05 18:37:32 -0400] pwelch: ah I forgot about that!
+[2012-04-05 18:37:49 -0400] pwelch: retweeted the announcement but did not get the chance to go through the whole thing
+[2012-04-05 18:55:35 -0400] smith3v: Hi
+[2012-04-05 19:08:18 -0400] patcon: hey guys, anyone know if someone is using guardfiles to monitor metatdata.rb commits and dealing with the community cookbook site uploading?
+[2012-04-05 19:09:42 -0400] patcon: also, can mulitple users maintain a cookbook on the community site?
+[2012-04-05 19:09:53 -0400] patcon: #opscode
+[2012-04-05 19:13:22 -0400] BryanWB_: patcon, clever idea, what if you guardfile only uploads to c.o.c when you change the version # to an even patch number?
+[2012-04-05 19:13:47 -0400] BryanWB_: patcon, sounds like something nistude would cook up
+[2012-04-05 19:15:07 -0400] patcon: ah hey, had heard of guard-librarian, but not guard-knife! will check it out. thanks BryanWB_!
+[2012-04-05 19:15:48 -0400] BryanWB_: patcon, hmm guard-librarian that's new to me ;), patcon nice to make your irc acquaintance
+[2012-04-05 19:15:53 -0400] BryanWB_: patcon, u be at chefconf?
+[2012-04-05 19:16:20 -0400] patcon: ditto BryanWB_ :)
+[2012-04-05 19:16:49 -0400] patcon: it was actually a toss-up between chefconf and devopsdays SF, and so it's looking like devopsdays :/
+[2012-04-05 19:17:08 -0400] patcon: the prospect of my company MAYBE paying my way to strata cinched the deal :)
+[2012-04-05 19:17:52 -0400] BryanWB_: patcon, too bad 4 me was looking forward to meeting u
+[2012-04-05 19:18:19 -0400] patcon: any chance you'll make it to devopsdays SF?
+[2012-04-05 19:18:33 -0400] BryanWB_: nope
+[2012-04-05 19:18:50 -0400] BryanWB_: i will be at devopsdays italy since it will b in my backyard ;)
+[2012-04-05 19:18:55 -0400] patcon: drats
+[2012-04-05 19:19:28 -0400] patcon: oh jeez, why did i have it in my head that you were on this end of the blue...?
+[2012-04-05 19:19:44 -0400] patcon: and i'm just a sometimes-vocal amateur, so you're not missing much haha
+[2012-04-05 19:20:13 -0400] patcon: can i ask where you're living?
+[2012-04-05 19:20:31 -0400] patcon: BryanWB_: i don't suppose near munich?
+[2012-04-05 19:20:44 -0400] BryanWB_: patcon, not so far, here in Rome ;)
+[2012-04-05 19:21:15 -0400] afallows: cwj: In the aws tag setting gist you showed me - where did you get node['ec2']['instance_id'] from? Is that stuff you manage elsewhere?
+[2012-04-05 19:21:59 -0400] cwj: afallows: no, the ec2 attributes are populated by ohai during the chef client run
+[2012-04-05 19:22:04 -0400] cwj: if the node is in ec2
+[2012-04-05 19:24:41 -0400] afallows: Would that be any different if the node is in a VPC? I'm still really out of my element working with AWS stuff.
+[2012-04-05 19:24:53 -0400] cwj: im not sure about vpc myself
+[2012-04-05 19:25:15 -0400] cwj: if it were me i would fire up shef on a node and poke around in the available attributes
+[2012-04-05 19:25:23 -0400] cwj: shef is the chef shell if you arent familiar
+[2012-04-05 19:26:42 -0400] afallows: I haven't played with it yet, clearly I should (and will now)
+[2012-04-05 19:28:53 -0400] patcon: BryanWB_: rats. that's a little far. i work within the drupal community, and people have just started talking about cfgmnt/devops/vagrant lately, but for whatever reason, the momentum is behind puppet
+[2012-04-05 19:29:57 -0400] patcon: drupalcon munich is happening in aug, and while I can't make it, i know some people would be very supportive if someone wanted to speak about chef :)
+[2012-04-05 19:30:51 -0400] smith3v: Guys, I'm trying to debug a recipe with shef. But run_chef doesn't run the run :( http://pastebin.com/yAC43712 Any ideas?
+[2012-04-05 19:30:52 -0400] patcon: might try floating it with someone from opscode. maybe even a booth. i know it's late, but now is the time when the toolchain is actually being talked about in the community, and puppet is pretty over-represented
+[2012-04-05 19:32:10 -0400] patcon: anyhow. :set noramble
+[2012-04-05 19:32:28 -0400] Brad_K: patcon: i just got back from the FLOSSUK 2012 spring conference, and i can tell you that puppet is very strong in the Euro community.  very little chef representation over there.
+[2012-04-05 19:33:05 -0400] Brad_K: Stephen Nelson-Smith can only do so much on his own.  Opscode needs to make a much bigger push overseas.
+[2012-04-05 19:33:13 -0400] patcon: yeah, that's what i keep hearing at devops-related events, but this was at drupalcon denver that just happened. was kinda surprised state-side
+[2012-04-05 19:33:46 -0400] jtimberman: Brad_K: its hard to justify the expense for flying folks over though :)
+[2012-04-05 19:34:23 -0400] Brad_K: patcon: there are weird confluences that happen in various communities, depending on who is friends with who, who has previous experience with what, etc.
+[2012-04-05 19:34:42 -0400] patcon: Brad_K: i believe it's because kris buytaert was early in the devops movement, and he uses drupal and puppet and is decently active in the community, and so the conversations always took that angle. just a guess
+[2012-04-05 19:34:48 -0400] jtimberman: patcon: drupalcon denver happened already?
+[2012-04-05 19:34:58 -0400] Brad_K: jtimberman: yeah, i know.  so, you need a stronger permanent contingent that is already on the continent, so that you don't have to fly people over.
+[2012-04-05 19:35:02 -0400] patcon: yep, mid march jtimberman
+[2012-04-05 19:35:06 -0400] jtimberman: patcon: ah.
+[2012-04-05 19:35:16 -0400] patcon: drupalcon munich is in august, but yeah, tougher to make headway there
+[2012-04-05 19:36:50 -0400] Brad_K: i spoke to Kris at FLOSSUK.  he's a really smart guy, and a very cool guy to get to know.  according to Kris, the irony is that John Willis was one of the first people outside of Europe to catch onto the devops movement, and to be seriously involved in the process.  i guess that doesn't translate to penetration of the SCM market, however.  ;-(
+[2012-04-05 19:37:11 -0400] patcon: kris buytaert is heading up the new devops track at munich, for what it's worth. an opscode booth might be something worth considering, so as not to be left out of the convo :)
+[2012-04-05 19:38:35 -0400] patcon: Brad_K: *nods*
+[2012-04-05 19:38:44 -0400] afallows: cwj: I'm looking at my chef nodes and none of them have the 'ec2' section in their attributes. I used a custom bootstrapping script, could that have something to do with it?
+[2012-04-05 19:39:14 -0400] cwj: afallows: have any of those nodes run chef-client since you bootstrapped them?
+[2012-04-05 19:39:21 -0400] afallows: They have.
+[2012-04-05 19:39:47 -0400] cwj: regardless of how you bootstrapped them, chef-client calls on ohai to collect that data
+[2012-04-05 19:40:07 -0400] cwj: i know there is a ticket open about ohai sometimes not populating the ec2 data
+[2012-04-05 19:40:19 -0400] cwj: but i am not sure what the specifics are, i havent encounterd it myself
+[2012-04-05 19:40:52 -0400] cwj: i wrap all my ec2 specific stuff up in conditionals so that i dont try to do stuff like that on non-ec2 nodes
+[2012-04-05 19:40:57 -0400] cwj: which maybe why i havent seen it
+[2012-04-05 19:41:19 -0400] cwj: http://tickets.opscode.com/browse/OHAI-290
+[2012-04-05 19:42:15 -0400] cwj: however, ohai does find ec2 attributes on an instance i spun up less than 24 hours ago
+[2012-04-05 19:42:20 -0400] hoover_damm: actually that should be fixed
+[2012-04-05 19:42:25 -0400] hoover_damm: the latest release of ohai fixed that
+[2012-04-05 19:42:28 -0400] cwj: ok
+[2012-04-05 19:42:45 -0400] ssd7: afallows: If you are on VPC: http://tickets.opscode.com/browse/OHAI-310
+[2012-04-05 19:42:47 -0400] cwj: afallows: what version of ohai are you using?
+[2012-04-05 19:42:48 -0400] hoover_damm: basically some distros released a patched version of ifconfig that had a modified output
+[2012-04-05 19:42:58 -0400] hoover_damm: which makes ec2 detection fail
+[2012-04-05 19:43:04 -0400] cwj: i see
+[2012-04-05 19:43:13 -0400] afallows: Appears to be 0.6.12
+[2012-04-05 19:43:18 -0400] hoover_damm: running the latest version of ohai and ohai ec2
+[2012-04-05 19:43:20 -0400] hoover_damm: should work
+[2012-04-05 19:43:30 -0400] hoover_damm: however i think vpc detection might still not be there
+[2012-04-05 19:43:36 -0400] hoover_damm: vpc does change the arp
+[2012-04-05 19:43:40 -0400] hoover_damm: which makes ec2 fail
+[2012-04-05 19:44:28 -0400] afallows: So I may not be able to use Chef attributes for managing ec2 data unless I set those attributes myself, at least for now?
+[2012-04-05 19:45:19 -0400] ssd7: afallows: a few people have deployed custom ohai plugins that just skip the arp check
+[2012-04-05 19:45:36 -0400] hoover_damm: i would love to see someone actually submit a pull for the vpc detection
+[2012-04-05 19:45:45 -0400] hoover_damm: instead of trying to bypass the issue
+[2012-04-05 19:45:59 -0400] hoover_damm: bawt, contributing?
+[2012-04-05 19:45:59 -0400] bawt: contributing is http://wiki.opscode.com/display/chef/How+to+Contribute
+[2012-04-05 19:46:21 -0400] Brad_K: Rackspace has a couple of new default routers that aren't covered in the standard ohai rackspace plugin, so we had to push a modified version of that plugin in order to get them recognized properly.
+[2012-04-05 19:46:40 -0400] Brad_K: there's an open bug on that, but no resolution yet that i've seen.
+[2012-04-05 19:47:24 -0400] hoover_damm: Brad_K, can you contribute that back to opscode?
+[2012-04-05 19:47:48 -0400] hoover_damm: Brad_K, so you can mark that issue resolved and then btm can merge your change in?
+[2012-04-05 19:47:50 -0400] Brad_K: the code i put into our modified version of the plugin came from the open bug report.
+[2012-04-05 19:48:24 -0400] hoover_damm: turn that into a pull still?
+[2012-04-05 19:48:36 -0400] hoover_damm: or link me the ticket and i'll create a pull request
+[2012-04-05 19:48:39 -0400] Brad_K: there's an existing pull already.
+[2012-04-05 19:48:39 -0400] hoover_damm: so we can get it solved
+[2012-04-05 19:48:54 -0400] hoover_damm: then mark the ticket resolved?
+[2012-04-05 19:50:11 -0400] ssd7: Here is the relevant rackspace ticket: http://tickets.opscode.com/browse/OHAI-310
+[2012-04-05 19:50:17 -0400] ssd7: grrr bad past
+[2012-04-05 19:50:22 -0400] ssd7: http://tickets.opscode.com/browse/OHAI-267
+[2012-04-05 19:50:47 -0400] ssd7: There is some discussion there on why the ARP detection stuff isn't the way forward
+[2012-04-05 19:52:19 -0400] Brad_K: i see that Steven is more up-to-date on this subject than I am.  obviously, he has been continuing to track this issue since we ran into this problem last year.
+[2012-04-05 19:53:17 -0400] hoover_damm: ssd7, interesting openstack developer bug then?
+[2012-04-05 19:53:49 -0400] Brad_K: not an openstack bug.  a rackspace problem because they refuse to give us a solid method of auto-detecting their networks.
+[2012-04-05 19:53:49 -0400] hoover_damm: prolly have to wait for the next update of openstack on managed rackspace cloud then
+[2012-04-05 19:54:09 -0400] hoover_damm: well it's rackspace's openstack
+[2012-04-05 19:54:17 -0400] Brad_K: this bug exists on the old rackspace infrastructure, and presumably will continue to exist on openstack.
+[2012-04-05 19:55:03 -0400] hoover_damm: meh annoying as i've kinda used cloud to keep 'ec2' compatable
+[2012-04-05 19:55:28 -0400] hoover_damm: prolly will hit that soon myself
+[2012-04-05 19:56:40 -0400] hoover_damm: we thankfully didn't go the F5 route on Rackspace
+[2012-04-05 20:04:37 -0400] ssd7: A solution that wasn't discussed as much was possible making all of the cloud plugins much dumber but turning them off by default (so that they don't slow down runs trying to connect to metadata servers that don't exist).  That would need to be coupled with a very easy way to toggle the plugins back on
+[2012-04-05 20:04:51 -0400] ssd7: s/possible/possibly/
+[2012-04-05 20:13:57 -0400] spyvsspy: how would you guys suggest distributing content to serves, when the internet connection isnt always reliable
+[2012-04-05 20:14:06 -0400] spyvsspy: ie, i need some error checking to make sure everything actually downloaded
+[2012-04-05 20:14:26 -0400] spyvsspy: i have an open source chef server, and chef-client installed on all the machines
+[2012-04-05 20:14:44 -0400] afallows: Hey guys, thanks for all your help. I got my ec2 data by taking the ec2.rb from the gem lib, nixing the ARP stuff and saving the new version as a new ohai plugin
+[2012-04-05 20:16:07 -0400] afallows: ssd7: Are the cloud plugins packaged with ohai or with their respective knife plugins?
+[2012-04-05 20:17:55 -0400] ssd7: afallows: ohai
+[2012-04-05 20:22:20 -0400] wdpro_kevin: Can anyone help me figure out why my shef will not complete loading?
+[2012-04-05 20:22:55 -0400] wdpro_kevin: I'm on a known good client and running "shef -c /etc/chef/client.rb -z"
+[2012-04-05 20:23:14 -0400] wdpro_kevin: and all I get are dots lots o' dots
+[2012-04-05 20:32:51 -0400] wdpro_kevin: going to run in -l debug mode
+[2012-04-05 20:59:19 -0400] wdpro_kevin: wow did I kill the irc? sheesh
+[2012-04-05 21:01:07 -0400] cwj: wdpro_kevin: did debug reveal anything?
+[2012-04-05 21:03:58 -0400] wdpro_kevin: looked like some ohai plugins failed to load and it hangs on "Loading plugin linux::virtualization"
+[2012-04-05 21:04:29 -0400] wdpro_kevin: happening to all clients I try and with two diff chef servers
+[2012-04-05 21:09:07 -0400] SteeleNivenson: hello! is there a class or method in Chef to bundle up a group of resource into a sort-of "transaction"?
+[2012-04-05 21:10:05 -0400] SteeleNivenson: for example, I have a very long recipe that has some very long resources, some of which can be grouped into chunks that must happen or the whole thing basically fails. I'd like to avoid include_recipe.
+[2012-04-05 21:10:14 -0400] cwj: SteeleNivenson: http://wiki.opscode.com/display/chef/Definitions
+[2012-04-05 21:10:53 -0400] cwj: may also want to look at http://wiki.opscode.com/display/chef/Resources+and+Providers
+[2012-04-05 21:10:57 -0400] cwj: depending on your needs
+[2012-04-05 21:11:03 -0400] SteeleNivenson: kewl, thanks.
+[2012-04-05 21:11:55 -0400] SteeleNivenson: Definition is what I'm looking for.
+[2012-04-05 21:14:18 -0400] cwj: np
+[2012-04-05 21:37:42 -0400] erratic: how to
+[2012-04-05 21:37:45 -0400] erratic: ppa repository
+[2012-04-05 21:37:48 -0400] erratic: with apt cookbook
+[2012-04-05 21:38:54 -0400] cwj: erratic: the readme for the apt cookbook provides a ppa example
+[2012-04-05 21:39:18 -0400] cwj: http://community.opscode.com/cookbooks/apt
+[2012-04-05 21:39:30 -0400] erratic: ooft
+[2012-04-05 21:39:32 -0400] erratic: thankie
+[2012-04-05 21:39:43 -0400] erratic: I skimmed it
+[2012-04-05 21:39:46 -0400] erratic: thought Id ask anyway
+[2012-04-05 22:08:58 -0400] hones: spyvsspy: The cookbook_file resource already has checksums built in, no need to specify, remote_file requires that you calculate the checksums of files you want to retrieve. http://wiki.opscode.com/display/chef/Resources#Resources-CookbookFile
+[2012-04-05 22:18:39 -0400] erratic: you know what there isnt an example for
+[2012-04-05 22:18:43 -0400] erratic: is how to use this attribute
+[2012-04-05 22:18:44 -0400] erratic: deb_src: whether or not to add the repository as a source repo as well
+[2012-04-05 22:19:00 -0400] erratic: I cant tell if Im supposed to just put deb_src in my apt_repository block
+[2012-04-05 22:19:07 -0400] erratic: or if it needs like deb_src true
+[2012-04-05 22:19:08 -0400] erratic: or something
+[2012-04-05 22:21:09 -0400] mattray: anyone having trouble with Rackspace's API right now? "knife rackspace server list" working?
+[2012-04-05 22:21:35 -0400] fujin: it was working yesterday
+[2012-04-05 22:21:39 -0400] cwj: erratic: from looking at the provider source it looks like it should be a boolean
+[2012-04-05 22:21:53 -0400] cwj: but if you provide any value there it will have the same effect
+[2012-04-05 22:21:56 -0400] cwj: afaict
+[2012-04-05 22:23:05 -0400] mattray: fujin: now it's working :(
+[2012-04-05 22:26:10 -0400] hoover_damm: mattray, update fog
+[2012-04-05 22:26:25 -0400] hoover_damm: mattray, and always, time your request between boots with 30-60second sleeps
+[2012-04-05 22:26:37 -0400] hoover_damm: mattray, as Rackspace will throttle you if you do 2 creates in under 1 minute
+[2012-04-05 22:26:39 -0400] mattray: hoover_damm: yeah, I'm about to move knife-rackspace to the latest, just wanted a baseline
+[2012-04-05 22:26:53 -0400] fujin: mattray: working here too
+[2012-04-05 22:26:53 -0400] hoover_damm: mattray, I did that
+[2012-04-05 22:26:54 -0400] mattray: hoover_damm: good point, I better tell them not to throttle me
+[2012-04-05 22:26:55 -0400] hoover_damm: you should be fine
+[2012-04-05 22:27:00 -0400] hoover_damm: you can't tell them that
+[2012-04-05 22:27:04 -0400] mattray: I can :)
+[2012-04-05 22:27:31 -0400] mattray: if they want me doing a demo for them they should
+[2012-04-05 22:34:48 -0400] Brad_K: knife rackspace server list seems to be working fine for me now.  dunno about ten minutes ago.
+[2012-04-05 22:35:37 -0400] Brad_K: and all my scripts to drive "knife rackspace create" have built-in sleeps, so that we don't trigger their throttling or alerts.
+[2012-04-05 22:40:01 -0400] terryjfundak: IRC Channel Check from Colloguy 2.3 on a Mac 10.6.8 via Sprint Hotspot in Palo Alto.... Any Chefs seeing this?
+[2012-04-05 22:40:17 -0400] Brad_K: yup, you're 5x5.
+[2012-04-05 22:48:04 -0400] patcon: anyone have in-depth knowledge of the server resource? Wondering about apache2 arguments and whether the service resource is the way to go
+[2012-04-05 22:48:12 -0400] patcon: *service resource
+[2012-04-05 22:48:18 -0400] jtimberman: patcon: yes, use service.
+[2012-04-05 22:48:44 -0400] patcon: apache2ctl -k <start | stop | restart | etc>
+[2012-04-05 22:49:11 -0400] patcon: does everything apache2 does, but also is really close to allowing access to apache paramters for the IfDefine variable in apache configs
+[2012-04-05 22:49:12 -0400] patcon: http://httpd.apache.org/docs/current/programs/httpd.html
+[2012-04-05 22:49:25 -0400] patcon: not sure whether somehow extending the service is the way to go... :)
+[2012-04-05 22:49:34 -0400] jtimberman: what is the use case?
+[2012-04-05 22:49:53 -0400] patcon: starting apache with "apache2ctl -k start -D SomeVar
+[2012-04-05 22:50:20 -0400] patcon: but could be equally useful to start processes with other apache2ctl flags set
+[2012-04-05 22:50:41 -0400] jtimberman: I'd just write the configuration I want to use :)
+[2012-04-05 22:50:43 -0400] jtimberman: and start the service.
+[2012-04-05 22:50:54 -0400] Brad_K: apache2ctl is the way to stop & start apache that is cross-platform.  so, the question is do you want to tie yourself to a specific method that won't work with any other program regardless of the OS you're on, or do you want to use the OS-specific methods that will be consistent across that OS, although they may be different on other OSes?
+[2012-04-05 22:51:23 -0400] Brad_K: i'd go with the OS-standard methods, myself.
+[2012-04-05 22:56:43 -0400] patcon: Brad_K: sorry, was a little confused -- the cookbook actually used httpd and apache2 instead of httpd and apache2ctl: https://github.com/opscode-cookbooks/apache2/blob/master/recipes/default.rb
+[2012-04-05 22:57:35 -0400] patcon: i think at one point someone suggested apache2ctl in a ticket. one sec (this is a little tangential, but I'd just been wondering :) )
+[2012-04-05 22:59:34 -0400] patcon: Hm. Came up here i think http://tickets.opscode.com/browse/COOK-126
+[2012-04-05 23:04:43 -0400] patcon: Am I reading things right? Is it apache2ctl that's the supported control script that's the alternative for httpd when not available?
+[2012-04-05 23:05:12 -0400] patcon: http://www.linuxquestions.org/questions/ubuntu-63/usr-sbin-apache2-is-not-a-supported-apache-binary-or-control-script-827266/
+[2012-04-05 23:05:29 -0400] Brad_K: patcon: that's the method suggested by the apache foundation.
+[2012-04-05 23:05:44 -0400] Brad_K: it's not the method i would suggest.
+[2012-04-05 23:07:41 -0400] patcon: ok cool. just seems on these pages that "httpd:apachectl as apache2ctl:apache2"
+[2012-04-05 23:07:43 -0400] patcon: http://httpd.apache.org/docs/2.0/programs/apachectl.html
+[2012-04-05 23:07:56 -0400] patcon: http://httpd.apache.org/docs/2.0/programs/httpd.html
+[2012-04-05 23:08:38 -0400] patcon: looking at the directives that is. our cookbook seems to use separate commands that aren't equivalent?
+[2012-04-05 23:08:41 -0400] Brad_K: right.  that's the apache documentation.  not the chef documentation.
+[2012-04-05 23:11:22 -0400] patcon: but know what i mean? we use "httpd" on rhel, but "apache2" on ubuntu/debian, when the equivalent of "httpd" on ubuntu is "apache2ctl", and ubuntu's "apache2" is like rhel's "apachectl" (which we don't use)...
+[2012-04-05 23:12:34 -0400] Brad_K: rhel differences versus ubuntu.  what one OS does doesn't necessarily have any bearing on what any other OS should do.
+[2012-04-05 23:13:59 -0400] wdpro_kevin: can anyone help me figure out why my client bootstrap script is setting the wrong validation.pem?
+[2012-04-05 23:14:00 -0400] patcon: and what with all the subtle name diff's, i think i was still misunderstanding. sorry dude
+[2012-04-05 23:21:25 -0400] Brad_K: wdpro_kevin: check your knife.rb and your client.rb to make sure they are referencing the right file.
+[2012-04-05 23:23:15 -0400] wdpro_kevin: ah so the bootstrap gets the validation.pem from the workstation and not a query to the server?  that makes much more sence
+[2012-04-05 23:23:19 -0400] wdpro_kevin: sense
+[2012-04-05 23:25:10 -0400] jtimberman: wdpro_kevin: yup, "knife bootstrap" never actually talks to the Chef Server until the chef-client run is done at the end of the script.
+[2012-04-05 23:26:09 -0400] wdpro_kevin: OK brilliant. Thank you very much

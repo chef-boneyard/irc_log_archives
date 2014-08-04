@@ -1,0 +1,184 @@
+[2012-10-11 01:25:26 -0400] zts: thedeeno: unfortunately, that's not possible - you'd need to do that kind of thing in a recipe
+[2012-10-11 01:48:14 -0400] sunil__: anyone have an example of calling requirements.txt with python>virtualenv cookbook?  I can create a virtualenv, install packages, but not able to source requirements.txt
+[2012-10-11 01:53:23 -0400] hekman: Is there any documentation anywhere that describes in which order resources are executed when they are delayed?
+[2012-10-11 01:54:04 -0400] z: hekman: AFAICR it drops delayed resources onto a simple FIFO so whatever is notified first should execute first when it gets to that part of the convergence
+[2012-10-11 01:56:05 -0400] hekman: z: ok thanks!
+[2012-10-11 01:56:27 -0400] z: hekman: https://github.com/opscode/chef/blob/master/chef/lib/chef/run_context.rb#L107
+[2012-10-11 01:56:36 -0400] z: hekman: @delayed_notification_collection = Hash.new {|h,k| h[k] = []}
+[2012-10-11 01:57:11 -0400] cwj: so depending on your ruby order could be indeterminate?
+[2012-10-11 01:58:03 -0400] z: cwj: Potentially. I use :immediately where I care about order.
+[2012-10-11 01:58:15 -0400] cwj: yeah, sure
+[2012-10-11 01:58:25 -0400] hoover_damm: order is something init systems still don't really care about
+[2012-10-11 01:58:26 -0400] hekman: z: yeah what i am going for here is i want to be able to tell a resource to execute at the very end
+[2012-10-11 01:58:31 -0400] hoover_damm: or rather dependencies
+[2012-10-11 01:58:42 -0400] hoover_damm: and getting things done 'in order'
+[2012-10-11 01:58:52 -0400] hoover_damm: humans still set the order :)
+[2012-10-11 01:58:57 -0400] hekman: i.e. i want to unsilence a node in sensu only at the end of a chef run
+[2012-10-11 01:59:02 -0400] z: hekman: I think delayed_notifications are a resource_collection, and this is relevant - https://github.com/opscode/chef/blob/master/chef/lib/chef/resource_collection/stepable_iterator.rb
+[2012-10-11 01:59:33 -0400] zts: hekman: perhaps you could do that with a report/exception handler?
+[2012-10-11 01:59:38 -0400] z: hekman: Oh okay, erm, its probably you have access to updated resources in a Report Handler
+[2012-10-11 01:59:52 -0400] z: hekman: so if you need it to happen after a run completes then I'd look at firing from in there
+[2012-10-11 02:00:05 -0400] hoover_damm: hekman, create a ruby_block resource with an action of :nothing
+[2012-10-11 02:00:07 -0400] hoover_damm: hekman, notify it
+[2012-10-11 02:00:14 -0400] hoover_damm: hekman, have said resource do what you want
+[2012-10-11 02:00:41 -0400] z: hoover_damm: I fail to see how that does what he wants?
+[2012-10-11 02:01:28 -0400] hoover_damm: timtowtdit
+[2012-10-11 02:01:43 -0400] cwj: hekman: i think the report handler is a good idea, i think we will still want that as a lwrp though
+[2012-10-11 02:01:52 -0400] hekman: yeah i was thinking about that too
+[2012-10-11 02:02:10 -0400] z: hoover_damm: But creating a ruby_block and doing notifies with :delayed isn't guaranteed to happen at the *very* end, thats the whole point of this discussion
+[2012-10-11 02:02:24 -0400] hekman: because it needs to happen at the *very* beginning and at the *very* end
+[2012-10-11 02:02:26 -0400] cwj: and i bet both would be welcome as contributions to the sensu cookbook
+[2012-10-11 02:03:03 -0400] hoover_damm: where's aj when you need him
+[2012-10-11 02:03:25 -0400] hoover_damm: z, well if he wants very beginning and end... i'm just going to opt and put fujin in front
+[2012-10-11 02:03:28 -0400] hoover_damm: and let him answer it
+[2012-10-11 02:03:39 -0400] hoover_damm: if he was around
+[2012-10-11 02:04:58 -0400] hekman: the beginning is not bad because i can call the resource with :immediate at the beginning of my first recipe in the run_list ...
+[2012-10-11 02:05:05 -0400] hekman: or at compile time i guess
+[2012-10-11 02:05:13 -0400] z: hekman: Firing *prior* to a run can be done with a chunk of Ruby at the bottom of /etc/chef/client.rb (or whatever) but if the run fails at that point it'd be "messy" (you probably wouldn't fire an Exception Handler)
+[2012-10-11 02:05:33 -0400] cwj: i think we can do it at compile time and be ok
+[2012-10-11 02:05:50 -0400] hekman: z: yeah the "messy" part I handle with a sensu check that checks if there are "old" stashes that need to be removed...
+[2012-10-11 02:06:39 -0400] cwj: i think the messy that z is referring to is an unhandled exception in client.rb breaking chef-client all together
+[2012-10-11 02:06:48 -0400] hekman: sure
+[2012-10-11 02:08:18 -0400] z: cwj: I'd be interested to see if I can raise a Chef::Exception::Something from within Ruby code in the client configuration, as long as it was *after* the declaration of an Exception Handler
+[2012-10-11 02:27:37 -0400] sunil__: anyone know how can I use this patch?  I am not sure if this is merged with the python cookbook yetor anyone know an alternative approach to using requirements.txt
+[2012-10-11 02:27:44 -0400] sunil__: https://github.com/opscode/cookbooks/pull/365
+[2012-10-11 02:30:01 -0400] hoover_damm: sunil__, github.com/opscode-cookbooks/python
+[2012-10-11 02:30:09 -0400] hoover_damm: sunil__, cookbooks/ is deprecated
+[2012-10-11 02:32:59 -0400] sunil__: ahdidn't even notice the path..thought its the same thing...
+[2012-10-11 02:34:27 -0400] sunil__: considering josh commented on this 24 days ago, I am not sure if this is merged with the opscode python cookbook yet.  I can give it a try.
+[2012-10-11 02:36:02 -0400] z: sunil__: the opscode-cookbooks split happened months ago
+[2012-10-11 02:36:15 -0400] z: sunil__: I am 99% sure you will find any activity against opscode/cookbooks is being ignored.
+[2012-10-11 02:37:08 -0400] sunil__: very useful patch though :)
+[2012-10-11 02:37:30 -0400] z: the patch could solve cancer, and if it wasn't submitted in the right way, it wouldn't benefit anyone ;)
+[2012-10-11 02:39:47 -0400] sunil__: :) good one z..
+[2012-10-11 03:18:25 -0400] miah: hi
+[2012-10-11 04:51:56 -0400] zts: hola miah
+[2012-10-11 05:57:05 -0400] BryanWB_: ohai chefs!
+[2012-10-11 06:02:55 -0400] sameersegal: Does knife ec2 support spot instances? Whats the best way to deploy ec2 spot instances with chef
+[2012-10-11 06:02:55 -0400] zts: hola BryanWB_
+[2012-10-11 06:05:46 -0400] jcwdev: heya guys, anyone know how i can make the deploy resource NOT attempt to symlink the default database.yml before migrate? i have set migrate = false but to no avail
+[2012-10-11 06:15:33 -0400] zts: jcwdev: from a look at the docs, I'd suggest setting symlink_before_migrate to {}
+[2012-10-11 06:15:46 -0400] jcwdev: yeah, have done as well
+[2012-10-11 06:15:51 -0400] jcwdev: no go
+[2012-10-11 06:17:34 -0400] zts: jcwdev: hm, can you pastebin your recipe?  The code agrees that that should do it...
+[2012-10-11 06:17:36 -0400] jcwdev: http://pastie.org/5033616
+[2012-10-11 06:17:47 -0400] zts: also, which version of chef-solo/chef-client are you on?
+[2012-10-11 06:19:22 -0400] jcwdev: 10.12.0
+[2012-10-11 06:19:48 -0400] jcwdev: vagrant + solo at the moment, but also run against chef-server in ec2
+[2012-10-11 06:22:21 -0400] heathkit: I'm going to be installing openstack with chef soon
+[2012-10-11 06:22:38 -0400] heathkit: I've found the github, I'm just wondering if there's some mailing list or something I should be following as well
+[2012-10-11 06:22:43 -0400] zts: jcwdev: hm, can you also pastebin debug logs of a run that shows it happening?
+[2012-10-11 06:23:10 -0400] jcwdev: sure - i may have to sanitize them. how much do you want?
+[2012-10-11 06:24:20 -0400] zts: jcwdev: actually, nevermind - it doesn't look like it's going to log anything useful
+[2012-10-11 06:24:35 -0400] zts: jcwdev: there will be an info-level log saying "<resource> made pre-migration symlinks"
+[2012-10-11 06:24:38 -0400] zts: but no detail beyond that
+[2012-10-11 06:24:49 -0400] jcwdev: yup, thats what i see
+[2012-10-11 06:25:20 -0400] zts: unfortunately, it'll say that whether or not it actually does anything
+[2012-10-11 06:26:12 -0400] jcwdev: pm'd you the INFO msg i got but it describes the FATAL
+[2012-10-11 06:26:20 -0400] jcwdev: that stops the chef run
+[2012-10-11 06:26:50 -0400] zts: thanks
+[2012-10-11 06:27:19 -0400] zts: I'm short of ideas, I'm afraid.  If you're feeling adventurous, I'd suggest adding some more log statements to the run_symlinks_before_migrate method in lib/chef/provider/deploy.rb
+[2012-10-11 06:28:09 -0400] zts: you could also try changing symlink_before_migrate in your resource to something like : { 'foo' => 'bar' }
+[2012-10-11 06:28:15 -0400] jcwdev: alright - will do then :)
+[2012-10-11 06:28:22 -0400] zts: that's clearly invalid, but that should give you a new and different error
+[2012-10-11 06:28:33 -0400] zts: if it doesn't, then at least you know the problem is that that parameter is being ignored
+[2012-10-11 06:31:54 -0400] jcwdev: crazy thing is, it only does it on the first run
+[2012-10-11 06:32:05 -0400] jcwdev: every subsequent run goes cleanly
+[2012-10-11 06:40:56 -0400] jcwdev: 161 def migrate
+[2012-10-11 06:40:57 -0400] jcwdev: 162         run_symlinks_before_migrate
+[2012-10-11 06:40:58 -0400] jcwdev: 163
+[2012-10-11 06:40:59 -0400] jcwdev: 164         if @new_resource.migrate
+[2012-10-11 06:41:00 -0400] jcwdev: 165           enforce_ownership
+[2012-10-11 06:41:10 -0400] jcwdev: oops, wrong box
+[2012-10-11 06:41:49 -0400] jcwdev: well, anyhow thats where the migrate method runs the pre-hooks before it checks for whether migration is enabled.
+[2012-10-11 06:43:18 -0400] jcwdev: ( in lib/chef/providerdeploy.rb)
+[2012-10-11 06:43:37 -0400] jcwdev: provider/deploy.rb *
+[2012-10-11 06:43:40 -0400] jcwdev: man it's late :/
+[2012-10-11 06:45:57 -0400] zts: yeah, it also runs that method in link_tempfiles_to_current_release
+[2012-10-11 06:46:57 -0400] jcwdev: i must be missing something, cause that doesn't feel right
+[2012-10-11 06:47:50 -0400] zts: I can kind of forgive that being run independently of the migration setting, but it should really let you give it an empty set of things to symlink
+[2012-10-11 06:47:58 -0400] zts: ah
+[2012-10-11 06:48:06 -0400] zts: so, there's no test to validate whether you can give it an empty hash
+[2012-10-11 06:48:13 -0400] zts: I've just added one, and it fails
+[2012-10-11 06:49:02 -0400] zts: so I think that's the problem - that part in your resource silently leaves symlink_before_migrate set to its default, which is the database.yml symlink
+[2012-10-11 06:49:04 -0400] jcwdev: maybe i can just give it a harmless /tmp/nothing -> /dev/null
+[2012-10-11 06:49:14 -0400] jcwdev: for the moment
+[2012-10-11 06:49:16 -0400] zts: yeah, try something along those lines
+[2012-10-11 06:49:34 -0400] jcwdev: thanks for digging with me there man. i appreciate that.
+[2012-10-11 06:49:37 -0400] zts: no problem
+[2012-10-11 06:49:52 -0400] zts: if you have a moment, please create a ticket for it too - it sounds like a bug to me
+[2012-10-11 06:50:07 -0400] jcwdev: i will do it. but maybe tomorrow :)
+[2012-10-11 06:50:18 -0400] jcwdev: when i can type better!
+[2012-10-11 06:50:29 -0400] zts: that's fair :)
+[2012-10-11 06:50:59 -0400] jcwdev: worst thing: stoner bug reports.
+[2012-10-11 06:51:20 -0400] jcwdev: at this point I'm tired enough i might as well be.
+[2012-10-11 06:52:31 -0400] zts: "Expected result: deploy resource creates no symlink.  Actual result: deploy resource harshed my vibe :("
+[2012-10-11 06:55:53 -0400] jcwdev: bwahahaa
+[2012-10-11 06:55:56 -0400] jcwdev: indeed
+[2012-10-11 07:03:22 -0400] jcwdev: doh! -and they're relative paths, so i'll actually have to touch a file in shared and symlink it into the deploy. wow.
+[2012-10-11 07:08:19 -0400] jcwdev: but that did it - runs first time now - still curious about why it is only on the first run, but not so much tonight.
+[2012-10-11 08:20:09 -0400] benner: it is possible to have execute execute block/resources, and pass parameters from other resource via notification? I mean when file shanges i run common block and pass file name as parameter
+[2012-10-11 09:32:52 -0400] Leeky: Hi. I've created a new cookbook called "github" with a custom definition (which runs a bunch of resources). I'm trying to run it from a recipe called "test". All is ok, until it reaches a "template" resource...
+[2012-10-11 09:33:24 -0400] Leeky: I get an error saying it looked for the template source under the 'test' recipe, rather than in the 'github' recipe where it's actually defined.
+[2012-10-11 09:33:31 -0400] Leeky: Any ideas?
+[2012-10-11 09:33:39 -0400] _rc: use the cookbook parameter
+[2012-10-11 09:34:10 -0400] Leeky: _rc: so just "cookbook 'github'" inside the template resource block..?
+[2012-10-11 09:35:53 -0400] Leeky: _rc: I completely missed that 'cookbook' parameter in the wiki... must have wiki-blindness. Anyway, thanks :)
+[2012-10-11 09:52:14 -0400] masterkorp: Can i make knife ssh execute commands on the next node only when the previous node finished ?
+[2012-10-11 10:10:58 -0400] tknerr: hi chefs!
+[2012-10-11 10:11:24 -0400] tknerr: what
+[2012-10-11 10:11:41 -0400] tknerr: what's the easiest way to see the actual attributes of a node?
+[2012-10-11 10:12:32 -0400] tknerr: i.e. the real state of the attributes after overrides from node attributes / recipes / roles / environments
+[2012-10-11 10:26:08 -0400] masterkorp: http://a3.sphotos.ak.fbcdn.net/hphotos-ak-ash4/467082_112555382205100_159117657_o.jpg
+[2012-10-11 10:32:37 -0400] flashingpumpkin: hey guys - how can I change the webui admin's password?
+[2012-10-11 10:34:26 -0400] kristaps: I told yesterday that I had problems installing 10.14.4 on Ubuntu 12.04, but had a working 10.14.2 installation
+[2012-10-11 10:35:05 -0400] kristaps: today I built a local apt repo which allowed me to install 10.14.2, but I'm experiencing the same exact problems as when trying to install 10.14.4
+[2012-10-11 10:35:13 -0400] flashingpumpkin: kristaps, I've ran into issues with 12.04 too. turned out I had to install build-essentials manually before bootstrapping chef server
+[2012-10-11 10:35:38 -0400] kristaps: flashingpumpkin: will try that
+[2012-10-11 10:36:07 -0400] tknerr: kristaps: have you tried bootstrapping use knife-server?
+[2012-10-11 10:36:17 -0400] tknerr: http://fnichol.github.com/knife-server/
+[2012-10-11 10:36:36 -0400] tknerr: worked flawlessly on Ubuntu 12.04 with 10.14.4
+[2012-10-11 10:37:49 -0400] kristaps: tknerr: Thanks, noted, I'll take look if I can't get a normal install going
+[2012-10-11 10:47:50 -0400] tknerr: kristaps: yes you should. it is so easy to setup / backup / restore chef servers with it. you will never do it manually afterwards again :-)
+[2012-10-11 10:48:28 -0400] tknerr: kristaps: it even creates the admin and validation keys and places it to your local disk as defined in the knife.rb
+[2012-10-11 10:59:05 -0400] kristaps: Installing build-essentials didn't help
+[2012-10-11 10:59:50 -0400] kristaps: If any developers would like to reproduce the problem, I was using EC2 with ami-db595faf
+[2012-10-11 11:38:10 -0400] kristaps: Got it working, apparently leaving the rabbitmq password blank is a big no no
+[2012-10-11 11:38:43 -0400] kristaps: Whom do I bug to update http://wiki.opscode.com/display/chef/Installing+Chef+Server+on+Debian+or+Ubuntu+using+Packages ?
+[2012-10-11 11:39:03 -0400] kristaps: (to warn about using a blank rabbitmq password)
+[2012-10-11 11:45:14 -0400] jonlives: kristaps: you can register and edit it yoruself :)
+[2012-10-11 12:24:06 -0400] kristaps: jonlives: great, updated the doc
+[2012-10-11 12:25:24 -0400] Lunar_Lamp: I'm building a test chef setup and have installed a chef server, and now am trying to bootstrap nodes.  I'm using --bootstrap-proxy because I'm behind a proxy, which works fine for downloading everything, but chef still tries to use this same proxy to connect to the local chef-server at the end of the process, meaning things don't work properly (the node does not get created). Is there a way around this?
+[2012-10-11 13:13:14 -0400] zeroXten: using something like Chef::Recipe::MyBlah in my library, what do I need to do to be able to read node attributes?
+[2012-10-11 13:18:47 -0400] fish_: hrm.. how do I delete normal node attribute? trying to do node.normal_attrs.delete("foo.bar.baz") with a save afterwards and it looks like it's not working
+[2012-10-11 13:20:14 -0400] dwhsix: ok, why the heck is bundler insisting on installing an old version of chef (0.8.10) on my macbook?  wth?
+[2012-10-11 13:20:42 -0400] fish_: hrm trying node.normal_attr[:foo][:bar].delete("baz"), maybe that works
+[2012-10-11 13:27:15 -0400] dwhsix: weird so if I force the chef version in my Gemfile, e.g.
+[2012-10-11 13:27:23 -0400] dwhsix: gem 'chef', '=10.14.4'
+[2012-10-11 13:27:33 -0400] dwhsix: then it installs that version.  otherwise it installs a really old version
+[2012-10-11 13:27:35 -0400] dwhsix: any ideas?
+[2012-10-11 13:36:43 -0400] masterkorp: Can i use node attributes on knife ssh
+[2012-10-11 13:38:29 -0400] laurent\: sure
+[2012-10-11 13:39:24 -0400] masterkorp: can i use cat /etc/logroate.d/node["name"]
+[2012-10-11 13:39:32 -0400] masterkorp: for example
+[2012-10-11 13:40:41 -0400] laurent\: afaik, no
+[2012-10-11 13:41:39 -0400] masterkorp: aww
+[2012-10-11 14:01:29 -0400] ashb: NameError: uninitialized constant Chef::Extensions
+[2012-10-11 14:01:41 -0400] ashb: is that something from a more recent version of Chef or something that a coworker has added?
+[2012-10-11 14:04:05 -0400] laurent\: masterkorp: not sure it was a real example but cat /etc/logrotate.d/$(</etc/hostname) should do
+[2012-10-11 14:06:12 -0400] masterkorp: no, just an example hostname does not do it
+[2012-10-11 14:06:34 -0400] masterkorp: Another question, can i execute the commands one after each other
+[2012-10-11 14:12:22 -0400] zeroXten: if I'm creating a library class in Chef::Recipe, why can't I access data_bag and data_bag_item?
+[2012-10-11 14:17:49 -0400] LennyLinux: Hi, is a regular behavior that after turn off and on again the Chef Server, there aren't cookbooks on the server? Should i upload the cookbooks each time?
+[2012-10-11 14:22:18 -0400] masterkorp: Can i define my username on knife.rb ?
+[2012-10-11 14:24:29 -0400] ardell: register foobar
+[2012-10-11 14:28:57 -0400] _rc: masterkorp: yes, it's your node_name
+[2012-10-11 14:30:33 -0400] LennyLinux: Are the cookbooks i upload to the server persistent?
+[2012-10-11 14:31:44 -0400] masterkorp: _rc: that replaces -x username on knife ssh and so on ?
+[2012-10-11 14:32:10 -0400] _rc: masterkorp: no, it's the client name you have on the server
+[2012-10-11 14:32:19 -0400] _rc: that's going to be some other variable.
+[2012-10-11 14:35:18 -0400] masterkorp: i just want to set a default param like username "username" on knife.rb
+[2012-10-11 14:35:53 -0400] _rc: what happens when you try doing just that?
+[2012-10-11 14:36:35 -0400] masterkorp: let me c
+[2012-10-11 14:42:42 -0400] gyre008: how can I notify a resource from within LWRP ? Im creating a template in my LWRP and need to notify a resource which is defined in a different recipe but it's in the same runlist as the recipe I'm using LWRP in...
+[2012-10-11 14:43:04 -0400] gyre008: looks like regular notify doesn't seem to be working

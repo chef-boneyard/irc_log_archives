@@ -1,0 +1,571 @@
+[2012-09-20 01:08:42 -0400] carlp: Greetings!  I'm trying to build the omnibus-server-full and getting the error "chef-expander requires eventmachine (~> 0.12.10, runtime)".  I'm not sure where to add this dependency, any pointers?
+[2012-09-20 01:19:14 -0400] rocket: can anyone help me with a notifies :delayed question?  I am trying to trigger when the delayed notification would then run again
+[2012-09-20 01:20:31 -0400] rocket: nevermind I think I have it figured out ..
+[2012-09-20 01:51:42 -0400] rocket: does the execute resource support command chaining?
+[2012-09-20 02:35:10 -0400] yfeldblum: rocket, what do you mean by chaining?
+[2012-09-20 02:36:14 -0400] rocket: execute "command 1;command 2;command 3"       I worked around my problem though
+[2012-09-20 02:36:48 -0400] rocket: one of my commands wasnt returning an exit code of zero .. but I broke it apart in my recipe and that worked to get what I needed
+[2012-09-20 02:37:21 -0400] rocket: jfeldblum though I am now trying to figure out a provider question re load_current_resource
+[2012-09-20 02:38:51 -0400] rocket: I have a call to a remote system that is very expensive .. I would like to have that call be cashed etc ...
+[2012-09-20 02:40:57 -0400] yfeldblum: rocket, so cache it :P
+[2012-09-20 02:42:01 -0400] rocket: yfeldblum: I dont know enough ruby yet .. :p
+[2012-09-20 02:42:20 -0400] rocket: I am hoping I find an example .. I am searching through other cookbooks at the moment
+[2012-09-20 02:42:45 -0400] hoover_damm: yfeldblum, when people want to 'chain' a set of commands it's usually because they are new to CM and are trying to represent a 'bunch of commands' in chef.
+[2012-09-20 02:42:59 -0400] hoover_damm: yfeldblum, so they're looking for some silly way to notify the next command to run
+[2012-09-20 02:43:07 -0400] hoover_damm: and if that works, it would then notify the next
+[2012-09-20 02:43:10 -0400] hoover_damm: and so forth
+[2012-09-20 02:43:18 -0400] yfeldblum: rocket, do you know how to use ruby instance variables?
+[2012-09-20 02:43:21 -0400] hoover_damm: yfeldblum, that's from my experience training
+[2012-09-20 02:43:27 -0400] hoover_damm: what i've seen from people
+[2012-09-20 02:44:04 -0400] rocket: hoover_damm: yes I was trying to stop processes and start them outside the normal services routine ..
+[2012-09-20 02:44:18 -0400] yfeldblum: hoover_damm, i agree, but i usually like to ask each person what he means, because you never know in any individual case whether that rule applies
+[2012-09-20 02:44:25 -0400] rocket: hoover_damm: what is the better way to do it?
+[2012-09-20 02:45:53 -0400] hoover_damm: rocket, creating idempotent execute resources is generally very unique
+[2012-09-20 02:46:12 -0400] hoover_damm: rocket, if your command creates a file... you can always use the creates option
+[2012-09-20 02:46:25 -0400] hoover_damm: execute "untar sommething" do creates something command "bob" end
+[2012-09-20 02:46:28 -0400] rocket: gotcha .. I have it working .. unfortunately it doesnt create a file ..
+[2012-09-20 02:46:35 -0400] hoover_damm: which evaluates out as a not_if ::File.exists?
+[2012-09-20 02:46:57 -0400] hoover_damm: right that's the problem with running a set of commands
+[2012-09-20 02:47:01 -0400] anthroprose: or uses 'creates'
+[2012-09-20 02:47:05 -0400] hoover_damm: you really can't create a idempotent path
+[2012-09-20 02:47:06 -0400] rocket: eg in this case I need to stop zenoss daemons, but since I have updated the daemons.txt file not all the daemons that were previously running as part of the zenoss service will stop
+[2012-09-20 02:47:09 -0400] hoover_damm: anthroprose, that was stated
+[2012-09-20 02:47:18 -0400] anthroprose: ah, didnt get that one
+[2012-09-20 02:48:00 -0400] rocket: so I needed to service zenoss stop ... then pkill -9 -f /opt/zenoss    to stop any remaining daemons and then service zenoss start
+[2012-09-20 02:48:22 -0400] hoover_damm: that's not a very good pattern
+[2012-09-20 02:49:01 -0400] hoover_damm: you could just do service "zenoss" do action :stop end and then an execute block that checks if it's running and then kill it... and then start it
+[2012-09-20 02:49:15 -0400] hoover_damm: but that's not very idempotent
+[2012-09-20 02:49:21 -0400] hoover_damm: (able?)
+[2012-09-20 02:50:06 -0400] rocket: well I think I have this working in all of my current failure modes ..
+[2012-09-20 02:53:04 -0400] hoover_damm: rocket, do you want this to happen on each chef run?
+[2012-09-20 02:53:36 -0400] rocket: no I have this only running if a certain template file notifies the restart
+[2012-09-20 02:53:49 -0400] rocket: eg the restart only happens if daemons.txt is changed
+[2012-09-20 02:54:48 -0400] hoover_damm: so you would stop the daemons before you change the file? then change it? then start them?
+[2012-09-20 02:55:39 -0400] rocket: I would .. but I was trying to not stop the daemons if there wasnt a change to the daemons.txt file
+[2012-09-20 02:57:24 -0400] hoover_damm: then you should inspet the local daemons running, determine your change
+[2012-09-20 02:57:31 -0400] hoover_damm: and then if you would change it, then you would stop them
+[2012-09-20 02:58:14 -0400] rocket: in this case it shows my newness to ruby and chef ..
+[2012-09-20 02:58:32 -0400] rocket: I understand the theory but not necessarily the execution
+[2012-09-20 02:59:42 -0400] rocket: the determining the change piece has me confused ..
+[2012-09-20 03:01:53 -0400] yfeldblum: rocket, if, in a provider, you want to cache info, you can store that info in an instance variable
+[2012-09-20 03:07:13 -0400] rocket:  ah ok .. thanks :)
+[2012-09-20 03:12:37 -0400] hoover_damm: yep, store the amount running
+[2012-09-20 03:12:46 -0400] hoover_damm: then review it on the next run, if they're different
+[2012-09-20 03:15:04 -0400] williamherry: there some one opened a ticket and I want to resolve that issue, how to do that, I forked yum repo but pull request is not clickable
+[2012-09-20 03:15:05 -0400] rocket: hoover_damm: where would I store it?  and am I doing this in a lwrp at this point for the extra control?
+[2012-09-20 03:15:47 -0400] hoover_damm: rocket, you could go the extreme of lwrp but you'd just store it in the a node entry
+[2012-09-20 03:16:48 -0400] rocket: ah I see .. I really keep forgetting I have a place to store stuff in the nodes list ..
+[2012-09-20 03:16:49 -0400] williamherry: i already assign it to me
+[2012-09-20 03:17:56 -0400] rocket: hoover_damm: so I would create an entry called current_daemons for example and if that doesnt match the entry I have for daemons then stop and edit and start and then update the current daemons element ... correct?
+[2012-09-20 03:19:46 -0400] hoover_damm: rocket, correct
+[2012-09-20 03:20:22 -0400] rocket: got it .. thanks :)
+[2012-09-20 03:21:09 -0400] rocket: now I just need to learn how to set breakpoints with chef so I can step through my lwrp's to make my life a bit easier ..
+[2012-09-20 03:21:20 -0400] rocket: when developing code
+[2012-09-20 03:26:02 -0400] anthroprose: anyone have any insight into the chef cleanup process (cache clearing, etc...) that would result in a ERESTARTNOHAND being sent to the rabbitmq-server service?
+[2012-09-20 03:26:44 -0400] anthroprose: select(0, NULL, NULL, NULL, NULL)       = ? ERESTARTNOHAND (To be restarted) --- SIGHUP (Hangup) @ 0 (0) ---
+[2012-09-20 03:27:18 -0400] anthroprose: happens right around [Wed, 19 Sep 2012 23:24:13 -0400] INFO: Running report handlers
+[2012-09-20 03:29:15 -0400] anthroprose: it also happens if you ctrl-c out of a bootstrap
+[2012-09-20 03:31:30 -0400] hoover_damm: anthroprose, sounds like it's holding onto stdout
+[2012-09-20 03:31:32 -0400] hoover_damm: or stderr
+[2012-09-20 03:31:46 -0400] hoover_damm: anthroprose, and when chef finishes ... it obviously wants to close file handles
+[2012-09-20 03:31:47 -0400] hoover_damm: to exit
+[2012-09-20 03:31:52 -0400] rocket: is shef the right tool for debugging lwrp hoover_damm?
+[2012-09-20 03:32:03 -0400] hoover_damm: rocket, that's a good start
+[2012-09-20 03:32:16 -0400] bluepojo: I'm working on the mysql cookbook for some reason the execute "mysql-install-privileges" fires before the mysql server starts all the way up and the chef-client run fails is there anyway to say "wait till X process is running before executing this resource"?
+[2012-09-20 03:32:18 -0400] hoover_damm: rocket, there's no perfect way to debug ... log statements work, so does shef
+[2012-09-20 03:32:19 -0400] rocket: or is there a better way to do it?
+[2012-09-20 03:32:30 -0400] bluepojo: running chef-client a second time works fine
+[2012-09-20 03:32:34 -0400] hoover_damm: rocket, no better way
+[2012-09-20 03:32:38 -0400] bluepojo: cause, presumably, the mysql server is up by that point
+[2012-09-20 03:33:05 -0400] hoover_damm: bluepojo, you could always have it test to verify the mysql server is up and if it is... then proceed
+[2012-09-20 03:33:13 -0400] anthroprose: hoover: makes sense.. I was using the service provider, but I switched to an execute, and its still doing it
+[2012-09-20 03:33:31 -0400] rocket: hoover_damm: shef is a has full access to the ruby debugger routines or is it a limited subset?
+[2012-09-20 03:33:39 -0400] anthroprose: so I'm assuming its most likely rabbit at this point.. because none of my other services are affected
+[2012-09-20 03:33:42 -0400] hoover_damm: rocket, indeed
+[2012-09-20 03:33:47 -0400] anthroprose: f'n weird tho because its pretty stock
+[2012-09-20 03:33:49 -0400] bluepojo: hoover_damm: how would I do that check at convergence time?
+[2012-09-20 03:34:59 -0400] hoover_damm: bluepojo, in the past i've done this with a library and just 'dbi' to create a resource guard to basically connect to mysql and once it can... moves on
+[2012-09-20 03:35:27 -0400] bluepojo: ah ok
+[2012-09-20 03:35:35 -0400] bluepojo: cool, I'll take a look at that
+[2012-09-20 03:35:36 -0400] bluepojo: ty
+[2012-09-20 03:35:36 -0400] hoover_damm: bluepojo, looking back i'd prolly actually make this just a resource and run that before that
+[2012-09-20 03:35:43 -0400] bluepojo: fair enough
+[2012-09-20 03:36:00 -0400] hoover_damm: bluepojo, require 'dbi' and then just DBI.connect("DBI:Mysql:databasename:host","user","password")
+[2012-09-20 03:36:09 -0400] hoover_damm: rescue DBI::DatabaseError => e
+[2012-09-20 03:36:12 -0400] hoover_damm: sleep 3
+[2012-09-20 03:36:13 -0400] hoover_damm: retry
+[2012-09-20 03:36:56 -0400] hoover_damm: you could also loop until mysqladmin ping works and then load it prolly
+[2012-09-20 04:00:59 -0400] erikh: hoover_damm: don't use ruby-dbi.
+[2012-09-20 04:01:44 -0400] erikh: feh!
+[2012-09-20 04:02:04 -0400] erikh: honestly though, if you guys see value in it, I started (and mostly completed) a much faster, cleaner rewrite of ruby-dbi
+[2012-09-20 04:02:07 -0400] erikh: http://github.com/rdbi
+[2012-09-20 04:02:28 -0400] erikh: it even has better docs.
+[2012-09-20 04:03:18 -0400] erikh: I'm not exactly going to hide my excitement if someone wants to take the maintainership off my hands or anything
+[2012-09-20 04:04:27 -0400] yfeldblum: erikh, the rslavery is all yours :D
+[2012-09-20 04:04:54 -0400] erikh: well, ruby-dbi has some seriously fundamental design issues, especially in 1.9
+[2012-09-20 04:05:11 -0400] erikh: I took maintainership of it in ... 2006 I think, it wasn't even capable of being packaged as gems back then
+[2012-09-20 05:20:25 -0400] emanu: good evening, anyone here?
+[2012-09-20 06:34:56 -0400] Axsuul: Does anyone here use the varnish cookbook from opscode?
+[2012-09-20 08:56:06 -0400] railsraider: hi, i am doing  a aptitude safe-upgrade on my cookbook and it has a debconf screen
+[2012-09-20 08:56:14 -0400] railsraider: anyone had luck automating that?
+[2012-09-20 09:01:00 -0400] railsraider: think i found a good answer here: http://askubuntu.com/questions/187337/unattended-grub-configuration-after-kernel-upgrade
+[2012-09-20 09:02:01 -0400] gyre007: oh boy...chef-client is leaking memory like a champion!
+[2012-09-20 09:02:04 -0400] gyre007: nasty
+[2012-09-20 09:03:44 -0400] gyre007: when run as a daemon...
+[2012-09-20 09:04:17 -0400] gyre007: I have to kill the daemons regularly as they don't even stop when I try to restart them with the init scripts....uhh
+[2012-09-20 09:05:06 -0400] lflux: what's the easiest way to chef my chef-server?
+[2012-09-20 09:05:10 -0400] lflux: it's already up and running.
+[2012-09-20 09:08:56 -0400] cpasmoi: gyre007, had the same issue
+[2012-09-20 09:09:10 -0400] cpasmoi: well, in fact not me, the previous sysadmin
+[2012-09-20 09:20:40 -0400] gyre007: cpasmoi, how did you resolve it ? :)
+[2012-09-20 09:21:10 -0400] cpasmoi: ahem
+[2012-09-20 09:21:57 -0400] cpasmoi: well, by disable-ing chef daemon
+[2012-09-20 09:22:18 -0400] cpasmoi: so now we have to run chef-client ourselves, which is quite unconfortable
+[2012-09-20 09:22:29 -0400] cpasmoi: since, we have an "old" chef server version
+[2012-09-20 09:22:40 -0400] flaccid_: railsraider: thats what DEBIAN_FRONTEND=noninteractive is for
+[2012-09-20 09:22:56 -0400] cpasmoi: 0.9.12
+[2012-09-20 09:23:13 -0400] railsraider: awesome now it's working smoothly flaccid_
+[2012-09-20 09:23:23 -0400] flaccid_: rightio
+[2012-09-20 09:23:26 -0400] gyre007: cpasmoi, looks like it's only happening with the omnibus one....the regular chef gem doesn't seem to be causing any issues...mmm
+[2012-09-20 09:23:51 -0400] gyre007: we have 10.12 omnibus  as we started upgrading some boxes...
+[2012-09-20 09:25:54 -0400] jmoiron: i have a provisioning system which uses fabric to query ec2 for various info and then run knife ec2 server create (lots of opts), but for whatever reason servers will sometimes (50%) just abort during the chef bootstrapping phase with "ERROR: Errno::EINVAL: Invalid argument" and knife will return code 100;  has anyone experienced this or know what might be going on?
+[2012-09-20 09:35:38 -0400] gyre007: cpasmoi, looks like there is  a solution... http://tickets.opscode.com/browse/CHEF-3432
+[2012-09-20 09:35:44 -0400] gyre007: upgrade to the 10.14 :)
+[2012-09-20 09:36:07 -0400] cpasmoi: \o/
+[2012-09-20 09:37:12 -0400] cpasmoi: with the -f option, ok
+[2012-09-20 09:37:40 -0400] cpasmoi: thank you, I'll keep the link for the moment I'll choose to upgrade to 10.x
+[2012-09-20 09:41:30 -0400] gyre007: no probs
+[2012-09-20 09:42:46 -0400] gyre007: is there any easy procedure how to upgrade omnibus 10.12 to 10.14 ?
+[2012-09-20 09:50:29 -0400] anentropic: creating nodes...  I did a `knife ec2 server create -N new_node_name`
+[2012-09-20 09:50:43 -0400] anentropic: but it didn't use the name I passed in
+[2012-09-20 09:51:24 -0400] anentropic: was I supposed to create the node first, eg via the web UI, then give knife the name of the existing node to associate the created server with?
+[2012-09-20 09:53:52 -0400] Unicron_: morning!
+[2012-09-20 09:56:12 -0400] gyre007: if I get it correctly then -f is just daemon option...
+[2012-09-20 09:56:17 -0400] shamu: Hello everyone :)
+[2012-09-20 09:56:31 -0400] Unicron_: trying to install some users and have a recipe in the users cookbook that installed ruby-shadow
+[2012-09-20 09:56:52 -0400] shamu: I have a small question about chef, how do you deal with applications that use config files that are in the home folder
+[2012-09-20 09:57:01 -0400] shamu: like ~/.hgrc
+[2012-09-20 09:57:27 -0400] Unicron_: so metadata.rb altered to depend on build-essential - and recipe has include_recipe "build-essential" as the first line
+[2012-09-20 09:57:58 -0400] Unicron_: the chef_gem "ruby-shadow" do acttion :install end
+[2012-09-20 09:58:37 -0400] anentropic: shamu... specifically for mercurial there is a global config file in /etc/mercurial/hgrc too
+[2012-09-20 09:58:45 -0400] shamu: oh cool i'll use that
+[2012-09-20 09:58:56 -0400] shamu: http://www.selenic.com/mercurial/hgrc.5.html doesnt mention it T_T
+[2012-09-20 09:59:07 -0400] shamu: thx
+[2012-09-20 09:59:10 -0400] Unicron_: cookbook uploaded and applied to run list of a node, I can see the builds-essential cookbook gets passed to the node as expected by the depends in the metadata, howerver, build-essential does not install before it attempts to compile ruby-shadow and so fails
+[2012-09-20 09:59:20 -0400] Unicron_: am I doing something stupidly ovbiously wrong?
+[2012-09-20 09:59:50 -0400] anentropic: shamu: in order to successfully pip install from mercurial repos I had to fork the mercurial cookbook to configure that file a bit https://github.com/anentropic/mercurial
+[2012-09-20 09:59:52 -0400] _rc: Unicron_: read the documentation for build-essential, there's an attribute you can use
+[2012-09-20 10:00:15 -0400] shamu: I was trying to work from https://github.com/opscode-cookbooks/mercurial
+[2012-09-20 10:00:25 -0400] shamu: yours is better ? :P
+[2012-09-20 10:02:05 -0400] Unicron_: _rc, wondered what the compile time flag was for :) thanks - I'll try that immediatley
+[2012-09-20 10:07:10 -0400] anentropic: shamu: mine is a fork of that cookbook, just adds extra recipe to configure the hgrc file from a template
+[2012-09-20 10:32:52 -0400] anentropic: is there a fix yet for the mess with knife command line options vs knife.rb config options?
+[2012-09-20 10:33:32 -0400] anentropic: it's quite tedious having to specify everythign as command line options in order to get shit to work
+[2012-09-20 10:45:06 -0400] yfeldblum: anentropic, what is this mess?
+[2012-09-20 10:47:50 -0400] anentropic: yfeldblum if you dont specify options on the command line to knife it will override values that are specified in knife.rb with default values, so you have to give everything on the command line
+[2012-09-20 10:48:24 -0400] anentropic: I saw a ticket for it already somewhere
+[2012-09-20 10:50:32 -0400] yfeldblum: anentropic, ah
+[2012-09-20 10:52:57 -0400] anentropic: yfeldblum: ah here it is, looks fixed but not in release version yet http://tickets.opscode.com/browse/KNIFE_EC2-80
+[2012-09-20 10:53:20 -0400] anentropic: yfeldblum: are there instructions for installing from source anywhere?
+[2012-09-20 10:53:42 -0400] jakubsh: Hi, I'm debuging my recipe on node, using shef -z. However when I do include_recipe "mycookbook::myrecipe" I get big array output, but resources array is empty. btw I don't know if this channel is for support or just for developing chef
+[2012-09-20 10:54:11 -0400] yfeldblum: anentropic, `git clone ... ; rake install`?
+[2012-09-20 10:54:22 -0400] yfeldblum: anentropic, that's the common pattern anyway among ruby gems
+[2012-09-20 10:54:37 -0400] anentropic: yfeldblum, will give it a go cheers
+[2012-09-20 10:55:02 -0400] anentropic: oh it's only knife-ec2 plugin, thought I might have to do all of chef
+[2012-09-20 10:55:34 -0400] Unicron_: _rc, it worked with a node.override['build-essential']['compiletime'] = true in the recipe - thanks for the heads up :)
+[2012-09-20 11:26:19 -0400] anentropic: I need a fix that's in Chef "10-stable" branch... is there a way to install that via gem or apt-get ?
+[2012-09-20 11:26:25 -0400] anentropic: re http://tickets.opscode.com/browse/CHEF-3431
+[2012-09-20 11:36:14 -0400] rgsteele: With respect to definitions, do parameters have to be explicitly specified when utilizing the definition if they have defaults set?
+[2012-09-20 11:37:12 -0400] rgsteele: Nevermind - RTFM
+[2012-09-20 11:37:33 -0400] rgsteele: Funny how it doesn't jump out at you until you've opened your mouth >_>
+[2012-09-20 11:38:44 -0400] anentropic: in the meantime anyone know if it is safe to delete node records from chef server directly via couchdb?
+[2012-09-20 11:51:10 -0400] shamu: anentropic : you can put the branch in your gemfile
+[2012-09-20 11:51:35 -0400] shamu: gem "nokogiri", :git => "git://github.com/tenderlove/nokogiri.git", :branch => "1.4"
+[2012-09-20 11:51:38 -0400] shamu: like so
+[2012-09-20 11:52:26 -0400] anentropic: from a bash prompt?
+[2012-09-20 11:52:26 -0400] shamu: (if you use bundler)
+[2012-09-20 11:52:34 -0400] anentropic: oh, I'm not
+[2012-09-20 11:52:46 -0400] anentropic: its the branch of chef itself
+[2012-09-20 11:54:22 -0400] shamu: yep you'd have a bunlder gemfile with gem "chef", :git => "https://github.com/opscode/chef", :branch => "10-stable"
+[2012-09-20 11:54:27 -0400] shamu: then run bundle install
+[2012-09-20 11:55:29 -0400] shamu: give bundler a try :) it's a pretty usefull gem
+[2012-09-20 11:56:58 -0400] anentropic: shamu:  thanks that's a great tip, I only learnt Ruby through using Chef
+[2012-09-20 11:57:07 -0400] shamu: I come from Rails :)
+[2012-09-20 11:57:08 -0400] anentropic: if only there was a gem for gluing back all the hair I've lost
+[2012-09-20 11:57:28 -0400] shamu: nah that's only possible in python
+[2012-09-20 11:57:35 -0400] shamu: "import hair"
+[2012-09-20 12:01:05 -0400] yfeldblum: anentropic, it's not safe to delete node records directly from couchdb because you must also reindex
+[2012-09-20 12:01:27 -0400] anentropic: yfeldblum, cool thanks. I will update my chef instead
+[2012-09-20 12:03:39 -0400] anentropic: shamu: LOL
+[2012-09-20 12:03:47 -0400] anentropic: that's what I was looking for :)
+[2012-09-20 12:13:43 -0400] leifmadsen: has anyone given the minitest tests defined in the mysql cookbook a shot on chef 10.14.2 yet? I've got an issue open about it, and it blocks usage of minitest in my other cookbooks as well, but want to confirm that I'm not just doing something silly.
+[2012-09-20 12:14:10 -0400] leifmadsen: It seems if tests for cookbooks were being run regularly by (opscode?) that the issue would have been run into by now
+[2012-09-20 12:16:04 -0400] leifmadsen: CHEF-3405 for anyone interested. If a bug marshal is around and could move it to a higher priority (I know I could, but I prefer for reporters to not be the ones setting their own issue priority) that would be appreciated
+[2012-09-20 12:16:27 -0400] williamherry: I see 'get_bind_endpoint' in some cookbooks, but can't find where it from, any one know that?
+[2012-09-20 12:23:17 -0400] fixxxermet: If I have a databag allowedhosts, which contains ssh_hosts, which contains an array of adresses, how would I access addresses in a recipe?
+[2012-09-20 12:24:19 -0400] fixxxermet: adresses = data_bag_item('allowedhosts', ssh_hosts)[addresses]?
+[2012-09-20 12:26:33 -0400] _rc: if it's called ssh_hosts then that'd be data_bag_item('allowedhosts','ssh_hosts')[...] but it feels like that would be better as an attribute than a bata bag
+[2012-09-20 12:27:36 -0400] masterkorp:  http://pastie.org/private/lm87mimfhghzwisgbym7la
+[2012-09-20 12:27:51 -0400] masterkorp: Guys is that ruby_block legal ?
+[2012-09-20 12:27:57 -0400] masterkorp: http://acrmp.github.com/foodcritic/#FC009
+[2012-09-20 12:28:07 -0400] masterkorp: i get this error with foodcritic
+[2012-09-20 12:28:27 -0400] masterkorp: FC009: Resource attribute not recognised: site-cookbooks/s3_backup/recipes/config.rb:7
+[2012-09-20 12:28:43 -0400] fixxxermet: _rc: This list of addresses changes often, I usually put these kinds of dynamic things in a databag
+[2012-09-20 12:29:13 -0400] _rc: masterkorp: http://wiki.opscode.com/display/chef/Resources#Resources-RubyBlock no block do
+[2012-09-20 12:31:04 -0400] masterkorp: FC014: Consider extracting long ruby_block to library: site-cookbooks/s3_backup/recipes/config.rb:7
+[2012-09-20 12:31:07 -0400] masterkorp: thanks man
+[2012-09-20 12:31:22 -0400] masterkorp: _rc: thank you, i know that, just was blind
+[2012-09-20 12:45:19 -0400] masterkorp: http://www.youtube.com/watch?v=iTGR6IAYQAc&feature=g-vrec
+[2012-09-20 12:45:27 -0400] masterkorp: oops
+[2012-09-20 12:49:19 -0400] anentropic: I have this problem when upgrading my chef server:
+[2012-09-20 12:49:19 -0400] anentropic: Setting up chef-solr (10.14.2-1) ...
+[2012-09-20 12:49:20 -0400] anentropic:  * Starting chef-solr  chef-solr                                                                                                                                          /usr/lib/ruby/vendor_ruby/1.8/rubygems/custom_require.rb:36:in `gem_original_require': no such file to load -- chef/log (LoadError)
+[2012-09-20 12:49:20 -0400] anentropic: from /usr/lib/ruby/vendor_ruby/1.8/rubygems/custom_require.rb:36:in `require'
+[2012-09-20 12:49:20 -0400] anentropic: from /usr/lib/ruby/vendor_ruby/chef/solr/application/solr.rb:20
+[2012-09-20 12:49:21 -0400] anentropic: from /usr/lib/ruby/vendor_ruby/1.8/rubygems/custom_require.rb:36:in `gem_original_require'
+[2012-09-20 12:49:23 -0400] anentropic: from /usr/lib/ruby/vendor_ruby/1.8/rubygems/custom_require.rb:36:in `require'
+[2012-09-20 12:49:25 -0400] anentropic: from /usr/sbin/chef-solr:24
+[2012-09-20 12:49:30 -0400] masterkorp: anentropic: pastie!
+[2012-09-20 12:49:44 -0400] anentropic: a couple of other people seem to have it https://www.google.co.uk/search?q=chef-solr+%2Fusr%2Flib%2Fruby%2Fvendor_ruby%2F1.8%2Frubygems%2Fcustom_require.rb%3A36%3Ain+%60gem_original_require'%3A+no+such+file+to+load+--+chef%2Flog+(LoadError)&sugexp=chrome,mod=0&sourceid=chrome&ie=UTF-8
+[2012-09-20 12:49:53 -0400] masterkorp: anentropic: https://gist.github.com/
+[2012-09-20 12:50:08 -0400] anentropic: masterkorp: sorry, yes, too late now
+[2012-09-20 12:50:09 -0400] masterkorp: anything with 4+ lines
+[2012-09-20 12:50:35 -0400] anentropic: any idea the solution
+[2012-09-20 12:50:37 -0400] anentropic: ?
+[2012-09-20 12:51:57 -0400] masterkorp: seems like a require error
+[2012-09-20 12:52:02 -0400] masterkorp: god i hate gem
+[2012-09-20 12:52:10 -0400] masterkorp: they all specific versions
+[2012-09-20 12:52:23 -0400] masterkorp: wich leads this small number mess
+[2012-09-20 12:54:12 -0400] anentropic: I don't know where to start
+[2012-09-20 12:54:41 -0400] anentropic: masterkorp, you're suggesting there's a problem with a dependency of chef-solr?
+[2012-09-20 12:55:40 -0400] anentropic: seems like it can't find a file chef/log
+[2012-09-20 12:55:49 -0400] anentropic: I have:
+[2012-09-20 12:55:50 -0400] anentropic: $ locate chef/log
+[2012-09-20 12:55:50 -0400] anentropic: /usr/lib/ruby/vendor_ruby/chef/log.rb
+[2012-09-20 12:55:51 -0400] masterkorp: pfff man, what version are you using ? Try this, from the git repo of chef-server bundle exec command to upgarede
+[2012-09-20 12:57:03 -0400] anentropic: I was doing an apt-get upgrade chef-server
+[2012-09-20 13:17:26 -0400] lflux: Is there anyway to configure remote_file to use a proxy?
+[2012-09-20 13:18:54 -0400] lflux: all my servers are stuck behind a proxy, and setting environment variables doesn't seem to bite
+[2012-09-20 13:19:11 -0400] rocket: lflux: have you tried http_proxy_user "homie"
+[2012-09-20 13:19:14 -0400] rocket: http_proxy_pass "theclown"
+[2012-09-20 13:19:19 -0400] rocket: in the chef config?
+[2012-09-20 13:19:37 -0400] rocket: eg chef issue 1176 describes this
+[2012-09-20 13:20:57 -0400] lflux: rocket: thanks!
+[2012-09-20 13:21:03 -0400] lflux: that did the trick
+[2012-09-20 13:22:19 -0400] rocket: np
+[2012-09-20 13:26:51 -0400] lflux: man I love being able to update attributes in a role used by all nodes and have the configuration be pushed out
+[2012-09-20 13:26:56 -0400] lflux: gives me a nice warm fuzzy feeling
+[2012-09-20 13:27:46 -0400] anentropic: masterkorp, seems the problem was trying to apt-get upgrade... apt-get remove and then install seems to have worked
+[2012-09-20 13:27:54 -0400] rocket: heh I am trying to figure out a way to cache a shell call in a lwrp .. eg i have a lot of zenpacks that I am iterating through and I want to make the call to zenoss just once ..
+[2012-09-20 13:28:50 -0400] lflux: also, what's the proper way to go about this: I want to conditionally require a recipe depending on the output of a command (dmidecode)
+[2012-09-20 13:29:02 -0400] lflux: problem is, I need to install a package first to enable dmidecode
+[2012-09-20 13:29:25 -0400] lflux: so it blows up at converge time if the binary isn't installed
+[2012-09-20 13:30:13 -0400] lflux: should I just stick the package in a different recipe, include the recipe in the one that needs the output (vmware-tools, to determine if I need to install that package)
+[2012-09-20 13:31:16 -0400] rocket: lflux: something like this may be necessary http://wiki.opscode.com/pages/viewpage.action?pageId=15728818
+[2012-09-20 13:33:50 -0400] lflux: thought about that, but it seems kind of hard to implement for this (since I want to realize a package resource instead of executing yum install from an execute reseource
+[2012-09-20 13:36:05 -0400] rocket: most likely you will need two runs through .. if I were thinking about it .. I would do a begin rescue block perhaps?
+[2012-09-20 13:36:40 -0400] rocket: eg the zenoss::server recipe contains some conditionals that if the initial command fails it proceeds down another path
+[2012-09-20 13:40:22 -0400] lflux: begin rescue would definitely work
+[2012-09-20 13:56:21 -0400] ssd7: Ohai Chefs
+[2012-09-20 13:59:22 -0400] geekbri: ohai
+[2012-09-20 13:59:48 -0400] rocket: ohai ...
+[2012-09-20 14:00:24 -0400] lflux: ohai
+[2012-09-20 14:40:41 -0400] jerem`: Hi
+[2012-09-20 14:41:07 -0400] jerem`: I have a problem to start a daemon
+[2012-09-20 14:42:26 -0400] jerem`: I use notifies :start, "service[nameservice]", :immediately
+[2012-09-20 14:42:42 -0400] jerem`: the service is defined
+[2012-09-20 14:43:45 -0400] jerem`: when I run chef-client, it say that the command has been sent to start immediately the service
+[2012-09-20 14:43:53 -0400] jerem`: but I don't have service started
+[2012-09-20 14:44:06 -0400] jerem`: and indeed, the service isn't started
+[2012-09-20 14:44:15 -0400] jerem`: do you have any idea ?
+[2012-09-20 14:44:51 -0400] jerem`: the start_command is ok
+[2012-09-20 14:44:57 -0400] jerem`: no error
+[2012-09-20 14:45:47 -0400] ssd7: jerem`: Does the service start as expected if started manually.
+[2012-09-20 14:46:09 -0400] geekbri: jerem`: and if it does, is the resource sending the notification actually changing and sending a notify?
+[2012-09-20 14:46:18 -0400] geekbri: Or is it noop'ing because current_resource == new_resource
+[2012-09-20 14:46:37 -0400] geekbri: Maybe if you pasted the output of your chef run to a gist that could help.
+[2012-09-20 14:48:11 -0400] jerem`: ssd7: yes manually it start
+[2012-09-20 14:56:29 -0400] jerem`: geekbri: yes it execute the resource and send the notify
+[2012-09-20 14:56:38 -0400] jerem`: but it doesn't start the service
+[2012-09-20 14:56:39 -0400] jedi4ever: wondering if anyone has good/bad experiences with chef-solo-search ? https://github.com/edelight/chef-solo-search
+[2012-09-20 14:57:27 -0400] jerem`: 16:46 < geekbri> Or is it noop'ing because current_resource == new_resource
+[2012-09-20 14:57:31 -0400] jerem`: what do you mean ?
+[2012-09-20 14:57:52 -0400] geekbri: Well a resource will only send a notification if the resource itself updates something
+[2012-09-20 14:58:10 -0400] geekbri: jedi4ever: one of my coworkers was using it without issue I believe
+[2012-09-20 14:58:18 -0400] geekbri: (for testing)
+[2012-09-20 14:59:17 -0400] jedi4ever: geekbri: thanks , I was using it because I'm doing chef-solo and the default nagios cookbook only supports via role:searching
+[2012-09-20 14:59:44 -0400] jerem`: geekbri: yes, the resource changes something, and the notify it sent
+[2012-09-20 14:59:48 -0400] jerem`: is sent
+[2012-09-20 15:00:24 -0400] jerem`: when i run chef-client on the node, it say that it h
+[2012-09-20 15:00:36 -0400] jerem`: it launch the start command to the service
+[2012-09-20 15:00:46 -0400] jerem`: but I never have "service stared"
+[2012-09-20 15:00:49 -0400] jerem`: started
+[2012-09-20 15:01:31 -0400] jerem`: if I launch the start command manually, i've no problem
+[2012-09-20 15:03:13 -0400] geekbri: Could you gist the offending code?
+[2012-09-20 15:07:43 -0400] jerem`: geekbri: here > http://ziirish.info/y/EAv4V
+[2012-09-20 15:09:55 -0400] zeroXten: is the  webui url basically chef_server_url but on port 4040? Anyway I can have the webui only listen on localhost?
+[2012-09-20 15:10:00 -0400] jerem`: geekbri: 3 latest resources
+[2012-09-20 15:19:15 -0400] jerem`: geekbri: do you find any error in my recipe ?
+[2012-09-20 15:19:45 -0400] geekbri: Sorry I haven't looked yet, had some urgent work pop up.  I'll take a look when I get a chance
+[2012-09-20 15:20:20 -0400] jerem`: ok thanks :)
+[2012-09-20 15:22:54 -0400] jerem`: maybe, isn't possible to run a notifies into a bash resource ?
+[2012-09-20 15:23:12 -0400] jerem`: but the notifie is sent so .. :/
+[2012-09-20 15:23:57 -0400] _rc: jerem`: what service is it you're sending the start to?
+[2012-09-20 15:24:12 -0400] _rc: jerem`: is it something with a shaky home-grown init script?
+[2012-09-20 15:30:17 -0400] jerem`: _rc: in the init script i have a su - jdoe -c "command"
+[2012-09-20 15:31:33 -0400] _rc: jerem`: so it probably is ropy, and makes other assumtions about environment variables
+[2012-09-20 15:31:49 -0400] _rc: which are so when you run it in the shell, but now when chef runs it
+[2012-09-20 15:35:00 -0400] ianmatthew: can a node being bootstrapped do a search for itself succesfully?
+[2012-09-20 15:35:55 -0400] ianmatthew: does the search functionality only return server results or the does it include the node definition built so far by the intial run (but obv not yet saved to the server)
+[2012-09-20 15:36:18 -0400] geekbri: ianmatthew: search talks to solr, so if the node isn't indexed in solr it won't be returned.
+[2012-09-20 15:36:24 -0400] ianmatthew: ah
+[2012-09-20 15:36:29 -0400] ianmatthew: so a node.save is in order
+[2012-09-20 15:36:37 -0400] ianmatthew: prior to the search
+[2012-09-20 15:36:45 -0400] geekbri: Probably.
+[2012-09-20 15:37:01 -0400] ianmatthew: geekbri: cool ty
+[2012-09-20 15:41:52 -0400] jerem`: _rc: you are saying that su - jdoe -c "command" in my init script is ropy ?
+[2012-09-20 15:42:40 -0400] en0x: yeah
+[2012-09-20 15:42:41 -0400] en0x: ;d
+[2012-09-20 15:42:54 -0400] anentropic: anyone know what's up here?
+[2012-09-20 15:43:03 -0400] anentropic: $ knife node list --verbose
+[2012-09-20 15:43:05 -0400] anentropic: 500 Internal Server Error: Named route node could not be generated with {:id=>nil}
+[2012-09-20 15:43:14 -0400] anentropic: (run on the chef server)
+[2012-09-20 15:47:47 -0400] grimesjm: does anyone else run into chef-client being really slow at storing updated cookbooks? Slow being 5 seconds per file per cookbook that it pulls down
+[2012-09-20 15:53:40 -0400] grimesjm: Vagrant's ubuntu(precise64) base boxes are pulling down files and storing them around 4-5 per second but sadly the cents 6.3 boxes are 1 per every 5 seconds.. fun fun
+[2012-09-20 15:59:36 -0400] anentropic: $ knife node list --verbose
+[2012-09-20 15:59:36 -0400] anentropic: INFO: HTTP Request Returned 500 Internal Server Error: Named route node could not be generated with {:id=>nil}
+[2012-09-20 15:59:45 -0400] anentropic: I have rebuilt my index, didn't help
+[2012-09-20 16:03:34 -0400] zeroXten: is there any point in using something like gerrit with chef when you can just "knife upload" and bypass any review?
+[2012-09-20 16:04:33 -0400] masterkorp: Are github pull requests broken for anyone else " Checking for ability to automatically merge"
+[2012-09-20 16:04:40 -0400] masterkorp: this stays forever for me
+[2012-09-20 16:07:25 -0400] martinisoft: is there a good "getting started" thing for test-kitchen out there? got so far as building a few baseboxes in Bento, but how to employ them with an existing cookbook?
+[2012-09-20 16:11:09 -0400] masterkorp: martinisoft: no, i want them
+[2012-09-20 16:11:24 -0400] masterkorp: if you find something, please share
+[2012-09-20 16:12:23 -0400] martinisoft: masterkorp: I have been looking super hard and not coming up with much
+[2012-09-20 16:12:55 -0400] martinisoft: all I know is it needs a knife file after initialization but not sure what settings to put in there for vagrant?
+[2012-09-20 16:13:33 -0400] martinisoft: maybe I can poke jtimberman later, which could result in some new info in the README
+[2012-09-20 16:13:35 -0400] martinisoft: :)
+[2012-09-20 16:13:59 -0400] masterkorp: i also have problems with the gem even
+[2012-09-20 16:14:16 -0400] masterkorp: but with test-kitchen i discovered foodcritic
+[2012-09-20 16:14:35 -0400] martinisoft: yeah foodcritic rocks
+[2012-09-20 16:14:54 -0400] masterkorp: we became best friends quicly
+[2012-09-20 16:14:55 -0400] martinisoft: but I'd love to use test-kitchen to test convergence and maybe test drive cookbooks
+[2012-09-20 16:15:07 -0400] masterkorp: yeah i am using cucumber nagios
+[2012-09-20 16:15:18 -0400] masterkorp: wich is more "global"
+[2012-09-20 16:15:26 -0400] masterkorp: and limited to amazon ec2
+[2012-09-20 16:15:28 -0400] martinisoft: check out fnichol's cookbooks, he's hooked it up to travis so when he ships a cookbook it runs foodcritic and fails
+[2012-09-20 16:15:45 -0400] martinisoft: if there is an issue
+[2012-09-20 16:24:00 -0400] jedi4ever: any recommendations on a chef cookbook for nagios that doesn't require chef-server ?
+[2012-09-20 16:28:16 -0400] shamu: Hello, i'm provisioning my ubuntu machines /apt/source.list with a chef recipe, after that I want to do apt-get update but only if the template had to run
+[2012-09-20 16:28:25 -0400] shamu: is there a way I can do this ?
+[2012-09-20 16:28:49 -0400] _rc: shamu: the apt cookbook does that
+[2012-09-20 16:29:10 -0400] shamu: I tried using it
+[2012-09-20 16:29:21 -0400] shamu: but aparently it tries to connect to the ubuntu servers
+[2012-09-20 16:29:35 -0400] shamu: and my machines are behind an http proxy that prevents this
+[2012-09-20 16:30:19 -0400] shamu: can I call : not_if "grep my.ubuntu.mirror /etc/apt/sources.list" outside of a recipe ?
+[2012-09-20 16:30:35 -0400] shamu: and then put the two lwrp inside the if ?
+[2012-09-20 16:32:00 -0400] shamu: maybe I'll just make my own lwrp that does just this
+[2012-09-20 16:32:51 -0400] shamu: or since it's plain ruby just make a lib
+[2012-09-20 16:45:41 -0400] shamu: yeah I looked at the apt cookbook
+[2012-09-20 16:46:38 -0400] shamu: the first command in the default recipe is to apt-get update T_T
+[2012-09-20 16:47:44 -0400] shamu: oh but it gave me a good idea
+[2012-09-20 16:48:39 -0400] shamu: I'll have the apt-get execution to perform only if a file is absent
+[2012-09-20 16:48:57 -0400] shamu: and I'll write said file in the apt-get execution step
+[2012-09-20 16:51:02 -0400] shamu: or even better, can I just nest my lwrp calls ?
+[2012-09-20 16:51:18 -0400] shamu: hmmm I doubt it with the converge mechanism
+[2012-09-20 17:09:48 -0400] maek: anyone using the community chef-client cookbook to manage the client.rb? I have node[:chef_client][:server_url] set to something different and the node attributes reflect that but its not updating the recipe
+[2012-09-20 17:15:20 -0400] jhayden: I have a question about a demonized chef-client
+[2012-09-20 17:16:01 -0400] jhayden: I have the client setup as such /usr/bin/ruby /usr/bin/chef-client -i 300 -s 15 -S http://xx.xx.xxx.xxx:4000 -l debug -L /var/log/messages -o contentModeration
+[2012-09-20 17:16:56 -0400] jhayden: it is working ok but when the messages file rolled over, the messages from the client went with the original messages file and not the new one
+[2012-09-20 17:17:06 -0400] jhayden: Is this expected behavior?
+[2012-09-20 17:19:58 -0400] matschaffer: jhayden: I don't have the experience to say it's expected, but it's not entirely surprising. Makes me wonder if can send it a signal to have it re-open it's logs
+[2012-09-20 17:22:00 -0400] miah: possibly because its writing directly to the messages file and not using the syslog facility.
+[2012-09-20 17:22:16 -0400] miah: i tend to have chef log to /var/log/chef/chef-client.log or something similar.
+[2012-09-20 17:23:02 -0400] josephholsten: owowow, why directly to /var/log/messages?
+[2012-09-20 17:23:03 -0400] jhayden: miah: Good idea
+[2012-09-20 17:24:02 -0400] jhayden: miah: although I would want those logs to roll over also and we would be right back where we started ;-)
+[2012-09-20 17:24:14 -0400] josephholsten: you can just use syslog as documented here: http://tickets.opscode.com/browse/CHEF-1028
+[2012-09-20 17:27:43 -0400] hoover_damm: erikh, right only sadists use ruby-dbi
+[2012-09-20 17:29:52 -0400] miah: https://github.com/opscode/mixlib-log is what chef uses to configure logging if you look at https://github.com/opscode/chef/blob/master/chef/lib/chef/log.rb
+[2012-09-20 17:31:27 -0400] miah: but i don't see anything in mixlib-log, or chef itself to trap a signal and cause the logs to be re-opened. maybe i am missing something in my super quick review though.
+[2012-09-20 17:37:22 -0400] Mithrandir: miah: it uses http://www.ruby-doc.org/stdlib-1.9.3/libdoc/logger/rdoc/Logger.html, which I suspect handles it transparently. ICBW, though.
+[2012-09-20 17:37:55 -0400] miah: ah ok
+[2012-09-20 17:38:01 -0400] miah: i didnt look at logger
+[2012-09-20 17:38:30 -0400] Mithrandir: see end of https://github.com/opscode/mixlib-log/blob/master/lib/mixlib/log.rb and you see it uses Logger (and has a require 'logger' near the top)
+[2012-09-20 17:43:23 -0400] miah: ya
+[2012-09-20 17:43:37 -0400] miah: i saw that but like i said.. just a super quick look.
+[2012-09-20 17:46:55 -0400] jtimberman: martinisoft, masterkorp: I have a set of slides for a test kitchen talk, need to turn that into a screencast about it.
+[2012-09-20 17:47:41 -0400] martinisoft: jtimberman: that would be awesome! I'm eager to start test driving cookbooks
+[2012-09-20 17:48:53 -0400] jtimberman: wifi here isn't great so i may drop
+[2012-09-20 17:49:24 -0400] jtimberman: martinisoft: the kitchenfile defaults should grab the baseboxes that we publish built from bento
+[2012-09-20 17:49:38 -0400] jtimberman: though they're not updated for 10.14.2 yet
+[2012-09-20 17:50:54 -0400] chip-: jtimberman: Nice explanation on Food Fight, btw.
+[2012-09-20 17:50:59 -0400] martinisoft: jtimberman: so in bento I did everything in the readme and exported the basebox
+[2012-09-20 17:51:39 -0400] martinisoft: I get ERROR: Errno::EACCES: Permission denied - /var/chef
+[2012-09-20 17:52:25 -0400] martinisoft: https://gist.github.com/3757355
+[2012-09-20 17:52:29 -0400] martinisoft: gist of the output
+[2012-09-20 18:11:44 -0400] StormSilver: How are the cool kids kicking off an HTTP request and not waiting for the response?
+[2012-09-20 18:12:22 -0400] StormSilver: I need to tell Couch to start creating its indices but I don't want to wait around for them to be built, cause it'll keep chugging.
+[2012-09-20 18:40:04 -0400] marsam: martinisoft http://tickets.opscode.com/browse/KITCHEN-6
+[2012-09-20 18:49:29 -0400] ank: the omnibus installer is only for clients right? I still have to install a server manually?
+[2012-09-20 18:55:24 -0400] StormSilver: ank: Take a look at the knife-server gem
+[2012-09-20 18:58:49 -0400] ank: StormSilver: thanks, looks perfect
+[2012-09-20 18:59:21 -0400] StormSilver: ank: NP. Worked perfectly for me the other day... tons less work than doing it manually.
+[2012-09-20 18:59:40 -0400] ank: StormSilver: yeah, do you know how it differs from the chef-server cookbook?
+[2012-09-20 19:00:20 -0400] StormSilver: ank: Off the top of my head I don't, but that's an awfully good question. Now I'm curious.
+[2012-09-20 19:00:56 -0400] StormSilver: ank: Ah.
+[2012-09-20 19:01:22 -0400] StormSilver: ank: It's basically a wrapper around knife bootstrap that has a special template that installs the Opscode deb package.
+[2012-09-20 19:05:41 -0400] gchristensen: is there a good way to get a data bag secret key onto a server with chef? or is that just going to be a manual thing to do?
+[2012-09-20 19:13:25 -0400] Guest6489: Hey mhalligan, you said something about sense logstash and graphite as far as a monitoring solution...
+[2012-09-20 19:14:10 -0400] Guest6489: what is sense?
+[2012-09-20 19:15:31 -0400] mhalligan: sensu
+[2012-09-20 19:15:39 -0400] mhalligan: stupid auto-correct keeps turning it into sense
+[2012-09-20 19:16:03 -0400] yfeldblum: mhalligan, so add "sensu" to the dictionary?
+[2012-09-20 19:17:43 -0400] erikh: or just turn autocorrect off
+[2012-09-20 19:18:24 -0400] Guest6489: ah, thanks...
+[2012-09-20 19:18:28 -0400] mhalligan: sigh
+[2012-09-20 19:18:30 -0400] masterkorp: jtimberman: that would be awesome
+[2012-09-20 19:18:38 -0400] mhalligan: *always misses the obvious*
+[2012-09-20 19:18:39 -0400] hoover_damm: autocorrect is awesome with irc
+[2012-09-20 19:23:11 -0400] mhalligan: sigh. dudes in suits calling each other bro  just invaded my coffee shop.
+[2012-09-20 19:23:19 -0400] geekbri: mhalligan: just bro it up with them
+[2012-09-20 19:23:46 -0400] mhalligan: geekbri: hah. I live in the east bay to stay away from them, whitey be scared of Oakland.
+[2012-09-20 19:23:51 -0400] anthroprose: haha reminds me of that awesome microsoft windows 8 commercial with the brostep in it
+[2012-09-20 19:24:20 -0400] geekbri: Whenever people bro it up near me, I just make sure to have a top gun moment.
+[2012-09-20 19:24:32 -0400] anthroprose: do you break out the shades just for it?
+[2012-09-20 19:24:38 -0400] anthroprose: my old boss had the shades :(
+[2012-09-20 19:24:39 -0400] mhalligan: haha
+[2012-09-20 19:24:44 -0400] geekbri: You know it.
+[2012-09-20 19:25:05 -0400] mhalligan: geekbri: my ceo is a fratboy from MIT .. he wears his shirt half-buttoned, and wears sunglasses in the office (there's no direct sunlight, our office is a cave)
+[2012-09-20 19:29:40 -0400] gchristensen: lordy, did 37signals make their cookbooks private or move them somewhere? I can find forks of it, but not hte original repo
+[2012-09-20 19:34:12 -0400] hoover_damm: did 37signals ever really update their repo from 0.7?
+[2012-09-20 19:34:24 -0400] hoover_damm: i mean they had newer stuff but it also had a bit of cruft
+[2012-09-20 19:47:09 -0400] gchristensen: who knows, everything I'm seeing is like 3yrs old. all forks.
+[2012-09-20 19:48:14 -0400] cp_clegg: With open source chef, when you upload a cookbook it stores a tempfile in /var/cache/chef/sandboxes.  Does anyone know what would cause a chef server to trying storing these tempfiles in /usr/share/chef-server-api instead?  Is that a setting somewhere?
+[2012-09-20 19:51:53 -0400] chefster: I have successfully deployed Chef to ~30 servers I manage and did my first big deploy with it yesterday, which was awesome! But now I'd really like to receive notification when something goes wrong and came across chef_handler, and more specifically the chef-handler-mail gem. But I'm hitting a mental block on how to actually use the thing anyone using this who could nudge me in the right direction? I'm confused by how to handle the gem it needs  do I in
+[2012-09-20 19:52:39 -0400] chefster: I'm following the instructions here: https://github.com/kisoku/chef-handler-mail
+[2012-09-20 19:57:01 -0400] cap10morgan: is there a cookbook out there for managing aws security groups?
+[2012-09-20 20:30:01 -0400] yfeldblum: cap10morgan, why manage them with a cookbook?
+[2012-09-20 20:30:40 -0400] yfeldblum: cap10morgan, why not manage them from your (the sysadmin's) CLI, possibly with a custom knife plugin, but also possibly with just some normal custom scripts?
+[2012-09-20 20:31:32 -0400] cap10morgan: yfeldblum: because I need to let instances in one AZ access a port on an instance in another AZ.
+[2012-09-20 20:31:46 -0400] cap10morgan: so as instances come and go, I wanted them to manage that security themselves
+[2012-09-20 20:31:57 -0400] cap10morgan: but I'm just going to use an elastic IP for now
+[2012-09-20 20:39:09 -0400] martinisoft: marsam: thats an old, closed ticket that refers to the very part of the README I can't get past when setting up test-kitchen
+[2012-09-20 20:40:01 -0400] martinisoft: think the key is the knife.rb file I seem to be missing for the setup, but I see no examples anywhere or how thats portable between projects
+[2012-09-20 21:28:57 -0400] edelschaedel: Ohai Chefs!   Is there an easy way to change the order recipes run in the run_list of a role?  It seems the run_list gets alphabetized at convergence.   I don't want to use "depends" in specific cookbooks since the dependency is not always necessary.
+[2012-09-20 21:29:20 -0400] bluepojo:  don't use a run list as a dependency list
+[2012-09-20 21:29:23 -0400] bluepojo: use include_recipe
+[2012-09-20 21:29:33 -0400] bluepojo: run list says what a box is, not what it needs
+[2012-09-20 21:29:38 -0400] bluepojo: that's the job of the recipe
+[2012-09-20 21:30:12 -0400] erikh: actually unless things have changed very recently, a run list is ordered
+[2012-09-20 21:30:22 -0400] erikh: (and not re-ordered by chef)
+[2012-09-20 21:30:22 -0400] bluepojo: well
+[2012-09-20 21:30:25 -0400] bluepojo: not at compile time
+[2012-09-20 21:30:31 -0400] bluepojo: at convergence that is true
+[2012-09-20 21:30:42 -0400] bluepojo: but still, don't use a runlist as a dependency list
+[2012-09-20 21:30:53 -0400] bluepojo: it'll only cause headache
+[2012-09-20 21:31:02 -0400] erikh: I've never experienced that
+[2012-09-20 21:31:23 -0400] bluepojo: run lists are not versioned
+[2012-09-20 21:31:37 -0400] erikh: eh, this isn't about that, this is about order of operations
+[2012-09-20 21:31:37 -0400] bluepojo: cookbooks are
+[2012-09-20 21:31:47 -0400] bluepojo: oh
+[2012-09-20 21:32:00 -0400] edelschaedel: i'm using chef to build an AMI in EC2.   I want to repopulate it with necessary packages.  but don't necessarily want to go through all cookbooks and add a dependency since i'm only using it to build the AMI not at each run.
+[2012-09-20 21:32:01 -0400] bluepojo: chef definitely reads cookbooks in alphabetical order when setting up
+[2012-09-20 21:32:03 -0400] erikh: (but I agree with you otherwise)
+[2012-09-20 21:32:09 -0400] erikh: bluepojo: it does?
+[2012-09-20 21:32:14 -0400] erikh: I've never seen that before.
+[2012-09-20 21:32:16 -0400] rava: can i call the execute resource in a provider action definition?
+[2012-09-20 21:32:21 -0400] rava: or any resource for that matter?
+[2012-09-20 21:32:26 -0400] erikh: rava: yes
+[2012-09-20 21:32:35 -0400] bluepojo: I just solved an issue with needing to call include_attribute cause the m____ cookbook was read before the r_____ cookbook
+[2012-09-20 21:32:49 -0400] bluepojo: and there were conditionals on attributes I wanted to set in the r_____ cookbook
+[2012-09-20 21:33:00 -0400] bluepojo: needed during compile time of the m______ cookbook
+[2012-09-20 21:33:09 -0400] erikh: sure, but which one came first in the run list?
+[2012-09-20 21:33:20 -0400] bluepojo: the r____ was the only one in the run list
+[2012-09-20 21:33:28 -0400] bluepojo: m was a dependency
+[2012-09-20 21:33:33 -0400] erikh: but the m___ was in an include_recipe?
+[2012-09-20 21:33:35 -0400] bluepojo: yes
+[2012-09-20 21:33:38 -0400] bluepojo: with depends m
+[2012-09-20 21:33:49 -0400] erikh: that makes sense, it has to evaluate the dependencies in full before the final product
+[2012-09-20 21:34:08 -0400] erikh: I'm not sure that means it deals with things alphabetically, at least, it doesn't convince me it does
+[2012-09-20 21:34:09 -0400] bluepojo: fair enough
+[2012-09-20 21:34:31 -0400] bluepojo: I'd have to write some contrived cookbooks to test it out, I suppose
+[2012-09-20 21:34:40 -0400] erikh: aye, or we could just read the code, but I'm feeling lazy.
+[2012-09-20 21:34:45 -0400] bluepojo: reset has talked about alphabetical evaluation as well
+[2012-09-20 21:34:51 -0400] bluepojo: so it made sense in light of that
+[2012-09-20 21:34:55 -0400] bluepojo: but I could be completely wrong
+[2012-09-20 21:34:55 -0400] erikh: ah
+[2012-09-20 21:35:46 -0400] jblaine: A little help re: my role's attributes not overriding a cookbook's default attributes file? https://gist.github.com/3758494
+[2012-09-20 21:36:41 -0400] _0x783czar: Does anyone know how stable the new 10.14.2 version is?  Any problems been reported?
+[2012-09-20 21:37:11 -0400] erikh: fwiw, bluepojo, this is probably the code that does it: https://github.com/opscode/chef/blob/master/chef/lib/chef/run_list/run_list_expansion.rb#L143
+[2012-09-20 21:37:14 -0400] erikh: no sorting in here.
+[2012-09-20 21:37:35 -0400] erikh: well, other than than a basic tsort
+[2012-09-20 21:37:45 -0400] erikh: (which is not a string sorter)
+[2012-09-20 21:39:57 -0400] rava: kind of confused about the Execute and Script resources, is the Script resource just a way to use the dsl to define a script inline in the recipe, or should it be used to run a script on disk with a specific interpreter?
+[2012-09-20 21:40:34 -0400] erikh: think of it this way: the script resource launches an interpreter to interpret your code, whereas the execute resource just calls system() (more or less)
+[2012-09-20 21:40:42 -0400] rava: i think i actually want the Execute resource for this, but trying to be semantically correct if this is what Script is for (running the .bin shell executables oracle gives for their jre/jdk)
+[2012-09-20 21:41:18 -0400] erikh: I generally lean towards the bash resource, as it's less likely to break for me
+[2012-09-20 21:41:31 -0400] rava: erikh: the part that makes it not so clear cut, is that you have to execute these with sh, ie: ">sudo sh jre-6u26-linux-i586.bin"
+[2012-09-20 21:42:07 -0400] erikh: that's not an issue because you launch the shell yourself, but something like "sudo sh foo.sh 2>&1" will be more likely to break on execute than bash.
+[2012-09-20 21:43:38 -0400] rava: erikh: that's what i was thinking, but chef-client will be running as root so it would be sans the 'sudo', but i've still had issues with wrapping a call to 'sh' in the past
+[2012-09-20 21:43:54 -0400] rava: erikh: so was thinking that Script would be the more proper, less chance of borking route
+[2012-09-20 21:44:00 -0400] erikh: right, because of pwd/env issues probably.
+[2012-09-20 21:44:13 -0400] erikh: yeah, I generally stick to bash unless it's painfully obvious execute will do what I need.
+[2012-09-20 21:45:23 -0400] rava: indeed, so i can get a way with a 'run "#{scripte_name}"' in here with some meta set (cwd, interpreter, etc..) it seems..?
+[2012-09-20 21:45:53 -0400] rava: er 'code..' instead of 'run..'
+[2012-09-20 21:47:20 -0400] erikh: right; bash("do something") { code "sh install_java.shar >/tmp/install.log"; not_if "java_installed" }
+[2012-09-20 21:47:24 -0400] erikh: etc.
+[2012-09-20 21:47:44 -0400] erikh: script is just a parent for several other resources like bash.
+[2012-09-20 21:48:17 -0400] rava: is bash an lwrp? not seeing it in the resources wiki page
+[2012-09-20 21:51:26 -0400] erikh: it's a subclass of the script resource. sec, I'll dig it up for you.
+[2012-09-20 21:51:54 -0400] erikh: http://wiki.opscode.com/display/chef/Resources#Resources-Script
+[2012-09-20 21:52:00 -0400] erikh: note the "Providers" section.
+[2012-09-20 21:52:27 -0400] erikh: script("foo") { interpreter "bash" } does more or less the same thing.
+[2012-09-20 21:52:51 -0400] rava: groovy, thanks
+[2012-09-20 21:59:27 -0400] jblaine: "A common use case is to set default attributes in a cookbook's attribute files, and also set the same default attributes, but with different values, using a role. In this scenario, the attributes set in the role will be deep merged on top of the attributes from the attributes file."
+[2012-09-20 21:59:32 -0400] jblaine: Say what now?
+[2012-09-20 21:59:52 -0400] jblaine: Section heading "Setting Attributes at the Same Precedence Level"
+[2012-09-20 21:59:57 -0400] jblaine: how do they have the same precedence level?
+[2012-09-20 22:00:06 -0400] jblaine: the wiki states otherwise
+[2012-09-20 22:00:23 -0400] jblaine: re: https://gist.github.com/3758494
+[2012-09-20 22:25:41 -0400] MattJ: Hopefully quick question that I couldn't find in the docs... must node names be unique?
+[2012-09-20 22:26:03 -0400] xuru: hello everyone  I have a large file that I need to download, but I don't want to do that unless it has actually changed.  I'm using the http_request resource like this: git://gist.github.com/3758731.git  It still downloads the file every time though.  Any ideas?
+[2012-09-20 22:26:24 -0400] xuru: MattJ: yes, I believe so
+[2012-09-20 23:11:33 -0400] rava: if i want to export only a file from a repo, would the repository uri it's looking for be the full svn URI of the file minus the file name and what i pass to force_export the name of the file i want exported?
+[2012-09-20 23:11:49 -0400] rava: svn repo to be specific
+[2012-09-20 23:23:47 -0400] oddover_: hi chefs. is there a variable that contains the directory that the file backups are in?
+[2012-09-20 23:24:00 -0400] oddover_: it defaults to /var/chef/backups/
+[2012-09-20 23:24:10 -0400] oddover_: but I need that location in a recipe
+[2012-09-20 23:24:17 -0400] rava: is there a doc somewhere on the DSL syntax? or is there no syntactical difference from ruby?
+[2012-09-20 23:25:20 -0400] xuru: rava: most of what you need can be found on the wiki: http://wiki.opscode.com/display/chef/Resources
+[2012-09-20 23:27:34 -0400] rava: xuru: right, i'm reading those docs, but i just wanted to make sure i was understanding the docs right in that setting 'force_export|export' to a filename will work or do i have to specify the full path with our setuo (one repo, multiple project directories)
+[2012-09-20 23:27:46 -0400] rava: ~setup
+[2012-09-20 23:28:05 -0400] xuru: that, I don't know
+[2012-09-20 23:28:33 -0400] rava: xuru: ie: repository "svn://my.server/projects/package/" and export "package.v1.tgz"
+[2012-09-20 23:28:48 -0400] rava: xuru: i'll tool around and see, thanks though
+[2012-09-20 23:29:09 -0400] xuru: sorry, I can't be more help...
+[2012-09-20 23:29:42 -0400] rava: xuru: no worries, normally i'd go straight to tooling and only ask for wonky situations, but gunning to finish a bunch of cookbooks in short time
+[2012-09-20 23:30:08 -0400] rava: so seeing if i can skip some "i wonder" steps ;)
+[2012-09-20 23:30:20 -0400] xuru: heh, I know the feeling
+[2012-09-20 23:33:53 -0400] rava: now i'm wondering if it's bad form to cram all the svn export / file moving around before install into one action for my provider...
+[2012-09-20 23:33:53 -0400] rava: heh
+[2012-09-20 23:34:47 -0400] rava: is there any difference between doing: file_name = "#{new_resource.export_file}" and file_name = new_resource.export_file ?
+[2012-09-20 23:36:55 -0400] bluepojo: rava: no
+[2012-09-20 23:37:05 -0400] bluepojo: provided export_file returns a string
+[2012-09-20 23:37:10 -0400] spox: the latter is more efficient though
+[2012-09-20 23:37:15 -0400] bluepojo: ever so slightly
+[2012-09-20 23:37:38 -0400] rava: spox: that was my next question :D
+[2012-09-20 23:37:53 -0400] bluepojo: the first creates a string object then injects a string into it
+[2012-09-20 23:38:01 -0400] bluepojo: the second just uses the string that would have been injected
+[2012-09-20 23:38:07 -0400] bluepojo: instead of creating a new one
+[2012-09-20 23:38:46 -0400] rava: i'm assuming i can just reference file_name for later blocks instead having to do file "#{file_name}" do... ?
+[2012-09-20 23:39:01 -0400] spox: rava: correct
+[2012-09-20 23:39:16 -0400] rava: splendid
+[2012-09-20 23:41:56 -0400] cparedes: hey folks - anyone using minitest-chef?
+[2012-09-20 23:42:14 -0400] cparedes: wasn't sure if anyone's got a good solution for abstracting away a lot of the messiness with multiple OS's
+[2012-09-20 23:42:25 -0400] cparedes: (like different paths that you declare in the cookbooks for the same resource, etc.)
+[2012-09-20 23:42:35 -0400] cparedes: or if you're forever relegated to case statements ;p
+[2012-09-20 23:49:12 -0400] rava: chef is way too addictive, fyi. i can spend way too much time tooling with these recipes..
+[2012-09-20 23:49:26 -0400] erikh: yes
+[2012-09-20 23:49:42 -0400] erikh: the beauty of it all is that many of us get paid to do just that
+[2012-09-20 23:50:13 -0400] rava: indeed

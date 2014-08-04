@@ -1,0 +1,1229 @@
+[2012-07-04 00:00:16 -0400] stphung: when my nodes are bootstrapped using 0.10.12 ruby isn't in /usr/bin, is that normal ?
+[2012-07-04 00:00:37 -0400] yfeldblum: stphung, are you using the chef-full template? if so, it's normal
+[2012-07-04 00:01:00 -0400] stphung: yeah i am, i am also depending on a gem though which makes that problematic.  is there a good way to work around this ?
+[2012-07-04 00:01:08 -0400] yfeldblum: stphung, the default bootstrap template in 0.10.12 is the chef-full template
+[2012-07-04 00:01:39 -0400] yfeldblum: stphung, does the recipe depend on a gem or does the gem need to be installed on and available to the system?
+[2012-07-04 00:02:08 -0400] stphung: it needs to be installed, i have a code snippet which installs it before recipes are loaded/run
+[2012-07-04 00:03:22 -0400] yfeldblum: stphung, does the gem need to be installed because a recipe uses it? or does the gem need to be installed because after the chef run is complete, you're going to want to use it separately?
+[2012-07-04 00:03:36 -0400] stphung: it needs to be installed because the recipe uses it
+[2012-07-04 00:05:00 -0400] yfeldblum: stphung, ok, in that case, chef-0.10.12 has a new method "chef_gem" that you can call in a recipe, and it will install the gem specified into the chef-specific isolated ruby path
+[2012-07-04 00:05:51 -0400] stphung: you rock, thanks a lot!
+[2012-07-04 00:31:15 -0400] jan0232: yfeldblum: how can i do the opposite? i want my gems and stuff to go in my rbenv global ruby version.. not the chef one  for example the passenger_apache2 cookbook uses gem_package to install passengerwhich gets installed into the chef-specific ruby
+[2012-07-04 00:33:28 -0400] yfeldblum: jan0232, if you're using the chef-full bootstrap template, then you can use the normal "gem_package" resource to install gems into the system (non-chef-isolated) ruby or into any particular ruby that you want by way of specifying the rubygems binary path as an attribute of the gem_package resource
+[2012-07-04 00:36:34 -0400] jan0232: yfeldblum: oh i see. them maybe i'm doing something wrong currently i'm using a vagrant vm to test my stuff the system ruby sits in /opt/vagrant-ruby when i log in.. i'm trying the application_ruby recipe to deploy a rails application to apache2 + passenger but i don't want the ruby 1.8.7 that i get in the system with chef i want ruby 1.9.3-p194 i installed that with the rbenv cookbook i thought after that gem_package would use my rbenv ruby
+[2012-07-04 00:37:06 -0400] jan0232: i probably could use my own bootstrap template right??
+[2012-07-04 00:37:49 -0400] dyer_: Sorry connection dropped
+[2012-07-04 00:38:13 -0400] yfeldblum: jan0232, you should probably use the chef-full template ... but i'm not too sure what the issue is you're running into deploying an application
+[2012-07-04 00:38:30 -0400] dyer_: Let me rephrase my question I think it was a bit  poorly worded..  So say I have a default attribute in my attributes file which sets is_slave to false.  The only time I want this to be true is if my node is running activemq::slave, which simply contains two lines ( node.default[:activemq][:is_slave]=true & include_recipe "activemq::default"
+[2012-07-04 00:39:07 -0400] jeremyolliver: jan0232: You'll want to look into how rbenv cookbook tells you to install gems under the rbenv ruby
+[2012-07-04 00:39:44 -0400] jeremyolliver: jan0232: The main issue is other cookbooks (like the passenger cookbook for example) will have regular calls to gem_package, and they need to use the newly installed ruby
+[2012-07-04 00:39:54 -0400] jan0232: jeremyolliver: well, with rbenv_gem instead of gem_package but then i can't use any existing cookbooks!??
+[2012-07-04 00:40:04 -0400] jan0232: yep exactly
+[2012-07-04 00:40:10 -0400] jeremyolliver: jan0232: I've used https://github.com/fnichol/chef-rvm to achieve this. It kinda hacks chef somewhat
+[2012-07-04 00:40:25 -0400] jeremyolliver: I think it's an area where's there's room for improvement
+[2012-07-04 00:40:46 -0400] jeremyolliver: (installing separate ruby versions, and how subsequent recipes manage those) I mean
+[2012-07-04 00:41:07 -0400] jan0232: i see
+[2012-07-04 00:41:37 -0400] jeremyolliver: jan0232: note: that cookbook I linked is not the same as the main rvm cookbook in the community repo
+[2012-07-04 00:41:49 -0400] jan0232: i thought it would be that chef is running in it's own "sandboxed ruby" and i get to install ruby myself through a cookbook however i want
+[2012-07-04 00:42:44 -0400] jan0232: i'm really new to chef so i'm probably just overwhelmed right now ;)
+[2012-07-04 00:43:08 -0400] jeremyolliver: jan0232: chef is running in whatever ruby the system had before (generally /usr/bin/ruby), cookbooks can use chef_gem to install gems that have to be in the same ruby version as chef (e.g. to perform chef tasks etc)
+[2012-07-04 00:43:15 -0400] jeremyolliver: but I think that's a new feature
+[2012-07-04 00:43:33 -0400] flaccid: i made https://github.com/flaccid/cookbooks/tree/master/cookbooks/ruby to install ruby
+[2012-07-04 00:43:43 -0400] flaccid: and also https://github.com/flaccid/cookbooks/tree/master/cookbooks/rubygems
+[2012-07-04 00:43:55 -0400] jeremyolliver: jan0232: I'd suggest trying that rvm cookbook I mentioned and the passenger cookbook (from community site), that's worked for me
+[2012-07-04 00:44:02 -0400] yfeldblum: jeremyolliver, the chef-full bootstrap template installs an isolated copy of ruby inside /opt/chef for use only by chef
+[2012-07-04 00:44:19 -0400] jeremyolliver: oh really? interesting
+[2012-07-04 00:44:36 -0400] flaccid: if you don't want to use rvm for system ruby, you could use my cookbooks above to install ruby and rubygems on system how you like..
+[2012-07-04 00:44:45 -0400] jan0232: yea  i guess vagrant uses that template then
+[2012-07-04 00:46:46 -0400] jan0232: yfeldblum: so once i installed a different ruby version i could probably tell gem_package to use the new ruby gems binary path!?
+[2012-07-04 00:47:06 -0400] jeremyolliver: if chef-full has it's sandbox ruby install, then does that mean in a situation like jan0232's he'd only need to alter his path to make the newly installed ruby (by rbenv) the first in the path, and then gem_package would use that gem?
+[2012-07-04 00:47:29 -0400] yfeldblum: jan0232, you can do that; or if you're using a rbenv cookbook or rvm cookbook, that cookbook may provide an alternative way to do the same thing
+[2012-07-04 00:47:30 -0400] jeremyolliver: or is there a config option to set the gem binary that works across cookbooks, which is easier I suppose
+[2012-07-04 00:48:18 -0400] yfeldblum: jeremyolliver, gem_package looks for a system ruby first, sandboxed ruby second, gives up third
+[2012-07-04 00:48:19 -0400] jan0232: jeremyolliver: i did "rbenv global 1.9.3-p194" in my cookbook so this now is somewhat my default ruby however, gem_package still uses the chef-ruby.. i tried that..
+[2012-07-04 00:49:25 -0400] jeremyolliver: yeah, I think that's largely because rbenv global 1.9.3-p194 will set things that will be loaded in your interactive shell environment, but chef commands are run from a more sandboxed shell call without those set
+[2012-07-04 00:50:22 -0400] jeremyolliver: yfeldblum: just to clarify that, "looks for a system ruby first" would be essentially `which ruby` via load path, or more checking for /usr/bin/ruby ?
+[2012-07-04 00:52:05 -0400] dyer_: Any takers on my question  ? :)
+[2012-07-04 00:52:42 -0400] yfeldblum: jeremyolliver, probably akin to `which ruby`, but that would require digging into the source for gem_package
+[2012-07-04 00:56:29 -0400] jan0232: http://wiki.opscode.com/display/chef/Resources#Resources-GemPackageOptions
+[2012-07-04 00:57:17 -0400] jan0232: helps to clarify a bit
+[2012-07-04 00:57:36 -0400] jan0232: but what is Omnibus???
+[2012-07-04 00:58:39 -0400] jan0232: oh ok never mind, google is my friend :)
+[2012-07-04 01:04:52 -0400] jeremyolliver: the annoying thing is that gem_binary has to be set explicitly for each gem_package call
+[2012-07-04 01:05:48 -0400] jeremyolliver: if there was a way to configure it's default value via attributes or something that would make support for tools like rvm or rbenv so much easier, they could just set that value
+[2012-07-04 01:06:43 -0400] flaccid: this is basically the same issue we ran into at rightscale as we already used a sandbox and then moved to 0.9 and 0.10 where the ruby is detected via api
+[2012-07-04 01:06:51 -0400] jan0232: jeremyolliver yes that IS annoying..it makes other cookbooks useless for me actually. but it says as of chef 0.10.10 it searches the PATH for a gem command rather than defaulting to the current gem environment.
+[2012-07-04 01:06:53 -0400] jeremyolliver: as it is, the rvm cookbook I'm using overrides some of chef's provider classes to make installing things work
+[2012-07-04 01:07:20 -0400] flaccid: i don't think chef has addressed this properly in general because its a major hange
+[2012-07-04 01:07:25 -0400] flaccid: *change
+[2012-07-04 01:07:25 -0400] jeremyolliver: it says that? can you link me jan0232 I'm running 0.10.10
+[2012-07-04 01:07:45 -0400] jan0232: same link: http://wiki.opscode.com/display/chef/Resources#Resources-GemPackageOptions .. under gem package options
+[2012-07-04 01:07:52 -0400] jan0232: As of Chef 0.10.10, ...
+[2012-07-04 01:07:57 -0400] jeremyolliver: yeah, certainly a major change, and I under stand 0.10 was a pretty big release as was
+[2012-07-04 01:09:13 -0400] jeremyolliver: jan0232: perhaps it could be as easy as setting the path to your rbenv ruby install in a file like /etc/environment
+[2012-07-04 01:09:32 -0400] jan0232: jeremyolliver: yep. will try that...
+[2012-07-04 01:09:54 -0400] jan0232: it is talking about "omnibus installs" though no idea if that is the default
+[2012-07-04 01:10:10 -0400] jeremyolliver: I had a *much* harder time because my nodes are behind a web proxy, and for anyone who's ever had fun trying gem install with a proxy... that was not a fun time
+[2012-07-04 01:10:14 -0400] jan0232: but i guess since the system ruby is isolated in /opt/chef  that is the omnibus ;)
+[2012-07-04 01:14:29 -0400] flaccid: that is omnibus yes which opsocode seem to be encouraging
+[2012-07-04 01:14:39 -0400] jan0232: ash found it here
+[2012-07-04 01:14:41 -0400] jan0232: http://www.opscode.com/blog/2012/06/29/omnibus-chef-packaging/
+[2012-07-04 01:14:59 -0400] jan0232: explains it really well
+[2012-07-04 01:26:12 -0400] jeremyolliver: oh, is that omnibus thing, just system level packages for chef?
+[2012-07-04 01:26:50 -0400] flaccid: goes in /opt i can't remember if it isntalls system packages, someone will know here or just check it out/give it a go
+[2012-07-04 01:27:17 -0400] jeremyolliver: I tried to install chef from ubuntu packages when I first started using it weeks ago, but there was like one checksum in one file that was out of date, and the whole thing wouldn't install
+[2012-07-04 01:27:48 -0400] jeremyolliver: just ended up skipping to the ubuntu-gems bootstrap recipe
+[2012-07-04 01:27:59 -0400] jan0232: jeremyolliver: look here http://www.opscode.com/chef/install/
+[2012-07-04 01:28:09 -0400] flaccid: should lodge that bug for ubuntu to fix
+[2012-07-04 01:28:20 -0400] jan0232: http://s3.amazonaws.com/opscode-full-stack/install.sh
+[2012-07-04 01:29:22 -0400] jeremyolliver: ubuntu to fix? this was in the opscode package repositories
+[2012-07-04 01:29:57 -0400] jeremyolliver: it was on apt.opscode.com
+[2012-07-04 01:30:05 -0400] jeremyolliver: but that omnibus installer thing looks good
+[2012-07-04 01:30:40 -0400] jeremyolliver: don't think I'll switch now, already got all my nodes up and running
+[2012-07-04 01:30:44 -0400] jan0232: jeremyolliver: i think knife ec2 and stuff uses omnibus by default now..
+[2012-07-04 01:30:46 -0400] yfeldblum: proxies are uncloudy :(
+[2012-07-04 01:30:48 -0400] dyer: Anyone of the question of setting an attribute in a recipe, is that valid ?
+[2012-07-04 01:32:08 -0400] jan0232: i like it seems like a good idea to give chef itself a type of isolated env much like rbenv and rvm can isolate rubies
+[2012-07-04 01:32:17 -0400] jeremyolliver: dyer: in a cookbook? it can be done, generally you should only set them in the cookbooks attributes/default.rb file and as either a default or override attribute, unless there's a very specific reason to do otherwise
+[2012-07-04 01:32:24 -0400] jan0232: and i guess that's what the omnibus thing does
+[2012-07-04 01:32:45 -0400] flaccid: rightscale rightlink did the concept first :p
+[2012-07-04 01:32:48 -0400] jeremyolliver: omnibus looks good. were I starting from scratch today I'd be trying it now
+[2012-07-04 01:33:30 -0400] jan0232: chef seems like a powerful thing :)
+[2012-07-04 01:33:43 -0400] dyer: jeremyolliver, did u see my use case?   I have a activeMQ cookbook, and activeMQ can be deployed one of two ways in my case, as a master or as a slave.  So what I was doing is having one recipe ( slave.rb ) which sets an attribute ( :is_slave ) to true.  Then it calls the default activeMQ cookbook
+[2012-07-04 01:33:47 -0400] jan0232: too bad i'm such a newbie hehe
+[2012-07-04 01:33:48 -0400] dyer: so is that not a valid use case ?
+[2012-07-04 01:34:18 -0400] cwj: dyer: i think that would be better accomplished with a role
+[2012-07-04 01:34:49 -0400] jeremyolliver: dyer: I agree, probably having a different role for a master and slave, and setting the slave attribute in that role would be better
+[2012-07-04 01:35:45 -0400] jeremyolliver: this is assuming the activeMQ cookbook checks for the :is_slave attribute when configuring
+[2012-07-04 01:35:58 -0400] dyer: yes, it does
+[2012-07-04 01:36:19 -0400] dyer: just not working when I set the default attribute within slave.rb
+[2012-07-04 01:36:32 -0400] dyer: node.default[:activemq][:is_slave]=true
+[2012-07-04 01:36:33 -0400] dyer: include_recipe "activemq::default"
+[2012-07-04 01:38:12 -0400] jeremyolliver: dyer: you generally need to run node.save after setting node.default attributes in a cookbook for the attributes to be available to other cookbooks later
+[2012-07-04 01:38:20 -0400] jeremyolliver: but I think this should be a role, not a cookbook
+[2012-07-04 01:39:19 -0400] jeremyolliver: have a role "active_mq_slave", with a run_list of "activemq::default", and default_attributes of [:activemq][: is_slave] = true
+[2012-07-04 01:39:27 -0400] dyer: seems like overkill to set a single attribute
+[2012-07-04 01:40:08 -0400] cwj: i think the inverse is true; having a recipe just to set a single attribute is over kill
+[2012-07-04 01:40:16 -0400] cwj: opinions :D
+[2012-07-04 01:40:16 -0400] jeremyolliver: well, a whole cookbook to set a single attribute is a little more overkill, unless you're doing something else int the cookbook
+[2012-07-04 01:40:31 -0400] jeremyolliver: roles are meant to configure the options in a cookbook
+[2012-07-04 01:40:38 -0400] jeremyolliver: with the cookbook providing the logic
+[2012-07-04 01:40:57 -0400] jeremyolliver: I've got lots of roles for all the bits that need configuring
+[2012-07-04 01:41:20 -0400] jeremyolliver: e.g. database, ruby, network
+[2012-07-04 01:41:59 -0400] jeremyolliver: and then I have some more generic roles that include multiple of those component roles which means I have a few main roles that I set on my nodes explicitly
+[2012-07-04 01:42:08 -0400] jeremyolliver: and the lower level configuration options are included too
+[2012-07-04 01:42:34 -0400] dyer: jeremy, well the config of one file is substantially different for a slave vs a master
+[2012-07-04 01:42:40 -0400] dyer: but everything else is the same
+[2012-07-04 01:42:59 -0400] dyer: wrapper, init.d script, jmx settings, ect.. all of these are the same
+[2012-07-04 01:43:34 -0400] dyer: so rather then have two recipes with 99% duplicated code I consolidated them into one "Default.rb" file which keys off this second attribute
+[2012-07-04 01:43:43 -0400] dyer: seems a whole lot more dry this way
+[2012-07-04 01:43:50 -0400] jeremyolliver: I'm not suggesting two recipes, but two roles
+[2012-07-04 01:44:07 -0400] jeremyolliver: http://wiki.opscode.com/display/chef/Roles
+[2012-07-04 01:44:13 -0400] dyer: yea, I know roles
+[2012-07-04 01:44:20 -0400] dyer: I use them for larger things
+[2012-07-04 01:44:23 -0400] cwj: you could have your default recipe set up everything but the config files, and then you have recipes for master and slave which include_recipe 'default' and write out the config files
+[2012-07-04 01:44:31 -0400] cwj: but i would still use a role to control those
+[2012-07-04 01:45:30 -0400] jeremyolliver: yeah, default recipe contains how to install both a master and a slave, just reading the attribute from the node to find out which it is. You can set a default of master or slave in your cookbook/recipe if you want, but use 2 different roles, to set which nodes are slave, and which are master
+[2012-07-04 01:45:49 -0400] bluepojo: Where would I find docs on the API to create/delete organizations in private chef?
+[2012-07-04 01:45:52 -0400] dyer: why would I use a role for the master ?
+[2012-07-04 01:46:06 -0400] dyer: because by default, the default.rb will create a master
+[2012-07-04 01:46:11 -0400] jeremyolliver: well, if you don't need one, then don't use it
+[2012-07-04 01:46:18 -0400] dyer: just feels dirty
+[2012-07-04 01:46:22 -0400] cwj: dyer: if you were to split into three recipes as i am suggesting, i think you could skip using a role
+[2012-07-04 01:46:26 -0400] dyer: not saying your wrong, just expressing my thoughts :)
+[2012-07-04 01:46:50 -0400] jeremyolliver: yeah, alternatle as cwj said, have activemq::master and activemq::slave recipes
+[2012-07-04 01:47:14 -0400] dyer: ok, but the config file isn't the last step
+[2012-07-04 01:47:28 -0400] dyer: then I would have to duplicate the starting the service right?
+[2012-07-04 01:47:52 -0400] jeremyolliver: you shouldn't have to duplicate anything
+[2012-07-04 01:48:09 -0400] cwj: no, if you put all that stuff in default.rb and use include_recipe in your master and slave recipes
+[2012-07-04 01:48:20 -0400] cwj: its just like you had duplicated all the contents of that recipe
+[2012-07-04 01:48:25 -0400] jeremyolliver: anything that looks like you'd have to duplicate put in a recipe that's only called internally like activemq::configure and use include_recipe
+[2012-07-04 01:48:33 -0400] jeremyolliver: to include that
+[2012-07-04 01:48:36 -0400] cwj: so you can just have a template which sends the restart notification
+[2012-07-04 01:48:48 -0400] cwj: to a service defined in default.rb
+[2012-07-04 01:49:25 -0400] dyer: I mean, does chef support what I am trying to do ( setting the attribute at default level in the recipe, and NOT on the node itself ) ?
+[2012-07-04 01:50:11 -0400] dyer: jeremy, node.save didn't work
+[2012-07-04 01:50:13 -0400] cwj: yes it can be done, but it might require multiple chef runs to get into a consisten state
+[2012-07-04 01:50:14 -0400] dyer: node.default[:activemq][:is_slave]=true
+[2012-07-04 01:50:14 -0400] dyer: node.save
+[2012-07-04 01:50:16 -0400] dyer: include_recipe "activemq::default"
+[2012-07-04 01:50:26 -0400] dyer: ( would never paste more then 3 lines w/o a gist )
+[2012-07-04 01:50:39 -0400] dyer: but in this case thats the entire slave.rb
+[2012-07-04 01:51:13 -0400] cwj: the mysql::server recipe has an example
+[2012-07-04 01:51:14 -0400] cwj: https://github.com/opscode-cookbooks/mysql/blob/master/recipes/server.rb
+[2012-07-04 01:51:21 -0400] cwj: node.set_unless['mysql']['server_debian_password'] = secure_password
+[2012-07-04 01:51:47 -0400] cwj: they do it because they dont want to lose the password if something fails later in the chef run
+[2012-07-04 01:51:54 -0400] bluepojo: Is it possible to create/delete organizations via knife or the REST api in private chef?
+[2012-07-04 01:52:06 -0400] dyer: yes, but that would set the attribute on the node itself
+[2012-07-04 01:52:12 -0400] dyer: I am trying to avoid that in my case
+[2012-07-04 01:52:56 -0400] cwj: bluepojo: as far as i know thats not exposed outside of the manage web ui
+[2012-07-04 01:53:15 -0400] cwj: dyer: well you have my suggestion already :)
+[2012-07-04 01:53:36 -0400] bluepojo: cwj: hm. ok.
+[2012-07-04 01:53:58 -0400] bluepojo: trying to build a test organization for a tool that I can create and throw away during test runs
+[2012-07-04 01:54:05 -0400] dyer: cwj, yes, and while i do totally appreciate your suggestion I really don't have an explanation as to why I can't do it my way other then "thats not how I would do it "
+[2012-07-04 01:54:11 -0400] dyer: Why shouldn't I do it my way ?
+[2012-07-04 01:54:25 -0400] cwj: dyer: you should totally do it whatever way you see fit
+[2012-07-04 01:54:25 -0400] dyer: other then the fact that my way currently isn't working :P
+[2012-07-04 01:54:35 -0400] dyer: cwj, ok, but how can I make my way work ?
+[2012-07-04 01:54:48 -0400] dyer: Wahts wrong with my current approach ?
+[2012-07-04 01:54:52 -0400] dyer: :)
+[2012-07-04 01:54:56 -0400] cwj: i really dont know, that mysql example is probably the only time i have seen something like that done
+[2012-07-04 01:56:32 -0400] cwj: perhaps the logic you are using in your default.rb is getting triggered at compile phase before the attribute gets set
+[2012-07-04 01:57:24 -0400] cwj: so if you are wrapping resources in 'if' then maybe you need to switch to using only_if/not_if guards inside the resource
+[2012-07-04 01:57:29 -0400] cwj: just a guess
+[2012-07-04 01:58:07 -0400] cwj: its usually helpful if you gist or github your cookbook
+[2012-07-04 02:01:59 -0400] dyer: cwj, the cookbook in question is only 3 lines
+[2012-07-04 02:02:00 -0400] dyer: https://gist.github.com/ee69647ff3bb4efa9a97
+[2012-07-04 02:02:19 -0400] cwj: no, i'm referring to your default recipe
+[2012-07-04 02:02:30 -0400] dyer: when I run that I can go on shef and see that the node[:activemq][:is_slave] is set to false
+[2012-07-04 02:02:35 -0400] dyer: when though I am setting it to true
+[2012-07-04 02:02:46 -0400] dyer: thats really the only thing in question right now
+[2012-07-04 02:33:38 -0400] gmcinnes: man. chefserver PAIN.
+[2012-07-04 02:37:24 -0400] flaccid: i'm using this basic ohai reload recipe: https://github.com/flaccid/cookbooks/blob/master/cookbooks/ohai/recipes/reload_all_plugins.rb which as you can see is only ohai "reload"
+[2012-07-04 02:37:54 -0400] flaccid: if i place this before another recipe to do a reload, for some reason node[:cloud][:provider] becomes unset after the reload, anyone know wtf is going on ?
+[2012-07-04 02:39:21 -0400] cwj: flaccid: http://wiki.opscode.com/display/chef/Automatic+Attributes
+[2012-07-04 02:39:43 -0400] cwj: cloud is on the list of automatic attributes which are overwritten every time ohai is reloaded
+[2012-07-04 02:40:42 -0400] flaccid: "so they should be recognized as being unmodifiable when considering the use of attributes."
+[2012-07-04 02:41:00 -0400] flaccid: its meant to be overwritten with nothing?
+[2012-07-04 02:41:04 -0400] flaccid: sorry im confused
+[2012-07-04 02:42:20 -0400] cwj: ohai overwrites them every time its reloaded, so you cannot change node[:cloud][:provider] and expect that change to stick
+[2012-07-04 02:42:42 -0400] cwj: maybe i misunderstand and you arent trying to manipulate that attribute
+[2012-07-04 02:42:50 -0400] flaccid: cwj: cept i didn't change it. the only thing i have done is reload ohai.
+[2012-07-04 02:42:52 -0400] cwj: if its just getting unset, then maybe its a bug in ohai
+[2012-07-04 02:43:44 -0400] flaccid: should i lodge a bug then?
+[2012-07-04 02:43:49 -0400] cwj: sure
+[2012-07-04 02:44:01 -0400] cwj: sounds like a bug to me
+[2012-07-04 02:44:10 -0400] cwj: maybe there is one open already
+[2012-07-04 02:44:33 -0400] flaccid: yeah me too, thanks very much. another related bug is that that on reload, node['fqdn'] does not get refreshed
+[2012-07-04 02:46:35 -0400] cwj: sounds like a general bug on automatic attributes
+[2012-07-04 02:48:58 -0400] flaccid: i posted to the list on that one but didn't really get any help
+[2012-07-04 02:49:14 -0400] flaccid: sounds like its bug time. i resisted coz i mean i'm a n00b so keep thinking the problem is me
+[2012-07-04 02:57:19 -0400] cwj: whats the worst thing that happens? someone explains why is not a bug and everyone else learns a thing :D
+[2012-07-04 02:59:47 -0400] flaccid: yeah i reckon; i just wanted to make sure i wasn't a n00b but all signs are pointing to no flaccid noob
+[2012-07-04 03:04:23 -0400] flaccid: cwj: http://tickets.opscode.com/browse/OHAI-353 seems related
+[2012-07-04 03:23:44 -0400] miah: hi
+[2012-07-04 03:33:45 -0400] flaccid: ok first bug submitted  http://tickets.opscode.com/browse/OHAI-388
+[2012-07-04 03:45:47 -0400] gmcinnes: Anyone tried a chef-server install lately and had success?
+[2012-07-04 04:20:45 -0400] flaccid: second bug submitted, http://tickets.opscode.com/browse/OHAI-389
+[2012-07-04 05:27:50 -0400] PapaSierra: morning
+[2012-07-04 06:20:32 -0400] BryanWB_: ohai chefs!
+[2012-07-04 06:33:42 -0400] williamherry: question: I already delete all things in a node's run list, but still show one recipe on Recipes: line when show node
+[2012-07-04 06:50:44 -0400] coderanger: williamherry: You have to run the node for that to update
+[2012-07-04 07:05:19 -0400] williamherry:  coderanger, thanks
+[2012-07-04 07:13:18 -0400] forestbird: how do i define  multiple conditions with not_if?
+[2012-07-04 07:13:53 -0400] forestbird: just define not_if multiple times?
+[2012-07-04 07:14:13 -0400] forestbird: one is a shell command and the other a ruby block
+[2012-07-04 07:30:15 -0400] cnf: morning
+[2012-07-04 07:39:25 -0400] BryanWB_: cnf: morning
+[2012-07-04 07:55:27 -0400] PapaSierra: on ubuntu 12, i've added the opscode php recipe (i specified php 5.4.4), now i get this during provisioning, any ideas? http://www.hastebin.com/fogibohuhu.txt
+[2012-07-04 08:16:48 -0400] stevage: Hi all, I'm having an error with the 'link' resource
+[2012-07-04 08:16:49 -0400] stevage: http://pastebin.com/5PNrUvjz
+[2012-07-04 08:17:32 -0400] stevage: I'm new to chef, but the way this code is failing (and the fact it worked on someone else's machine - different distro) don't give me any clues how to resolve it
+[2012-07-04 08:18:30 -0400] stevage: the recipe was originally developed for Centos but I've been adapting it for Ubuntu (lucid 32). Launching through Vagrant.
+[2012-07-04 08:31:25 -0400] thom: stevage: what version of chef?
+[2012-07-04 08:31:36 -0400] upgrayedd: each_pair
+[2012-07-04 08:31:38 -0400] upgrayedd: not each
+[2012-07-04 08:31:55 -0400] stevage: 0.10.10
+[2012-07-04 08:32:04 -0400] thom: stevage: http://tickets.opscode.com/browse/CHEF-3102
+[2012-07-04 08:32:07 -0400] stevage: well, judging from the log
+[2012-07-04 08:32:11 -0400] thom: upgrade your chef :)
+[2012-07-04 08:32:26 -0400] upgrayedd: oh hmm
+[2012-07-04 08:33:04 -0400] stevage: oic, thanks. it came with vagrant - do you know how to upgrade?
+[2012-07-04 08:33:35 -0400] stevage: as in, vagrant installed it as a ruby gem: /opt/vagrant_ruby/lib/ruby/gems/1.8/gems/chef-0.10.10/bin/
+[2012-07-04 08:33:40 -0400] thom: i think vagrant is just a gem install so do gem install chef
+[2012-07-04 08:33:49 -0400] stevage: ta (I'm not a ruby dev)
+[2012-07-04 08:34:03 -0400] thom: or /opt/vagrant_ruby/bin/gem install chef
+[2012-07-04 08:34:27 -0400] stevage: actually, this will be slightly complicated - that path is actually inside the VM that vagrant creates
+[2012-07-04 08:34:54 -0400] thom: vagrant ssh "sudo /opt/vagrant_ruby/bin/gem install chef"
+[2012-07-04 08:36:55 -0400] stevage: yes, that would fix it for this current VM. but I'm regularly blowing away the VMs, so I'm going to need to replace the version of chef that vagrant keeps installing.
+[2012-07-04 08:36:55 -0400] upgrayedd: so, i can't figure this one out:
+[2012-07-04 08:37:33 -0400] upgrayedd: i run chef-client on a new node, node appears for the first time on the chef server
+[2012-07-04 08:37:46 -0400] upgrayedd: i add 5 roles to the node, including mcs-headnode
+[2012-07-04 08:38:03 -0400] upgrayedd: then i run chef-client again, including this code: mws_nodes = search(:node, 'role:mcs-headnode')
+[2012-07-04 08:38:12 -0400] upgrayedd: mws_nodes.length is then 0
+[2012-07-04 08:38:17 -0400] upgrayedd: then i run chef-client again without changing anything
+[2012-07-04 08:38:22 -0400] upgrayedd: mws_nodes.length is 1
+[2012-07-04 08:40:23 -0400] upgrayedd: i should say, the search is within a recipe included by one of the 5 roles
+[2012-07-04 08:42:27 -0400] thom: stevage: create a vanilla vm, upgrade chef then package it following http://vagrantup.com/v1/docs/boxes.html and then install it as your base box
+[2012-07-04 08:42:50 -0400] thom: upgrayedd: that sounds right
+[2012-07-04 08:43:27 -0400] thom: upgrayedd: the "role" and "recipe" attributes are expanded from the run_list by chef, so they'll only exist after the first chef run
+[2012-07-04 08:44:05 -0400] cnf: hmm, downloading cookbooks from -hosted is still very slow
+[2012-07-04 08:46:24 -0400] upgrayedd: thom: i used the singular 'role' in hopes that it would be available on first run
+[2012-07-04 08:46:40 -0400] upgrayedd: thom: these roles are in the top-level runlist on the node
+[2012-07-04 08:47:25 -0400] thom: doesn't make a difference, they're only populated at run time by the client, not by the server
+[2012-07-04 08:48:07 -0400] upgrayedd: is there something like node.save that i can do to persist that immediately?
+[2012-07-04 08:48:12 -0400] stevage: thom: thanks, what's the command that makes it become the new base? ie, what makes it replace the existing lucid32 box?
+[2012-07-04 08:48:47 -0400] thom: stevage: vagrant box add lucid32 /some/path
+[2012-07-04 08:48:54 -0400] thom: upgrayedd: not afaik
+[2012-07-04 08:50:31 -0400] stevage: thom: oic, so 'vagrant package' to produce a new .box file, then 'vagrant box add lucid32 foo.box' redefines lucid32. cool.
+[2012-07-04 08:52:39 -0400] upgrayedd: the 'why chef?' intro video had a nice story about how you can do searches like that in recipes in order to cross-configure related components
+[2012-07-04 08:53:17 -0400] upgrayedd: the way attributes in recipes seem to get dereferenced really early in the run, combined with persistence quirks like this, make it very hard for me to figure out how they intend for that to work
+[2012-07-04 08:53:20 -0400] thom: upgrayedd: and you can - as your second run proves. (note you can search the run list directly as soon as you set it)
+[2012-07-04 08:54:23 -0400] upgrayedd: so, is my assumption that chef should not require multiple runs to converge on the sort of transient closure of the state you want wrong?
+[2012-07-04 08:54:25 -0400] workmad3: upgrayedd: searches only work once the attributes are saved to the server, which happens at the end of the run
+[2012-07-04 08:55:15 -0400] workmad3: upgrayedd: and in general, yes... when you're configuring nodes based on other nodes, you're more likely to have a convergence over multiple runs
+[2012-07-04 08:56:11 -0400] workmad3: upgrayedd: not saying you definitely will, but if you aren't extremely careful (and sometimes even then) then the nature of the distributed config is more likely to converge over multiple nodes than all fall out in a single run
+[2012-07-04 08:56:27 -0400] workmad3: *multiple runs
+[2012-07-04 08:56:31 -0400] upgrayedd: oi
+[2012-07-04 08:57:07 -0400] upgrayedd: so, i could agree that it seems like a natural consequence of distributing configs over multiple nodes combined with this pull model
+[2012-07-04 08:57:29 -0400] upgrayedd: but in my case i'm developing and testing recipes all on the same node
+[2012-07-04 08:57:58 -0400] workmad3: upgrayedd: yes, but searches hit the server, not the node
+[2012-07-04 08:58:09 -0400] workmad3: upgrayedd: so it's all to do with what the server knows, not what the node knows
+[2012-07-04 08:58:44 -0400] workmad3: upgrayedd: so even in a single-node case, you're dealing with distributed knowledge with the chef server by default treated as your source of truth
+[2012-07-04 08:59:23 -0400] upgrayedd: it's just a weird choice to not make the result of the deep merge in the beginning available to the search, no?
+[2012-07-04 09:00:33 -0400] workmad3: upgrayedd: not really, when you consider the consequences... that would mean that the search is updated with data before it's actually been applied to the node, and something could go wrong in the run so the data would either need to be transactional or your search would have incorrect data
+[2012-07-04 09:00:52 -0400] workmad3: upgrayedd: and distributed transactions are not fun :)
+[2012-07-04 09:01:48 -0400] upgrayedd: it's not by nature transactional anyway
+[2012-07-04 09:01:55 -0400] upgrayedd: it may crap all over the machine by the time the run fails
+[2012-07-04 09:02:04 -0400] upgrayedd: why stop there?
+[2012-07-04 09:02:27 -0400] workmad3: upgrayedd: containment... better for one node to die than the chef server to have incorrect data and crap over your entire infrastructure :)
+[2012-07-04 09:03:36 -0400] workmad3: upgrayedd: it's as good a choice as any to (by default) only save updated attributes at the end of the run, it causes some issues, it prevents others
+[2012-07-04 09:03:43 -0400] cnf: hmm, any opscode people about?
+[2012-07-04 09:03:45 -0400] workmad3: upgrayedd: you can always save the attributes manually to the server though :)
+[2012-07-04 09:03:55 -0400] upgrayedd: i guess with that you've left me behind - i don't manage large distributed production anythings
+[2012-07-04 09:04:18 -0400] upgrayedd: so i can't much appreciate those problems
+[2012-07-04 09:04:25 -0400] upgrayedd: sounds fair though
+[2012-07-04 09:05:35 -0400] upgrayedd: thanks
+[2012-07-04 09:08:38 -0400] vin_: hi
+[2012-07-04 09:09:09 -0400] vin_: anyone can explain me chef-expander, I didnt install it still solr is able to index data fine?
+[2012-07-04 09:11:56 -0400] upgrayedd: why would i want an irc proxy hosted in a linode anyhow
+[2012-07-04 09:16:21 -0400] vin_: anyone can help me with chef-expander?
+[2012-07-04 09:22:39 -0400] vin_: I would like to cluster chef-expander across 2 machine, I know i can create multiple works in single machine
+[2012-07-04 09:28:17 -0400] zoubi: hi
+[2012-07-04 09:28:40 -0400] zoubi: I have a cookbooks which contains 2 recipes, which have completely different dependencies.
+[2012-07-04 09:28:55 -0400] zoubi: I've put all the dependencies of both recipes in the metadata of the cookbook
+[2012-07-04 09:29:04 -0400] zoubi: I've upload all the required cookbooks on my chef server
+[2012-07-04 09:29:24 -0400] DigitalFlux: Hi
+[2012-07-04 09:29:35 -0400] DigitalFlux: Any shortcut available to terminate ec2 instance + client + node ?
+[2012-07-04 09:29:49 -0400] zoubi: when I run vagrant, specifying one of the 2 recipes, I have this error : HTTP Request Returned 412 Precondition Failed: {"most_constrained_cookbooks":[],"unsatisfiable_run_list_item":"(creatures >= 0.0.0)","message":"Unable to atisfy constraints on cookbook postgresql\", which does not exist, due to run list item (creatures >= 0.0.0). Run list items that may result in a constraint on postgresql\": [(creatures = 1.0.0)-> (postgresql\" >= 0.0.0)]","non_existent_c
+[2012-07-04 09:29:49 -0400] zoubi: ookbooks":["Package postgresql\""]}
+[2012-07-04 09:29:52 -0400] DigitalFlux: instead of deleting each one in sequence in 3 commands ?
+[2012-07-04 09:30:07 -0400] zoubi: DigitalFlux, I had to create a script for that :(
+[2012-07-04 09:30:28 -0400] DigitalFlux: zoubi: i would guess that this is a highly-required feature :)
+[2012-07-04 09:30:31 -0400] zoubi: the recipe I try to install does not depend upon postgresql (but the other one did)
+[2012-07-04 09:30:43 -0400] DigitalFlux: zoubi: feature request to knife-ec2 ?
+[2012-07-04 09:30:47 -0400] zoubi: DigitalFlux, I would too
+[2012-07-04 09:31:21 -0400] DigitalFlux: zoubi: Hi, check this :) http://comments.gmane.org/gmane.comp.sysutils.chef.user/4469
+[2012-07-04 09:31:47 -0400] DigitalFlux: the opscode guys never misses a thing :), if you think of it, it's there already :-)
+[2012-07-04 09:34:19 -0400] zoubi: DigitalFlux, https://github.com/opscode/knife-ec2/blob/master/README.rdoc just need to add --purge
+[2012-07-04 09:48:52 -0400] upgrayedd: ugh... i don't know why i struggle so much with attributes
+[2012-07-04 09:49:13 -0400] upgrayedd: so i need access to a default attribute from another recipe
+[2012-07-04 09:50:11 -0400] upgrayedd: i've tried include_attribute in the recipe that accesses it, but it's nil during the run
+[2012-07-04 09:53:40 -0400] upgrayedd: i should say i tried include_attribute, in the attributes file corresponding to the recipe that accesses it
+[2012-07-04 10:01:46 -0400] cnf: Chef Run complete in 2567.035854 seconds
+[2012-07-04 10:01:47 -0400] cnf: o,O
+[2012-07-04 10:03:52 -0400] upgrayedd: o_O
+[2012-07-04 10:04:13 -0400] cnf: hmz
+[2012-07-04 10:09:20 -0400] zoubi: an idea of why I have an error related to dependencies on postgresql where as the recipe I install doesn't depend on it? (but another recipe in the same cookbook does, so I need to put the dependency in the metadata of the cookbook)
+[2012-07-04 10:11:06 -0400] upgrayedd: not sure, but out of curiosity does the other cookbook's metadata say it's a dependency?
+[2012-07-04 10:11:22 -0400] upgrayedd: the one that actually depends on it?
+[2012-07-04 10:12:35 -0400] zoubi: the two recipes are in the same cookbook
+[2012-07-04 10:12:43 -0400] zoubi: so I only have 1 metadata file
+[2012-07-04 10:12:53 -0400] upgrayedd: oh
+[2012-07-04 10:13:33 -0400] zoubi: both recipes have very different requirements
+[2012-07-04 10:13:42 -0400] upgrayedd: you might want to split them into different cookbooks then
+[2012-07-04 10:13:48 -0400] zoubi: yes
+[2012-07-04 10:13:50 -0400] upgrayedd: i dont know of any other way to break the dep
+[2012-07-04 10:13:55 -0400] upgrayedd: since they share metadata
+[2012-07-04 10:14:14 -0400] zoubi: that's a pity, but I don't think I have any other solution
+[2012-07-04 10:14:56 -0400] upgrayedd: i hear you.  today i've refactored the same single cookbook into 5, and then refactored each of those 2 more times to try to figure out my issues
+[2012-07-04 10:15:22 -0400] zoubi: isn't it a bug? (in my case I mean)
+[2012-07-04 10:15:40 -0400] upgrayedd: i would call it more a limitation than a bug
+[2012-07-04 10:15:58 -0400] upgrayedd: it doesn't do its own dependency resolving per recipe, it relies on correct metadata
+[2012-07-04 10:16:07 -0400] upgrayedd: and since the metadata file is shared ...
+[2012-07-04 10:16:25 -0400] zoubi: ok...
+[2012-07-04 10:16:36 -0400] zoubi: thanks for confirming to me what I was suspecting
+[2012-07-04 10:16:41 -0400] upgrayedd: np np
+[2012-07-04 10:24:48 -0400] upgrayedd: gah! i've somehow introduced intermittent problems with what i'm doing with attributes
+[2012-07-04 10:29:49 -0400] cnf: owkay...
+[2012-07-04 10:29:50 -0400] cnf: uhm
+[2012-07-04 10:30:07 -0400] cnf: getting cookbox is slow, in my centos vms
+[2012-07-04 10:30:15 -0400] cnf: and works fine in my ubuntu ones o,O
+[2012-07-04 10:31:09 -0400] cnf: wth
+[2012-07-04 10:36:29 -0400] BryanWB_: cnf: using vagrant?
+[2012-07-04 10:36:34 -0400] BryanWB_: or virtualbox?
+[2012-07-04 10:36:35 -0400] cnf: yes
+[2012-07-04 10:36:43 -0400] cnf: vagrant (with vbox)
+[2012-07-04 10:36:53 -0400] BryanWB_: i c bizarre perf lags re: chef in my vagrant vms
+[2012-07-04 10:37:08 -0400] BryanWB_: and w/ vmware hosts works blazing fast
+[2012-07-04 10:37:26 -0400] cnf: centos?
+[2012-07-04 10:37:27 -0400] bawt_: centos is http://wiki.opscode.com/display/chef/Installation+on+CentOS+5+with+RPMs
+[2012-07-04 10:37:36 -0400] cnf: BryanWB_: because ubuntu ones work fine
+[2012-07-04 10:38:38 -0400] BryanWB_: cnf: prolly has to do w/ bridging config, maybe centos bridging is crap
+[2012-07-04 10:39:31 -0400] cnf: it's quite annoying ^^;
+[2012-07-04 10:40:25 -0400] BryanWB_: for me too :p
+[2012-07-04 10:41:03 -0400] cnf: sadly, no free vmware on mac :P
+[2012-07-04 10:41:37 -0400] BryanWB_: fuck
+[2012-07-04 10:47:37 -0400] cnf: oops, i made the opscode support software goo booboo
+[2012-07-04 11:46:09 -0400] PapaSierra: morning all, i'd like to use https://github.com/opscode-cookbooks/php but in /attributes/default.rb i see they specify version 5.3.10. i'd like to use 5.4.4, please confirm what i need to do to change this. i see there's a checksum too
+[2012-07-04 11:49:03 -0400] cnf: PapaSierra: ubuntu or redhat based?
+[2012-07-04 11:49:11 -0400] PapaSierra: ubuntu
+[2012-07-04 11:49:34 -0400] cnf: oh, you are doing source based?
+[2012-07-04 11:50:14 -0400] cnf: PapaSierra: you are using php::source?
+[2012-07-04 11:51:59 -0400] PapaSierra: to be honest i'm not sure, i'm new to chef and finding it very intimidating. i thought i'd start off with installing php from a known good recipe
+[2012-07-04 11:52:21 -0400] PapaSierra: all i'm doing is running chef solo and specifying that cookbook in the runlist
+[2012-07-04 11:52:34 -0400] cnf: PapaSierra: i know the feeling :P
+[2012-07-04 11:53:24 -0400] PapaSierra: i did try changing the version value to 5.4.4 but didn't change the checksum. very strange... it installed 5.3.10! how did it know to do that when i've changed it? that's why i'm not sure if there's a setting elsewhere
+[2012-07-04 11:53:30 -0400] cnf: PapaSierra: the default install method is package
+[2012-07-04 11:53:35 -0400] cnf: for the php cookbook
+[2012-07-04 11:53:50 -0400] cnf: you changed the settings for the form source one
+[2012-07-04 11:54:52 -0400] cnf: PapaSierra: what is the latest package of php on your system?
+[2012-07-04 11:55:03 -0400] PapaSierra: what do you mean i changed it? i'm using the official opscode recipe without modification except version number
+[2012-07-04 11:55:16 -0400] cnf: PapaSierra: it will just do https://github.com/opscode-cookbooks/php/blob/master/recipes/package.rb
+[2012-07-04 11:55:21 -0400] PapaSierra: $ php -v gives me 5.3.10
+[2012-07-04 11:55:33 -0400] cnf: PapaSierra: yes, but you changed the version numbers of of the from source
+[2012-07-04 11:56:26 -0400] PapaSierra: oh. i just changed this: https://github.com/opscode-cookbooks/php/blob/master/attributes/default.rb#L45
+[2012-07-04 11:56:27 -0400] cnf: PapaSierra: by default, it just does apt-get install php5-cgi php5 php5-dev php5-cli php-pear
+[2012-07-04 11:56:29 -0400] PapaSierra: very naive
+[2012-07-04 11:56:39 -0400] PapaSierra: i see
+[2012-07-04 11:56:55 -0400] cnf: yeah, that is if you use [php::source]
+[2012-07-04 11:57:09 -0400] cnf: or set install_method to source in your role
+[2012-07-04 11:58:23 -0400] cnf: PapaSierra: but it seems your dist has 5.3.10 as its latest package version as well?
+[2012-07-04 11:59:07 -0400] cnf: dpkg -l |grep -i php ?
+[2012-07-04 11:59:13 -0400] PapaSierra: you mean "what apt-get sees"? first on my runlist is apt get update
+[2012-07-04 11:59:54 -0400] cnf: yes, and what is the latest version apt can install?
+[2012-07-04 12:00:43 -0400] PapaSierra: ii  php5                             5.3.10-1ubuntu3.2          server-side, HTML-embedded scripting language (metapackage)
+[2012-07-04 12:00:54 -0400] cnf: there you go
+[2012-07-04 12:01:05 -0400] PapaSierra: so what must i do?
+[2012-07-04 12:01:16 -0400] cnf: PapaSierra:  https://github.com/opscode-cookbooks/php just did an apt-get install php
+[2012-07-04 12:01:28 -0400] cnf: PapaSierra: i dno, do you want to install from source?
+[2012-07-04 12:01:47 -0400] cnf: or do you want to use the latest package provided by ubuntu?
+[2012-07-04 12:02:16 -0400] PapaSierra: is 5.3.10 the latest from ubuntu? there's no 5.4.x?
+[2012-07-04 12:03:09 -0400] cnf: looks like it
+[2012-07-04 12:03:28 -0400] cnf: that's the latest stable
+[2012-07-04 12:04:35 -0400] PapaSierra: ok now the php chef recipe: it's set up to get 5.3.10, so when ubuntu packages 5.3.11 or 5.4 what will this recipe do? just stay with 5.3.10?
+[2012-07-04 12:10:15 -0400] cnf: uhm, that is a good question
+[2012-07-04 12:10:20 -0400] cnf: i'm relatively new myself
+[2012-07-04 12:10:36 -0400] cnf: PapaSierra: give me a few minutes, and i'll have a look
+[2012-07-04 12:10:39 -0400] PapaSierra: ok. so far what have you used chef for?
+[2012-07-04 12:11:14 -0400] workmad3: PapaSierra: the opscode recipe for chef doesn't do that... it gets the php5 packages, whatever they are
+[2012-07-04 12:11:44 -0400] workmad3: PapaSierra: however, it does do an :install rather than an :update, so if new versions come out then nodes that have already been installed won't update automatically
+[2012-07-04 12:11:52 -0400] workmad3: PapaSierra: which is generally what you want, I find :)
+[2012-07-04 12:12:02 -0400] PapaSierra: workmad3 right, so when 5.4 becomes available what do i have to do to upgrade?
+[2012-07-04 12:12:34 -0400] PapaSierra: i see why you prefer install rather than update. i agree. but in this case i'll need 5.4 as soon as available
+[2012-07-04 12:13:53 -0400] workmad3: PapaSierra: you'd either get a new version of the cookbook at that point, or write your own quickly to install the relevant packages
+[2012-07-04 12:15:12 -0400] PapaSierra: ok, so new version of the cookbook followed by a call to chef-solo would actually install 5.4?
+[2012-07-04 12:15:35 -0400] workmad3: PapaSierra: if the package names changed, yes
+[2012-07-04 12:16:21 -0400] PapaSierra: workmad3 by package names you're referring to: https://github.com/opscode-cookbooks/php/blob/master/recipes/package.rb#L27
+[2012-07-04 12:17:05 -0400] workmad3: PapaSierra: if the package names were the same, you'd need to modify the cookbook and change it to :upgrade rather than :install
+[2012-07-04 12:17:08 -0400] workmad3: PapaSierra: yes
+[2012-07-04 12:17:42 -0400] PapaSierra: sorry but where do you see :install? am i looking in the wrong place? https://github.com/opscode-cookbooks/php/blob/master/recipes/default.rb
+[2012-07-04 12:18:13 -0400] PapaSierra: aaahh https://github.com/opscode-cookbooks/php/blob/master/recipes/package.rb#L34
+[2012-07-04 12:18:40 -0400] workmad3: PapaSierra: https://github.com/opscode-cookbooks/php/blob/master/recipes/package.rb#L34
+[2012-07-04 12:20:12 -0400] cnf: i think cookbooks like that should let you specify the version you want
+[2012-07-04 12:21:01 -0400] cnf: actually, doesn't chef understand version?
+[2012-07-04 12:21:26 -0400] workmad3: cnf: it does, and a typical strategy is to specify a version as a node attribute, with the cookbook providing a default
+[2012-07-04 12:21:46 -0400] cnf: if you add below package pkg do a 'version 5.4.4' would that not work?
+[2012-07-04 12:21:49 -0400] PapaSierra: workmad3 what's this about then? https://github.com/opscode-cookbooks/php/blob/master/attributes/default.rb#L45
+[2012-07-04 12:21:57 -0400] cnf: workmad3: yes, that sounds sane
+[2012-07-04 12:22:15 -0400] cnf: workmad3: but from what I see, the php one doesn't do that?
+[2012-07-04 12:22:38 -0400] workmad3: PapaSierra: that seems to be used if you build from source
+[2012-07-04 12:22:39 -0400] cnf: PapaSierra: like i said, specify the version you want to install from source
+[2012-07-04 12:23:04 -0400] PapaSierra: oh, well, what's involved in building from source?
+[2012-07-04 12:23:05 -0400] workmad3: PapaSierra: and you can override that on a node-by-node basis
+[2012-07-04 12:23:23 -0400] cnf: PapaSierra: a compiler :P
+[2012-07-04 12:23:42 -0400] workmad3: PapaSierra: setting the node attribute '['php']['install_method']' to source
+[2012-07-04 12:23:43 -0400] PapaSierra: i mean with chef?
+[2012-07-04 12:23:49 -0400] PapaSierra: ah
+[2012-07-04 12:23:51 -0400] PapaSierra: simple as that?
+[2012-07-04 12:23:55 -0400] workmad3: pretty much
+[2012-07-04 12:24:02 -0400] cnf: well, no
+[2012-07-04 12:24:16 -0400] cnf: set node ttribute['php']['version'] to 5.4.4
+[2012-07-04 12:24:29 -0400] cnf: and possibly ['php']['checksum'] to the right checksum
+[2012-07-04 12:24:41 -0400] cnf: PapaSierra: if you want to use a clean unaltered cookbook
+[2012-07-04 12:25:01 -0400] workmad3: cnf: well, that's for changing the version... to switch to building from source instead of packages with the existing version, you just need to set the install method :)
+[2012-07-04 12:25:17 -0400] cnf: workmad3: indeed, but that package installs 5.3.10
+[2012-07-04 12:25:19 -0400] cnf: and he wants 5.4.4
+[2012-07-04 12:25:57 -0400] cnf: that cookbook installs*
+[2012-07-04 12:26:02 -0400] workmad3: cnf: oh, and regarding your q about package version... that would work, but the package version systems are not the same as the PHP version systems
+[2012-07-04 12:26:22 -0400] workmad3: cnf: so the version would probably be more likely '5.3.1.debian.something'
+[2012-07-04 12:26:26 -0400] cnf: workmad3: right, so i would need the right package verson notation
+[2012-07-04 12:26:31 -0400] workmad3: or something along those lines :)
+[2012-07-04 12:26:34 -0400] cnf: workmad3: does it understand things like >= ?
+[2012-07-04 12:26:57 -0400] cnf: or wildcards? (5.3.10*)
+[2012-07-04 12:27:02 -0400] workmad3: not afaik, because that requires semantic versioning
+[2012-07-04 12:27:25 -0400] cnf: hmm, because both apt and yum understand those
+[2012-07-04 12:27:31 -0400] workmad3: actually, I think the version string is just passed onto the package management tool itself, so it depends on what that supports
+[2012-07-04 12:27:45 -0400] cnf: iirc
+[2012-07-04 12:27:53 -0400] cnf: hmm, ok
+[2012-07-04 12:28:05 -0400] cnf: hmm
+[2012-07-04 12:28:12 -0400] cnf: workmad3: this calls for some playing :P
+[2012-07-04 12:28:24 -0400] workmad3: you'd need to play a bit... and in fairness, when it comes to infrastructure you probably want to lock to specific versions rather than wildcards :)
+[2012-07-04 12:28:47 -0400] cnf: true
+[2012-07-04 12:29:28 -0400] cnf: workmad3: though you might want to allow security updates
+[2012-07-04 12:29:49 -0400] workmad3: possibly, it's quite dependent on infrastructure requirements
+[2012-07-04 12:29:55 -0400] cnf: uhu
+[2012-07-04 12:30:09 -0400] cnf: PapaSierra: did we help you out, or just overwhelm you?
+[2012-07-04 12:30:26 -0400] workmad3: and if you're allowing them, chances are you'd allow them across the board, so you'd have a single cookbook that you could apply that just got security updates I'd guess :)
+[2012-07-04 12:31:01 -0400] cnf: yeah, in theory i just prefer unaltered community cookbooks
+[2012-07-04 12:31:11 -0400] cnf: it seems that's not very attainable, though
+[2012-07-04 12:31:33 -0400] workmad3: you need to review the cookbooks, see if they fit your needs or not
+[2012-07-04 12:31:53 -0400] workmad3: or see if they can be composed in some way to fit your needs
+[2012-07-04 12:32:37 -0400] cnf: it's just that as soon as you edit, it needs to be version controlled
+[2012-07-04 12:33:06 -0400] gustavo: Hi guys, I'm using chef-server 0.10.8 for Debian Squeeze. The chef-server and chef-server-webui process are having a high CPU usage, around 60%. When I inspect with strace the processes, they are executing "select(9, [5 7], [], [], {0, 59039})    = 0 (Timeout)" constantly. Is it a bug ? How can I reduce CPU load ?
+[2012-07-04 12:33:45 -0400] PapaSierra: workmad3 right, but you say that attributes can be modified on a per node basis?
+[2012-07-04 12:33:48 -0400] workmad3: cnf: yes, but it's not like running your own repo is expensive
+[2012-07-04 12:34:03 -0400] cnf: it is, timewise
+[2012-07-04 12:34:15 -0400] cnf: PapaSierra: yes, like in your role definition
+[2012-07-04 12:34:27 -0400] cnf: i don't know how that works with -solo, though
+[2012-07-04 12:34:30 -0400] nacer: knife cookbook download sensu
+[2012-07-04 12:34:30 -0400] nacer: Downloading sensu cookbook version 0.0.7
+[2012-07-04 12:34:38 -0400] nacer: there is a 0.0.9 on community site :(
+[2012-07-04 12:34:48 -0400] nacer: why does he get the 0.0.7
+[2012-07-04 12:34:49 -0400] nacer: ?
+[2012-07-04 12:34:53 -0400] cnf: PapaSierra: http://wiki.opscode.com/display/chef/Chef+Solo#ChefSolo-JSON%2CAttributesandRecipes
+[2012-07-04 12:35:47 -0400] cnf: PapaSierra: how do you invoke your -solo?
+[2012-07-04 12:38:44 -0400] nacer: lol
+[2012-07-04 12:38:50 -0400] nacer: i;am dumb
+[2012-07-04 12:40:58 -0400] BryanWB_: gustavo: i have never seen high resource usage on my chef-server w/ 100 clients, not sure what causing ur 60% usage
+[2012-07-04 12:41:12 -0400] PapaSierra: cnf like this $ sudo chef-solo -c /root/chef/config/solo.rb
+[2012-07-04 12:41:38 -0400] cnf: right, in the solo.rb, i think you'd need something like uhm
+[2012-07-04 12:42:45 -0400] PapaSierra: cnf i'm actually using a json file
+[2012-07-04 12:42:50 -0400] PapaSierra: called default.json
+[2012-07-04 12:42:52 -0400] cnf: default_attributes("php" => { 'version' => '5.4.4'})
+[2012-07-04 12:43:08 -0400] cnf: PapaSierra: in json, the same thing but with json syntax :P
+[2012-07-04 12:44:00 -0400] cnf: "default_attributes": {"php": { 'version' => '5.4.4'}}
+[2012-07-04 12:44:07 -0400] cnf: "default_attributes": {"php": { 'version': '5.4.4'}}
+[2012-07-04 12:44:09 -0400] cnf: something like that
+[2012-07-04 12:44:46 -0400] cnf: "default_attributes": {"php": { "install_method": "source, 'version': '5.4.4'}}
+[2012-07-04 12:44:51 -0400] cnf: that should work
+[2012-07-04 12:45:52 -0400] cnf: PapaSierra: put that in your solo.json file, and the php cookbook should install 5.4.4 from source
+[2012-07-04 12:46:10 -0400] PapaSierra: wow, clever, let me try
+[2012-07-04 12:46:10 -0400] cnf: of course, you still have 5.3.10 installed from package, atm
+[2012-07-04 12:46:30 -0400] PapaSierra: will it install over 5.3.10, or as well as?
+[2012-07-04 12:46:34 -0400] cnf: maybe you want to uninstall that first :P
+[2012-07-04 12:46:42 -0400] cnf: i don't know
+[2012-07-04 12:46:56 -0400] cnf: PapaSierra: are you testing this in a test vm?
+[2012-07-04 12:46:59 -0400] gustavo: BryanWB_: The process is executing "select(9, [5 7], [], [], {0, 59039})    = 0 (Timeout)" all the time and the descriptor 7 is a socket where the process is listening for connections.
+[2012-07-04 12:47:03 -0400] PapaSierra: pretty much, yes
+[2012-07-04 12:47:15 -0400] cnf: PapaSierra: so can you revert?
+[2012-07-04 12:47:23 -0400] cnf: PapaSierra: vagrant destroy, or revert a snapshot?
+[2012-07-04 12:47:28 -0400] PapaSierra: well i can wipe the vm and start over!
+[2012-07-04 12:47:46 -0400] cnf: i'm guessing no vagrant :P
+[2012-07-04 12:47:57 -0400] PapaSierra: can vagrant be used something like rackspace??
+[2012-07-04 12:48:12 -0400] cnf: well no, vagrant is for local development / testing
+[2012-07-04 12:48:14 -0400] PapaSierra: i use vagrant locally for dev. but i'm making a production server now
+[2012-07-04 12:48:22 -0400] cnf: right
+[2012-07-04 12:48:30 -0400] cnf: and you are testing chef on the server?
+[2012-07-04 12:49:21 -0400] PapaSierra: i'm working on a new project and i figured instead of setting up vagrant locally and then when the project is complete i'll work out how to do the server. i figured i would set up  the server first and then make sure the dev machine matches and make sure my deployment procedure is bulletproof right from the start
+[2012-07-04 12:49:31 -0400] PapaSierra: yes, testing chef on the server
+[2012-07-04 12:50:24 -0400] PapaSierra: ironically it's quicker to test on a live server on rackspace, because i'm in africa and my internet is slow, so all that apt-get stuff would take 2 hours here. on the server it takes a couple of minutes
+[2012-07-04 12:51:21 -0400] cnf: right, fair enough
+[2012-07-04 12:51:42 -0400] cnf: maybe install vagrant temp on the server?
+[2012-07-04 12:51:56 -0400] cnf: PapaSierra: just so you can test, and rollback and destroy, until you get it all sorted out
+[2012-07-04 12:52:10 -0400] cnf: either way, i'd first uninstall all the php packages with apt
+[2012-07-04 12:52:15 -0400] cnf: before installing it from source
+[2012-07-04 12:52:43 -0400] PapaSierra: is apt uninstall to be trusted 100%? is it not safer to rebuild my entire server from a backup image?
+[2012-07-04 12:52:43 -0400] cnf: i'm not a fan of installing stuff from source, though ^^;
+[2012-07-04 12:52:56 -0400] cnf: PapaSierra: how long will a rebuild work?
+[2012-07-04 12:52:58 -0400] cnf: take*
+[2012-07-04 12:53:05 -0400] PapaSierra: 1 minute
+[2012-07-04 12:53:10 -0400] cnf: oh, then rebuild
+[2012-07-04 12:53:43 -0400] PapaSierra: right. and why don't you like installing from source? i'm assuming that this cookbook is solid and will handle the install correctly
+[2012-07-04 12:54:32 -0400] cnf: it makes tracking things harder
+[2012-07-04 12:54:47 -0400] cnf: and making your own packages isn't the end of the world
+[2012-07-04 12:55:36 -0400] cnf: PapaSierra: i don't want to add to your complexity, but i would make an ubuntu package from source for 5.4.4, and use that
+[2012-07-04 12:55:48 -0400] cnf: but that's just me, and not a required step :P
+[2012-07-04 12:57:18 -0400] PapaSierra: cnf so you're saying that i should not set install_method to source? you're saying to leave it as package, but then i build the package from source?
+[2012-07-04 12:57:41 -0400] cnf: PapaSierra: i'm saying what _I_ would do, not what you should do.
+[2012-07-04 12:57:54 -0400] cnf: you should do what works for you
+[2012-07-04 12:59:24 -0400] cnf: PapaSierra: making your own packages isn't too difficult, but it is another thing to learn
+[2012-07-04 12:59:27 -0400] PapaSierra: i'm totally new to all of this, but my instinct tells me i don't want to modify the cookbook. i could set up a .json attributes file if that's robust enough. or i could build the package as you say, but then again i'd need to know how to tell the installer to look at my package and not at ubuntu's repo
+[2012-07-04 12:59:53 -0400] cnf: right, why don't you go with source for now
+[2012-07-04 12:59:59 -0400] cnf: and get something that works
+[2012-07-04 13:00:05 -0400] cnf: help you understand what's going on
+[2012-07-04 13:00:16 -0400] cnf: then sleep on it a night, and see if you like it :P
+[2012-07-04 13:01:53 -0400] PapaSierra: and if i were to go with building the package, how would i tell the recipe where to find it, and to choose it over the ubuntu repo?
+[2012-07-04 13:03:26 -0400] cnf: well, that's a little more work
+[2012-07-04 13:03:40 -0400] cnf: you'd need to make your own recipe
+[2012-07-04 13:04:01 -0400] PapaSierra: hmm...
+[2012-07-04 13:04:57 -0400] chrisa2: you wouldn't necessarily. if you set up a local apt repo, you can then use the apt cookbook to add that as a source.
+[2012-07-04 13:05:27 -0400] chrisa2: if you wanted to install a local package without going through apt, yeah, you'd need a cookbook specifically to do that
+[2012-07-04 13:05:28 -0400] PapaSierra: right, i am using the apt cookbook
+[2012-07-04 13:06:26 -0400] PapaSierra: i suspected that apt-get has a list of repos and therefore the php cookbook wouldn't need to change so long as apt looks into your repo as well as remote repos
+[2012-07-04 13:06:57 -0400] chrisa2: that's exactly it - what the apt cookbook can do is to add your local repo to that list
+[2012-07-04 13:07:09 -0400] cnf: chrisa2: good point
+[2012-07-04 13:07:36 -0400] cnf: you'd still need to get your package TO your local repo, and install the local repo
+[2012-07-04 13:07:48 -0400] chrisa2: oh yes, that's a separate problem
+[2012-07-04 13:07:55 -0400] cnf: i don't know if there is a cookbook for that
+[2012-07-04 13:07:59 -0400] chrisa2: you'd still need to _build_ the package in the first place :)
+[2012-07-04 13:08:35 -0400] cnf: indeed :P
+[2012-07-04 13:09:10 -0400] cnf: PapaSierra: you should probably just ignore that bit, and use the php package to install from source
+[2012-07-04 13:09:22 -0400] cnf: i don't know how upgrading later works, though
+[2012-07-04 13:09:34 -0400] cnf: and use the php cookbook*
+[2012-07-04 13:12:57 -0400] zoubi: DigitalFlux, I figured out my problem with the dependencies... There was a typo problem :'(
+[2012-07-04 13:18:00 -0400] PapaSierra: cnf great, i'm trying this out now...
+[2012-07-04 13:18:51 -0400] PapaSierra: incidentally, php threadsafe vs non-threadsafe? what's the rationale here?
+[2012-07-04 13:22:15 -0400] cnf: https://twitter.com/edankwan/status/195504967220604933
+[2012-07-04 13:43:37 -0400] cnf: damnit, why is chef so slow in my centos VM
+[2012-07-04 13:44:24 -0400] gmcinnes: cnf: probably memory starvation
+[2012-07-04 13:44:52 -0400] cnf: gmcinnes: doesn't look like it no swap in use, and free -m shows reasonably amounts free
+[2012-07-04 13:45:02 -0400] cnf: also, ubuntu has no such problems on _less_ ram
+[2012-07-04 13:45:18 -0400] cnf: gmcinnes: it's specifically downloading cookbooks
+[2012-07-04 13:45:43 -0400] cnf: 5 seconds per file
+[2012-07-04 13:45:46 -0400] cnf: on average
+[2012-07-04 13:47:27 -0400] gmcinnes: cnf: where from? Hosted Chef?
+[2012-07-04 13:47:33 -0400] cnf: gmcinnes: yes
+[2012-07-04 13:48:17 -0400] gmcinnes: hmm.  I've experienced intermittent slowness & http timeouts.   It usually doesn't last for long.  I assume it's consistant for you tho?
+[2012-07-04 13:49:00 -0400] cnf: gmcinnes: has been since the day before yesterday
+[2012-07-04 13:49:52 -0400] gmcinnes: no. I'm talking about individual runs being slow. Over the course of 5 minutes or so, not days at a time.
+[2012-07-04 13:50:27 -0400] gmcinnes: Can't help you. You'll have to wait for PST to wake up.
+[2012-07-04 13:51:00 -0400] cnf: oh yes, a new run takes about 20 minutes now
+[2012-07-04 13:51:06 -0400] cnf: most of which is downloading cookbooks
+[2012-07-04 13:51:39 -0400] cnf: Mem:           499         99        400
+[2012-07-04 13:54:24 -0400] cnf: also, googling for chef problems makes me hungry!
+[2012-07-04 13:54:25 -0400] cnf: :P
+[2012-07-04 13:58:14 -0400] PapaSierra: cnf i know what you mean ;) chef recipies mmmm
+[2012-07-04 13:58:23 -0400] cnf: :P
+[2012-07-04 13:59:41 -0400] gmcinnes: weird. Your cookbooks should be mostly cached anyway.   Are you building a new machine every time?
+[2012-07-04 14:04:11 -0400] ashmere: is the omnibus installer version of chef-server available for open source chef yet?
+[2012-07-04 14:05:13 -0400] gmcinnes: wouldn't that be awesome.
+[2012-07-04 14:06:22 -0400] cnf: gmcinnes: yes, i am
+[2012-07-04 14:06:28 -0400] cnf: gmcinnes: just testing, atm
+[2012-07-04 14:06:44 -0400] gmcinnes: ashmere: any luck? I've been having the horrors.
+[2012-07-04 14:08:19 -0400] ashmere: gmcinnes: ? I am still looking round for a link or a confirmation it exists haven't found it anywhere
+[2012-07-04 14:09:39 -0400] gmcinnes: ashmere: oh. sorry. A message disappeared along the way there somehow.  Have you tried any of the other installation methods?
+[2012-07-04 14:10:29 -0400] ashmere: I am using the packaged debian one at the minute but I would like to go to the omnibus version to avoid issue with system packages in the future.
+[2012-07-04 14:21:11 -0400] agosse: i've got a provider in a separate cookbook from the resource that I'm implementing.  When the provider tries to do a cookbook_file (located in its cookbook's files directory), the cookbook with the resource interface complains that it can't find the file.
+[2012-07-04 14:21:18 -0400] agosse: ..hopefully that makes sense ;-)
+[2012-07-04 14:31:02 -0400] gmcinnes: ashmere: I can't get it to install via the packages or the rubygems method on Debian 6.0.3. Very frustrating.
+[2012-07-04 14:35:02 -0400] thedeeno: can I set default attributes = to values from my encrypted databag? Will the be visible on chef-server if I do that?
+[2012-07-04 14:43:12 -0400] ashmere: gmcinnes: what version are you trying to install I'm using chef-server package from  http://apt.opscode.com/ squeeze-0.10/main on debian 6.0.4 without any real issues
+[2012-07-04 14:47:09 -0400] ashmere: sorry actually mine is 6.0.5 now
+[2012-07-04 14:55:12 -0400] gmcinnes: ashmere: yeah. same with me, but it's dying trying to start the merb services, on both the package version and the rubygems version
+[2012-07-04 14:55:28 -0400] gmcinnes: It looks like this bug: http://tickets.opscode.com/browse/CHEF-2464
+[2012-07-04 14:55:49 -0400] gmcinnes: Or this one: http://tickets.opscode.com/browse/CHEF-2864
+[2012-07-04 15:00:18 -0400] ashmere: are all the different parts from the package ie chef-solr chef-expander, chef-server I have an issue when I upgrade than some came from the package and some from rubygems. I would just do a quick recheck.
+[2012-07-04 15:02:17 -0400] ashmere: gmcinnes: do all apt-cache policy chef-server chef-solr chef-expander show as currently being from dpkg ?
+[2012-07-04 15:03:49 -0400] ashmere: I think the full list to check is "apt-cache policy chef-server chef-solr chef-expander chef-server-api chef-server-webui chef"
+[2012-07-04 15:12:24 -0400] jan0232: i'm confused. i use chef 10.12.0 and the omibus installer (the default with knife ec2 server create) and i'm using rbenv to install ruby i made my ruby version the global system-wide ruby with rbenv_global "1.9.3-p194"  but still gem_package installs gems in chef-ruby :(
+[2012-07-04 15:13:21 -0400] jan0232: which is a bummer because now passenger gets installed in the chef's embedded ruby environment
+[2012-07-04 15:13:57 -0400] jan0232: it says that omnibus installs' gem_package would look in the PATH for a gem binary
+[2012-07-04 15:14:42 -0400] jan0232: which gem outputs "/usr/local/rbenv/shims/gem" .. which is correct but gem_package doesn't use it
+[2012-07-04 15:31:14 -0400] Eitch_: Hi! I want to scale chef-server-api to N machines and was wondering, since all server data is stored on couchdb, is there something that needs a shared filesystem? The first thing I noticed is when uploading a cookbook, it complains about the sandbox, is there something else? :)
+[2012-07-04 15:39:54 -0400] flu-: Hey folks, I'm digging around in the code for chef and looking for a way to grab a reference to a node when you know it's full name. Is there a better way than doing a search and grabbing the first (only) result? I'd really like a node 'get' or something of the like
+[2012-07-04 15:40:00 -0400] ashb: Eitch_: the usual first approach to scaling is to serpate the components (solr db etc) to different machines
+[2012-07-04 15:40:30 -0400] ashb: DigitalFlux: what do you mean?
+[2012-07-04 15:40:46 -0400] ashb: Eitch_: see also http://serverfault.com/questions/236397/scaling-chef-with-multiple-instances-or-replication
+[2012-07-04 15:41:15 -0400] DigitalFlux: ashb: It was not that 'deep' in puppet, since the directory structure in chef is very clean, it has lots of attributes types around
+[2012-07-04 15:41:35 -0400] ashb: I don't quite get what you mean. what areyou trying to achieve?
+[2012-07-04 15:41:46 -0400] flu-: Is there *full* documentation of the API chef exposes to recipes somewhere on the opscode site?
+[2012-07-04 15:42:12 -0400] ashb: flu-: there isn't much API. there are resources and search
+[2012-07-04 15:42:12 -0400] ashb: http://wiki.opscode.com/display/chef/Resources
+[2012-07-04 15:42:17 -0400] ashb: http://wiki.opscode.com/display/chef/Search
+[2012-07-04 15:42:20 -0400] DigitalFlux: ashb: I am just finding my way around chef, this is my first day :), so it's not something in specific that i'm not unable to do
+[2012-07-04 15:42:30 -0400] flu-: ashb: So as for grabbing a ref to a specific node, search is pretty much the best way at the moment?
+[2012-07-04 15:42:44 -0400] ashb: flu-: s/best/only/ to my knowledge
+[2012-07-04 15:43:08 -0400] flu-: okie dokie. Thanks!
+[2012-07-04 15:43:14 -0400] ashb: DigitalFlux: i've not got around to learning puppet so can't compare yet
+[2012-07-04 15:49:37 -0400] Eitch_: ashb: thanks, I already separated couchdb, chef-expander, chef-solr and rabbitmq
+[2012-07-04 15:50:00 -0400] Eitch_: ashb: but chef-server-api is very intensive in CPU, so I need to spread across multiple workers/servers
+[2012-07-04 15:50:09 -0400] Eitch_: ashb: 1000+ machines installation
+[2012-07-04 15:50:19 -0400] ashb: oh wow. yeah
+[2012-07-04 15:50:48 -0400] flu-: Eitch_: Are you chef-clienting those hosts at the same time?
+[2012-07-04 15:50:50 -0400] Eitch_: ashb: I'm already spawning multiple workers on the same server and it's load balanced by nginx
+[2012-07-04 15:51:12 -0400] ashb: flu-: the built in splay helps with that a bit already doens't it?
+[2012-07-04 15:51:13 -0400] flu-: Eitch_: We have a rather large deployment as well, with one chef-server. Luckily we only need to chef-client subsets of them at a time
+[2012-07-04 15:51:22 -0400] flu-: ashb: How do you mean?
+[2012-07-04 15:51:25 -0400] Eitch_: flu-: not the same time, but since there are many servers and the stime interval is 1 hour, it happens... :P
+[2012-07-04 15:51:33 -0400] yfeldblum: flu-, http://wiki.opscode.com/display/chef/Recipes
+[2012-07-04 15:51:42 -0400] ashb: 'The -s option is the Splay - a random piece of time added to the interval, which helps avoid the thundering herd problem.'
+[2012-07-04 15:51:47 -0400] flu-: Eitch_: Ah, gotcha. We manually kick them off rather than doing it on an automation schedule
+[2012-07-04 15:51:48 -0400] yfeldblum: flu-, not full per se, but sufficient
+[2012-07-04 15:52:02 -0400] flu-: ashb: Gotcha, good to know :)
+[2012-07-04 15:52:23 -0400] ashb: but even so, with that many nodes you'd also want to stagger it a bit more than splay alone would help
+[2012-07-04 15:52:50 -0400] Eitch_: the problem sometimes is that some recipes are "server intensive" because of the search query
+[2012-07-04 15:53:23 -0400] Eitch_: since chef's search returns all data from all nodes, sometimes
+[2012-07-04 15:53:54 -0400] Eitch_: usually there's no problem with this server, but sometimes I get some bottlenecks, and another server would be great :-)
+[2012-07-04 15:54:41 -0400] ashb: Eitch_: you'd either need NFS or similar for cookbooks/files, or some smart routing to make search API requests use multiple servers
+[2012-07-04 15:54:48 -0400] ashb: I have no idea if that would actually work mind
+[2012-07-04 15:55:42 -0400] flu-: it'd be cool to have pluggable storage interfaces for cookbooks and databags and such
+[2012-07-04 15:55:56 -0400] flu-: then one could implement it to (for instance) use S3 for storage of that stuff
+[2012-07-04 15:56:06 -0400] ashb: i assume databags are in couchdb
+[2012-07-04 15:56:33 -0400] ashb: me either
+[2012-07-04 15:56:43 -0400] ashb: but given they are just json structures and oyu can search it
+[2012-07-04 15:56:43 -0400] Eitch_: seeing here, databags and cookbooks are on couchdb
+[2012-07-04 15:56:56 -0400] Eitch_: ah
+[2012-07-04 15:57:15 -0400] Eitch_: forgot the /var/lib/chef :P
+[2012-07-04 15:57:35 -0400] yfeldblum: daga bag items are indeed stored in couchdb (once you do `knife data bag from file` or `knife data bag create BAG ITEM -e vim` etc
+[2012-07-04 16:07:29 -0400] PapaSierra: "You should create these files in the 'roles' subdirectory of your chef repository", sorry, where?
+[2012-07-04 16:07:47 -0400] ashb: PapaSierra: the directory whereyou run knife from
+[2012-07-04 16:07:55 -0400] yfeldblum:  /path/to/chef-repo/roles
+[2012-07-04 16:07:55 -0400] ashb: typically has data_bags/, roles/, cookbooks/ etc
+[2012-07-04 16:08:07 -0400] PapaSierra: i'm using chef solo, does that matter?
+[2012-07-04 16:08:37 -0400] PapaSierra: ok. so for me that's /root/chef/cookbooks, therefore /root/chef/roles?
+[2012-07-04 16:08:52 -0400] yfeldblum: sounds like it
+[2012-07-04 16:09:18 -0400] PapaSierra: thanks
+[2012-07-04 16:09:38 -0400] cnf: i have several different chef directories :P
+[2012-07-04 16:09:52 -0400] PapaSierra: i'm confused
+[2012-07-04 16:10:37 -0400] cnf: wait, don't you use chef-solo PapaSierra ?
+[2012-07-04 16:10:44 -0400] PapaSierra: yes
+[2012-07-04 16:13:40 -0400] PapaSierra: cnf, what's the implication?
+[2012-07-04 16:14:05 -0400] cnf: knife is for working with -server or -hosted, afaik
+[2012-07-04 16:14:23 -0400] cnf: but maybe i'm only half following
+[2012-07-04 16:15:40 -0400] PapaSierra: cnf right, i'm not using knife, i'm just using chef solo. i was just wondering if "roles" is the right place to keep instructions on which chef recipes to include to build my web server
+[2012-07-04 16:16:02 -0400] cnf: i don't know how -solo works
+[2012-07-04 16:16:07 -0400] cnf: i use the free -hosted account
+[2012-07-04 16:18:19 -0400] jan0232: this gem_package thing is frustrating :(
+[2012-07-04 16:18:26 -0400] Guest67717: hi, i  accidentally killed the rsa key of one of my clients, how dies knife client reregister work?
+[2012-07-04 16:18:32 -0400] Guest67717: does*
+[2012-07-04 16:18:55 -0400] ashb: Guest67717: killed on the node or in the chef server?
+[2012-07-04 16:19:38 -0400] jan0232: Guest67717: regenerate api key on the server and use that one in your knife config!
+[2012-07-04 16:19:40 -0400] jan0232: ?
+[2012-07-04 16:19:44 -0400] Guest67717: i dont know i made a bootstrap
+[2012-07-04 16:20:09 -0400] Guest67717: and now it doesnt work anymore :D
+[2012-07-04 16:21:11 -0400] Guest67717: when i execute reregister i get a new key, where do i have to store it on the client?
+[2012-07-04 16:21:23 -0400] ashb: /etc/chef/client.pm
+[2012-07-04 16:21:25 -0400] ashb: pem
+[2012-07-04 16:22:02 -0400] Guest67717: ok thank you ill try
+[2012-07-04 16:23:23 -0400] Guest67717: HTTP Request Returned 401 Unauthorized: Failed to authenticate. Ensure that your client key is valid.
+[2012-07-04 16:23:42 -0400] Guest67717: do i have to change also the validation.pem ?
+[2012-07-04 16:24:02 -0400] ashb: validation.pem is used to generate a new key if the client doesn't have one
+[2012-07-04 16:24:14 -0400] ashb: you can delete it once the client is registered
+[2012-07-04 16:28:35 -0400] Guest67717: ok thanks but why it doesnt work then? :/
+[2012-07-04 16:29:11 -0400] ashb: no idea. when i've made that kind of mistake in the past i've just deleted the client.pem and then deleted the client on the server
+[2012-07-04 16:29:19 -0400] ashb: then just let it regenrate a new key
+[2012-07-04 16:29:37 -0400] Guest67717: ok where can i delete the key on the server side?
+[2012-07-04 16:29:52 -0400] ashb: go to the clients screen and delete that
+[2012-07-04 16:30:19 -0400] Guest67717: you mean knife client edit and delete the key there?
+[2012-07-04 16:30:30 -0400] ashb: i mean in the chef server webui
+[2012-07-04 16:30:38 -0400] Guest67717: i dont have one :D
+[2012-07-04 16:35:54 -0400] Guest67717: well i deleted the client.pem now, now i can execute chef-client without errors but my runlist is empty
+[2012-07-04 16:36:28 -0400] flu-: Guest67717: knife node edit Your-Messed-Up-Node
+[2012-07-04 16:36:32 -0400] tightwork: chef doesnt feel very chef like anymore.. :-/
+[2012-07-04 16:37:58 -0400] Guest67717: yeah it looks good, i think that chef thinks that is is an other node now
+[2012-07-04 16:37:58 -0400] PapaSierra: being that opscode php cookbooks is the official opscode cookbook, does that imply that this is a full list of php modules? https://github.com/opscode-cookbooks/php/blob/master/attributes/default.rb#L49
+[2012-07-04 16:38:31 -0400] tightwork: kinda reinventing the wheel in official books or stuff isnt working at all, specifically by bootstrap problem
+[2012-07-04 16:38:33 -0400] PapaSierra: s/modules/options ^
+[2012-07-04 16:38:38 -0400] ashb: PapaSierra: of the build in ones, probably
+[2012-07-04 16:38:47 -0400] ashb: PapaSierra: or its just the defaults that some distro uses to build with
+[2012-07-04 16:40:58 -0400] PapaSierra: i see. no i'd like to override some attributes. take for example https://github.com/opscode-cookbooks/php/blob/master/attributes/default.rb#L45 i'd like to have a json file to change that value. so far my json file looks like this http://www.hastebin.com/piwiyuxixa.json please give me an example of how to change the php version. if i can see the syntax i'll be able to change other settings that i need too
+[2012-07-04 16:41:55 -0400] ashb: PapaSierra: chef-solo, yeah?
+[2012-07-04 16:42:05 -0400] PapaSierra: that's right
+[2012-07-04 16:42:07 -0400] ashb: http://wiki.opscode.com/display/chef/Chef+Solo#ChefSolo-JSON%2CAttributesandRecipes
+[2012-07-04 16:42:27 -0400] ashb: so you'd want "php":{ "version": "5.4.1" } in that json hash
+[2012-07-04 16:42:59 -0400] PapaSierra: and by the way i'm not sure if i've got the right idea but instead of specifying a long runlist, i've specified "main". where main is a cookbook with a recipe that has lots of require_recipe in it. is that "correct"?
+[2012-07-04 16:43:14 -0400] ashb: PapaSierra: its not typical, no
+[2012-07-04 16:43:19 -0400] ashb: (what you've done that is)
+[2012-07-04 16:43:25 -0400] PapaSierra: ok
+[2012-07-04 16:43:26 -0400] jan0232: if i have some regular chef-client roles and everything could it give me the json output and i can use that same thing for chef-solo?
+[2012-07-04 16:44:42 -0400] ashb: jan0232: knife node edit <name> will give you a json, but it might have other attributes in there too (defaults etc.)
+[2012-07-04 16:45:00 -0400] jan0232: ok i see
+[2012-07-04 16:47:04 -0400] jan0232: how can i set the gem_package GemEnvironment on a global level??
+[2012-07-04 16:47:22 -0400] jan0232: so the gem_binary path will be the one of the rbenv ruby version i set
+[2012-07-04 16:48:32 -0400] yfeldblum: jan0232, if you are managing multiple rubies, then you need to think about writing recipes from the perspective of managing multiple rubies (e.g., selecting which ruby instance to manage on each occasion)
+[2012-07-04 16:49:05 -0400] yfeldblum: jan0232, if you are merely using rbenv to install a system ruby, then perhaps have rbenv stick it in the PATH and be done with it
+[2012-07-04 16:49:05 -0400] jan0232: yfeldblum: so that means any other cookbooks won't work anymore!? for example the passenger cookbook from opscode
+[2012-07-04 16:49:23 -0400] jan0232: yfeldblum: i'm just using it to install a system ruby
+[2012-07-04 16:50:15 -0400] freerobby: Hi all, I'm trying to fix a bug in the monit cookbook where installing it for the first time yields: service[monit] (monit::default line 12) had an error: No such file or directory - /etc/init.d/monit start
+[2012-07-04 16:50:29 -0400] jan0232: yfeldblum: but even though there is only this one system rubyAND it sits in the PATH correctly which ruby and "which gem" outputs correct pathseven then gem_package will install in the /opt/chef embedded thingy :(
+[2012-07-04 16:50:31 -0400] freerobby: I thought maybe this was because the service lwrp is used before the template is created
+[2012-07-04 16:50:41 -0400] freerobby: But I checked other cookbooks (haproxy) and it seems to work fine
+[2012-07-04 16:50:49 -0400] freerobby: Does anybody know why this would be failing for me on the first install?
+[2012-07-04 16:50:53 -0400] ashb: freerobby: that does sound like it is the problem
+[2012-07-04 16:51:06 -0400] ashb: and when the service is tried to start
+[2012-07-04 16:51:08 -0400] freerobby: Here is the recipe: https://github.com/shareaholic/chef-monit/blob/master/recipes/default.rb
+[2012-07-04 16:51:17 -0400] ashb: something might be triggering an immediate start attempt on monit
+[2012-07-04 16:51:54 -0400] freerobby: ashb: Is there a way to trigger [:enable, :start] within the service declaration itself to be delayed?
+[2012-07-04 16:52:01 -0400] freerobby: It's line 13 in that recipe
+[2012-07-04 16:52:05 -0400] ashb: hmmm no, but that shouldn't be the problem
+[2012-07-04 16:52:09 -0400] ashb: i'm not sure what is though
+[2012-07-04 16:53:40 -0400] freerobby: I wish the JIRA tickets were linked to the specific changes
+[2012-07-04 16:53:44 -0400] freerobby: looks similar to https://tickets.opscode.com/browse/COOK-793
+[2012-07-04 16:54:40 -0400] jan0232: yfeldblum: "have rbenv stick it in the PATH and be done with it" is what i want to dobut it doesn't work!? any idea how i can debug this? i want to know why gem_package still installs like a chef_gem i thought chef_gem would be the new way to manage that...
+[2012-07-04 16:55:10 -0400] jan0232: gem_package should never touch chef's own stuff
+[2012-07-04 16:55:22 -0400] freerobby: ashb: Is it significant that the top of the stack trace points to the service ([Wed, 04 Jul 2012 16:54:04 +0000] ERROR: service[monit] (/var/chef/cache/cookbooks/monit/recipes/default.rb:12:in `from_file') had an error:
+[2012-07-04 16:55:22 -0400] freerobby: ) and everything under that is in the chef framework stakc?
+[2012-07-04 16:56:16 -0400] ashb: no idea
+[2012-07-04 16:57:09 -0400] yfeldblum: jan0232, it should work: https://github.com/opscode/chef/blob/master/chef/lib/chef/provider/package/rubygems.rb#L345-351
+[2012-07-04 17:29:03 -0400] myusuf3: I have a cookbook I want to use of someone elses
+[2012-07-04 17:29:22 -0400] myusuf3: how do I add it to my set of cookbooks for my site?
+[2012-07-04 17:29:28 -0400] myusuf3: in a clean way?
+[2012-07-04 17:35:25 -0400] jameson: you want to use someone else's cookbook?
+[2012-07-04 17:36:01 -0400] jameson: do a site install, and then upload it to your chef server
+[2012-07-04 17:36:09 -0400] jameson: now you have someone else's cookbook
+[2012-07-04 17:50:24 -0400] PapaSierra: is the opscode mysql cookbook broken for ubuntu or is it just me?
+[2012-07-04 17:53:29 -0400] myusuf3: jameson, thats cool
+[2012-07-04 17:53:36 -0400] myusuf3: i am using chef-solo rightnow
+[2012-07-04 17:53:38 -0400] myusuf3: https://github.com/ctrabold/chef-redis/blob/master/recipes/default.rb
+[2012-07-04 17:53:43 -0400] myusuf3: what does that line mean?
+[2012-07-04 17:53:57 -0400] jameson: uh
+[2012-07-04 17:53:59 -0400] myusuf3: i can't find anything that corresponds to it in the cookbook there
+[2012-07-04 17:54:02 -0400] jameson: I'd recommend redisio
+[2012-07-04 17:54:10 -0400] myusuf3: hmm
+[2012-07-04 17:54:18 -0400] jameson: in the community
+[2012-07-04 17:54:18 -0400] PapaSierra: it means this: https://github.com/ctrabold/chef-redis/blob/master/recipes/package.rb
+[2012-07-04 17:54:22 -0400] jameson: that's the one I use
+[2012-07-04 17:54:43 -0400] jameson: myusuf3: you have to have #L19
+[2012-07-04 17:54:49 -0400] jameson: or something if you are referring to a line on github
+[2012-07-04 17:56:00 -0400] myusuf3: line 19?
+[2012-07-04 17:56:01 -0400] myusuf3: okay
+[2012-07-04 17:56:09 -0400] myusuf3: so lets  say I want to use redisio
+[2012-07-04 17:56:26 -0400] myusuf3: I have repo that I keep updated for my site
+[2012-07-04 17:56:28 -0400] PapaSierra: i'm not sure but this looks like a serious bug in the mysql cookbook. https://github.com/opscode-cookbooks/mysql/pull/17
+[2012-07-04 17:56:35 -0400] myusuf3: so i copy the entire cookbook into my repository?
+[2012-07-04 17:56:45 -0400] jameson: yes
+[2012-07-04 17:56:51 -0400] jameson: or you can use submodules
+[2012-07-04 17:56:54 -0400] myusuf3: ahh kk
+[2012-07-04 17:57:01 -0400] myusuf3: does it go in the root?
+[2012-07-04 17:57:07 -0400] jameson: and use knife-github-cookbooks
+[2012-07-04 17:57:09 -0400] jameson: https://github.com/websterclay/knife-github-cookbooks
+[2012-07-04 17:57:14 -0400] jameson: I personally
+[2012-07-04 17:57:17 -0400] jameson: copy to my repo
+[2012-07-04 17:57:18 -0400] myusuf3: << python guy
+[2012-07-04 17:57:24 -0400] myusuf3: I am using fabric
+[2012-07-04 17:57:29 -0400] myusuf3: instead of knife
+[2012-07-04 17:57:49 -0400] myusuf3: but I get submodules
+[2012-07-04 17:57:49 -0400] jameson: so you are only using chef to bootstrap?
+[2012-07-04 17:57:56 -0400] myusuf3: yes
+[2012-07-04 17:58:05 -0400] jameson: I'd highly recommend that you switch to one or the other at a point
+[2012-07-04 17:58:09 -0400] myusuf3: fabric does the copying and running the cook commands
+[2012-07-04 17:58:21 -0400] jameson: I'm doing a similar thing
+[2012-07-04 17:58:22 -0400] myusuf3: i am using chef to provision
+[2012-07-04 17:58:34 -0400] jameson: chef should be able to deploy all your packages via cookbooks
+[2012-07-04 17:58:34 -0400] myusuf3: fabric is just my remote ssh tool
+[2012-07-04 17:58:54 -0400] myusuf3: like knife
+[2012-07-04 17:58:59 -0400] jameson: as you say
+[2012-07-04 18:02:02 -0400] jameson: but yes
+[2012-07-04 18:02:13 -0400] jameson: you should copy over their repo into your cookbooks and  run it
+[2012-07-04 18:02:53 -0400] jameson: people copy the cookbooks locally instead of doing submodules because many cookbooks get customized,patched
+[2012-07-04 18:03:16 -0400] PapaSierra: jameson upstream or by yourself?
+[2012-07-04 18:03:56 -0400] jameson: from what I was told that opscode used to police the cookbooks, but then chef wasn't growing, so they let the cookbooks be pure community and got chef to be better.
+[2012-07-04 18:04:07 -0400] jameson: which has produced the problem of community cookbooks having weird issues here and there
+[2012-07-04 18:04:46 -0400] jameson: like poorly maintained/abandoned cookbooks rolling around
+[2012-07-04 18:05:05 -0400] jameson: PapaSierra: I start with other people's cookbooks whenever I can and then patch them for our purposes
+[2012-07-04 18:05:13 -0400] jameson: I have a few cookbooks that I wrote from scratch
+[2012-07-04 18:05:18 -0400] PapaSierra: right ok
+[2012-07-04 18:05:31 -0400] myusuf3: well this is a problem
+[2012-07-04 18:05:33 -0400] jameson: some cookbooks aren't responsive to pull-requests, etc.
+[2012-07-04 18:05:40 -0400] myusuf3: which i solved by writing my own from scractch
+[2012-07-04 18:05:46 -0400] myusuf3: sratch
+[2012-07-04 18:05:48 -0400] jameson: OSS problems affecting OSS software :X
+[2012-07-04 18:05:52 -0400] myusuf3: which defeats the purpose
+[2012-07-04 18:05:59 -0400] myusuf3: if everyone does it themselves
+[2012-07-04 18:06:01 -0400] jameson: well
+[2012-07-04 18:06:17 -0400] myusuf3: so why aren't the cookbooks be version controlled
+[2012-07-04 18:06:21 -0400] PapaSierra: YES! i'm trying to use the official mysql cookbook and there's a pull request which is a show stopper for us. everyone has +1ed it, but they haven't pull it.
+[2012-07-04 18:06:27 -0400] myusuf3: and use sane versioning
+[2012-07-04 18:06:36 -0400] jameson: I think there is a general agreement (at least IRC, I don't know about the Mailing List) that opscode or someone should publish a more thorough good practices for cookbooks
+[2012-07-04 18:06:47 -0400] myusuf3: haha
+[2012-07-04 18:06:54 -0400] myusuf3: well everything should be configurable
+[2012-07-04 18:07:09 -0400] PapaSierra: i just find the chef documentation incredibly unapproachable
+[2012-07-04 18:07:12 -0400] jameson: PapaSierra: opscode will respond to tickets on JIRA rather than pull-requests
+[2012-07-04 18:07:20 -0400] jameson: unless you catch the guys on here
+[2012-07-04 18:07:22 -0400] PapaSierra: ok
+[2012-07-04 18:07:25 -0400] jameson: even then, they would like a ticket
+[2012-07-04 18:07:32 -0400] myusuf3: hmm
+[2012-07-04 18:07:37 -0400] PapaSierra: jira url?
+[2012-07-04 18:07:41 -0400] myusuf3: where are the opscode guys now?
+[2012-07-04 18:07:49 -0400] jameson: I think it's a company thing, the tickets let them block time, get to write they did something for managers.
+[2012-07-04 18:07:55 -0400] jameson: they are in here
+[2012-07-04 18:08:01 -0400] jameson: also July 5th
+[2012-07-04 18:08:02 -0400] jameson: er
+[2012-07-04 18:08:03 -0400] jameson: 4th
+[2012-07-04 18:08:04 -0400] myusuf3: so this is a pretty big issue
+[2012-07-04 18:08:05 -0400] myusuf3: yee
+[2012-07-04 18:08:08 -0400] jameson: it's a holiday :P
+[2012-07-04 18:08:08 -0400] myusuf3: <<
+[2012-07-04 18:08:11 -0400] myusuf3: Canadian
+[2012-07-04 18:08:16 -0400] jameson: http://tickets.opscode.com/secure/Dashboard.jspa\
+[2012-07-04 18:08:26 -0400] jameson: you have to sign a CDA when you push patches to them
+[2012-07-04 18:08:33 -0400] myusuf3: ahh java webapps
+[2012-07-04 18:08:38 -0400] jameson: or a CCDA if you are pushing from your company
+[2012-07-04 18:11:25 -0400] jameson: :X
+[2012-07-04 18:12:37 -0400] myusuf3: jameson, what is the `*%w`
+[2012-07-04 18:12:38 -0400] myusuf3: https://github.com/brianbianco/redisio
+[2012-07-04 18:12:41 -0400] myusuf3: in the readme?
+[2012-07-04 18:12:44 -0400] myusuf3: can I just add
+[2012-07-04 18:12:49 -0400] PapaSierra: gosh, jira is about as complicated as chef's documentation
+[2012-07-04 18:12:50 -0400] myusuf3: redisio::install
+[2012-07-04 18:13:00 -0400] myusuf3: PapaSierra its not that bad
+[2012-07-04 18:13:04 -0400] myusuf3: picture a tool
+[2012-07-04 18:13:08 -0400] myusuf3: then raise a bug
+[2012-07-04 18:13:15 -0400] PapaSierra: i can't find how to
+[2012-07-04 18:13:56 -0400] jameson: myusuf3:  it's a ruby thing that lets you create an array of strings
+[2012-07-04 18:14:09 -0400] myusuf3: can
+[2012-07-04 18:14:10 -0400] myusuf3: can'
+[2012-07-04 18:14:13 -0400] myusuf3: wow.
+[2012-07-04 18:14:14 -0400] myusuf3: sorry
+[2012-07-04 18:14:23 -0400] myusuf3: can't I just add it to the runlist in my json file?
+[2012-07-04 18:14:28 -0400] jameson: myusuf3: yup, you can do 'recipe[redisio]' and the 'recipe[redisio::enable]' to install and start the server
+[2012-07-04 18:14:49 -0400] jameson: PapaSierra: make an account, go into the chefs, or cookbooks section
+[2012-07-04 18:14:52 -0400] jameson: create new ticket
+[2012-07-04 18:15:04 -0400] jameson: and try to assign it if you can,
+[2012-07-04 18:15:17 -0400] myusuf3: jameson isn't redisio::install and redisio::enable
+[2012-07-04 18:15:31 -0400] jameson: i prefer to use default.rb whenever
+[2012-07-04 18:15:35 -0400] jameson: but yes
+[2012-07-04 18:15:40 -0400] jameson: default.rb does ::install i believe
+[2012-07-04 18:15:49 -0400] myusuf3: hmm
+[2012-07-04 18:15:59 -0400] myusuf3: where do the default_attributes go?
+[2012-07-04 18:16:18 -0400] jameson: in roles
+[2012-07-04 18:16:32 -0400] jameson: they overwrite the attributes defined by the cookbooks
+[2012-07-04 18:16:32 -0400] myusuf3: so
+[2012-07-04 18:16:35 -0400] myusuf3: I am confused
+[2012-07-04 18:16:36 -0400] myusuf3: sorry
+[2012-07-04 18:16:37 -0400] jameson: those are in attributes/default.rb
+[2012-07-04 18:16:52 -0400] jameson: roles -> define recipes to use, attributes to change, etc.
+[2012-07-04 18:16:57 -0400] myusuf3: where do I put those setting to take advantage of the m in my setup
+[2012-07-04 18:17:07 -0400] jameson: in your setup
+[2012-07-04 18:17:15 -0400] myusuf3: do those go in the rb file
+[2012-07-04 18:17:28 -0400] myusuf3: or in json file?
+[2012-07-04 18:17:30 -0400] jameson: in roles/somerole.rb
+[2012-07-04 18:17:32 -0400] jameson: you add them there
+[2012-07-04 18:17:35 -0400] myusuf3: ...
+[2012-07-04 18:17:44 -0400] jameson: and in your runlist you do runlist( role[somerole] )
+[2012-07-04 18:17:45 -0400] PapaSierra: done.
+[2012-07-04 18:17:45 -0400] myusuf3: there are too many ways to do the same thing
+[2012-07-04 18:18:03 -0400] jameson: roles -> define recipes, node attributes
+[2012-07-04 18:18:14 -0400] jameson: it takes a bit to get used to
+[2012-07-04 18:18:26 -0400] jameson: PapaSierra: now don't forget to watch that ticket
+[2012-07-04 18:18:39 -0400] PapaSierra: yeah, i've done that. i'll get emailed
+[2012-07-04 18:34:16 -0400] nickpresta: My directory structure looks like: http://dpaste.com/767410/plain/ I am trying to use chef-solo like so: `sudo chef-solo -c solo.rb -j solo.json` This is the output I get: http://dpaste.com/767412/plain/ Any help is appreciated.
+[2012-07-04 18:37:31 -0400] nickpresta: Nevermind. I seem to have solved the problem. LD
+[2012-07-04 19:05:23 -0400] istvanp: Hello - question for you guys: How do you reload the shell chef uses so that it picks up changes to bashrc? I tried running an execute block with "exec $SHELL" without success. What gets changed is actually an addition of a shell script into /etc/profile.d/. Any recommendations?
+[2012-07-04 19:06:52 -0400] istvanp: of course running the script again will work but I need this to work in one shot...
+[2012-07-04 19:07:13 -0400] Mithrandir: what is the problem you're really trying to solve?
+[2012-07-04 19:07:55 -0400] istvanp: Installing nginx from source with passenger tries to run `rake` without a path And I'm using the rbenv script to install ruby+deps...
+[2012-07-04 19:09:10 -0400] istvanp: rbenv installs a script into /etc/profile.d/ which gives the path to rake, but its not picked up by chef in the same run
+[2012-07-04 19:10:22 -0400] jameson: istvanp: start a new bash term?
+[2012-07-04 19:10:35 -0400] jameson: og
+[2012-07-04 19:10:35 -0400] jameson: oh
+[2012-07-04 19:10:38 -0400] jameson: sorry i'm being dumb
+[2012-07-04 19:11:03 -0400] jameson: stuff in profile.d requires a relogin to run
+[2012-07-04 19:11:07 -0400] jameson: unless you source them from bash
+[2012-07-04 19:11:31 -0400] istvanp: Could I do that through chef I guess is what my question is
+[2012-07-04 19:12:07 -0400] jameson: yes?
+[2012-07-04 19:12:13 -0400] jameson: worst case you can do
+[2012-07-04 19:12:47 -0400] jameson: you can use the bash provider to do it
+[2012-07-04 19:13:24 -0400] jameson: bash "blah blah" do code <<-EOH source somefile; do stuff ; do stuff; do stuff; EOH end
+[2012-07-04 19:13:27 -0400] jameson: etc.etc.
+[2012-07-04 19:13:31 -0400] jameson: but better formatted, with split lines
+[2012-07-04 19:13:50 -0400] istvanp: Right. This modifies the same shell chef is using correct?
+[2012-07-04 19:14:43 -0400] jameson: yes..
+[2012-07-04 19:14:45 -0400] jameson: let me chweck
+[2012-07-04 19:16:10 -0400] jameson: yes..
+[2012-07-04 19:16:35 -0400] istvanp: Cool, ill rebuild my vm to test this
+[2012-07-04 19:17:58 -0400] nickpresta: jtimberman: Do you have a moment to discuss the postfix recipe?
+[2012-07-04 19:18:59 -0400] Mithrandir: what is the problem you're really trying to solve?
+[2012-07-04 19:19:02 -0400] Mithrandir: uhm
+[2012-07-04 19:19:05 -0400] Mithrandir: EWIN
+[2012-07-04 19:25:51 -0400] jameson: you win?
+[2012-07-04 19:26:20 -0400] nickpresta: I am having a problem with the postfix recipe on CentOS 6.0 x64. My question in full is here: http://dpaste.com/767428/plain/ Thank you
+[2012-07-04 19:26:26 -0400] jameson: :X
+[2012-07-04 19:30:42 -0400] jan0232: yfeldblum: thank you so much for the link. that source code should help a lot!!! will check that out :)
+[2012-07-04 19:31:27 -0400] hoover_damm: nickpresta, node['postfix']['mydomain'] is nil?
+[2012-07-04 19:32:03 -0400] hoover_damm: nickpresta, either way https://github.com/opscode-cookbooks/postfix/blob/master/attributes/default.rb#L20 it should work
+[2012-07-04 19:32:13 -0400] hoover_damm: unless ohai domain is nil
+[2012-07-04 19:32:54 -0400] nickpresta: hoover_damm: what is ohai domain?
+[2012-07-04 19:32:59 -0400] hoover_damm: nickpresta, type it
+[2012-07-04 19:33:24 -0400] hoover_damm: nickpresta, ohai is a tool that Chef installs to collect information about your system.  Domain name, hostname, ip, etc
+[2012-07-04 19:33:46 -0400] hoover_damm: nickpresta, that recipe defaults to node[:domain] (which can be seen if you type ohai domain)
+[2012-07-04 19:33:48 -0400] nickpresta: hoover_damm: awesome. Thanks. This is my first time using Chef, so I'm still new: http://dpaste.com/767429/plain/
+[2012-07-04 19:34:07 -0400] hoover_damm: nickpresta, ahhh
+[2012-07-04 19:34:16 -0400] hoover_damm: nickpresta, is this some local vm?
+[2012-07-04 19:35:14 -0400] nickpresta: hoover_damm: yes. VM set up via vagrant
+[2012-07-04 19:35:26 -0400] hoover_damm: nickpresta, basically ohai runs hostname -f to collect the fully qualified domain name
+[2012-07-04 19:35:45 -0400] hoover_damm: I am not a vagrant user so I can't answer if vagrant does this by default
+[2012-07-04 19:36:37 -0400] nickpresta: hoover_damm: hostname -f returns localhost
+[2012-07-04 19:36:50 -0400] hoover_damm: which lacks a domain
+[2012-07-04 19:36:54 -0400] hoover_damm: http://wiki.opscode.com/display/chef/Automatic+Attributes
+[2012-07-04 19:36:55 -0400] hoover_damm: basically
+[2012-07-04 19:37:02 -0400] nickpresta: but hostname by itself has localhost.localdomain
+[2012-07-04 19:37:07 -0400] hoover_damm: echo "127.0.0.1 localhost.localdomain.lan localhost"
+[2012-07-04 19:37:10 -0400] hoover_damm: to /etc/hosts
+[2012-07-04 19:37:17 -0400] hoover_damm: or add it manually
+[2012-07-04 19:37:58 -0400] istvanp: jameson: that was a no go. I was looking into chef's http://wiki.opscode.com/display/chef/User+Environment+PATH+Sanity which might be why it ain't working :\
+[2012-07-04 19:38:57 -0400] hoover_damm: nickpresta, but node['postfix']['mydomain'] set right should work as well
+[2012-07-04 19:40:00 -0400] nickpresta: hoover_damm: I added 127.0.0.1 localhost.localdomain.lan localhost - I'll restart the VM and then try again. Thanks for your help so far.
+[2012-07-04 19:41:41 -0400] hoover_damm: shouldn't have to restart the vm
+[2012-07-04 19:41:45 -0400] hoover_damm: hostname -f should return proper again
+[2012-07-04 19:41:53 -0400] hoover_damm: silly little dillema :)
+[2012-07-04 19:42:27 -0400] hoover_damm: nickpresta, fwiw the hostname/fqdn catches everyone who comes to configuration management.  It cares about the FQDN when most people didn't
+[2012-07-04 19:43:02 -0400] nickpresta: I have a fast machine. It only took a few seconds :) hostname -f still only returns localhost. /etc/hosts: http://dpaste.com/767431/plain/
+[2012-07-04 19:44:09 -0400] hoover_damm: nickpresta, remove the first localhost
+[2012-07-04 19:44:19 -0400] hoover_damm: and localhost4 and localhost6
+[2012-07-04 19:44:27 -0400] hoover_damm: badly formatted line that's why it failed
+[2012-07-04 19:45:08 -0400] nickpresta: hostname -f returns localhost.localdomain now
+[2012-07-04 19:45:43 -0400] jameson: istvanp: that says chef uses your path
+[2012-07-04 19:45:54 -0400] nickpresta: hoover_damm: and now things seem to work (postfix restarts, chef-solo completes normally). Thank you for your help!
+[2012-07-04 19:46:37 -0400] hoover_damm: nickpresta, Now remember what you learned.  You may need it again someday
+[2012-07-04 19:47:02 -0400] istvanp: jameson: you mean the default 'sane' path? From what I gather I would perhaps need to change ENV['path'] or disable enforce_path_sanity
+[2012-07-04 19:47:48 -0400] PapaSierra: the mysql cookbook has a root_group setting like so: https://github.com/opscode-cookbooks/mysql/blob/master/attributes/server.rb#L82 i'm not sure why but /var/run/mysqld is owned by "mysql root" and for me it just won't start. when i manually changed this to "mysql mysql" it worked. can you tell me if the official mysql cookbook has an error (i doubt it, but you never know) or if i've done something wrong (i haven't
+[2012-07-04 19:47:49 -0400] PapaSierra:  really done anything, just ran chef-solo)?
+[2012-07-04 19:48:45 -0400] jameson: istvanp: chef may not pick up the changes because the shell is running already
+[2012-07-04 19:49:22 -0400] istvanp: Hmm I hope I won't need to use a hack like https://github.com/dreamcat4/site-cookbooks/tree/master/restart
+[2012-07-04 19:49:25 -0400] jameson: istvanp: try echoing the path inside the shell.
+[2012-07-04 19:50:26 -0400] masterkorp: Hey guys, did anyone treid to convert the chef wiki to the kindle format ?
+[2012-07-04 19:51:41 -0400] masterkorp: the pdf is not the nmost readable thing
+[2012-07-04 19:52:12 -0400] jameson: istvanp: that would be another option, but you could try to run 'source' in a bash script inside chef
+[2012-07-04 19:52:20 -0400] jameson: which would temporarily give you the paths you need
+[2012-07-04 19:52:37 -0400] jameson: but you would have to do that for every command...
+[2012-07-04 19:52:44 -0400] jameson: so a restart might be wiser(?)
+[2012-07-04 19:53:16 -0400] jameson: masterkorp: the wiki isn't the most readable thing :|
+[2012-07-04 19:53:53 -0400] PapaSierra: sorry, if anyone can help? ^^
+[2012-07-04 19:54:03 -0400] masterkorp: in pdf formart if you read it as book its usefull
+[2012-07-04 19:54:16 -0400] masterkorp: jameson: you need to take your time
+[2012-07-04 19:54:26 -0400] jameson: :\
+[2012-07-04 19:54:28 -0400] masterkorp: not rush and use it as a reference right away
+[2012-07-04 19:54:32 -0400] jameson: PapaSierra: uh that shouldn't matter
+[2012-07-04 19:54:42 -0400] istvanp: I tried script .. do interperter "bash"; cwd ; code "source rbenv.sh" end to no avail  I don't think its possible to affect the shell chef runs it, it probably spawns a new one for each provider. Probably the only solution is to hard code the PATH into the config.
+[2012-07-04 19:54:50 -0400] masterkorp: after you know your way, you can do that
+[2012-07-04 19:55:36 -0400] PapaSierra: jameson what do you mean it shouldn't matter? for me "mysql root" doesn't work, "mysql mysql" does work. so something is wrong somewhere
+[2012-07-04 19:55:46 -0400] jameson: istvanp: it actually runs the command from its shell
+[2012-07-04 19:56:06 -0400] jameson: PapaSierra: you are on... ubuntu/debian?
+[2012-07-04 19:56:29 -0400] istvanp: jameson: I'll try disabling the sane path thing, it might be overriding it every time then
+[2012-07-04 19:56:43 -0400] jameson: istvanp: yeh
+[2012-07-04 19:56:43 -0400] PapaSierra: jameson yes ubuntu
+[2012-07-04 19:59:03 -0400] jameson: that group thing
+[2012-07-04 19:59:03 -0400] jameson: yes
+[2012-07-04 19:59:06 -0400] jameson: it looks very wrong
+[2012-07-04 19:59:09 -0400] jameson: it should all by mysql
+[2012-07-04 20:00:14 -0400] PapaSierra: jameson so does that mean the cookbook is wrong? the only thing i can think of is that i'm running these recipes as root. though, even if i wasn't i'd be running them as chef, not as mysql!?
+[2012-07-04 20:00:46 -0400] gmcinnes1: PapaSierra: where did you get the cookbook?
+[2012-07-04 20:00:54 -0400] PapaSierra: opscode
+[2012-07-04 20:01:03 -0400] patcon: hey guys, question about the user resource -- any reason why we could rejib the resource to take the plaintext password, then generate a shadow hash every run?
+[2012-07-04 20:01:13 -0400] jameson: PapaSierra: the solo should be ran with sudo, which mean you are root
+[2012-07-04 20:01:27 -0400] patcon: I mean, we have encrypted databags now, so why do we need that extra layer of obfuscation?
+[2012-07-04 20:01:47 -0400] PapaSierra: gmcinnes1 https://github.com/opscode-cookbooks/mysql
+[2012-07-04 20:02:08 -0400] PapaSierra: jameson, right, understood. so something is off in the cookbook?
+[2012-07-04 20:02:38 -0400] jameson: mm
+[2012-07-04 20:02:45 -0400] jameson: but
+[2012-07-04 20:02:50 -0400] jameson: the process shouldn't care
+[2012-07-04 20:02:58 -0400] frank_: all, is there a reason we specify candidate_version for the package installer? Are there installers out there that won't install $candidate when not specifing the exact version?
+[2012-07-04 20:02:59 -0400] jameson: mysql should be running at mysql
+[2012-07-04 20:03:42 -0400] PapaSierra: jameson ok, i sort of get what you're saying, but loads of documentation online reports this problem and the solution appears to be to change ownership to mysql mysql
+[2012-07-04 20:05:42 -0400] gmcinnes1: PapaSierra: what happens if you uninstall mysql, and then install it with apt ?
+[2012-07-04 20:06:21 -0400] PapaSierra: sorry i'm new to ubuntu so i'll have to look up how to do that and get back to you with results...
+[2012-07-04 20:06:43 -0400] jameson: clean
+[2012-07-04 20:06:45 -0400] jameson: the instace
+[2012-07-04 20:06:47 -0400] jameson: and do
+[2012-07-04 20:06:52 -0400] jameson: sudo apt-get install mysql
+[2012-07-04 20:07:43 -0400] gmcinnes1: cleaning the instance of mysql isn't easy.
+[2012-07-04 20:08:14 -0400] PapaSierra: will this do? http://stuffthatspins.com/2011/01/08/ubuntu-10-x-completely-remove-and-clean-mysql-installation/
+[2012-07-04 20:08:27 -0400] gmcinnes1: PapaSierra: do `dpkg get-selections | grep mysql` to see all mysql involved packages.
+[2012-07-04 20:08:55 -0400] gmcinnes1: probably
+[2012-07-04 20:09:39 -0400] jameson: I think you can just uinstall and reinstall mysql using apt
+[2012-07-04 20:09:44 -0400] gmcinnes1: niet
+[2012-07-04 20:10:23 -0400] jameson:     %w{mysql-client libmysqlclient15-dev}
+[2012-07-04 20:10:28 -0400] jameson: uninstall those to
+[2012-07-04 20:10:28 -0400] PapaSierra: gmcinnes1 http://dpaste.com/767440/ is it just the ones that *start* with mysql that i want to remove?
+[2012-07-04 20:10:31 -0400] gmcinnes1: you will be left in a mess.  IIRC there's a bug in one of the remove scripts
+[2012-07-04 20:11:22 -0400] gmcinnes1: just follow that article.
+[2012-07-04 20:11:28 -0400] PapaSierra: right...
+[2012-07-04 20:11:28 -0400] gmcinnes1: you'll be safe leaving the other things, I think.
+[2012-07-04 20:12:28 -0400] gmcinnes1: ugh. I can't for the life of me get chef-server installed
+[2012-07-04 20:13:24 -0400] gmcinnes1: it always fails installing chef-expander because update-rc.d is not believing that rabbitmq-server is enabled
+[2012-07-04 20:17:43 -0400] gmcinnes1: it's just totally fscking busted.
+[2012-07-04 20:18:09 -0400] PapaSierra: gmcinnes1 jameson it's not pretty well uninstalled. i'm going to install now
+[2012-07-04 20:18:43 -0400] PapaSierra: how do i install both client and server?
+[2012-07-04 20:20:41 -0400] jameson: mm
+[2012-07-04 20:20:59 -0400] PapaSierra: nm, i did this aptitude install mysql-server mysql-client
+[2012-07-04 20:21:03 -0400] PapaSierra: and it's busy now...
+[2012-07-04 20:21:04 -0400] jameson: sudo apt-get install mysql-server..
+[2012-07-04 20:21:07 -0400] jameson: :3
+[2012-07-04 20:21:15 -0400] jameson: you said the problem was with /var/run/mysqld ?
+[2012-07-04 20:21:22 -0400] PapaSierra: yes
+[2012-07-04 20:22:20 -0400] PapaSierra: wow, interesting: http://dpaste.com/767443/
+[2012-07-04 20:24:04 -0400] jameson: yup
+[2012-07-04 20:24:07 -0400] jameson: that's the correct way
+[2012-07-04 20:25:55 -0400] PapaSierra: so what's different? /var/run/mysqld is still "mysql root", but mysqld.sock looks different
+[2012-07-04 20:26:02 -0400] PapaSierra: what's the = ?
+[2012-07-04 20:27:21 -0400] jameson: i think that's a redir
+[2012-07-04 20:27:41 -0400] ashb: = probably means its a socket
+[2012-07-04 20:28:49 -0400] jameson: uh
+[2012-07-04 20:28:57 -0400] ashb: $ file /var/run/mysqld/mysqld.sock
+[2012-07-04 20:29:23 -0400] PapaSierra: right, /var/run/mysqld/mysqld.sock: socket
+[2012-07-04 20:30:09 -0400] PapaSierra: so jameson what do you see as different between this and what i had before?
+[2012-07-04 20:32:29 -0400] jameson: uh
+[2012-07-04 20:32:40 -0400] jameson: so previously it was making those files as group root?
+[2012-07-04 20:33:48 -0400] PapaSierra: i'm running chef again now so i can tell you :)
+[2012-07-04 20:33:53 -0400] jameson: the template config looks right :X
+[2012-07-04 20:34:16 -0400] jameson: try pastebin the entire error
+[2012-07-04 20:34:38 -0400] ashb: what's the problem?
+[2012-07-04 20:35:18 -0400] PapaSierra: i'm wiping the entire vm so i can start again and give meaningful pastebins
+[2012-07-04 20:35:33 -0400] jameson: apparently the mysql cookbook dies because the socket was mysql/root instead of mysql/mysql
+[2012-07-04 20:36:56 -0400] PapaSierra: ashb i'm using opscode's mysql cookbook on ubuntu12. jameson has correctly stated my observations however i'm not 100% convinced that's the issue, it feels wrong to naively assume that the opscode mysql cookbook has got it wrong
+[2012-07-04 20:38:44 -0400] PapaSierra: wiping vm...
+[2012-07-04 20:42:26 -0400] jameson: you need a smaller vm ;_;
+[2012-07-04 20:42:39 -0400] PapaSierra: ok done... finally
+[2012-07-04 20:42:53 -0400] PapaSierra: so now...
+[2012-07-04 20:43:31 -0400] PapaSierra: fyi, here's my "bootstrap" https://gist.github.com/2974764
+[2012-07-04 20:46:04 -0400] PapaSierra: looks reasonable right?
+[2012-07-04 20:47:01 -0400] jameson: looks clean :P
+[2012-07-04 20:47:38 -0400] PapaSierra: ok, apt is updating...
+[2012-07-04 20:49:53 -0400] PapaSierra: installing all the server stuff from the bootstrap...
+[2012-07-04 20:56:23 -0400] jameson: yuuup
+[2012-07-04 20:56:27 -0400] jameson: takes a while
+[2012-07-04 20:56:51 -0400] PapaSierra: :(
+[2012-07-04 20:57:02 -0400] PapaSierra: ok, it's done installing chef and dependencies
+[2012-07-04 20:57:06 -0400] PapaSierra: time to provision!
+[2012-07-04 20:59:07 -0400] PapaSierra: installing apache2
+[2012-07-04 21:00:56 -0400] PapaSierra: apache2 done, php5.4.4 done.
+[2012-07-04 21:03:21 -0400] PapaSierra: jameson ashb sorry for the long wait! http://dpaste.com/767452/
+[2012-07-04 21:04:56 -0400] PapaSierra: interesting, the /var/run/mysqld dir is just the same: http://dpaste.com/767454/
+[2012-07-04 21:09:13 -0400] hoover_damm: i'm confused
+[2012-07-04 21:09:30 -0400] hoover_damm: apt-get install mysql-server on a brand new ec2 precise instance... it rebuilds my initramfs?
+[2012-07-04 21:10:44 -0400] jameson: might have been an update
+[2012-07-04 21:10:50 -0400] hoover_damm: https://www.refheap.com/paste/3454
+[2012-07-04 21:12:03 -0400] jameson: PapaSierra: this might be that ubuntu started the server,,
+[2012-07-04 21:12:20 -0400] jameson: PapaSierra: can you ssh in there and check /etc/init.d/ for mysql ?
+[2012-07-04 21:12:25 -0400] jameson: and service mysql ?
+[2012-07-04 21:13:24 -0400] jameson: yep
+[2012-07-04 21:13:56 -0400] hoover_damm: yeah ubuntu starts it by default
+[2012-07-04 21:14:17 -0400] jameson: is it called mysql or mysql-server?
+[2012-07-04 21:14:20 -0400] hoover_damm: debian has a policy if a package has a service, it should be started after installation
+[2012-07-04 21:14:33 -0400] hoover_damm:  /etc/init/mysql.conf
+[2012-07-04 21:14:35 -0400] PapaSierra: root@LAMP:/var/run/mysqld# ls /etc/init.d/mysql
+[2012-07-04 21:14:46 -0400] PapaSierra: gives /etc/init.d/mysql
+[2012-07-04 21:14:51 -0400] hoover_damm:  /etc/init.d/mysql is just a symlink to upstart
+[2012-07-04 21:16:00 -0400] hoover_damm: gosh I really love init scripts.  It reminds me why I love runit
+[2012-07-04 21:17:43 -0400] jameson: mm
+[2012-07-04 21:17:51 -0400] jameson: PapaSierra: how about if you did
+[2012-07-04 21:17:57 -0400] jameson: sudo server mysql status
+[2012-07-04 21:18:02 -0400] jameson: er
+[2012-07-04 21:18:03 -0400] jameson: *service
+[2012-07-04 21:18:52 -0400] PapaSierra: jameson mysql is stopped
+[2012-07-04 21:19:00 -0400] PapaSierra: it never started in the first place.
+[2012-07-04 21:19:23 -0400] PapaSierra: it died when not able to connect to /var/run/mysqld/mysqld.sock
+[2012-07-04 21:21:31 -0400] hoover_damm: PapaSierra, interesting so when you install it via chef it won't install?
+[2012-07-04 21:22:08 -0400] PapaSierra: no, it does install. but i get this: http://dpaste.com/767452/
+[2012-07-04 21:22:12 -0400] hoover_damm: PapaSierra, https://github.com/opscode-cookbooks/mysql/pull/17
+[2012-07-04 21:22:34 -0400] hoover_damm: PapaSierra, check out the pull requests on that repo
+[2012-07-04 21:22:40 -0400] hoover_damm: PapaSierra, you may find others you need to apply
+[2012-07-04 21:23:03 -0400] PapaSierra: right, i saw that and have tried it. why don't they accept the pull request? and why is the repo allowed to be in a broken state?
+[2012-07-04 21:26:46 -0400] hoover_damm: PapaSierra, people who don't follow the process as listed in http://wiki.opscode.com/display/chef/How+to+Contribute find their changes do not get merged in as easily as others
+[2012-07-04 21:27:13 -0400] hoover_damm: it usually takes another person who has a CLA to accept ownership over said pull request and resolve the ticket
+[2012-07-04 21:27:16 -0400] hoover_damm: to push it forward
+[2012-07-04 21:28:26 -0400] PapaSierra: ok changed to an ugly fork. provisioning again...
+[2012-07-04 21:29:08 -0400] PapaSierra: (i've been here once before tonight)
+[2012-07-04 21:30:14 -0400] PapaSierra: hoover_damm so now there is a different message: http://dpaste.com/767472/
+[2012-07-04 21:31:13 -0400] hoover_damm: same instance?
+[2012-07-04 21:31:17 -0400] hoover_damm: apt-get -f install
+[2012-07-04 21:31:22 -0400] hoover_damm: you need to unbreak apt
+[2012-07-04 21:31:42 -0400] PapaSierra: sorry?
+[2012-07-04 21:32:08 -0400] hoover_damm: error 100 means apt is asking for input or your asking it something impossible? (i'm not sure if that one is right)
+[2012-07-04 21:32:20 -0400] hoover_damm: so you need to run apt-get -f install on the server and review what apt is asking you
+[2012-07-04 21:32:57 -0400] PapaSierra: ok, i ran it: http://dpaste.com/767473/
+[2012-07-04 21:33:55 -0400] jameson: cat you
+[2012-07-04 21:34:04 -0400] jameson: can you ls -l /etc/mysql/
+[2012-07-04 21:34:30 -0400] PapaSierra: right, my.cnf is notably absent
+[2012-07-04 21:34:41 -0400] hoover_damm: and debian-start right?
+[2012-07-04 21:34:48 -0400] hoover_damm: it's complaining about debian-start actually
+[2012-07-04 21:35:05 -0400] PapaSierra: http://dpaste.com/767474/
+[2012-07-04 21:35:47 -0400] hoover_damm: Honestly i'd review the pulls and apply the best that youf feel will fix it.
+[2012-07-04 21:35:59 -0400] jameson: ^
+[2012-07-04 21:36:00 -0400] jameson: :X
+[2012-07-04 21:36:12 -0400] hoover_damm: and there's 12 diferent pulls, some dupes
+[2012-07-04 21:36:33 -0400] hoover_damm: and I know you can't either which is :(
+[2012-07-04 21:36:53 -0400] jameson: theres like 3 about inode
+[2012-07-04 21:36:53 -0400] hoover_damm: btw you should really just use percona
+[2012-07-04 21:37:01 -0400] hoover_damm: using mysql is silly
+[2012-07-04 21:37:06 -0400] hoover_damm: it's just xtradb and some patches
+[2012-07-04 21:37:10 -0400] PapaSierra: :( unfair! ;) i'm always the guy who comes new to a technology and discovers it in a state that doesn't work or there's some very obscure bug
+[2012-07-04 21:37:19 -0400] hoover_damm: but if you ever need mysql consulting it's a drop sink into percona consulting
+[2012-07-04 21:37:41 -0400] jameson: PapaSierra: who dropped the mysqld conf?
+[2012-07-04 21:37:49 -0400] hoover_damm: https://github.com/phlipper/chef-percona
+[2012-07-04 21:38:07 -0400] PapaSierra: sorry what is percona in relation to mysql?
+[2012-07-04 21:38:19 -0400] jameson: percona is a consulting firm for mysql
+[2012-07-04 21:38:26 -0400] jameson: or sounds like it
+[2012-07-04 21:38:34 -0400] hoover_damm: they are
+[2012-07-04 21:38:41 -0400] hoover_damm: but they provide their own variation of the mysql server
+[2012-07-04 21:39:05 -0400] hoover_damm: as it's not provided by ubuntu the installation via chef is a bit more stable
+[2012-07-04 21:39:19 -0400] hoover_damm: so that cookbook I mentioned above might work easier
+[2012-07-04 21:39:21 -0400] hoover_damm: then what your trying to do
+[2012-07-04 21:39:44 -0400] gmcinnes: Can anyone recommend how to install chef-solo in order to get open source chef server to work?
+[2012-07-04 21:40:33 -0400] jameson: :|
+[2012-07-04 21:40:42 -0400] PapaSierra: hoover_damm does percona work just like mysql? i mean is it 100% compatible with code i've already got?
+[2012-07-04 21:43:04 -0400] myusuf3: hey
+[2012-07-04 21:43:11 -0400] myusuf3: I am getting this exception
+[2012-07-04 21:43:11 -0400] myusuf3: Chef::Exceptions::Exec
+[2012-07-04 21:43:32 -0400] myusuf3: saying tha tthe groupmod: GID '9001' already exists
+[2012-07-04 21:43:56 -0400] jameson: so that group is already there
+[2012-07-04 21:45:06 -0400] myusuf3: this was running before without issue
+[2012-07-04 21:45:15 -0400] myusuf3: is there a way to run it and not do it if ti exists?
+[2012-07-04 21:45:19 -0400] myusuf3: now I run it
+[2012-07-04 21:45:24 -0400] myusuf3: its outputting this error.
+[2012-07-04 21:45:40 -0400] jameson: you are running chef-client/solo for the 2nd time on the instance?
+[2012-07-04 21:45:43 -0400] jameson: *node
+[2012-07-04 21:46:19 -0400] hoover_damm: PapaSierra, yes
+[2012-07-04 21:46:40 -0400] hoover_damm: PapaSierra, it's a drop in replacement that supports innodb or xtradb or other mysql engines such as maria myisam, memory
+[2012-07-04 21:47:02 -0400] jameson: the recipe probably doesn't check before it does it
+[2012-07-04 21:47:19 -0400] jameson: and from it sounds like it doesn't check before it adds
+[2012-07-04 21:47:33 -0400] jameson: (you shouldn't first-run.json more than once)
+[2012-07-04 21:49:24 -0400] PapaSierra: hoover_damm must i completely remove mysql before adding percona?
+[2012-07-04 21:53:12 -0400] hoover_damm: PapaSierra, yep
+[2012-07-04 21:53:22 -0400] hoover_damm: PapaSierra, if you can reimage/terminate start fresh
+[2012-07-04 21:53:24 -0400] hoover_damm: would be good
+[2012-07-04 21:53:40 -0400] PapaSierra: will do
+[2012-07-04 21:54:49 -0400] hoover_damm: instead of full disk ext4 :)
+[2012-07-04 21:54:58 -0400] hoover_damm: feels good to be in control of my universe again
+[2012-07-04 21:55:22 -0400] myusuf3: jameson_zzz solo
+[2012-07-04 21:55:34 -0400] myusuf3: yes it is the second time.
+[2012-07-04 21:55:35 -0400] PapaSierra: hoover_damm so i need percona::server, right?
+[2012-07-04 21:55:45 -0400] myusuf3: but I have ran it multiple times on the same instance.
+[2012-07-04 21:56:14 -0400] hoover_damm: PapaSierra, review that cookbook and follow it's patterns
+[2012-07-04 21:56:28 -0400] hoover_damm: https://github.com/phlipper/chef-percona
+[2012-07-04 21:56:48 -0400] hoover_damm: but yes percona::server :)
+[2012-07-04 21:57:16 -0400] PapaSierra: yes i'm reading it. i just looked at percona::server and saw that it appears to require some sensible sounding other recipes
+[2012-07-04 21:57:27 -0400] myusuf3: hoover_damm
+[2012-07-04 21:57:30 -0400] PapaSierra: such as default, access_grants, replication
+[2012-07-04 21:57:30 -0400] myusuf3: you got a second?
+[2012-07-04 21:58:22 -0400] myusuf3: i am getting this error
+[2012-07-04 21:58:23 -0400] myusuf3: Chef::Exceptions::Exec
+[2012-07-04 21:58:29 -0400] myusuf3: when I create the group
+[2012-07-04 21:58:35 -0400] myusuf3: when I do it multiple times
+[2012-07-04 21:58:43 -0400] myusuf3: didn't used to throw an error now it does
+[2012-07-04 22:05:17 -0400] PapaSierra: hoover_damm i've never used encrypted data bags. i'm using chef-solo. i'm not sure what to do with this section: https://github.com/phlipper/chef-percona#mysql-item
+[2012-07-04 22:12:05 -0400] masterkorp: How do i get my key from a chef server =
+[2012-07-04 22:12:09 -0400] masterkorp: ?
+[2012-07-04 22:12:11 -0400] masterkorp: ?
+[2012-07-04 22:15:20 -0400] hoover_damm: PapaSierra, supports, not required.
+[2012-07-04 22:15:36 -0400] hoover_damm: myusuf3, group "something" do action :add end
+[2012-07-04 22:15:37 -0400] hoover_damm: ?
+[2012-07-04 22:15:56 -0400] PapaSierra: hoover_damm right, but surely i need to specify passwords before chef solo does provisioning?
+[2012-07-04 22:16:16 -0400] hoover_damm: myusuf3, Chef::Exceptions::Exec the class of the exception.  We need a stacktrace and relevent information before we can help
+[2012-07-04 22:16:34 -0400] hoover_damm: PapaSierra, http://wiki.opscode.com/display/chef/Data+Bags#DataBags-UsingDataBagswithChefSolo
+[2012-07-04 22:16:59 -0400] hoover_damm: PapaSierra, also see https://github.com/edelight/chef-solo-search
+[2012-07-04 22:18:23 -0400] PapaSierra: right, but if i don't want to use databags, if i just want to set up the database server with percona as simply as possible, i don't want the passwords to be "123-changeme", so surely i want something similar to the snippet seen at https://github.com/phlipper/chef-percona#system-item only maybe plain text passwords?
+[2012-07-04 22:18:30 -0400] PapaSierra: or have i completely misunderstood?
+[2012-07-04 22:19:30 -0400] hoover_damm: PapaSierra, I'm not an expert on that cookbook so following the README would be the best
+[2012-07-04 22:21:51 -0400] gmcinnes: ahhh. It's July 4.
+[2012-07-04 22:22:03 -0400] gmcinnes: no wonder no-one with a cluestick about chef-server is here
+[2012-07-04 22:22:36 -0400] hoover_damm: gmcinnes, rabbitmq-server isn't enabled by default
+[2012-07-04 22:22:44 -0400] hoover_damm: gmcinnes, at least in some old version
+[2012-07-04 22:22:55 -0400] hoover_damm: gmcinnes, verify /etc/default/rabbitmq-server type deal
+[2012-07-04 22:23:36 -0400] gmcinnes: will do
+[2012-07-04 22:24:40 -0400] gmcinnes: In theory it should have already been enabled earlier in the chef-solo run
+[2012-07-04 22:24:55 -0400] hoover_damm: agreed
+[2012-07-04 22:25:03 -0400] gmcinnes: and I already tried it by hand with update-rc.d
+[2012-07-04 22:25:07 -0400] gmcinnes: and it seemed to work.
+[2012-07-04 22:25:13 -0400] gmcinnes: but I'll check after this latest run.
+[2012-07-04 22:25:15 -0400] hoover_damm: well disabled != update-rc.d
+[2012-07-04 22:25:17 -0400] hoover_damm: hehe
+[2012-07-04 22:25:32 -0400] hoover_damm: that's usually a 'enable' or disable token in /etc/default
+[2012-07-04 22:26:16 -0400] hoover_damm: gmcinnes, https://github.com/opscode/opscode-packages
+[2012-07-04 22:26:34 -0400] PapaSierra: blast, now it's percona's turn to have errors :(
+[2012-07-04 22:27:39 -0400] gmcinnes: I don't know what that means, hoover_damm
+[2012-07-04 22:30:10 -0400] hoover_damm: gmcinnes, https://github.com/opscode/opscode-packages/tree/master/debian/chef-expander/debian holds all the stuff to build said packages
+[2012-07-04 22:31:35 -0400] PapaSierra: percona looked so promising, but it's doing just the same thing that mysql was. package[percona-server-server] (percona::server line 4) had an error: Chef::Exceptions::Exec: apt-get -q -y --force-yes install percona-server-server=5.5.24-rel26.0-256.precise returned 100, expected 0
+[2012-07-04 22:32:12 -0400] hoover_damm: is your apt cookbook recent? run apt-get -f install and see what it says
+[2012-07-04 22:33:07 -0400] PapaSierra: hoover_damm i'm not sure: http://dpaste.com/767489/
+[2012-07-04 22:33:13 -0400] tightwork: anyone know how I can write ruby script to interact with chef?
+[2012-07-04 22:33:15 -0400] gmcinnes: I mean, in theory I do, but in practice I'd rather dig my eyes out with a spoon than learn another dependency :)
+[2012-07-04 22:34:24 -0400] hoover_damm: PapaSierra, what version is your apt cookbook? sounds like it didn't install the key for the repo right
+[2012-07-04 22:34:59 -0400] PapaSierra: i'm using opscode apt repo, latest version on the master branch
+[2012-07-04 22:37:06 -0400] hoover_damm: can't say from what you've shown then
+[2012-07-04 22:38:09 -0400] PapaSierra: there are too many new concepts going on here. i'm a little bit upset that chef and the official recipes can't tackle these common tasks, it's very confusing
+[2012-07-04 22:40:51 -0400] flu-: We are seeing an issue where an attribute that is an array, in JSON as "someArray":[10,10,40,40], will show up in chef attributes as [10,40]
+[2012-07-04 22:41:03 -0400] flu-: has anyone else seen this odd behavior before?
+[2012-07-04 22:41:25 -0400] masterkorp: How do i generate a key for me on a chef server ?
+[2012-07-04 22:47:36 -0400] flu-: disregard my previous. Gathering data
+[2012-07-04 22:55:14 -0400] PapaSierra: hoover_damm i've tried to read up on this, is there any direction you can point me in? http://dpaste.com/767492/
+[2012-07-04 23:08:03 -0400] PapaSierra: hoover_damm i've got some more info: http://dpaste.com/767494/
+[2012-07-04 23:13:39 -0400] vluther: if I changed the environment for a node via manage.opscode.com, do i need to do anything specific on the node before I run chef-client?
+[2012-07-04 23:25:33 -0400] jan0232: how do i make knife ec2 server create spit out DEBUG level messages?
+[2012-07-04 23:26:37 -0400] jan0232: ah i guess it's -VV
+[2012-07-04 23:26:39 -0400] jan0232: :)
+[2012-07-04 23:56:12 -0400] jan0232: ok i FINALLY found out why gem_package always seemed to install in embedded chef instead of my rbenv one somehow after installing rbenv the path is still the same when i do a second chef-client run the PATH gets updated...
+[2012-07-04 23:56:36 -0400] jan0232: now the question ishow do i tell chef in the middle of a chef-client run to update the profile??
+[2012-07-04 23:58:57 -0400] gmcinnes: hoover_damm: no cigar.  there isn't even a entry in /etc/defaults for rabbitmq
